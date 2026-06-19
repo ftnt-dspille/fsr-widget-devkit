@@ -5,7 +5,7 @@
 **Always use `Bash` with `run_in_background: true` to start the harness.** Never use TaskCreate — it kills long-running processes.
 
 ```
-command: npm run dev
+command: pnpm dev
 cwd: <path-to>/fortisoar-widget-harness
 run_in_background: true
 ```
@@ -19,7 +19,7 @@ The harness listens on **port 4401** (set via `.env`). Always use `http://localh
 
 ## Testing & deploying widgets — go through the parent Makefile, never by hand
 
-This `npm run dev` server is for **interactive** use only. Builds, tests, and
+This `pnpm dev` server is for **interactive** use only. Builds, tests, and
 deploys run from the **parent repo's Makefile** — see `../TESTING.md` (canonical
 build→test→deploy flow) and `../CONTRIBUTING.md`:
 

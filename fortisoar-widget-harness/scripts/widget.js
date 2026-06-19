@@ -141,7 +141,7 @@ function loadKeyring() {
     return require("@napi-rs/keyring");
   } catch (_) {
     die(
-      "@napi-rs/keyring is not installed. Run `npm install` (it's an optional\n" +
+      "@napi-rs/keyring is not installed. Run `pnpm install` (it's an optional\n" +
       "  dependency), or skip the keychain and set FSR_PASSWORD in your environment/.env."
     );
   }
