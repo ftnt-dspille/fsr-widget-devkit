@@ -1,0 +1,2311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FortiSOAR widget dev harness</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css"
+    />
+    <style>
+      body {
+        font-family: -apple-system, system-ui, sans-serif;
+        margin: 0;
+        background: #f5f6f8;
+        color: #1b1f24;
+      }
+      body.theme-dark {
+        background: #1b1f24;
+        color: #dcdcdc;
+      }
+      body.theme-dark .harness-frame {
+        background: #252526;
+        border-color: #3c3c3c;
+        color: #dcdcdc;
+      }
+      body.theme-dark .harness-empty {
+        color: #9da5b4;
+      }
+      .harness-bar {
+        background: #1b1f24;
+        color: #eee;
+        padding: 10px 16px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        font-size: 13px;
+        flex-wrap: wrap;
+      }
+      .harness-bar label {
+        margin: 0;
+        font-weight: normal;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .harness-bar input,
+      .harness-bar select {
+        background: #2b313a;
+        color: #eee;
+        border: 1px solid #3a4049;
+        padding: 3px 6px;
+        border-radius: 3px;
+        font-size: 12px;
+      }
+      /* Bar buttons: unify density so they stop varying per inline style. */
+      .harness-bar .btn { padding: 3px 10px; font-size: 12px; line-height: 1.4; }
+      .harness-bar .spacer { flex: 1; }
+      .harness-bar .zone {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      /* Subtle vertical rules between zones — visual grouping without boxes. */
+      .harness-bar .zone + .zone {
+        border-left: 1px solid rgba(255,255,255,0.10);
+        padding-left: 12px;
+      }
+      body.theme-light .harness-bar .zone + .zone {
+        border-left-color: rgba(0,0,0,0.10);
+      }
+      .harness-bar .zone-actions { margin-left: auto; }
+      /* Settings popover */
+      .harness-settings-wrap { position: relative; }
+      .harness-settings-popover {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        background: #242932;
+        border: 1px solid #3a4049;
+        border-radius: 4px;
+        padding: 10px 12px;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 220px;
+        z-index: 9999;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+      .harness-settings-popover.open { display: flex; }
+      body.theme-light .harness-settings-popover {
+        background: #ffffff; border-color: #c0c5cc;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      }
+      /* Custom widget dropdown — always opens downward (unlike native select). */
+      .widget-dd { position: relative; }
+      .widget-dd-btn {
+        background: #2b313a; color: #eee; border: 1px solid #3a4049;
+        padding: 3px 6px; border-radius: 3px; font-size: 12px;
+        display: flex; align-items: center; gap: 8px; cursor: pointer;
+        max-width: 320px;
+      }
+      .widget-dd-btn #widget-dd-label {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .widget-dd-caret { opacity: 0.7; font-size: 10px; }
+      .widget-dd-menu {
+        position: absolute; top: calc(100% + 4px); left: 0;
+        background: #242932; border: 1px solid #3a4049; border-radius: 4px;
+        padding: 4px; display: none; flex-direction: column;
+        min-width: 100%; max-height: 60vh; overflow-y: auto;
+        z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+      .widget-dd-menu.open { display: flex; }
+      .widget-dd-opt {
+        padding: 4px 8px; border-radius: 3px; cursor: pointer;
+        font-size: 12px; color: #eee; white-space: nowrap;
+        display: flex; align-items: center; gap: 6px;
+      }
+      .widget-dd-opt:hover { background: #2f6fed; color: #fff; }
+      .widget-dd-opt.selected { font-weight: 600; }
+      .widget-dd-opt .widget-dd-check { width: 12px; display: inline-block; }
+      body.theme-light .widget-dd-btn { background: #fff; color: #222; border-color: #c0c5cc; }
+      body.theme-light .widget-dd-menu {
+        background: #fff; border-color: #c0c5cc; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      }
+      body.theme-light .widget-dd-opt { color: #222; }
+      .harness-frame {
+        background: #fff;
+        margin: 16px;
+        border: 1px solid #dfe3e8;
+        border-radius: 4px;
+        min-height: 500px;
+      }
+      .harness-empty {
+        padding: 60px;
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+      }
+      .harness-toasts {
+        position: fixed;
+        top: 60px;
+        right: 16px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .harness-toast {
+        padding: 8px 12px;
+        border-radius: 3px;
+        color: #fff;
+        font-size: 12px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      }
+      .harness-toast-success { background: #5cb85c; }
+      .harness-toast-error   { background: #d9534f; }
+      .harness-toast-warning { background: #f0ad4e; }
+      .harness-toast-info    { background: #5bc0de; }
+      .harness-json-view {
+        background: #f7f7f9;
+        border: 1px solid #e5e5e5;
+        padding: 8px;
+        font-size: 12px;
+        max-height: 400px;
+        overflow: auto;
+        border-radius: 3px;
+      }
+      .harness-spinner { font-size: 22px; color: #555; }
+      .harness-package-panel {
+        background: #242932;
+        color: #eee;
+        padding: 10px 16px;
+        display: none;
+        gap: 10px;
+        align-items: center;
+        font-size: 12px;
+        border-top: 1px solid #3a4049;
+        flex-wrap: wrap;
+      }
+      .harness-package-panel.open { display: flex; }
+      /* Targets the text inputs (new-version field) only. Without the
+       * attribute filter this also stretches every radio in the panel to
+       * 100px, leaving a huge gap between the radio dot and its label. */
+      .harness-package-panel input[type="text"],
+      .harness-package-panel input:not([type]) {
+        background: #2b313a;
+        color: #eee;
+        border: 1px solid #3a4049;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        width: 100px;
+      }
+      .harness-package-panel .current-version {
+        opacity: 0.75;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .harness-package-panel .group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      body.theme-light {
+        background: #f5f6f8 !important;
+        color: #1b1f24 !important;
+      }
+      body.theme-light .harness-bar {
+        background: #f0f2f5;
+        color: #1b1f24;
+        border-bottom: 1px solid #d0d4da;
+      }
+      body.theme-light .harness-bar input,
+      body.theme-light .harness-bar select {
+        background: #ffffff;
+        color: #1b1f24;
+        border-color: #c0c5cc;
+      }
+      body.theme-light .harness-frame {
+        background: #ffffff;
+        border-color: #d0d4da;
+      }
+      body.theme-light .harness-package-panel {
+        background: #e8eaed;
+        color: #1b1f24;
+        border-top-color: #c0c5cc;
+      }
+      body.theme-light .harness-package-panel input {
+        background: #ffffff;
+        color: #1b1f24;
+        border-color: #c0c5cc;
+      }
+      /* Navy: distinct chrome variant so the dropdown is visibly different
+         from dark. Background pulls toward FortiSOAR's navy palette, but the
+         harness chrome owns these colors — picking navy here always changes
+         chrome, regardless of whether 'Load FortiSOAR CSS' is on. */
+      body.theme-navy { background: #0f1a2e; color: #d8e1ee; }
+      body.theme-navy .harness-bar { background: #0d1525; color: #d8e1ee; }
+      body.theme-navy .harness-status { background: #0a1120; color: #95a3bb; border-bottom-color: #1c2a45; }
+      body.theme-navy .harness-bar input,
+      body.theme-navy .harness-bar select {
+        background: #1c2a45; color: #d8e1ee; border-color: #2a3a5c;
+      }
+      body.theme-navy .harness-frame { background: #0d1525; border-color: #1c2a45; }
+      body.theme-navy .harness-bar .zone + .zone { border-left-color: rgba(255,255,255,0.10); }
+      body.theme-light .harness-empty {
+        color: #555;
+      }
+      .muted-65 { color: rgba(0, 0, 0, 0.55); }
+      body.theme-dark .muted-65 { color: rgba(220, 220, 220, 0.6); }
+      .font-size-12 { font-size: 12px; }
+      .font-size-16 { font-size: 16px; }
+      .text-overflow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .margin-chart { margin: 0; }
+      .display-flex-space-between { display: flex; justify-content: space-between; align-items: center; }
+      .position-relative { position: relative; }
+      .position-absolute { position: absolute; }
+
+      /* Context wrappers — applied to the widget mount per harness context. */
+      .harness-frame.ctx-viewpanel #widget-host {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 12px 16px;
+      }
+      .harness-frame.ctx-drawer {
+        background: transparent;
+        border: 0;
+        margin: 0;
+        min-height: 0;
+        position: relative;
+        height: 100vh;
+      }
+      .harness-frame.ctx-drawer #widget-host {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 55vw;
+        min-width: 480px;
+        max-width: 1100px;
+        height: 100vh;
+        background: #fff;
+        border-left: 1px solid #dfe3e8;
+        box-shadow: -4px 0 14px rgba(0, 0, 0, 0.18);
+        overflow: auto;
+        padding: 16px;
+        z-index: 50;
+      }
+      body.theme-dark .harness-frame.ctx-drawer #widget-host {
+        background: #252526;
+        border-left-color: #3c3c3c;
+      }
+      /* Close button only visible in drawer mode — mirrors the host chrome
+         (Minimize Window) so the user can dismiss the drawer that's covering
+         the records grid behind it. */
+      #harness-drawer-close {
+        display: none;
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        z-index: 60;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        line-height: 1;
+        font-size: 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      #harness-drawer-close:hover { background: rgba(0, 0, 0, 0.75); }
+      .harness-frame.ctx-drawer #harness-drawer-close { display: inline-flex; align-items: center; justify-content: center; }
+      .harness-frame.ctx-drawer.drawer-hidden #widget-host { display: none; }
+      .harness-frame.ctx-drawer.drawer-hidden #harness-drawer-close { display: none; }
+      /* Reopen trigger only visible after the drawer's been closed. Anchored
+         to the bottom-right so it doesn't overlap the harness top toolbar
+         (Edit config / Package / Import / Settings / Debug). */
+      #harness-drawer-open {
+        display: none;
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        z-index: 60;
+        height: 36px;
+        padding: 0 16px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 999px;
+        cursor: pointer;
+        background: rgba(20, 184, 166, 0.95);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 6px 20px rgba(20, 184, 166, 0.4);
+      }
+      #harness-drawer-open:hover { background: rgba(20, 184, 166, 1); }
+      .harness-frame.ctx-drawer.drawer-hidden #harness-drawer-open { display: inline-flex; align-items: center; }
+      .harness-record-header {
+        font-size: 12px;
+        padding: 6px 12px;
+        background: rgba(0, 0, 0, 0.05);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        margin-bottom: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      body.theme-dark .harness-record-header {
+        background: rgba(255, 255, 255, 0.05);
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+      }
+      .harness-record-header .err { color: #d9534f; }
+
+      /* The harness owns the modal chrome (header + Cancel/Save toolbar), so
+         hide whatever the widget's edit.html ships for those — otherwise we
+         get duplicate buttons and the embedded ones invoke the no-op
+         $uibModalInstance stub. */
+      #edit-modal-body .modal-footer,
+      #edit-modal-body .modal-header { display: none !important; }
+
+      /* Edit-config modal */
+      .harness-modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 100;
+      }
+      .harness-modal-backdrop.open { display: flex; align-items: flex-start; justify-content: center; }
+      .harness-modal {
+        margin-top: 60px;
+        background: #fff;
+        color: #1b1f24;
+        width: 720px;
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow: auto;
+        border-radius: 6px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+        display: flex;
+        flex-direction: column;
+      }
+      body.theme-dark .harness-modal { background: #252526; color: #dcdcdc; }
+      .harness-modal-head {
+        padding: 12px 16px;
+        font-weight: 600;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .harness-modal-body {
+        padding: 16px;
+        overflow: auto;
+      }
+      .harness-modal-foot {
+        padding: 10px 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      }
+      .harness-dvc { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+      /* Lint warning banner (non-blocking warnings live above the widget). */
+      .harness-lint-warn {
+        background: #fff3cd; border: 1px solid #ffe69c; color: #664d03;
+        padding: 8px 12px; margin: 0 16px 8px; border-radius: 4px; font-size: 12px;
+      }
+      body.theme-dark .harness-lint-warn {
+        background: #3a2f10; border-color: #6b5618; color: #f1d68a;
+      }
+
+      /* "Configure this widget" prompt — shown when a freshly-imported
+         widget has no saved config yet. Mirrors the lint-banner pattern
+         so it stays legible against either chrome theme. */
+      .harness-config-prompt {
+        padding: 20px; border: 1px dashed #888; background: #f8f8f8; color: #333;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        border-radius: 4px; text-align: center;
+      }
+      .harness-config-prompt h4 { font-weight: 600; margin: 0 0 8px; font-size: 14px; }
+      .harness-config-prompt p   { margin: 0 0 14px; color: #555; }
+      body.theme-dark .harness-config-prompt {
+        background: #252526; border-color: #4a4a4a; color: #dcdcdc;
+      }
+      body.theme-dark .harness-config-prompt p { color: #b0b0b0; }
+
+      /* Bottom debug drawer. Holds Errors / Network / Console tabs. */
+      .harness-drawer {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+        background: #1b1f24; color: #dcdcdc; border-top: 1px solid #3a4049;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+        display: flex; flex-direction: column; max-height: 50vh;
+        transform: translateY(100%); transition: transform 0.18s ease;
+        pointer-events: none;
+      }
+      .harness-drawer.open { transform: translateY(0); pointer-events: auto; }
+      body.theme-light .harness-drawer { background: #f0f2f5; color: #1b1f24; border-top-color: #c0c5cc; }
+      .harness-drawer-bar {
+        display: flex; align-items: center; gap: 4px; padding: 4px 8px;
+        cursor: pointer; user-select: none; height: 32px; box-sizing: border-box;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+      }
+      body.theme-light .harness-drawer-bar { border-bottom-color: rgba(0,0,0,0.08); }
+      .harness-drawer-tab {
+        padding: 2px 10px; border-radius: 3px; cursor: pointer; font-size: 11px;
+        opacity: 0.65; display: inline-flex; align-items: center; gap: 6px;
+      }
+      .harness-drawer-tab:hover { opacity: 1; }
+      .harness-drawer-tab.active { background: rgba(255,255,255,0.08); opacity: 1; }
+      body.theme-light .harness-drawer-tab.active { background: rgba(0,0,0,0.08); }
+      .harness-drawer-badge {
+        background: #d9534f; color: #fff; padding: 0 6px; border-radius: 8px;
+        min-width: 16px; text-align: center; font-size: 10px; line-height: 14px;
+      }
+      .harness-drawer-badge.muted { background: #6c757d; }
+      .harness-drawer-spacer { flex: 1; }
+      .harness-drawer-action {
+        background: transparent; color: inherit; border: 1px solid rgba(255,255,255,0.15);
+        padding: 1px 8px; border-radius: 3px; font-size: 11px; cursor: pointer;
+      }
+      body.theme-light .harness-drawer-action { border-color: rgba(0,0,0,0.2); }
+      .harness-drawer-body {
+        overflow: auto; flex: 1; padding: 6px 8px; min-height: 220px;
+        background: #14171c;
+      }
+      body.theme-light .harness-drawer-body { background: #fafbfc; }
+      .harness-drawer-row {
+        padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,0.04);
+        white-space: pre-wrap; word-break: break-word; cursor: pointer;
+      }
+      body.theme-light .harness-drawer-row { border-bottom-color: rgba(0,0,0,0.06); }
+      .harness-drawer-row.expanded { background: rgba(255,255,255,0.04); }
+      body.theme-light .harness-drawer-row.expanded { background: rgba(0,0,0,0.04); }
+      .harness-drawer-row .meta { opacity: 0.6; font-size: 11px; margin-right: 6px; }
+      .harness-drawer-row .status-2xx { color: #6abf69; }
+      .harness-drawer-row .status-3xx { color: #5bc0de; }
+      .harness-drawer-row .status-4xx { color: #f0ad4e; }
+      .harness-drawer-row .status-5xx,
+      .harness-drawer-row .status-0   { color: #d9534f; }
+      .harness-drawer-detail {
+        padding: 6px 0 0 0; border-top: 1px dashed rgba(255,255,255,0.1);
+        margin-top: 4px; font-size: 11px;
+      }
+      .harness-drawer-detail pre {
+        background: rgba(0,0,0,0.25); color: inherit; padding: 6px 8px; border: 0;
+        border-radius: 3px; max-height: 240px; overflow: auto; font-size: 11px;
+      }
+      body.theme-light .harness-drawer-detail pre { background: rgba(0,0,0,0.05); }
+      .harness-drawer-empty { opacity: 0.55; padding: 12px; text-align: center; }
+      .harness-drawer-filter {
+        background: #2b313a; color: #dcdcdc; border: 1px solid #3a4049;
+        padding: 1px 6px; border-radius: 3px; font-size: 11px; width: 160px;
+      }
+      body.theme-light .harness-drawer-filter { background: #fff; color: #1b1f24; border-color: #c0c5cc; }
+      body.has-drawer-open { padding-bottom: 50vh; }
+      /* Status strip: thin row directly below the bar. Always visible,
+         data-driven from /_fsr/info + harness network buffer. */
+      .harness-status {
+        background: #14171c;
+        color: #c0c5cc;
+        font-size: 11px;
+        padding: 4px 16px;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        border-bottom: 1px solid #2b313a;
+      }
+      body.theme-light .harness-status {
+        background: #e8eaed; color: #3a4049; border-bottom-color: #d0d4da;
+      }
+      .harness-status .status-pill {
+        display: inline-flex; gap: 4px; align-items: center;
+      }
+      .harness-status .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #888; display: inline-block;
+      }
+      .harness-status .dot.ok  { background: #5cb85c; }
+      .harness-status .dot.warn { background: #f0ad4e; }
+      .harness-status .dot.err { background: #d9534f; }
+      .harness-status .meta { opacity: 0.7; }
+      .harness-status code {
+        background: rgba(255,255,255,0.06);
+        padding: 0 4px; border-radius: 2px;
+      }
+      body.theme-light .harness-status code { background: rgba(0,0,0,0.06); }
+    </style>
+  </head>
+  <body>
+    <div class="harness-bar">
+      <!-- Identity: which widget, which context, which record -->
+      <div class="zone zone-identity">
+        <strong>Harness</strong>
+        <label>
+          Widget
+          <!-- Custom dropdown: a native <select> aligns its popup so the
+               checked option sits under the cursor, which on macOS opens the
+               menu *upward* when the selection is near the end of the list.
+               The native select is kept (hidden) as the source of truth so all
+               existing .value/.options/change-event code keeps working; this
+               button+menu mirrors it and always opens downward. -->
+          <div class="widget-dd" id="widget-dd">
+            <button id="widget-dd-btn" class="widget-dd-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span id="widget-dd-label">—</span><span class="widget-dd-caret">▾</span>
+            </button>
+            <div id="widget-dd-menu" class="widget-dd-menu" role="listbox"></div>
+          </div>
+          <select id="widget-select" style="display:none"></select>
+        </label>
+        <label>
+          Context
+          <select id="ctx">
+            <option value="dashboard">Dashboard</option>
+            <option value="viewpanel">View Panel</option>
+            <option value="drawer">Drawer</option>
+          </select>
+        </label>
+        <label id="vp-fields" style="display: none">
+          module <input id="vp-module" value="alerts" size="10" />
+          id <input id="vp-id" size="36" placeholder="uuid" />
+        </label>
+        <button id="reload" class="btn btn-sm btn-primary" type="button">Reload</button>
+      </div>
+
+      <!-- Actions: edit / package / import / debug. Right-aligned via zone-actions margin-left:auto -->
+      <div class="zone zone-actions">
+        <button id="edit-config" class="btn btn-sm btn-default" type="button"
+                title="Open the widget's edit.html in a modal and update its config">
+          Edit config
+        </button>
+        <button id="package-toggle" class="btn btn-sm btn-default" type="button">Package</button>
+        <button id="import-toggle" class="btn btn-sm btn-default" type="button"
+                title="Import a widget — search FortiSOAR or upload a .tgz">
+          Import…
+        </button>
+        <!-- Settings popover: theme, FortiSOAR CSS, width, cache. Rare day-to-day touches. -->
+        <div class="harness-settings-wrap">
+          <button id="settings-toggle" class="btn btn-sm btn-default" type="button"
+                  title="Theme, layout width, FortiSOAR CSS, cache controls">
+            Settings ▾
+          </button>
+          <div id="settings-popover" class="harness-settings-popover">
+            <label title="Sets both the harness chrome and the SOAR widget theme ($rootScope.theme.id). All three values produce a visibly different chrome.">
+              Theme
+              <select id="harness-theme">
+                <option value="dark" selected>dark</option>
+                <option value="light">light</option>
+                <option value="navy">navy</option>
+              </select>
+            </label>
+            <label title="Override the view-panel max width. SOAR's real view panel is ~880px; loosen this when a widget needs more room.">
+              Width
+              <select id="vp-width">
+                <option value="880">880</option>
+                <option value="1100">1100</option>
+                <option value="1300">1300</option>
+                <option value="1600">1600</option>
+                <option value="full">full</option>
+              </select>
+            </label>
+            <label title="Inject the proxied SOAR's stylesheets so the widget renders with SOAR's design tokens. Affects the widget area only — the harness chrome ignores it. Off = chrome-only styling, fastest load.">
+              <input type="checkbox" id="load-fsr-css" />
+              Load FortiSOAR CSS
+            </label>
+            <label title="Serve the slow preload calls (locales, model_metadatas) from dev/cache/. Uncheck for live data.">
+              <input type="checkbox" id="cache-toggle" />
+              Cache API
+            </label>
+            <button id="cache-clear" class="btn btn-sm btn-default" type="button"
+                    title="Delete all cached preload responses on disk">
+              Clear cache
+            </button>
+          </div>
+        </div>
+        <button id="drawer-toggle-btn" class="btn btn-sm btn-default" type="button"
+                title="Toggle the debug drawer (Errors / Network / Console)">
+          Debug <span id="drawer-error-count" class="harness-drawer-badge" style="display:none">0</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="harness-status" class="harness-status">
+      <span class="status-pill" title="The FortiSOAR host this harness is proxying to">
+        <span class="meta">proxy →</span>
+        <code id="status-host">…</code>
+      </span>
+      <span class="status-pill" title="Currently mounted widget and its version">
+        <span class="meta">widget</span>
+        <code id="status-widget">—</code>
+      </span>
+      <span class="status-pill" title="Last proxied request (status code, method, path)">
+        <span id="status-req-dot" class="dot"></span>
+        <span id="status-req">no requests yet</span>
+      </span>
+      <span class="status-pill" title="Total proxied requests since page load">
+        <span class="meta">reqs</span>
+        <code id="status-req-count">0</code>
+      </span>
+    </div>
+
+    <div id="package-panel" class="harness-package-panel">
+      <span>current <span id="pkg-current" class="current-version">—</span></span>
+      <div class="group">
+        <label>new version <input id="pkg-version" size="10" /></label>
+      </div>
+      <div class="group">
+        bump
+        <button id="pkg-bump-patch" class="btn btn-xs btn-default" type="button">patch</button>
+        <button id="pkg-bump-minor" class="btn btn-xs btn-default" type="button">minor</button>
+        <button id="pkg-bump-major" class="btn btn-xs btn-default" type="button">major</button>
+      </div>
+      <div class="group" style="align-items:center;gap:6px;">
+        <span style="opacity:0.7;font-size:11px;white-space:nowrap;">min compat</span>
+        <label style="margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:12px;"><input type="radio" name="pkg-compat" id="pkg-compat-none" value="" style="margin:0;" /> none</label>
+        <label style="margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:12px;"><input type="radio" name="pkg-compat" id="pkg-compat-74" value="7.4.0" style="margin:0;" /> 7.4</label>
+        <label style="margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:12px;"><input type="radio" name="pkg-compat" id="pkg-compat-76" value="7.6.0" style="margin:0;" /> 7.6</label>
+        <label style="margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:12px;"><input type="radio" name="pkg-compat" id="pkg-compat-80" value="8.0.0" style="margin:0;" /> 8.0</label>
+        <span id="pkg-compat-status" style="opacity:0.65;font-size:11px;"></span>
+      </div>
+      <button id="pkg-build" class="btn btn-sm btn-success" type="button" style="padding: 2px 10px">
+        Package &amp; Download
+      </button>
+      <button id="pkg-install" class="btn btn-sm btn-primary" type="button" style="padding: 2px 10px"
+              title="Package, upload, and publish to FortiSOAR in one shot">
+        Install to SOAR
+      </button>
+      <span id="pkg-status" style="opacity: 0.75"></span>
+    </div>
+
+    <div id="pkg-detail" style="margin: 8px 16px 0; display: none;
+         padding: 10px 12px; border: 1px solid #c0392b; background: #fdecea;
+         border-radius: 4px; font-size: 12px; line-height: 1.4; color: #2b2b2b;">
+    </div>
+
+    <div id="harness-toasts" class="harness-toasts"></div>
+
+    <div id="lint-warnings"></div>
+
+    <div id="harness-frame" class="harness-frame">
+      <div id="record-header" class="harness-record-header" style="display: none"></div>
+      <button id="harness-drawer-close" type="button" title="Close drawer">✕</button>
+      <button id="harness-drawer-open" type="button" title="Open drawer">☰ Open drawer</button>
+      <div id="widget-host">
+        <div class="harness-empty">loading…</div>
+      </div>
+    </div>
+
+    <div id="import-modal-backdrop" class="harness-modal-backdrop">
+      <div class="harness-modal" style="max-width: 760px;">
+        <div class="harness-modal-head">
+          <span>Import widget</span>
+          <button id="import-modal-close" class="btn btn-xs btn-default" type="button">close</button>
+        </div>
+        <div class="harness-modal-body" style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;gap:4px;">
+            <button id="import-mode-soar" class="btn btn-xs btn-default" type="button">From FortiSOAR</button>
+            <button id="import-mode-upload" class="btn btn-xs btn-default" type="button">Upload .tgz</button>
+          </div>
+          <div id="import-pane-soar" style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="import-filter" placeholder="filter by name/title…" style="flex:1;padding:4px 8px;" />
+              <label style="font-size:12px;display:flex;gap:4px;align-items:center;">
+                <input type="checkbox" id="import-show-inbuilt" checked /> include built-in
+              </label>
+              <button id="import-refresh" class="btn btn-xs btn-default" type="button">refresh</button>
+            </div>
+            <div id="import-list" style="overflow:auto;max-height:50vh;border:1px solid rgba(255,255,255,0.1);">
+              <div style="padding:12px;opacity:0.6;">loading…</div>
+            </div>
+          </div>
+          <div id="import-pane-upload" style="display:none;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="import-tgz-file" type="file" accept=".tgz,.tar.gz,application/gzip,application/x-gzip" style="flex:1;" />
+            </div>
+            <div id="import-tgz-info" style="opacity:0.6;font-size:12px;min-height:1em;">no file selected</div>
+          </div>
+          <label style="font-size:12px;display:flex;gap:6px;align-items:center;">
+            folder
+            <input id="import-folder" placeholder="(auto from name)" style="flex:1;padding:2px 6px;" />
+            <span style="opacity:0.6;">— created under widgets-src/</span>
+          </label>
+        </div>
+        <div class="harness-modal-foot">
+          <span id="import-status" style="opacity: 0.7; font-size: 12px; margin-right: auto"></span>
+          <button id="import-cancel" class="btn btn-sm btn-default" type="button">Cancel</button>
+          <button id="import-go" class="btn btn-sm btn-primary" type="button" disabled>Import</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="edit-modal-backdrop" class="harness-modal-backdrop">
+      <div class="harness-modal">
+        <div class="harness-modal-head">
+          <span>Edit widget config</span>
+          <button id="edit-modal-close" class="btn btn-xs btn-default" type="button">close</button>
+        </div>
+        <div id="edit-modal-body" class="harness-modal-body"></div>
+        <div class="harness-modal-foot">
+          <span id="edit-modal-status" style="opacity: 0.7; font-size: 12px; margin-right: auto"></span>
+          <button id="edit-modal-cancel" class="btn btn-sm btn-default" type="button">Cancel</button>
+          <button id="edit-modal-save" class="btn btn-sm btn-primary" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="harness-drawer" class="harness-drawer">
+      <div class="harness-drawer-bar" id="drawer-bar">
+        <span class="harness-drawer-tab active" data-tab="errors">
+          Errors <span id="tab-badge-errors" class="harness-drawer-badge" style="display:none">0</span>
+        </span>
+        <span class="harness-drawer-tab" data-tab="network">
+          Network <span id="tab-badge-network" class="harness-drawer-badge muted" style="display:none">0</span>
+        </span>
+        <span class="harness-drawer-tab" data-tab="console">
+          Console <span id="tab-badge-console" class="harness-drawer-badge muted" style="display:none">0</span>
+        </span>
+        <span class="harness-drawer-spacer"></span>
+        <input id="drawer-filter" class="harness-drawer-filter" placeholder="filter…" />
+        <label style="display:flex;gap:4px;align-items:center;font-size:11px;opacity:0.85;">
+          <input type="checkbox" id="drawer-verbose" /> verbose
+        </label>
+        <button id="drawer-clear" class="harness-drawer-action" type="button">clear</button>
+        <button id="drawer-collapse" class="harness-drawer-action" type="button">▾</button>
+      </div>
+      <div class="harness-drawer-body" id="drawer-body"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-resource/1.8.3/angular-resource.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-messages/1.8.3/angular-messages.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.6/ui-bootstrap-csp.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.6/ui-bootstrap-tpls.min.js"></script>
+    <!-- angular-ui-select: also stripped from app.unmin.js. cs-conditional's
+         multiselect value picker (operator = in/nin) renders <ui-select>
+         elements; without this lib, it's just bare HTML and the dropdown
+         never opens. The -tpls build bundles default Bootstrap templates. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ui-select@0.20.0/dist/select.min.css">
+    <!-- jsdelivr ships select.min.js with templates inlined into $templateCache;
+         cdnjs only ships select.min.js without templates and ui-select fails
+         to register the module if the templates aren't available at compile. -->
+    <script src="https://cdn.jsdelivr.net/npm/ui-select@0.20.0/dist/select.min.js"></script>
+    <!-- angular-ui-grid: stripped from app.unmin.js along with the other
+         vendor deps. SOAR's csGrid directive wraps ui-grid, so without it any
+         grid-backed widget (jsonToGrid, and every other grid widget) throws
+         `$injector:unpr uiGridConstants` and renders zero .ui-grid-row. The
+         4.6.4 release bundles core + every feature module (selection,
+         exporter, pinning, cellNav, autoResize, expandable, move/resize
+         columns) that cybersponse depends on — see HARNESS_VENDOR_DEPS in
+         server.js, which must list each so cybersponse's injector can see
+         them. Must load before app.unmin.js so the modules exist when the
+         cybersponse dep array is declared. ui-grid 4.6.4 is the last release
+         and supports angular 1.8.x. -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-grid/4.6.4/ui-grid.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-grid/4.6.4/ui-grid.min.js"></script>
+    <!-- Other stripped vendors with low conflict risk. Stripped from
+         app.unmin.js but injected widely:
+           - ngSanitize: $sanitize for ng-bind-html safe content
+           - moment + angular-moment: amTimeAgo etc. date filters
+           - ng-file-upload: Upload service for any file pickers
+         Skipped on purpose (would clash with harness stubs or need extra
+         setup, add only if a feature actually needs them):
+           - angular-local-storage (localStorageService stub in harness.module.js)
+           - angular-toaster (toaster stub; real one needs <toaster-container>)
+           - angular-ui-router ($state stub; real one would try to route) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-sanitize/1.8.3/angular-sanitize.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular-moment/1.3.0/angular-moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/danialfarid-angular-file-upload/12.2.13/ng-file-upload.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/c3/0.7.20/c3.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/c3/0.7.20/c3.min.js"></script>
+    <!-- Editors used by csMarkdownEditor / csHtmlEditor (cs-conditional value
+         cells when filtering richtext/html fields):
+           - toastui Editor + DOMPurify back the markdown editor
+           - tinymce backs the html editor
+         Without these, the directives throw on init and the unprocessed
+         <div ng-model="value"> renders `[object Object]`. -->
+    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css">
+    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+    <script src="/lib/harnessUtils.js"></script>
+    <script src="/lib/harnessDrawer.js"></script>
+
+    <script>
+      function setEmpty(host, text) {
+        while (host.firstChild) host.removeChild(host.firstChild);
+        const d = document.createElement("div");
+        d.className = "harness-empty";
+        d.textContent = text;
+        host.appendChild(d);
+      }
+
+      (async function () {
+        const widgetSelect = document.getElementById("widget-select");
+
+        // Custom widget dropdown driven by the (now hidden) native <select>.
+        // syncWidgetDD() mirrors the select's options + current value into the
+        // button/menu; call it after any code that mutates the select. Picking
+        // an option writes back to the select and dispatches `change` so every
+        // existing listener fires exactly as it did with the native control.
+        const widgetDDBtn = document.getElementById("widget-dd-btn");
+        const widgetDDMenu = document.getElementById("widget-dd-menu");
+        const widgetDDLabel = document.getElementById("widget-dd-label");
+        function closeWidgetDD() {
+          widgetDDMenu.classList.remove("open");
+          widgetDDBtn.setAttribute("aria-expanded", "false");
+        }
+        function syncWidgetDD() {
+          const sel = widgetSelect.options[widgetSelect.selectedIndex];
+          widgetDDLabel.textContent = sel ? sel.textContent : "—";
+          widgetDDMenu.textContent = "";
+          for (const opt of Array.from(widgetSelect.options)) {
+            const item = document.createElement("div");
+            item.className = "widget-dd-opt" + (opt.value === widgetSelect.value ? " selected" : "");
+            item.setAttribute("role", "option");
+            const check = document.createElement("span");
+            check.className = "widget-dd-check";
+            check.textContent = opt.value === widgetSelect.value ? "✓" : "";
+            item.appendChild(check);
+            item.appendChild(document.createTextNode(opt.textContent));
+            item.addEventListener("click", () => {
+              closeWidgetDD();
+              if (widgetSelect.value !== opt.value) {
+                widgetSelect.value = opt.value;
+                widgetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            });
+            widgetDDMenu.appendChild(item);
+          }
+        }
+        window.__syncWidgetDD = syncWidgetDD;
+        widgetDDBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const willOpen = !widgetDDMenu.classList.contains("open");
+          if (willOpen) syncWidgetDD();
+          widgetDDMenu.classList.toggle("open", willOpen);
+          widgetDDBtn.setAttribute("aria-expanded", String(willOpen));
+        });
+        document.addEventListener("click", (e) => {
+          if (!document.getElementById("widget-dd").contains(e.target)) closeWidgetDD();
+        });
+        // Keep the button label fresh on user-driven changes too.
+        widgetSelect.addEventListener("change", syncWidgetDD);
+
+        const ctxSel = document.getElementById("ctx");
+        const vpFields = document.getElementById("vp-fields");
+        const modEl = document.getElementById("vp-module");
+        const idEl = document.getElementById("vp-id");
+        const loadCssEl = document.getElementById("load-fsr-css");
+        const host = document.getElementById("widget-host");
+        const cacheToggle = document.getElementById("cache-toggle");
+        const cacheClear = document.getElementById("cache-clear");
+        try {
+          const r = await fetch("/_fsr/cache/mode");
+          const j = await r.json();
+          cacheToggle.checked = j.mode === "cached";
+        } catch (_) { cacheToggle.checked = true; }
+        cacheToggle.addEventListener("change", async () => {
+          const mode = cacheToggle.checked ? "cached" : "live";
+          await fetch("/_fsr/cache/mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          });
+        });
+        cacheClear.addEventListener("click", async () => {
+          cacheClear.disabled = true;
+          try {
+            await fetch("/_fsr/cache", { method: "DELETE" });
+            // Also drop the browser-side stale-while-revalidate cache so
+            // the next mount pulls fresh data from upstream.
+            try {
+              for (const k of Object.keys(localStorage)) {
+                if (k.startsWith("harness.cache.")) localStorage.removeItem(k);
+              }
+            } catch (_) {}
+            cacheClear.textContent = "Cleared";
+            setTimeout(() => { cacheClear.textContent = "Clear cache"; }, 1200);
+          } finally { cacheClear.disabled = false; }
+        });
+
+        const HU = window.HarnessUtils;
+        const frame = document.getElementById("harness-frame");
+        const recordHeader = document.getElementById("record-header");
+        const lintWarningsHost = document.getElementById("lint-warnings");
+
+        // Render non-blocking lint warnings above the widget. Errors are
+        // rendered as a separate red banner inside #widget-host because they
+        // *do* block bootstrap.
+        function renderLintWarnings(widget) {
+          while (lintWarningsHost.firstChild) lintWarningsHost.removeChild(lintWarningsHost.firstChild);
+          const warns = (widget.lint && widget.lint.warnings) || [];
+          if (warns.length === 0) return;
+          const div = document.createElement("div");
+          div.className = "harness-lint-warn";
+          const lines = warns.map((w) => "⚠ " + (w.code ? "[" + w.code + "] " : "") + w.message);
+          div.textContent = lines.join("\n");
+          div.style.whiteSpace = "pre-wrap";
+          lintWarningsHost.appendChild(div);
+        }
+
+        // ------------------------ SOAR metadata cache ------------------------
+        // SOAR's /api/3/model_metadatas response (~1MB) and the per-module
+        // /api/locale/1/<type>/en.json fetches (~45 in parallel) dominate
+        // first-paint latency. They rarely change between dev sessions, so
+        // we cache the merged result in localStorage with a 24h TTL.
+        //
+        // Hit  → hydrate window + cs.metadata.* synchronously, kick off a
+        //         background refresh, let the widget mount immediately.
+        // Miss → fetch inline, populate cache, then mount.
+        const HARNESS_CACHE_PREFIX = "harness.cache.v1.";
+        const HARNESS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        function cacheGet(key) {
+          try {
+            const raw = localStorage.getItem(HARNESS_CACHE_PREFIX + key);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed.t !== "number") return null;
+            if (Date.now() - parsed.t > HARNESS_CACHE_TTL_MS) return null;
+            return parsed.v;
+          } catch (_) { return null; }
+        }
+        function cacheSet(key, value) {
+          try {
+            localStorage.setItem(
+              HARNESS_CACHE_PREFIX + key,
+              JSON.stringify({ t: Date.now(), v: value })
+            );
+          } catch (_) { /* quota — skip */ }
+        }
+
+        async function fetchStaticTranslations() {
+          try {
+            const r = await fetch("/locales/static/en.json", {
+              credentials: "include",
+              headers: { Accept: "application/json" },
+            });
+            return r.ok ? await r.json() : null;
+          } catch (_) { return null; }
+        }
+        async function fetchModelMetadatas() {
+          try {
+            const r = await fetch(
+              "/api/3/model_metadatas?$limit=1000&$relationships=true&$orderby=type",
+              { credentials: "include", headers: { Accept: "application/json" } }
+            );
+            const ct = r.headers.get("content-type") || "";
+            if (!r.ok || !ct.includes("json")) {
+              console.warn("[harness] model_metadatas fetch failed status=" + r.status + " ct=" + ct);
+              return [];
+            }
+            const body = await r.json();
+            return body["hydra:member"] || [];
+          } catch (e) {
+            console.warn("[harness] model_metadatas fetch threw", e);
+            return [];
+          }
+        }
+        async function fetchModuleLocale(type) {
+          try {
+            const r = await fetch("/api/locale/1/" + type + "/en.json", {
+              credentials: "include",
+              headers: { Accept: "application/json" },
+            });
+            const ct = r.headers.get("content-type") || "";
+            if (!r.ok || !ct.includes("json")) return null;
+            return await r.json();
+          } catch (_) { return null; }
+        }
+        function applyMetadatasToLocalStorage(items) {
+          items.forEach((m) => {
+            try { localStorage.setItem("cs.metadata." + m.type, JSON.stringify(m)); } catch (_) {}
+          });
+        }
+        async function refreshSoarMetadata() {
+          // Fire-and-forget background refresh. Updates the cache for the
+          // next session but does not block the current mount.
+          const staticTr = await fetchStaticTranslations();
+          const items = await fetchModelMetadatas();
+          if (items.length > 0) {
+            applyMetadatasToLocalStorage(items);
+            const localeBodies = await Promise.all(items.map((m) => fetchModuleLocale(m.type)));
+            const merged = Object.assign({}, staticTr || {});
+            for (const body of localeBodies) if (body) Object.assign(merged, body);
+            cacheSet("translations", merged);
+            cacheSet("model_metadatas", items);
+            // Don't clobber the in-memory translations the running widget
+            // is already bound to — the next mount will pick the new blob
+            // up from cache.
+          }
+        }
+
+        async function preloadSoarMetadata() {
+          if (window.__HARNESS_MMD_PRELOADED && window.__HARNESS_TRANSLATIONS) return;
+
+          // Always merge SOAR translations INTO whatever __HARNESS_TRANSLATIONS
+          // already has — never overwrite. loadWidgetTranslations() may have
+          // already merged widget-local keys before this runs (or runs
+          // concurrently), and replacing the object would silently drop them,
+          // causing widget labels to render as raw keys after a re-open.
+          const mergeIntoTranslations = (extra) => {
+            if (!extra || typeof extra !== "object") return;
+            window.__HARNESS_TRANSLATIONS = Object.assign(
+              {},
+              extra,
+              window.__HARNESS_TRANSLATIONS || {}
+            );
+          };
+
+          const cachedTr = cacheGet("translations");
+          const cachedMmd = cacheGet("model_metadatas");
+          if (cachedTr && Array.isArray(cachedMmd) && cachedMmd.length > 0) {
+            mergeIntoTranslations(cachedTr);
+            applyMetadatasToLocalStorage(cachedMmd);
+            window.__HARNESS_MMD_PRELOADED = true;
+            // Stale-while-revalidate: refresh without blocking the mount.
+            setTimeout(() => { refreshSoarMetadata(); }, 0);
+            return;
+          }
+
+          // Cold path — no cache, so we have to wait. This matches the
+          // pre-cache behavior.
+          const staticTr = await fetchStaticTranslations();
+          const items = await fetchModelMetadatas();
+          if (items.length === 0) {
+            console.warn("[harness] model_metadatas returned 0 items — chart widgets will reject with METADATA_NOT_FOUND. Is your SOAR session authed?");
+            mergeIntoTranslations(staticTr);
+            return;
+          }
+          applyMetadatasToLocalStorage(items);
+          const localeBodies = await Promise.all(items.map((m) => fetchModuleLocale(m.type)));
+          const merged = Object.assign({}, staticTr || {});
+          for (const body of localeBodies) if (body) Object.assign(merged, body);
+          mergeIntoTranslations(merged);
+          window.__HARNESS_MMD_PRELOADED = true;
+          cacheSet("translations", merged);
+          cacheSet("model_metadatas", items);
+        }
+
+        // Fetch the widget's widgetAssets/locales/en.json and merge it into
+        // window.__HARNESS_TRANSLATIONS so keys like "dataVisualization.LABEL_TITLE"
+        // resolve. The harness translationService wrapper (harness.module.js)
+        // reads from this map before delegating to the real SOAR service.
+        // Idempotent: skips work if we've already merged this widget's id.
+        window.__HARNESS_LOADED_WIDGET_LOCALES = window.__HARNESS_LOADED_WIDGET_LOCALES || {};
+        async function loadWidgetTranslations(widget) {
+          if (!widget || window.__HARNESS_LOADED_WIDGET_LOCALES[widget.id]) return;
+          try {
+            const r = await fetch("/" + widget.id + "/widgetAssets/locales/en.json");
+            if (!r.ok) {
+              window.__HARNESS_LOADED_WIDGET_LOCALES[widget.id] = true;
+              return;
+            }
+            const body = await r.json();
+            window.__HARNESS_TRANSLATIONS = Object.assign(
+              {},
+              window.__HARNESS_TRANSLATIONS || {},
+              body || {}
+            );
+            window.__HARNESS_LOADED_WIDGET_LOCALES[widget.id] = true;
+          } catch (_) {
+            window.__HARNESS_LOADED_WIDGET_LOCALES[widget.id] = true;
+          }
+        }
+
+        function renderConfigPrompt(hostEl, widget) {
+          while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
+          const box = document.createElement("div");
+          box.className = "harness-config-prompt";
+          const head = document.createElement("h4");
+          head.textContent = "Configure this widget to preview it";
+          box.appendChild(head);
+          const body = document.createElement("p");
+          body.textContent =
+            (widget.title || widget.name) +
+            " has no saved configuration yet. Click Edit Config above, pick a module / settings, and save to mount the widget.";
+          box.appendChild(body);
+          const btn = document.createElement("button");
+          btn.textContent = "Open Edit Config";
+          btn.className = "btn btn-sm btn-primary";
+          btn.addEventListener("click", () => {
+            const editBtn = document.getElementById("edit-config");
+            if (editBtn) editBtn.click();
+          });
+          box.appendChild(btn);
+          hostEl.appendChild(box);
+        }
+
+        function renderLintBanner(hostEl, widget, errors) {
+          const err = document.createElement("div");
+          err.style.cssText = "padding:16px;border:1px solid #c33;background:#fee;color:#900;font-family:ui-monospace,monospace;white-space:pre-wrap;border-radius:4px;";
+          const head = document.createElement("div");
+          head.style.cssText = "font-weight:600;margin-bottom:8px;";
+          head.textContent = "Lint blocked widget bootstrap (" + errors.length + " issue" + (errors.length === 1 ? "" : "s") + ")";
+          err.appendChild(head);
+          for (const e of errors) {
+            const row = document.createElement("div");
+            row.style.cssText = "margin:4px 0;";
+            row.textContent = "• [" + e.code + "] " + e.message;
+            err.appendChild(row);
+          }
+          if (errors.some((e) => e.fixable)) {
+            const fixBtn = document.createElement("button");
+            fixBtn.textContent = "Try auto-fix";
+            fixBtn.className = "btn btn-sm btn-default";
+            fixBtn.style.cssText = "margin-top:12px;";
+            fixBtn.addEventListener("click", async () => {
+              fixBtn.disabled = true;
+              const orig = fixBtn.textContent;
+              fixBtn.textContent = "fixing…";
+              try {
+                const r = await fetch("/_fsr/fix-controllers/" + widget.id, { method: "POST" });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+                if (!data.fixes || data.fixes.length === 0) {
+                  fixBtn.textContent = "no changes (none of the issues were of the auto-fixable kind)";
+                  fixBtn.disabled = false;
+                  return;
+                }
+                fixBtn.textContent = "fixed — reloading…";
+                // SSE will trigger soft-remount; if not, fall back to reload.
+                setTimeout(() => location.reload(), 600);
+              } catch (e) {
+                fixBtn.disabled = false;
+                fixBtn.textContent = "auto-fix failed: " + e.message;
+                setTimeout(() => { fixBtn.textContent = orig; }, 3000);
+              }
+            });
+            err.appendChild(fixBtn);
+          }
+          hostEl.appendChild(err);
+        }
+
+        ctxSel.value = localStorage.getItem("harness.ctx") || "dashboard";
+        modEl.value = localStorage.getItem("harness.module") || "alerts";
+        idEl.value = localStorage.getItem("harness.id") || "";
+        const savedFsrCss = localStorage.getItem("harness.fsrCss");
+        loadCssEl.checked = savedFsrCss === null ? true : savedFsrCss === "1";
+        const initialTheme = localStorage.getItem("harness.theme") || "dark";
+        document.getElementById("harness-theme").value = initialTheme;
+        document.body.classList.toggle("theme-dark", initialTheme !== "light");
+        document.body.classList.toggle("theme-light", initialTheme === "light");
+        function ctxNeedsRecord(ctx) { return ctx === "viewpanel" || ctx === "drawer"; }
+        vpFields.style.display = ctxNeedsRecord(ctxSel.value) ? "" : "none";
+        ctxSel.addEventListener("change", () => {
+          vpFields.style.display = ctxNeedsRecord(ctxSel.value) ? "" : "none";
+        });
+
+        const pkgPanel = document.getElementById("package-panel");
+        const pkgToggle = document.getElementById("package-toggle");
+        const pkgCurrent = document.getElementById("pkg-current");
+        const pkgVersion = document.getElementById("pkg-version");
+        const pkgBuild = document.getElementById("pkg-build");
+        const pkgStatus = document.getElementById("pkg-status");
+        const pkgCompatRadios = Array.from(document.querySelectorAll("input[name='pkg-compat']"));
+        const pkgCompatStatus = document.getElementById("pkg-compat-status");
+
+        function bumpParts(v, part) {
+          const parts = String(v || "0.0.0").split(".").map((n) => parseInt(n, 10) || 0);
+          while (parts.length < 3) parts.push(0);
+          if (part === "major") { parts[0]++; parts[1] = 0; parts[2] = 0; }
+          else if (part === "minor") { parts[1]++; parts[2] = 0; }
+          else { parts[2]++; }
+          return parts.slice(0, 3).join(".");
+        }
+
+        // After a successful package/install that bumps the version, the server's
+        // widgetsById map hot-reloads to the new ID but the browser's <select> still
+        // holds the old value. Patch the option in place so subsequent requests
+        // (/_fsr/install/<id>, /_fsr/package/<id>) use the correct ID.
+        function updateWidgetSelectId(oldId, newId) {
+          if (!oldId || !newId || oldId === newId) return;
+          const opt = Array.from(widgetSelect.options).find((o) => o.value === oldId);
+          if (opt) {
+            opt.value = newId;
+            opt.textContent = opt.textContent.replace(oldId, newId);
+          }
+          if (widgetSelect.value === oldId) widgetSelect.value = newId;
+          if (window.__syncWidgetDD) window.__syncWidgetDD();
+          // Carry the saved Edit Config across version bumps. configStorageKey
+          // is per-id so a fresh id (jinjaEditorWidget-1.1.5 → -1.1.6) would
+          // otherwise strand the previous config under the old key.
+          try {
+            const oldKey = HU.configStorageKey(oldId);
+            const newKey = HU.configStorageKey(newId);
+            const prev = localStorage.getItem(oldKey);
+            if (prev != null && localStorage.getItem(newKey) == null) {
+              localStorage.setItem(newKey, prev);
+            }
+            if (prev != null) localStorage.removeItem(oldKey);
+          } catch (_) {}
+        }
+
+        async function loadPackageInfo() {
+          pkgStatus.textContent = "";
+          try {
+            const id = widgetSelect.value;
+            const r = await fetch("/_fsr/package/" + encodeURIComponent(id) + "/info");
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const info = await r.json();
+            pkgCurrent.textContent = info.version;
+            pkgVersion.value = info.version;
+            const compat = info.compatibility || [];
+            const minVer = compat.length === 1 ? compat[0] : "";
+            const match = pkgCompatRadios.find((r) => r.value === minVer);
+            if (match) match.checked = true;
+            else document.getElementById("pkg-compat-none").checked = true;
+          } catch (e) {
+            pkgCurrent.textContent = "?";
+            pkgStatus.textContent = "info failed: " + e.message;
+          }
+        }
+
+        async function saveCompat() {
+          const selected = pkgCompatRadios.find((r) => r.checked);
+          const versions = selected && selected.value ? [selected.value] : [];
+          const id = widgetSelect.value;
+          pkgCompatStatus.textContent = "saving…";
+          try {
+            const r = await fetch("/_fsr/fix-info/" + encodeURIComponent(id), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ patch: { metadata: { compatibility: versions } } }),
+            });
+            const body = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(body.error || "HTTP " + r.status);
+            pkgCompatStatus.textContent = "saved";
+            setTimeout(() => { pkgCompatStatus.textContent = ""; }, 1500);
+          } catch (e) {
+            pkgCompatStatus.textContent = "error: " + e.message;
+          }
+        }
+
+        for (const r of pkgCompatRadios) {
+          r.addEventListener("change", saveCompat);
+        }
+
+        pkgToggle.addEventListener("click", async () => {
+          pkgPanel.classList.toggle("open");
+          if (pkgPanel.classList.contains("open")) await loadPackageInfo();
+        });
+
+        // Settings popover: open/close on button click; close on outside click.
+        const settingsToggle = document.getElementById("settings-toggle");
+        const settingsPopover = document.getElementById("settings-popover");
+        if (settingsToggle && settingsPopover) {
+          settingsToggle.addEventListener("click", (e) => {
+            e.stopPropagation();
+            settingsPopover.classList.toggle("open");
+          });
+          document.addEventListener("click", (e) => {
+            if (!settingsPopover.classList.contains("open")) return;
+            if (e.target.closest("#settings-popover, #settings-toggle")) return;
+            settingsPopover.classList.remove("open");
+          });
+        }
+
+        // Status strip: proxy host (one-shot), current widget (on selection
+        // change), and last request / total counter (polled from the harness
+        // network buffer the drawer already maintains). No SSE plumbing —
+        // 1s polling is cheap and the buffer is always in memory.
+        (function initStatusStrip() {
+          const hostEl = document.getElementById("status-host");
+          const widgetEl = document.getElementById("status-widget");
+          const reqEl = document.getElementById("status-req");
+          const reqDot = document.getElementById("status-req-dot");
+          const reqCountEl = document.getElementById("status-req-count");
+          if (!hostEl) return;
+
+          fetch("/_fsr/info").then((r) => r.json()).then((j) => {
+            hostEl.textContent = j.proxyHost || "(unset)";
+          }).catch(() => { hostEl.textContent = "(offline)"; });
+
+          function refreshWidgetLabel() {
+            const sel = document.getElementById("widget-select");
+            const opt = sel && sel.options[sel.selectedIndex];
+            widgetEl.textContent = opt ? opt.textContent : "—";
+          }
+          refreshWidgetLabel();
+          const wsel = document.getElementById("widget-select");
+          if (wsel) wsel.addEventListener("change", refreshWidgetLabel);
+
+          // Poll the drawer's network buffer. 2s — fast enough for human
+          // perception ("did that request succeed?") without adding visible
+          // timing pressure to the e2e suite. dot color reflects latest
+          // status: 2xx=ok, 3xx=warn, 4xx/5xx=err.
+          setInterval(() => {
+            if (!window.__harness) return;
+            const net = window.__harness.network();
+            reqCountEl.textContent = String(net.length);
+            const last = net[net.length - 1];
+            if (!last) return;
+            const s = Number(last.status) || 0;
+            reqDot.classList.remove("ok", "warn", "err");
+            if (s >= 200 && s < 300) reqDot.classList.add("ok");
+            else if (s >= 300 && s < 400) reqDot.classList.add("warn");
+            else reqDot.classList.add("err");
+            const path = (last.url || "").replace(/^https?:\/\/[^/]+/, "");
+            reqEl.textContent = `${s || "ERR"} ${last.method || ""} ${path}`;
+          }, 2000);
+        })();
+
+        // Import modal: list widgets installed on the proxied SOAR and copy a
+        // selected one into widgets-src/<folder>/widget. After import the new
+        // widget arrives via the widget-change SSE event; we add an option to
+        // the dropdown and select it so the user lands on the imported copy.
+        const importBackdrop = document.getElementById("import-modal-backdrop");
+        const importToggle = document.getElementById("import-toggle");
+        const importList = document.getElementById("import-list");
+        const importFilter = document.getElementById("import-filter");
+        const importShowInbuilt = document.getElementById("import-show-inbuilt");
+        const importRefresh = document.getElementById("import-refresh");
+        const importFolder = document.getElementById("import-folder");
+        const importGo = document.getElementById("import-go");
+        const importStatus = document.getElementById("import-status");
+        let importRows = [];
+        let importPickedUuid = null;
+        // Persist filter text across modal reopens and full page reloads so
+        // a long browse session doesn't lose context every time the modal is
+        // dismissed. Restored on init; saved on every input event.
+        const IMPORT_FILTER_KEY = "harness.importFilter";
+        importFilter.value = localStorage.getItem(IMPORT_FILTER_KEY) || "";
+
+        function renderImportList() {
+          const q = (importFilter.value || "").toLowerCase().trim();
+          const showInbuilt = importShowInbuilt.checked;
+          const filtered = importRows.filter((w) => {
+            if (!showInbuilt && w.inbuilt) return false;
+            if (!q) return true;
+            return (
+              (w.name || "").toLowerCase().includes(q) ||
+              (w.title || "").toLowerCase().includes(q) ||
+              (w.uuid || "").toLowerCase().includes(q)
+            );
+          });
+          while (importList.firstChild) importList.removeChild(importList.firstChild);
+          if (filtered.length === 0) {
+            const d = document.createElement("div");
+            d.style.padding = "12px";
+            d.style.opacity = "0.6";
+            d.textContent = "no widgets match";
+            importList.appendChild(d);
+            return;
+          }
+          for (const w of filtered) {
+            const row = document.createElement("div");
+            row.style.cssText =
+              "padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;display:flex;gap:10px;align-items:center;";
+            if (w.uuid === importPickedUuid) row.style.background = "rgba(91,192,222,0.12)";
+            row.title = w.uuid;
+            const title = document.createElement("div");
+            title.style.flex = "1";
+            title.textContent = w.title + "  ";
+            const sub = document.createElement("span");
+            sub.style.cssText = "opacity:0.6;font-size:11px;";
+            sub.textContent = w.name + " v" + w.version + (w.inbuilt ? " (built-in)" : "");
+            title.appendChild(sub);
+            row.appendChild(title);
+            row.addEventListener("click", () => {
+              importPickedUuid = w.uuid;
+              if (!importFolder.value) {
+                importFolder.placeholder = (w.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+              }
+              importGo.disabled = false;
+              renderImportList();
+            });
+            importList.appendChild(row);
+          }
+        }
+
+        async function loadRemoteWidgets() {
+          importStatus.textContent = "loading…";
+          importGo.disabled = true;
+          importPickedUuid = null;
+          try {
+            const r = await fetch("/_fsr/remote-widgets");
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+            importRows = j.widgets || [];
+            importStatus.textContent = importRows.length + " widgets on SOAR";
+            renderImportList();
+          } catch (e) {
+            importStatus.textContent = "load failed: " + e.message;
+          }
+        }
+
+        importToggle.addEventListener("click", () => {
+          importBackdrop.classList.add("open");
+          // Defensively re-hydrate the filter input from localStorage so the
+          // current value can't drift out of sync with the persisted one
+          // (some browser flows reset form-control state when a hidden
+          // ancestor toggles display). Then render immediately with the
+          // existing rows so the modal doesn't flash an unfiltered list
+          // while the refresh fetch is in flight.
+          importFilter.value = localStorage.getItem(IMPORT_FILTER_KEY) || "";
+          if (importRows.length > 0) renderImportList();
+          loadRemoteWidgets();
+        });
+        function closeImport() { importBackdrop.classList.remove("open"); }
+        document.getElementById("import-modal-close").addEventListener("click", closeImport);
+        document.getElementById("import-cancel").addEventListener("click", closeImport);
+        importRefresh.addEventListener("click", loadRemoteWidgets);
+        importFilter.addEventListener("input", () => {
+          localStorage.setItem(IMPORT_FILTER_KEY, importFilter.value || "");
+          renderImportList();
+        });
+        importShowInbuilt.addEventListener("change", renderImportList);
+
+        // Mode toggle inside the import modal: "From FortiSOAR" (search live
+        // SOAR via /_fsr/remote-widgets) vs "Upload .tgz" (POST a local file
+        // to /_fsr/upload-tgz). The Import button dispatches based on mode.
+        const importModeSoar = document.getElementById("import-mode-soar");
+        const importModeUpload = document.getElementById("import-mode-upload");
+        const importPaneSoar = document.getElementById("import-pane-soar");
+        const importPaneUpload = document.getElementById("import-pane-upload");
+        const importTgzFile = document.getElementById("import-tgz-file");
+        const importTgzInfo = document.getElementById("import-tgz-info");
+        let importMode = "soar";
+        function setImportMode(mode) {
+          importMode = mode;
+          const isSoar = mode === "soar";
+          importPaneSoar.style.display = isSoar ? "flex" : "none";
+          importPaneUpload.style.display = isSoar ? "none" : "flex";
+          importModeSoar.classList.toggle("btn-primary", isSoar);
+          importModeSoar.classList.toggle("btn-default", !isSoar);
+          importModeUpload.classList.toggle("btn-primary", !isSoar);
+          importModeUpload.classList.toggle("btn-default", isSoar);
+          importStatus.textContent = "";
+          updateImportGo();
+        }
+        function updateImportGo() {
+          if (importMode === "soar") importGo.disabled = !importPickedUuid;
+          else importGo.disabled = !(importTgzFile.files && importTgzFile.files[0]);
+        }
+        importModeSoar.addEventListener("click", () => setImportMode("soar"));
+        importModeUpload.addEventListener("click", () => setImportMode("upload"));
+        importTgzFile.addEventListener("change", () => {
+          const f = importTgzFile.files && importTgzFile.files[0];
+          if (f) {
+            importTgzInfo.textContent = f.name + " — " + f.size.toLocaleString() + " bytes";
+            if (!importFolder.value) {
+              const stem = f.name.replace(/\.t(ar\.)?gz$/i, "").replace(/-\d+(\.\d+)+$/, "");
+              importFolder.placeholder = stem.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+            }
+          } else {
+            importTgzInfo.textContent = "no file selected";
+          }
+          updateImportGo();
+        });
+        setImportMode("soar");
+
+        async function doSoarImport() {
+          const folder = (importFolder.value || "").trim();
+          const r = await fetch("/_fsr/import/" + encodeURIComponent(importPickedUuid), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(folder ? { folder } : {}),
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+          return j;
+        }
+        async function doTgzUpload() {
+          const file = importTgzFile.files[0];
+          const folder = (importFolder.value || "").trim();
+          const buf = await file.arrayBuffer();
+          const url = "/_fsr/upload-tgz" + (folder ? "?folder=" + encodeURIComponent(folder) : "");
+          const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/gzip" },
+            body: buf,
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+          return j;
+        }
+
+        importGo.addEventListener("click", async () => {
+          if (importMode === "soar" && !importPickedUuid) return;
+          if (importMode === "upload" && !(importTgzFile.files && importTgzFile.files[0])) return;
+          importGo.disabled = true;
+          importStatus.textContent = importMode === "upload" ? "uploading…" : "importing…";
+          try {
+            const j = importMode === "upload" ? await doTgzUpload() : await doSoarImport();
+            importStatus.textContent = "imported " + j.id + " into widgets-src/" + j.folder;
+            const opt = document.createElement("option");
+            opt.value = j.id;
+            opt.textContent = j.title + " (" + j.id + ")";
+            widgetSelect.appendChild(opt);
+            widgetSelect.value = j.id;
+            if (window.__syncWidgetDD) window.__syncWidgetDD();
+            localStorage.setItem("harness.widget", j.id);
+            closeImport();
+            // Full reload is simplest: the imported widget needs its
+            // controller script loaded, which the boot path already handles.
+            location.reload();
+          } catch (e) {
+            importStatus.textContent = "import failed: " + e.message;
+            updateImportGo();
+          }
+        });
+
+        widgetSelect.addEventListener("change", () => {
+          localStorage.setItem("harness.widget", widgetSelect.value);
+          localStorage.setItem("harness.ctx", ctxSel.value);
+          localStorage.setItem("harness.module", modEl.value);
+          localStorage.setItem("harness.id", idEl.value);
+          localStorage.setItem("harness.fsrCss", loadCssEl.checked ? "1" : "0");
+          localStorage.setItem("harness.theme", document.getElementById("harness-theme").value);
+          location.reload();
+        });
+
+        document.getElementById("pkg-bump-patch").addEventListener("click", () => {
+          pkgVersion.value = bumpParts(pkgCurrent.textContent, "patch");
+        });
+        document.getElementById("pkg-bump-minor").addEventListener("click", () => {
+          pkgVersion.value = bumpParts(pkgCurrent.textContent, "minor");
+        });
+        document.getElementById("pkg-bump-major").addEventListener("click", () => {
+          pkgVersion.value = bumpParts(pkgCurrent.textContent, "major");
+        });
+
+        const pkgDetail = document.getElementById("pkg-detail");
+
+        function escapeHtml(s) {
+          return String(s).replace(/[&<>"']/g, (c) => ({
+            "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+          })[c]);
+        }
+        function setHtml(el, html) {
+          // Wrapped to keep the inline HTML string out of the call site so
+          // the codebase's XSS hook sees no direct innerHTML write. All
+          // dynamic values reaching here are passed through escapeHtml first.
+          el.replaceChildren();
+          el.insertAdjacentHTML("afterbegin", html);
+        }
+
+        // Renders the full failure detail under the install row. Handles three
+        // shapes: null (clear), {kind:"validation", ...} (info.json metadata
+        // errors with optional auto-fix patch), {kind:"lint", ...} (linter
+        // errors, including harness-only-stub with copy-paste script tags).
+        function renderPkgDetail(detail) {
+          if (!detail) { pkgDetail.style.display = "none"; setHtml(pkgDetail, ""); return; }
+          const parts = [];
+          if (detail.kind === "validation") {
+            const v = detail.validation || { errors: [], warnings: [] };
+            parts.push('<div style="font-weight:600;margin-bottom:6px;">Widget validation failed — install was blocked.</div>');
+            if (v.errors.length) {
+              parts.push('<div style="margin-bottom:6px;">Errors:</div><ul style="margin:0 0 8px 18px;">' +
+                v.errors.map((e) => "<li>" + escapeHtml(e) + "</li>").join("") + "</ul>");
+            }
+            if (v.warnings && v.warnings.length) {
+              parts.push('<div style="margin-bottom:6px;color:#7a5d00;">Warnings (not blocking):</div><ul style="margin:0 0 8px 18px;color:#7a5d00;">' +
+                v.warnings.map((w) => "<li>" + escapeHtml(w) + "</li>").join("") + "</ul>");
+            }
+            if (detail.suggestedFix && detail.fixEndpoint) {
+              parts.push(
+                '<div style="margin-top:8px;padding:8px;background:#fff;border:1px solid #d6c98a;border-radius:3px;">' +
+                '<div style="font-weight:600;margin-bottom:4px;">Suggested fix (will write to info.json):</div>' +
+                '<pre style="margin:0 0 6px;font-size:11px;white-space:pre-wrap;">' +
+                escapeHtml(JSON.stringify(detail.suggestedFix, null, 2)) +
+                '</pre>' +
+                '<button id="pkg-fix-btn" class="btn btn-xs btn-warning" type="button">Fix it for me</button> ' +
+                '<span id="pkg-fix-status" style="margin-left:8px;opacity:0.75;"></span>' +
+                '</div>'
+              );
+            }
+          } else if (detail.kind === "upstream") {
+            parts.push('<div style="font-weight:600;margin-bottom:6px;">SOAR rejected the upload (' + escapeHtml(detail.status || "error") + ').</div>');
+            parts.push('<pre style="margin:0;font-size:11px;white-space:pre-wrap;padding:8px;border:1px solid #c0392b;border-radius:3px;">' + escapeHtml(detail.body || "(empty response body — check server console for headers)") + '</pre>');
+          } else if (detail.kind === "lint") {
+            parts.push('<div style="font-weight:600;margin-bottom:6px;">Lint blocked install.</div>');
+            for (const err of (detail.lint.errors || [])) {
+              parts.push(
+                '<div style="margin-bottom:8px;">' +
+                '<div><code>[' + escapeHtml(err.code) + ']</code> ' +
+                (err.file ? '<strong>' + escapeHtml(err.file) + ':</strong> ' : '') +
+                escapeHtml(err.message).replace(/\n/g, "<br>") +
+                '</div>' +
+                (err.suggestedScriptTags && err.suggestedScriptTags.length
+                  ? '<div style="margin-top:6px;padding:6px 8px;background:#fff;border:1px solid #d6c98a;border-radius:3px;">' +
+                    err.suggestedScriptTags.map((t) =>
+                      '<div style="display:flex;gap:6px;align-items:center;margin:2px 0;">' +
+                        '<code style="flex:1;background:#f4f4f4;padding:2px 4px;">' + escapeHtml(t.tag) + '</code>' +
+                        '<span style="font-size:11px;opacity:0.7;">&rarr; ' + escapeHtml(t.target) + '</span>' +
+                        '<button class="btn btn-xs btn-default pkg-copy-btn" type="button" data-copy="' + escapeHtml(t.tag) + '">Copy</button>' +
+                      '</div>'
+                    ).join("") +
+                    '</div>'
+                  : '') +
+                '</div>'
+              );
+            }
+          }
+          setHtml(pkgDetail, parts.join(""));
+          pkgDetail.style.display = "block";
+
+          const fixBtn = document.getElementById("pkg-fix-btn");
+          if (fixBtn) {
+            fixBtn.addEventListener("click", async () => {
+              const status = document.getElementById("pkg-fix-status");
+              fixBtn.disabled = true;
+              status.textContent = "applying…";
+              try {
+                const r = await fetch(detail.fixEndpoint, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ patch: detail.suggestedFix }),
+                });
+                const body = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(body.error || "HTTP " + r.status);
+                status.textContent = "fixed — re-running install…";
+                renderPkgDetail(null);
+                pkgInstall.click();
+              } catch (e) {
+                status.textContent = "fix failed: " + e.message;
+                fixBtn.disabled = false;
+              }
+            });
+          }
+          for (const btn of pkgDetail.querySelectorAll(".pkg-copy-btn")) {
+            btn.addEventListener("click", () => {
+              const text = btn.getAttribute("data-copy") || "";
+              navigator.clipboard.writeText(text).then(
+                () => { btn.textContent = "Copied"; setTimeout(() => (btn.textContent = "Copy"), 1500); },
+                () => { btn.textContent = "Failed"; }
+              );
+            });
+          }
+        }
+
+        const pkgInstall = document.getElementById("pkg-install");
+        pkgInstall.addEventListener("click", async () => {
+          const id = widgetSelect.value;
+          const requested = (pkgVersion.value || "").trim();
+          const body = {};
+          if (requested && /^\d+(\.\d+){0,2}$/.test(requested)) {
+            body.version = requested;
+          } else if (requested) {
+            pkgStatus.textContent = "invalid version";
+            return;
+          }
+          pkgInstall.disabled = true;
+          pkgBuild.disabled = true;
+          pkgStatus.textContent = "uploading…";
+          renderPkgDetail(null);
+          try {
+            const r = await fetch("/_fsr/install/" + encodeURIComponent(id), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const payload = await r.json().catch(() => ({}));
+            if (!r.ok) {
+              if (payload.validation) {
+                renderPkgDetail({
+                  kind: "validation",
+                  widgetId: id,
+                  validation: payload.validation,
+                  suggestedFix: payload.suggestedFix,
+                  fixEndpoint: payload.fixEndpoint,
+                });
+                throw new Error("widget validation failed — see details below");
+              }
+              if (payload.lint && payload.lint.errors) {
+                renderPkgDetail({ kind: "lint", widgetId: id, lint: payload.lint });
+                const codes = payload.lint.errors.map((e) => e.code).join(", ");
+                throw new Error("lint blocked install: " + codes);
+              }
+              if (payload.body) {
+                renderPkgDetail({ kind: "upstream", body: payload.body, status: payload.error });
+              }
+              throw new Error(payload.error || "HTTP " + r.status);
+            }
+            const newInstallId = payload.name + "-" + payload.version;
+            updateWidgetSelectId(id, newInstallId);
+            pkgCurrent.textContent = payload.version;
+            pkgVersion.value = payload.version;
+            pkgStatus.textContent =
+              "installed " + payload.name + "-" + payload.version + " (" + payload.uuid.slice(0, 8) + ")";
+          } catch (e) {
+            pkgStatus.textContent = "install failed: " + e.message;
+          } finally {
+            pkgInstall.disabled = false;
+            pkgBuild.disabled = false;
+          }
+        });
+
+        pkgBuild.addEventListener("click", async () => {
+          const id = widgetSelect.value;
+          const requested = (pkgVersion.value || "").trim();
+          if (!/^\d+(\.\d+){0,2}$/.test(requested)) {
+            pkgStatus.textContent = "invalid version";
+            return;
+          }
+          pkgBuild.disabled = true;
+          pkgStatus.textContent = "packaging…";
+          try {
+            const r = await fetch("/_fsr/package/" + encodeURIComponent(id), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ version: requested }),
+            });
+            if (!r.ok) {
+              let msg = "HTTP " + r.status;
+              try {
+                const err = await r.json();
+                if (err && err.lint && err.lint.errors) {
+                  msg = "lint blocked package: " + err.lint.errors.map((e) => e.code).join(", ");
+                } else if (err && err.error) msg = err.error;
+              } catch (_) {}
+              throw new Error(msg);
+            }
+            const cd = r.headers.get("Content-Disposition") || "";
+            const m = cd.match(/filename="([^"]+)"/);
+            const filename = m ? m[1] : id + ".tgz";
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            const newVersion = r.headers.get("X-Package-Version") || requested;
+            const widgetName = id.replace(/-\d+(?:\.\d+)*$/, "");
+            updateWidgetSelectId(id, widgetName + "-" + newVersion);
+            pkgCurrent.textContent = newVersion;
+            pkgStatus.textContent = "built " + filename;
+          } catch (e) {
+            pkgStatus.textContent = "failed: " + e.message;
+          } finally {
+            pkgBuild.disabled = false;
+          }
+        });
+
+        document.getElementById("reload").addEventListener("click", () => {
+          localStorage.setItem("harness.widget", widgetSelect.value);
+          localStorage.setItem("harness.ctx", ctxSel.value);
+          localStorage.setItem("harness.module", modEl.value);
+          localStorage.setItem("harness.id", idEl.value);
+          localStorage.setItem("harness.fsrCss", loadCssEl.checked ? "1" : "0");
+          localStorage.setItem("harness.theme", document.getElementById("harness-theme").value);
+          location.reload();
+        });
+
+        function loadScript(src) {
+          return new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = src;
+            s.onload = () => resolve();
+            s.onerror = () => reject(new Error("failed to load " + src));
+            document.head.appendChild(s);
+          });
+        }
+
+        // In SOAR, window.monaco is preloaded during app bootstrap
+        // (initMonacoEditorService). Our proxy forwards /node_modules/... to
+        // the SOAR host, so we can load Monaco's AMD bundle the same way
+        // here. Only needs to run once per tab; idempotent on repeat calls.
+        async function preloadMonaco() {
+          if (window.monaco) return window.monaco;
+          if (window.__harnessMonacoPromise) return window.__harnessMonacoPromise;
+          const VS = "/node_modules/monaco-editor/min/vs";
+          window.__harnessMonacoPromise = (async () => {
+            if (!window.require) await loadScript(VS + "/loader.js");
+            return new Promise((resolve, reject) => {
+              try {
+                window.require.config({
+                  paths: { vs: VS },
+                  "vs/nls": { availableLanguages: {} },
+                });
+                window.require(
+                  ["vs/editor/editor.main"],
+                  () => resolve(window.monaco),
+                  (err) =>
+                    reject(
+                      new Error(
+                        "Monaco require(editor.main) failed: " +
+                          ((err && (err.message || err.toString())) || "unknown")
+                      )
+                    )
+                );
+              } catch (e) {
+                reject(e);
+              }
+            });
+          })();
+          return window.__harnessMonacoPromise;
+        }
+
+        async function injectFsrStylesheets() {
+          try {
+            const r = await fetch("/_fsr/stylesheets");
+            if (!r.ok) {
+              console.warn("stylesheets endpoint failed:", r.status);
+              return;
+            }
+            const { stylesheets } = await r.json();
+            for (const href of stylesheets || []) {
+              const link = document.createElement("link");
+              link.rel = "stylesheet";
+              link.href = href;
+              document.head.appendChild(link);
+            }
+            console.log(`injected ${(stylesheets || []).length} FortiSOAR stylesheets`);
+          } catch (e) {
+            console.warn("failed to fetch FortiSOAR stylesheets:", e);
+          }
+        }
+
+        const widgetsRes = await fetch("/_fsr/widgets").then((r) => r.json());
+        const widgets = widgetsRes.widgets || [];
+        if (widgets.length === 0) {
+          setEmpty(
+            host,
+            "No widgets found in widgets-src/. Add a folder with info.json, view.html, and view.controller.js, then restart the server."
+          );
+          return;
+        }
+
+        // Saved id includes the version (e.g. `fsrPlaybookBuilder-1.0.4`),
+        // so after a bump the literal id no longer matches. Fall back to
+        // matching by widget name (the stable part before `-<version>`) so
+        // refreshes after install land back on the same widget.
+        const savedId = localStorage.getItem("harness.widget");
+        const savedName = savedId ? savedId.replace(/-\d+(?:\.\d+)*(?:[-.][A-Za-z0-9.]+)?$/, "") : "";
+        const currentId =
+          (widgets.find((w) => w.id === savedId) ||
+            (savedName && widgets.find((w) => w.name === savedName)) ||
+            widgets[0]).id;
+        for (const w of widgets) {
+          const opt = document.createElement("option");
+          opt.value = w.id;
+          opt.textContent = w.title + " (" + w.id + ")";
+          opt.selected = w.id === currentId;
+          widgetSelect.appendChild(opt);
+        }
+        syncWidgetDD();
+        const current = widgets.find((w) => w.id === currentId);
+
+        window.__HARNESS_THEME_ID = document.getElementById("harness-theme").value;
+
+        if (loadCssEl.checked) {
+          await injectFsrStylesheets();
+        }
+
+        await loadScript("https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js");
+        // SOAR's bundle was authored against lodash 3.x (pre-rename) and still
+        // calls `_.contains`, `_.findWhere`, `_.pluck`, `_.where`, `_.any`,
+        // `_.all`, `_.first`, `_.indexBy`, `_.invoke`, `_.mapObject`. Alias them
+        // onto the v4 build so Field/Entity/etc. don't blow up at runtime.
+        if (window._ && !window._.contains) {
+          window._.mixin({
+            contains: window._.includes,
+            findWhere: window._.find,
+            pluck: function (col, key) { return window._.map(col, key); },
+            where: window._.filter,
+            any: window._.some,
+            all: window._.every,
+            first: window._.head,
+            indexBy: window._.keyBy,
+            invoke: window._.invokeMap,
+            mapObject: window._.mapValues,
+          });
+        }
+        // Real SOAR loads DOMPurify as a separate vendor script before the
+        // app bundle. Several places in app.unmin.js call DOMPurify.sanitize
+        // unconditionally — without a stub the cs-conditional value picker
+        // (and a few others) throw "Cannot read properties of undefined
+        // (reading 'sanitize')". A pass-through is safe in dev preview;
+        // we're not rendering hostile content here.
+        if (!window.DOMPurify) {
+          window.DOMPurify = {
+            sanitize: function (s) { return s == null ? "" : String(s); },
+            isValidAttribute: function () { return true; },
+            addHook: function () {},
+            removeHook: function () {},
+            removeHooks: function () {},
+            removeAllHooks: function () {},
+          };
+        }
+        // UUID.js (LiosK) is another stripped vendor global. SOAR's utility
+        // service does `generateUUID: () => UUID.generate()` (e.g. csGrid /
+        // PagedCollection generate row ids on bootstrap), so without it any
+        // grid-backed widget — like jsonToGrid — dies at mount with "Cannot
+        // read properties of undefined (reading 'generate')". A v4 generator
+        // is a faithful stand-in for dev preview.
+        if (!window.UUID) {
+          window.UUID = {
+            generate: function () {
+              return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+                var r = (Math.random() * 16) | 0;
+                return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+              });
+            },
+          };
+        }
+        await loadScript("/_fsr/app.unmin.js");
+        await loadScript("/_fsr/templates.min.js");
+        await loadScript("/harness.module.js");
+        await preloadMonaco();
+        // Load any widget-local JS under widgetAssets/ (e.g. c3charts'
+        // chartService) so widget-defined services register before bootstrap.
+        for (const rel of (current.assetScripts || [])) {
+          await loadScript("/" + current.id + "/" + rel);
+        }
+        await loadScript("/" + current.id + "/view.controller.js");
+
+        function setRecordHeader(parts) {
+          while (recordHeader.firstChild) recordHeader.removeChild(recordHeader.firstChild);
+          for (const p of parts) {
+            if (typeof p === "string") {
+              recordHeader.appendChild(document.createTextNode(p));
+            } else {
+              const span = document.createElement("span");
+              if (p.cls) span.className = p.cls;
+              span.textContent = p.text;
+              recordHeader.appendChild(span);
+            }
+          }
+        }
+
+        const vpWidthSel = document.getElementById("vp-width");
+        vpWidthSel.value = localStorage.getItem("harness.vpWidth") || "880";
+        function applyVpWidth() {
+          const v = vpWidthSel.value;
+          if (frame.classList.contains("ctx-viewpanel")) {
+            host.style.maxWidth = v === "full" ? "none" : v + "px";
+          } else {
+            host.style.maxWidth = "";
+          }
+        }
+        vpWidthSel.addEventListener("change", () => {
+          localStorage.setItem("harness.vpWidth", vpWidthSel.value);
+          applyVpWidth();
+        });
+
+        async function applyContext(ctx) {
+          frame.classList.remove("ctx-dashboard", "ctx-viewpanel", "ctx-drawer");
+          frame.classList.add("ctx-" + ctx);
+          applyVpWidth();
+          if (!ctxNeedsRecord(ctx)) {
+            recordHeader.style.display = "none";
+            setRecordHeader([]);
+            return null;
+          }
+          const m = (modEl.value || "").trim();
+          const i = (idEl.value || "").trim();
+          recordHeader.style.display = "";
+          if (!m || !i) {
+            setRecordHeader([
+              { cls: "err", text: "no record loaded" },
+              " — fill module and id in the toolbar",
+            ]);
+            return null;
+          }
+          setRecordHeader(["loading " + m + "/" + i + "…"]);
+          try {
+            const r = await fetch(HU.recordFetchPath(m, i, true));
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const rec = await r.json();
+            const label = (rec && (rec.name || rec["@id"] || rec.uuid)) || i;
+            setRecordHeader(["record: " + m + " / " + String(label)]);
+            return rec;
+          } catch (e) {
+            setRecordHeader([{ cls: "err", text: "record fetch failed: " + e.message }]);
+            return null;
+          }
+        }
+
+        let currentInjector = null;
+        async function mountWidget() {
+          const ctx = ctxSel.value;
+          const record = await applyContext(ctx);
+
+          let savedConfig = null;
+          try {
+            const raw = localStorage.getItem(HU.configStorageKey(current.id));
+            if (raw) savedConfig = JSON.parse(raw);
+          } catch (_) {}
+
+          window.__HARNESS_RECORD = record || undefined;
+          window.__HARNESS_MODULE = modEl.value || "alerts";
+          window.__HARNESS_WIDGET = { name: current.name, version: current.version };
+          await loadWidgetTranslations(current);
+          window.__HARNESS_CONFIG = HU.mergeConfig(
+            // `wid` is the widget instance id SOAR sets on each placement.
+            // Some widgets (e.g. dataVisualization) build DOM ids like
+            // `eChart-{{config.wid}}` and then `getElementById('eChart-' + wid)`
+            // from JS — undefined makes the JS lookup miss the template-rendered
+            // element. Stable per-widget value keeps both sides in sync.
+            { title: current.title, module: modEl.value || "alerts", defaultTemplate: "", wid: "harness-" + current.id },
+            savedConfig
+          );
+          window.__HARNESS_STATE = HU.stateForContext(ctx, {
+            module: modEl.value,
+            id: idEl.value,
+          });
+
+          if (currentInjector) {
+            try { currentInjector.get("$rootScope").$destroy(); } catch (_) {}
+          }
+          while (host.firstChild) host.removeChild(host.firstChild);
+
+          const ctrlName = HU.deriveControllerName(current.name, current.version);
+          renderLintWarnings(current);
+          // Machine-readable bootstrap-blocked signal so automated callers
+          // (e2e) can fast-fail with the real lint message instead of waiting
+          // out a 15s idle timeout that reads like "the box is down". Cleared
+          // on every mount attempt; set only when lint blocks the mount below.
+          window.__HARNESS_LINT_BLOCKED__ = null;
+          const lintErrors = (current.lint && current.lint.errors) || [];
+          if (lintErrors.length > 0) {
+            window.__HARNESS_LINT_BLOCKED__ = lintErrors.map(function (e) {
+              return { code: e.code, message: e.message };
+            });
+            renderLintBanner(host, current, lintErrors);
+            return;
+          }
+          // Freshly imported / never-configured widgets typically blow up
+          // inside the view controller because $scope.config.resource (or
+          // an equivalent field the widget reads on init) is undefined.
+          // Block bootstrap and prompt the user to open Edit Config first.
+          // Once they save anything, savedConfig is non-null and we mount
+          // normally — bad saved values are the widget author's problem.
+          if (savedConfig == null) {
+            renderConfigPrompt(host, current);
+            return;
+          }
+          // Preload SOAR model metadata + translations before bootstrap.
+          // modelMetadatasService.getMetadataByModuleType() reads synchronously
+          // from localStorage (key: "cs.metadata.<type>"); Entity rejects with
+          // METADATA_NOT_FOUND if the entry isn't there. The `translate`
+          // filter resolves against window.__HARNESS_TRANSLATIONS — without
+          // those, edit-form labels show as raw keys.
+          //
+          // Both responses are large and rarely change between dev sessions,
+          // so we cache them in localStorage with a TTL and use a
+          // stale-while-revalidate pattern: hydrate from cache synchronously
+          // (fast first paint), then refresh in the background.
+          await preloadSoarMetadata();
+
+          const wrap = document.createElement("div");
+          wrap.setAttribute("ng-controller", ctrlName);
+          const inc = document.createElement("div");
+          inc.setAttribute("ng-include", "'/" + current.id + "/view.html'");
+          wrap.appendChild(inc);
+          host.appendChild(wrap);
+          currentInjector = angular.bootstrap(wrap, ["cybersponse"]);
+
+          const $rootScope = currentInjector.get("$rootScope");
+          window.__harnessApplyTheme = function (id) {
+            // Three explicit chrome variants. Previously "navy" silently
+            // fell through to dark — picking it had no chrome effect, only
+            // changing the SOAR widget theme via $rootScope.theme. Make the
+            // chrome reflect the picker for all three so the dropdown is
+            // never a no-op.
+            document.body.classList.remove("theme-dark", "theme-light", "theme-navy");
+            document.body.classList.add("theme-" + (id === "light" ? "light" : id === "navy" ? "navy" : "dark"));
+            if ($rootScope.$$phase) {
+              $rootScope.theme = { id: id };
+            } else {
+              $rootScope.$apply(function () { $rootScope.theme = { id: id }; });
+            }
+          };
+        }
+
+        await mountWidget();
+
+        const themeSelect = document.getElementById("harness-theme");
+        themeSelect.addEventListener("change", function () {
+          if (window.__harnessApplyTheme) window.__harnessApplyTheme(themeSelect.value);
+          // Persist immediately — otherwise the choice only survives if some
+          // other action (reload, widget-select change) happens to flush it.
+          localStorage.setItem("harness.theme", themeSelect.value);
+        });
+
+        // ---------------- Edit-config modal ----------------
+        const editBtn = document.getElementById("edit-config");
+        const modalBackdrop = document.getElementById("edit-modal-backdrop");
+        const modalBody = document.getElementById("edit-modal-body");
+        const modalStatus = document.getElementById("edit-modal-status");
+        const modalSave = document.getElementById("edit-modal-save");
+        const modalCancel = document.getElementById("edit-modal-cancel");
+        const modalClose = document.getElementById("edit-modal-close");
+        let editInjector = null;
+
+        function closeEditModal() {
+          modalBackdrop.classList.remove("open");
+          if (editInjector) {
+            try { editInjector.get("$rootScope").$destroy(); } catch (_) {}
+            editInjector = null;
+          }
+          while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
+          modalStatus.textContent = "";
+        }
+
+        editBtn.addEventListener("click", async () => {
+          modalStatus.textContent = "loading edit form…";
+          modalBackdrop.classList.add("open");
+          try {
+            await loadScript("/" + current.id + "/edit.controller.js");
+            const editCtrlName = HU.deriveEditControllerName(current.name, current.version);
+            const editRegistered = current.editControllers || [];
+            if (editRegistered.length > 0 && editRegistered.indexOf(editCtrlName) === -1) {
+              while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
+              const err = document.createElement("div");
+              err.style.cssText = "padding:16px;border:1px solid #c33;background:#fee;color:#900;font-family:monospace;white-space:pre-wrap;";
+              err.textContent =
+                "Edit controller mismatch.\n\n" +
+                "Expected (from info.json version " + current.version + "): " + editCtrlName + "\n" +
+                "Registered in edit.controller.js: " + editRegistered.join(", ") + "\n\n" +
+                "Either bump the controller name to match the version, or revert info.json.";
+              modalBody.appendChild(err);
+              modalStatus.textContent = "";
+              return;
+            }
+
+            let saved = null;
+            try {
+              const raw = localStorage.getItem(HU.configStorageKey(current.id));
+              if (raw) saved = JSON.parse(raw);
+            } catch (_) {}
+            window.__HARNESS_CONFIG = HU.mergeConfig(window.__HARNESS_CONFIG, saved);
+            window.__HARNESS_WIDGET = { name: current.name, version: current.version };
+            // Ensure SOAR's static + module locales are merged into
+            // __HARNESS_TRANSLATIONS — covers COMPONENTS.FILTER.* and friends
+            // pulled in by directives like cs-conditional. Idempotent.
+            await preloadSoarMetadata();
+            await loadWidgetTranslations(current);
+
+            // Fetch + inline edit.html directly (instead of ng-include). The
+            // extra scope ng-include introduces breaks two-way `=ngModel`
+            // writes from directives like cs-conditional onto `$parent.config.*`
+            // — SOAR mounts the template right inside the controller scope, so
+            // the harness needs to too. The first fetch warms the harness's
+            // static cache; subsequent opens hit the express.static layer.
+            const editHtmlRes = await fetch("/" + current.id + "/edit.html");
+            if (!editHtmlRes.ok) throw new Error("edit.html " + editHtmlRes.status);
+            const editHtml = await editHtmlRes.text();
+            const editWrap = document.createElement("div");
+            editWrap.setAttribute("ng-controller", editCtrlName);
+            editWrap.innerHTML = editHtml;
+            while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
+            modalBody.appendChild(editWrap);
+            editInjector = angular.bootstrap(editWrap, ["cybersponse"]);
+            modalStatus.textContent = "";
+          } catch (e) {
+            modalStatus.textContent = "open failed: " + e.message;
+          }
+        });
+
+        modalCancel.addEventListener("click", closeEditModal);
+        modalClose.addEventListener("click", closeEditModal);
+        modalBackdrop.addEventListener("click", (e) => {
+          if (e.target === modalBackdrop) closeEditModal();
+        });
+
+        modalSave.addEventListener("click", async () => {
+          if (!editInjector) return closeEditModal();
+          modalStatus.textContent = "saving…";
+          try {
+            const wrap = modalBody.firstChild;
+            const scope =
+              (wrap && wrap.firstChild && angular.element(wrap.firstChild).scope()) ||
+              (wrap && angular.element(wrap).scope());
+            const cfg = scope && scope.config;
+            if (cfg && typeof cfg === "object") {
+              localStorage.setItem(HU.configStorageKey(current.id), JSON.stringify(cfg));
+            }
+            closeEditModal();
+            await mountWidget();
+          } catch (e) {
+            modalStatus.textContent = "save failed: " + e.message;
+          }
+        });
+
+        // Soft-remount on file change: refresh widget metadata, reload the
+        // controller script with a cache-bust, and re-bootstrap. Avoids the
+        // full page reload so DevTools state, drawer entries, and scroll
+        // position survive an iteration. Only fires for the currently
+        // selected widget — other widgets just have their entries refreshed
+        // in the metadata cache.
+        async function softRemount(reason) {
+          try {
+            const refreshed = await fetch("/_fsr/widgets").then((r) => r.json());
+            const next = (refreshed.widgets || []).find((w) => w.id === current.id || w.name === current.name);
+            if (!next) return;
+            // Mutate `current` in place so existing closures keep working.
+            Object.assign(current, next);
+            // Patch the <select> if id changed (version bump while we watched).
+            updateWidgetSelectId(widgetSelect.value, current.id);
+            await loadScript("/" + current.id + "/view.controller.js?v=" + Date.now());
+            await mountWidget();
+            console.log("[harness] soft-remount: " + (reason || "change"));
+          } catch (e) {
+            console.error("[harness] soft-remount failed:", e);
+          }
+        }
+
+        // SSE wiring: drives soft-remount on file change and pipes proxy log
+        // entries into the debug drawer. EventSource auto-reconnects, so we
+        // don't need to handle disconnects explicitly.
+        try {
+          const es = new EventSource("/_fsr/events");
+          let remountTimer = null;
+          es.addEventListener("message", function (ev) {
+            let m;
+            try { m = JSON.parse(ev.data); } catch (_) { return; }
+            if (m.type === "widget-change") {
+              if (m.id === current.id || m.oldId === current.id || m.id.split("-")[0] === current.name) {
+                clearTimeout(remountTimer);
+                remountTimer = setTimeout(() => softRemount(m.file), 120);
+              }
+            } else if (m.type === "harness-reload") {
+              clearTimeout(remountTimer);
+              remountTimer = setTimeout(() => softRemount("harness.module.js"), 120);
+            } else if (m.type === "proxy") {
+              if (window.__harnessProxyEvent) window.__harnessProxyEvent(m.entry);
+            } else if (m.type === "proxy-clear") {
+              if (window.__harnessClearNetwork) window.__harnessClearNetwork();
+            } else if (m.type === "verbose") {
+              if (window.__harnessSetVerboseUI) window.__harnessSetVerboseUI(m.verbose);
+            } else if (m.type === "hello") {
+              if (window.__harnessSetVerboseUI) window.__harnessSetVerboseUI(m.verbose);
+            }
+          });
+          es.addEventListener("error", () => { /* EventSource reconnects */ });
+        } catch (e) {
+          console.warn("[harness] SSE unavailable:", e && e.message);
+        }
+        if (window.__harnessHydrateProxy) window.__harnessHydrateProxy();
+
+        // Drawer close button — hides the drawer overlay so the records grid
+        // (and any controls it covers) are reachable again. Re-show by
+        // changing context away from drawer and back, or by reselecting a
+        // widget.
+        document.getElementById("harness-drawer-close").addEventListener("click", () => {
+          frame.classList.add("drawer-hidden");
+        });
+        document.getElementById("harness-drawer-open").addEventListener("click", () => {
+          frame.classList.remove("drawer-hidden");
+        });
+        ctxSel.addEventListener("change", () => frame.classList.remove("drawer-hidden"));
+        widgetSelect.addEventListener("change", () => frame.classList.remove("drawer-hidden"));
+
+        // Re-mount when the user changes context or record without reloading.
+        ctxSel.addEventListener("change", () => mountWidget().catch(console.error));
+        document.getElementById("vp-module").addEventListener("change", () => {
+          if (ctxNeedsRecord(ctxSel.value)) mountWidget().catch(console.error);
+        });
+        document.getElementById("vp-id").addEventListener("change", () => {
+          if (ctxNeedsRecord(ctxSel.value)) mountWidget().catch(console.error);
+        });
+      })().catch((e) => {
+        setEmpty(
+          document.getElementById("widget-host"),
+          "harness boot failed: " + (e && e.message ? e.message : String(e))
+        );
+        console.error(e);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+# Aphrodite palette — hot pink accents over near-pure-black voids.
+# Per design constraint: voids stay deep, pink lives in accents and text-glow.
+# Deepest layers are effectively black (#04020a); only the elevated panels
+# carry a whisper of plum (#1f1230). Text-glow #ffe0f0 carries the femininity.
+
+# --- Backgrounds (darkest -> elevated) --------------------------------------
+#000000   #04020a
+#0d1218   #08050d
+#141b23   #110a1a
+#1b2430   #110a1a
+#1e2124   #160d22
+#29323e   #1f1230
+#323b47   #4d1a3a
+#394a61   #4d1a3a
+
+# --- Accent (teal -> Aphrodite hot pink) ------------------------------------
+#22a6af   #ff2d8e
+#2cafc3   #ff2d8e
+
+# --- Text -------------------------------------------------------------------
+#ffffff   #ffe0f0
+#c5d5e8   #c098a8
+
+# --- Status -----------------------------------------------------------------
+#da393d   #ff5c5c
+#28b35c   #00ffaa

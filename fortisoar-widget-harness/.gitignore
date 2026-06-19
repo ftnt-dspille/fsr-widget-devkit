@@ -1,0 +1,50 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Build / runtime output
+widget-packages/
+dev/cache/
+*.pid
+
+# widgets-src is a local-only discovery root: in the monorepo it's a symlink to
+# the sibling widgets repo; in a clone it's absent (the harness falls back to the
+# committed examples/). Never track it — a tracked symlink dangles on clone.
+/widgets-src
+
+# FortiSOAR app shell fetched by `npm run assets` (Fortinet platform JS — each
+# dev fetches it from their own licensed box; never committed).
+/fsr_src
+
+# OS
+.DS_Store
+._*
+__MACOSX/
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Playwright
+test-results/
+playwright-report/
+
+# Proprietary / non-redistributable: Fortinet's copyrighted dev-guide PDF.
+# Obtain from your own licensed source; see docs/FortiSOAR-Widget-Development-Guide.md
+docs/*.pdf
+
+# Internal connector/widget design docs — not shipped with the public harness
+FSR_PLAYBOOK_BUILDER_*

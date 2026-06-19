@@ -1,0 +1,26 @@
+# CLU palette — corrupted-grid orange against warm-black voids.
+# Backgrounds tilt slightly amber/brown rather than pure neutral, so the
+# orange accent feels native rather than pasted on. Borders are a deep
+# golden-brown (#5c3a1a) — same value-darkness as Tron but warm.
+
+# --- Backgrounds (darkest -> elevated) --------------------------------------
+#000000   #0a0500
+#0d1218   #0d0703
+#141b23   #150c05
+#1b2430   #150c05
+#1e2124   #1a1108
+#29323e   #2a1d0e
+#323b47   #5c3a1a
+#394a61   #5c3a1a
+
+# --- Accent (teal -> CLU orange) --------------------------------------------
+#22a6af   #ff7f1a
+#2cafc3   #ff7f1a
+
+# --- Text -------------------------------------------------------------------
+#ffffff   #fff3e0
+#c5d5e8   #d9a878
+
+# --- Status -----------------------------------------------------------------
+#da393d   #ff2d4f
+#28b35c   #66ff8a

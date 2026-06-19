@@ -1,0 +1,347 @@
+/* ==========================================================================
+   Personas — shared structural overrides for the six persona themes.
+     theme-neon / theme-ares / theme-ember / theme-athena / theme-aphrodite /
+     theme-poseidon
+
+   Each persona's .palette file does the bulk recolor of steel.css. This
+   file then layers structural tweaks (hairline borders, glow rings, uppercase
+   headings, scrollbars, toaster accents) on top via CSS variables, so all
+   six personas share one rule-set.
+
+   Targets stable SOAR selectors only:
+     - Bootstrap primitives  (.btn, .form-control, .modal-*, .panel-*)
+     - SOAR cs-* directives  (.cs-grid, .cs-select, .cs-widget-title, ...)
+     - ui-grid                (.ui-grid-*)
+     - App chrome             (.navigation, .app-header)
+   ========================================================================== */
+
+/* --- Per-persona variable definitions ------------------------------------ */
+body.theme-neon {
+  --p-bg-void:     #000814;
+  --p-bg:          #03060d;
+  --p-bg-panel:    #06101c;
+  --p-bg-elevated: #0d1a2b;
+  --p-border:      #1a3a5c;
+  --p-accent:      #00d4ff;
+  --p-accent-rgb:  0, 212, 255;
+  --p-accent-soft: #6fc3df;
+  --p-text:        #e0f7ff;
+  --p-text-muted:  #6fc3df;
+  --p-danger:      #ff2d4f;
+  --p-success:     #00ffaa;
+  --p-warn:        #ffae00;
+}
+
+body.theme-ares {
+  --p-bg-void:     #100000;
+  --p-bg:          #0a0608;
+  --p-bg-panel:    #14080a;
+  --p-bg-elevated: #261015;
+  --p-border:      #5c1a25;
+  --p-accent:      #e6122d;
+  --p-accent-rgb:  230, 18, 45;
+  --p-accent-soft: #d99099;
+  --p-text:        #ffe5e8;
+  --p-text-muted:  #d99099;
+  --p-danger:      #ff5c4e;
+  --p-success:     #00d96c;
+  --p-warn:        #ffae00;
+}
+
+body.theme-ember {
+  --p-bg-void:     #0a0500;
+  --p-bg:          #0d0703;
+  --p-bg-panel:    #150c05;
+  --p-bg-elevated: #2a1d0e;
+  --p-border:      #5c3a1a;
+  --p-accent:      #ff7f1a;
+  --p-accent-rgb:  255, 127, 26;
+  --p-accent-soft: #d9a878;
+  --p-text:        #fff3e0;
+  --p-text-muted:  #d9a878;
+  --p-danger:      #ff2d4f;
+  --p-success:     #66ff8a;
+  --p-warn:        #ffd700;     /* yellow — distinct from orange accent */
+}
+
+body.theme-athena {
+  --p-bg-void:     #0a0800;
+  --p-bg:          #0d0b03;
+  --p-bg-panel:    #15110a;
+  --p-bg-elevated: #2a2310;
+  --p-border:      #5c4a1a;
+  --p-accent:      #ffc107;
+  --p-accent-rgb:  255, 193, 7;
+  --p-accent-soft: #d9c378;
+  --p-text:        #fff8e1;
+  --p-text-muted:  #d9c378;
+  --p-danger:      #ff2d4f;
+  --p-success:     #00d96c;
+  --p-warn:        #ff8a3d;     /* orange — distinct from gold accent */
+}
+
+body.theme-aphrodite {
+  --p-bg-void:     #04020a;
+  --p-bg:          #08050d;
+  --p-bg-panel:    #110a1a;
+  --p-bg-elevated: #1f1230;
+  --p-border:      #4d1a3a;
+  --p-accent:      #ff2d8e;
+  --p-accent-rgb:  255, 45, 142;
+  --p-accent-soft: #c098a8;
+  --p-text:        #ffe0f0;
+  --p-text-muted:  #c098a8;
+  --p-danger:      #ff5c5c;
+  --p-success:     #00ffaa;
+  --p-warn:        #ffae00;
+}
+
+body.theme-poseidon {
+  --p-bg-void:     #000a14;
+  --p-bg:          #02080f;
+  --p-bg-panel:    #051420;
+  --p-bg-elevated: #0a2030;
+  --p-border:      #1a4a60;
+  --p-accent:      #00b4a0;
+  --p-accent-rgb:  0, 180, 160;
+  --p-accent-soft: #6fb0a8;
+  --p-text:        #d8f0ed;
+  --p-text-muted:  #6fb0a8;
+  --p-danger:      #ff2d4f;
+  --p-success:     #00ffaa;
+  --p-warn:        #ffae00;
+}
+
+/* --- Derived variables (computed from --p-accent-rgb) -------------------- */
+body.theme-neon, body.theme-ares, body.theme-ember,
+body.theme-athena, body.theme-aphrodite, body.theme-poseidon {
+  --p-border-soft: rgba(var(--p-accent-rgb), 0.18);
+  --p-glow:        0 0 0 1px rgba(var(--p-accent-rgb), 0.55),
+                   0 0 12px rgba(var(--p-accent-rgb), 0.25);
+  --p-glow-lg:     0 0 0 1px rgba(var(--p-accent-rgb), 0.70),
+                   0 0 18px rgba(var(--p-accent-rgb), 0.45);
+  --p-mono:        "JetBrains Mono", "Fira Code", "SF Mono",
+                   Menlo, Consolas, monospace;
+}
+
+/* From here on, every rule scopes through :is(...) so it applies to all
+   six personas without duplication. */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) {
+  background-color: var(--p-bg);
+  color: var(--p-text);
+}
+
+/* --- Global tone --------------------------------------------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  #bodyId, .modal-content, .panel, .well
+) {
+  background-color: var(--p-bg);
+  color: var(--p-text);
+}
+
+/* App chrome: navigation rail and header sit on the deepest void layer. */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .navigation, .app-header
+) {
+  background: var(--p-bg-void);
+  border-color: var(--p-border) !important;
+  box-shadow: 1px 0 0 var(--p-border-soft);
+}
+
+/* --- Borders: collapse to hairlines -------------------------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .panel, .well, .modal-content,
+  .cs-widget-title, .cs-data-table, .cs-grid
+) {
+  border: 1px solid var(--p-border) !important;
+  border-radius: 2px !important;
+  background-color: var(--p-bg-panel);
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  hr, .modal-header, .modal-footer, .panel-heading
+) {
+  border-color: var(--p-border) !important;
+}
+
+/* --- Inputs: thin border, accent focus ring ------------------------------ */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .form-control, .cs-select select, .cs-multi-select, .cs-typeahead input
+) {
+  background-color: var(--p-bg-elevated);
+  color: var(--p-text);
+  border: 1px solid var(--p-border);
+  border-radius: 2px;
+  transition: box-shadow 120ms ease-out, border-color 120ms ease-out;
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .form-control:focus, .cs-select select:focus,
+  .cs-typeahead input:focus, .cs-multi-select:focus-within
+) {
+  border-color: var(--p-accent);
+  outline: none;
+  box-shadow: var(--p-glow);
+}
+
+/* --- Buttons: outline style with glow on hover/active -------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) .btn-primary {
+  background: transparent;
+  color: var(--p-accent);
+  border: 1px solid var(--p-accent);
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  transition: box-shadow 120ms ease-out, background-color 120ms ease-out;
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.btn-primary:is(:hover, :focus, .active, :active) {
+  background: rgba(var(--p-accent-rgb), 0.08);
+  color: var(--p-accent);
+  border-color: var(--p-accent);
+  box-shadow: var(--p-glow-lg);
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.btn-primary:is([disabled], .disabled) {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+/* --- ui-grid: spreadsheet feel, hairline rows ---------------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .ui-grid, .ui-grid-canvas, .ui-grid-header, .ui-grid-header-canvas
+) {
+  background: var(--p-bg-panel);
+  border-color: var(--p-border) !important;
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .ui-grid-header-cell, .ui-grid-header-cell-wrapper
+) {
+  background: var(--p-bg-elevated);
+  color: var(--p-accent);
+  border-color: var(--p-border) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85em;
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .ui-grid-cell, .ui-grid-cell-contents
+) {
+  border-color: var(--p-border) !important;
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.ui-grid-row:hover .ui-grid-cell {
+  background: rgba(var(--p-accent-rgb), 0.06);
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.ui-grid-cell-focus {
+  outline: none !important;
+  box-shadow: inset var(--p-glow);
+}
+
+/* --- Tabular numerals everywhere it matters ------------------------------ */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .ui-grid-cell-contents, .cs-data-table td,
+  code, pre, .cs-label .badge
+) {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* --- Headings: thin uppercase with accent rule underneath ---------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  .cs-widget-title, .cs-report-title, .panel-heading
+) {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  color: var(--p-accent);
+  border-bottom: 1px solid var(--p-border-soft);
+}
+
+/* --- Links --------------------------------------------------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon) :is(
+  a, a:visited
+) {
+  color: var(--p-accent);
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+a:is(:hover, :focus) {
+  color: #ffffff;
+  text-shadow: 0 0 8px rgba(var(--p-accent-rgb), 0.6);
+}
+
+/* --- Scrollbars (WebKit) ------------------------------------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: var(--p-bg-void);
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+::-webkit-scrollbar-thumb {
+  background: var(--p-border);
+  border-radius: 0;
+}
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+::-webkit-scrollbar-thumb:hover {
+  background: var(--p-accent);
+  box-shadow: 0 0 8px rgba(var(--p-accent-rgb), 0.6);
+}
+
+/* --- Selection ----------------------------------------------------------- */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+::selection {
+  background: rgba(var(--p-accent-rgb), 0.35);
+  color: #ffffff;
+}
+
+/* --- Toaster: align with neon accents ------------------------------------ */
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.toast-success { border-left: 3px solid var(--p-success); }
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.toast-error   { border-left: 3px solid var(--p-danger); }
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.toast-warning { border-left: 3px solid var(--p-warn); }
+
+:is(body.theme-neon, body.theme-ares, body.theme-ember,
+    body.theme-athena, body.theme-aphrodite, body.theme-poseidon)
+.toast-info    { border-left: 3px solid var(--p-accent); }

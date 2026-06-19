@@ -1,0 +1,26 @@
+# Athena palette — wisdom gold against olive-black voids.
+# Backgrounds carry a low-key olive/bronze tint that reads as patinated
+# antiquity. Accent is a saturated gold; warn shifts to orange in the
+# overrides since gold and amber would otherwise collide.
+
+# --- Backgrounds (darkest -> elevated) --------------------------------------
+#000000   #0a0800
+#0d1218   #0d0b03
+#141b23   #15110a
+#1b2430   #15110a
+#1e2124   #1a160d
+#29323e   #2a2310
+#323b47   #5c4a1a
+#394a61   #5c4a1a
+
+# --- Accent (teal -> Athena gold) -------------------------------------------
+#22a6af   #ffc107
+#2cafc3   #ffc107
+
+# --- Text -------------------------------------------------------------------
+#ffffff   #fff8e1
+#c5d5e8   #d9c378
+
+# --- Status -----------------------------------------------------------------
+#da393d   #ff2d4f
+#28b35c   #00d96c

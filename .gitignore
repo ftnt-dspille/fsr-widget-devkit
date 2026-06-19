@@ -1,0 +1,71 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Build / package outputs
+widget-packages/
+widgets/
+widgets-extracted/
+templates-extracted/
+
+# FortiSOAR platform assets — proprietary Fortinet JS, NOT redistributed.
+# Each developer fetches their own from a licensed box via `make assets`
+# (scripts/fetch-soar-assets.sh). Only the extractor tooling + docs are tracked.
+fsr_src/app.unmin.js
+fsr_src/app.min.*.js
+fsr_src/templates.min.*.js
+fsr_src/system_fixtures.json
+fsr_src/system_settings.json
+fsr_src/*-extracted/
+
+# Widget repos are cloned/managed separately (via widgets.manifest), not tracked.
+widgets-src/*/
+# …except the widget scaffold, which is part of the dev kit (not an independent
+# widget repo) and must ship with it.
+!widgets-src/_template/
+!widgets-src/_template/**
+# NOTE: fortisoar-widget-harness/ is NO LONGER ignored — the harness is now
+# folded into this repo as plain files (was a separate nested git repo). Its own
+# nested .gitignore still applies (node_modules, .env, the widgets-src symlink,
+# the dev-guide PDF, etc.).
+
+# Personal session handoff — local scratch, not part of the kit.
+HANDOFF.md
+# One-off debug scratch (kept local, never shipped).
+test-filter-issue.mjs
+test_playbook_picker.js
+
+# OS
+.DS_Store
+._*
+__MACOSX/
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Playwright
+test-results/
+playwright-report/
+
+# Proprietary Fortinet platform artifacts — NOT tracked/redistributed.
+# Re-fetchable: theme CSS via `make assets` (scripts/fetch-soar-assets.sh);
+# the dev-guide PDF from Fortinet docs (see ONBOARDING.md).
+FortiSOAR-*.pdf
+scripts/steel.*.css
+scripts/dark.*.css
+scripts/light.*.css

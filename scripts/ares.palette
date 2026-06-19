@@ -1,0 +1,26 @@
+# Ares palette — blood crimson against warm-black voids.
+# Voids carry a faint red undertone (#100000 is black with a single drop of
+# blood). Accent is deep crimson; danger shifts to a brighter scarlet so it
+# still reads as an alert against the red-themed UI.
+
+# --- Backgrounds (darkest -> elevated) --------------------------------------
+#000000   #100000
+#0d1218   #0a0608
+#141b23   #14080a
+#1b2430   #14080a
+#1e2124   #1a0c0e
+#29323e   #261015
+#323b47   #5c1a25
+#394a61   #5c1a25
+
+# --- Accent (teal -> Ares blood red) ----------------------------------------
+#22a6af   #e6122d
+#2cafc3   #e6122d
+
+# --- Text -------------------------------------------------------------------
+#ffffff   #ffe5e8
+#c5d5e8   #d99099
+
+# --- Status -----------------------------------------------------------------
+#da393d   #ff5c4e
+#28b35c   #00d96c
