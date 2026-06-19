@@ -17,7 +17,7 @@
     "lint:angular:all": "node scripts/lint-angular.js",
     "lint:js": "find -L $(for d in widgets-src examples; do [ -e \"$d\" ] && echo \"$d\"; done) -name '*.js' ! -name '*.min.js' -not -path '*/node_modules/*' -not -path '*/lib/*' -not -path '*/vendor/*' -print0 | xargs -0 -r oxlint -c .oxlintrc.json",
     "lint:eslint": "eslint --resolve-plugins-relative-to . --ext .js $(for d in widgets-src examples; do [ -e \"$d\" ] && echo \"$d\"; done)",
-    "lint": "npm run lint:js && npm run lint:eslint && npm run lint:testids && npm run lint:angular",
+    "lint": "pnpm lint:js && pnpm lint:eslint && pnpm lint:testids && pnpm lint:angular",
     "widget": "node scripts/widget.js",
     "assets": "bash scripts/fetch-soar-assets.sh",
     "new-widget": "bash scripts/new-widget.sh",
@@ -49,7 +49,9 @@
     "supertest": "^7.0.0"
   },
   "license": "MIT",
+  "packageManager": "pnpm@8.14.2",
   "engines": {
-    "node": ">=18"
+    "node": ">=18",
+    "pnpm": ">=8"
   }
 }

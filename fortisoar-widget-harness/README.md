@@ -13,35 +13,35 @@ You need **Node 18+** and network access to a **trusted lab** FortiSOAR box.
 
 ```bash
 cd fortisoar-widget-harness
-npm install
+pnpm install
 cp .env.example .env          # then edit: FSR_BASE_URL / FSR_USERNAME / FSR_PASSWORD
-npm run dev                   # starts the harness; open the URL it prints (default http://localhost:4401)
+pnpm dev                   # starts the harness; open the URL it prints (default http://localhost:4401)
 ```
 
 In a second terminal, confirm the CLI can see both sides:
 
 ```bash
-npm run list                  # local widgets the harness discovered
-npm run remote-list           # widgets installed on your SOAR box (proves auth works)
+pnpm list                  # local widgets the harness discovered
+pnpm remote-list           # widgets installed on your SOAR box (proves auth works)
 ```
 
 If `remote-list` prints a table, your `.env` is correct and you're ready. If it
-errors, check `FSR_BASE_URL` / credentials and that `npm run dev` is running.
+errors, check `FSR_BASE_URL` / credentials and that `pnpm dev` is running.
 
 A fresh clone ships one **example widget** (`examples/helloCounter/`) so the
 harness has something to render out of the box. Open the harness URL and pick
 **Hello Counter** in the widget switcher, then run its tests:
 
 ```bash
-WIDGET=helloCounter npm test          # jest unit test (controller logic)
-npm run test:e2e                      # playwright DOM test (boots its own harness)
+WIDGET=helloCounter pnpm test          # jest unit test (controller logic)
+pnpm test:e2e                      # playwright DOM test (boots its own harness)
 ```
 
 Scaffold your own widget with one command (fills in controller names, testids,
 and the e2e spec correctly — see `widget-template/`):
 
 ```bash
-scripts/new-widget.sh incidentSummary "Incident Summary"   # or: npm run new-widget …
+scripts/new-widget.sh incidentSummary "Incident Summary"   # or: pnpm new-widget …
 ```
 
 To rename an existing widget instead, use `node scripts/widget.js rename`.
@@ -53,7 +53,7 @@ The harness renders widgets inside the real FortiSOAR app bundle, served from
 them once from your own licensed box:
 
 ```bash
-npm run assets        # downloads app.unmin.js + templates from FSR_BASE_URL into fsr_src/
+pnpm assets        # downloads app.unmin.js + templates from FSR_BASE_URL into fsr_src/
 ```
 
 Unit tests don't need this; e2e does (without it, widgets won't render and e2e
@@ -88,7 +88,7 @@ env var / `.env`, and `login`/`logout` print an actionable message.
 ## The `widget` CLI
 
 One command for every common task. Run via `node scripts/widget.js <cmd>` or the
-npm aliases. The CLI talks to the running harness (`npm run dev` must be up) and
+pnpm aliases. The CLI talks to the running harness (`pnpm dev` must be up) and
 reads SOAR creds from the same `.env`, so its `HARNESS_URL` always matches `PORT`.
 
 ```
@@ -116,7 +116,7 @@ widget <cmd> [<widget-folder>] [flags]
 
 ```bash
 # Iterate + deploy a change
-npm run dev                                   # leave running
+pnpm dev                                   # leave running
 node scripts/widget.js lint  incidentSummary
 node scripts/widget.js push  incidentSummary --bump patch
 
@@ -203,19 +203,19 @@ widgets-src/       # default discovery root if WIDGETS_SRC isn't set
 **All testing runs locally — no FortiSOAR login required.** Unit tests run under
 jsdom against stubbed platform services; e2e tests mock the `/api` data proxy
 per spec. Unit tests need nothing extra. **e2e additionally needs the SOAR app
-shell** (`fsr_src/`) to render widgets in a browser — run `npm run assets` once
+shell** (`fsr_src/`) to render widgets in a browser — run `pnpm assets` once
 to fetch it from your own licensed box (see "SOAR app shell" below).
 
 ```bash
-npm test                          # jest: harness suites only (fast default)
-WIDGET=helloCounter npm test      # + the example widget's unit tests
-WIDGET=all npm test               # + every discovered widget with a tests/ dir
+pnpm test                          # jest: harness suites only (fast default)
+WIDGET=helloCounter pnpm test      # + the example widget's unit tests
+WIDGET=all pnpm test               # + every discovered widget with a tests/ dir
 
-npm run assets                    # once: fetch the SOAR app shell for e2e
-npm run test:e2e                  # playwright (data /api is mocked per spec)
-npm run test:e2e:live             # opt-in: drives a real box (needs .env creds)
+pnpm assets                    # once: fetch the SOAR app shell for e2e
+pnpm test:e2e                  # playwright (data /api is mocked per spec)
+pnpm test:e2e:live             # opt-in: drives a real box (needs .env creds)
 
-npm run lint                      # oxlint + eslint + test-id + angular lints
+pnpm lint                      # oxlint + eslint + test-id + angular lints
 ```
 
 - **Unit** (`jest`) — `projects:` fan-out: the harness's suites run under Node;
@@ -223,7 +223,7 @@ npm run lint                      # oxlint + eslint + test-id + angular lints
   tests are opt-in via `WIDGET=<name|all>` so a default run stays fast.
 - **e2e** (`playwright`) — boots its own harness on `:14401` and mocks `/api`
   data per spec, so no login is needed; but the widget renders inside the real
-  SOAR app shell, so `npm run assets` must have populated `fsr_src/` first.
+  SOAR app shell, so `pnpm assets` must have populated `fsr_src/` first.
   Specs whose filename contains `Live`/`live` drive a real FortiSOAR and are
   excluded unless `E2E_LIVE=1`.
 - The bundled `examples/helloCounter` widget is always discoverable for both
@@ -272,6 +272,6 @@ This repo is driven by AI agents. Durable references, in order:
    controllers, jest + e2e tests) to read or copy as a starting point.
 4. **This README + `widget --help`** — the harness operations surface.
 
-Run tests only through the documented npm targets (`npm test`, `npm run test:e2e`).
-Start the server with `npm run dev` — never hand-run a second `node server.js`
+Run tests only through the documented pnpm targets (`pnpm test`, `pnpm test:e2e`).
+Start the server with `pnpm dev` — never hand-run a second `node server.js`
 on top of a running one.
