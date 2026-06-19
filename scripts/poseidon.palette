@@ -1,0 +1,26 @@
+# Poseidon palette — abyssal sea-teal against indigo-black voids.
+# Backgrounds shift toward saturated indigo (more blue than Tron's #06101c)
+# and the accent is a green-leaning sea-teal #00b4a0 — deliberately not pure
+# neon cyan so it doesn't read as a Tron variant.
+
+# --- Backgrounds (darkest -> elevated) --------------------------------------
+#000000   #000a14
+#0d1218   #02080f
+#141b23   #051420
+#1b2430   #051420
+#1e2124   #081a26
+#29323e   #0a2030
+#323b47   #1a4a60
+#394a61   #1a4a60
+
+# --- Accent (teal -> Poseidon sea-teal) -------------------------------------
+#22a6af   #00b4a0
+#2cafc3   #00b4a0
+
+# --- Text -------------------------------------------------------------------
+#ffffff   #d8f0ed
+#c5d5e8   #6fb0a8
+
+# --- Status -----------------------------------------------------------------
+#da393d   #ff2d4f
+#28b35c   #00ffaa

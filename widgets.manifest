@@ -1,0 +1,21 @@
+# widgets.manifest — which widget repos populate widgets-src/
+#
+# `make widgets` (or scripts/clone-widgets.sh) clones/updates each entry below
+# into widgets-src/<name>. These are PLAIN CLONES, not git submodules — each
+# widget is its own independent repo with its own history; the dev kit just
+# discovers them under widgets-src/.
+#
+# Format (whitespace-separated):  <name>  <git-url>  [branch]
+#   name    folder created under widgets-src/ (should match the widget's info.json "name")
+#   git-url clone URL (https or ssh)
+#   branch  optional; defaults to the remote's default branch
+#
+# Lines starting with # and blank lines are ignored. Access is whatever your
+# git credentials allow — private GitLab entries need your fortilab auth.
+
+fsrSocAssistant     https://svl-devops-gitlab01.fortilab.fortinet.com/dspille/fsrPlaybookBuilder-widget.git   feat/action-based-streaming
+widget-jinja-editor https://github.com/ftnt-dspille/widget-jinja-editor.git                                  main
+widget-action-renderer https://github.com/ftnt-dspille/widget-action-renderer.git                            master
+
+# Local-only widgets (no remote yet) — add a URL here once they're pushed:
+# c3charts              <url>  master
