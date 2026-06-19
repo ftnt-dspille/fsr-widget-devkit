@@ -13,7 +13,7 @@ but does not contain the other two.
 | Repo | What it is | Where it lives |
 |------|------------|----------------|
 | **Dev Kit** (this repo) | Harness, `Makefile`, `scripts/`, `KNOWLEDGEBASE.md`, lint configs, widget template. Ships `widgets-src/` **empty**. | `fsr_all_widgets/` |
-| **Widget(s)** | One repo per widget (e.g. `fsrSocAssistant`). Cloned into `widgets-src/` via the manifest. | private GitLab / GitHub |
+| **Widget(s)** | One repo per widget (e.g. `fsrSocAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
 | **Connector** | The agentic backend (`fortinet-fsr-playbook-builder` + `fsr_core`) the SOC-assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
 
 The harness (`fortisoar-widget-harness/`) is **part of this repo** — plain files,
@@ -21,12 +21,10 @@ not a separate git repo. (It used to be its own repo; that standalone repo is no
 frozen. Harness work happens here.) It is still intentionally generic — it knows
 nothing about any specific widget.
 
-This one repo has two remotes — the private GitLab `origin` and the public GitHub
-`github` (`ftnt-dspille/fsr-widget-devkit`) — sharing the same history. Publish
-with a plain `git push origin master && git push github master`. Secrets and
-proprietary Fortinet assets are gitignored, so the tracked tree is what ships;
-keep them that way (never `git add -f` an `.env`, the dev-guide PDF, or theme
-CSS).
+This repo lives on GitHub (`ftnt-dspille/fsr-widget-devkit`) — standard git, just
+`git push`. Secrets and proprietary Fortinet assets are gitignored, so the tracked
+tree is what ships; keep them that way (never `git add -f` an `.env`, the dev-guide
+PDF, or theme CSS).
 
 ## First-time setup
 
@@ -50,7 +48,7 @@ make assets                                   # populates fsr_src/ from FSR_BASE
 `widgets-src/`). **jest unit tests work immediately after setup.** Playwright
 **e2e** tests additionally need `make assets`, which fetches the FortiSOAR app
 shell (`fsr_src/`) from your own licensed box — these Fortinet platform assets
-are not redistributed with the kit. Private GitLab entries need your fortilab git credentials. A
+are not redistributed with the kit. Private widget repos need credentials for their host. A
 widget with no remote yet stays local-only — add its URL to `widgets.manifest`
 once it's pushed.
 
