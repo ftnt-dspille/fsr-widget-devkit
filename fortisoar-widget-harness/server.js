@@ -32,8 +32,36 @@ const {
 // Default port intentionally non-common so dev sessions don't collide with
 // the 3000/4000/4400/8080 buckets that other tools grab. Override with PORT=.
 const PORT = Number(process.env.PORT || 14400);
-const { resolveSoarEnv } = require("./lib/soarEnv");
-const { host: HOST, user: USER, pass: PASS } = resolveSoarEnv();
+const { resolveSoarEnv, resolveSoarEnvFile, listEnvFiles } = require("./lib/soarEnv");
+// SOAR connection is MUTABLE at runtime: the harness UI can re-point the proxy
+// at a different .env file (e.g. the forticloud box vs a local box) without a
+// restart. The proxy reads HOST per-request via its `router`; authenticate()
+// reads USER/PASS per-call. A switch invalidates the cached JWT so the next
+// request re-auths against the new box.
+let { host: HOST, user: USER, pass: PASS } = resolveSoarEnv();
+// Basename of the .env the connection currently reflects. `.env` is the startup
+// default (resolved with the normal exported-env > keychain > file precedence).
+let ACTIVE_ENV = ".env";
+
+// Persisted selection: a gitignored dotfile holding just the chosen basename so
+// a `npm run dev` restart keeps pointing where you left it.
+const ACTIVE_ENV_STATE_FILE = path.resolve(__dirname, ".harness-active-env");
+
+// Re-point the connection at a named env file (basename, must be one listed by
+// listEnvFiles). Updates HOST/USER/PASS, drops the cached token, and returns the
+// new host. Throws if the file isn't a recognized, usable target.
+function applySoarEnvFile(file) {
+  const match = listEnvFiles(__dirname).find((e) => e.file === file);
+  if (!match) throw new Error(`unknown or unusable env file: ${file}`);
+  const resolved = resolveSoarEnvFile(path.join(__dirname, file));
+  if (!resolved.host) throw new Error(`env file has no FSR_BASE_URL: ${file}`);
+  HOST = resolved.host;
+  USER = resolved.user;
+  PASS = resolved.pass;
+  ACTIVE_ENV = file;
+  invalidateToken();
+  return HOST;
+}
 let PROXY_VERBOSE = process.env.PROXY_VERBOSE === "1";
 
 // Hermetic mode (HERMETIC_E2E_PLAN.md Phase 1): when on, the proxy fallthrough
@@ -216,6 +244,19 @@ let tokenExpiry = 0;
 let tokenPromise = null;
 const REFRESH_SKEW_MS = 60 * 1000;
 const FALLBACK_TTL_MS = 50 * 60 * 1000;
+
+// Restore the last UI-selected SOAR target. `.env` is already the startup
+// default, so only a non-default persisted choice needs re-applying. A stale
+// pointer (file deleted/renamed) silently falls back to the default.
+(function restoreActiveSoarEnv() {
+  try {
+    if (!fs.existsSync(ACTIVE_ENV_STATE_FILE)) return;
+    const want = fs.readFileSync(ACTIVE_ENV_STATE_FILE, "utf8").trim();
+    if (want && want !== ".env") applySoarEnvFile(want);
+  } catch (e) {
+    console.warn(`[soar-env] could not restore persisted target: ${e.message}`);
+  }
+})();
 
 function decodeJwtExpiryMs(token) {
   try {
@@ -638,11 +679,16 @@ function mountWidget(w) {
     });
   });
   app.use(`/${w.id}`, express.static(w.dir, { etag: false, cacheControl: false }));
+  // Also serve under the SOAR canonical path that widgetBasePath resolves to
+  // ("/widgets/installed/<id>/"), so CSS/template assets loaded via ng-href
+  // {{widgetBasePath}}... resolve correctly in both the harness and in SOAR.
+  app.use(`/widgets/installed/${w.id}`, express.static(w.dir, { etag: false, cacheControl: false }));
   // Hard 404 for anything under /<widget-id>/ that wasn't found in the widget
   // folder. Without this, the trailing SOAR-proxy middleware would forward
   // the request and return the SPA index.html, which silently breaks widget
   // code that expects JSON (e.g. fsrPbMockConnector loading fixtures).
   app.use(`/${w.id}`, (_req, res) => res.status(404).type("text/plain").send("widget asset not found"));
+  app.use(`/widgets/installed/${w.id}`, (_req, res) => res.status(404).type("text/plain").send("widget asset not found"));
   console.log(`mount  /${w.id}  ->  ${w.dir}`);
 }
 
@@ -874,7 +920,10 @@ const LOCAL_PATHS = new Set(["/", "/index.html", "/harness.module.js"]);
 function isLocalPath(p) {
   if (LOCAL_PATHS.has(p)) return true;
   if (p.startsWith("/lib/")) return true;
-  for (const w of WIDGETS) if (p.startsWith(`/${w.id}/`)) return true;
+  for (const w of WIDGETS) {
+    if (p.startsWith(`/${w.id}/`)) return true;
+    if (p.startsWith(`/widgets/installed/${w.id}/`)) return true;
+  }
   if (p.startsWith("/_fsr/")) return true;
   return false;
 }
@@ -884,7 +933,38 @@ function isLocalPath(p) {
 app.get("/_fsr/info", (_req, res) => {
   let host = "";
   try { host = new URL(HOST || "").host; } catch (_) { host = HOST || "(unset)"; }
-  res.json({ proxyHost: host, widgetCount: WIDGETS.length });
+  res.json({ proxyHost: host, widgetCount: WIDGETS.length, activeEnv: ACTIVE_ENV });
+});
+
+// SOAR target picker: list the selectable .env files and which one is active.
+app.get("/_fsr/soar-envs", (_req, res) => {
+  res.json({
+    active: ACTIVE_ENV,
+    envs: listEnvFiles(__dirname).map((e) => ({
+      file: e.file,
+      host: (() => { try { return new URL(e.host).host; } catch (_) { return e.host; } })(),
+      user: e.user,
+      active: e.file === ACTIVE_ENV,
+    })),
+  });
+});
+
+// Re-point the proxy at a different .env. Persists the choice so a restart
+// keeps it. The page reloads client-side after this so the widget re-fetches
+// against the new box with a fresh token.
+app.post("/_fsr/soar-env", express.json(), (req, res) => {
+  const file = req.body && req.body.file;
+  if (!file) return res.status(400).json({ error: "missing 'file'" });
+  try {
+    const host = applySoarEnvFile(file);
+    try { fs.writeFileSync(ACTIVE_ENV_STATE_FILE, file); } catch (_) {}
+    let shown = host;
+    try { shown = new URL(host).host; } catch (_) {}
+    console.log(`[soar-env] switched proxy target -> ${file} (${shown})`);
+    res.json({ active: ACTIVE_ENV, proxyHost: shown });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.get("/_fsr/widgets", (_req, res) => {
@@ -1727,6 +1807,10 @@ function truncate(buf) {
 const proxy = createProxyMiddleware({
   pathFilter: (p) => !isLocalPath(p),
   target: HOST,
+  // HOST is mutable (the UI can re-point the proxy at another .env at runtime),
+  // and `target` is captured once at setup — so resolve the live target per
+  // request via `router`. Returns the current HOST every call.
+  router: () => HOST,
   changeOrigin: true,
   secure: false,
   ws: true,

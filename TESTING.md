@@ -138,7 +138,12 @@ box outage can't red a mock test. The harness enforces this with `FSR_HERMETIC=1
   (pinned to the box's version), templates from `fsr_src/templates-extracted/`,
   and the boot reads (`/api/3/actors/current`, `/api/system/fixtures`) from
   harness stubs. `/_fsr/stylesheets` returns `[]` under hermetic (platform CSS is
-  cosmetic; theme fidelity is a live-sweep concern).
+  cosmetic; theme fidelity is a live-sweep concern). **Corollary: never assert
+  on computed `backgroundColor` or `color` in hermetic e2e tests** — SOAR's
+  theme CSS is absent so ui-grid cells show CDN defaults (near-white `#fdfdfd`/
+  `#f3f3f3`) regardless of the harness dark/light setting. Colour correctness is
+  confirmed by the live harness browser (port 4401) with "Load FortiSOAR CSS"
+  enabled, not by hermetic Playwright.
 - Run with `retries: 0` and one dev server **per worker** (no boot contention),
   so a single failure is a real failure — never masked as flaky-green.
 - **The hermetic guarantee is enforced after the suite**, not just per-test: a

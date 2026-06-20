@@ -143,6 +143,34 @@
 
       return $delegate;
     }]);
+
+    // Backfill system-settings lightmode flags. csGrid reads
+    // `settingsService.getSystem()` then UNCONDITIONALLY dereferences
+    // `publicValues.lightmode.enable` (and `overrideLightMode.enable`) to set
+    // `gridOptions.lightMode`. A box that never configured those keys (e.g. the
+    // local dev box) resolves a publicValues WITHOUT them, so every grid widget
+    // throws "Cannot read properties of undefined (reading 'enable')" and never
+    // gets a lightMode → cells render un-themed (washed-out text). Inject the
+    // keys when absent so the grid themes itself to match the harness chrome
+    // (light theme => lightMode; dark/navy => dark mode).
+    $provide.decorator("settingsService", ["$delegate", function ($delegate) {
+      var orig = $delegate.getSystem;
+      if (typeof orig !== "function") return $delegate;
+      $delegate.getSystem = function () {
+        var p = orig.apply($delegate, arguments);
+        if (!p || typeof p.then !== "function") return p;
+        return p.then(function (res) {
+          var pv = res && res.publicValues;
+          if (pv) {
+            var lightChrome = (window.__HARNESS_THEME_ID || "dark") === "light";
+            if (!pv.lightmode) pv.lightmode = { enable: lightChrome };
+            if (!pv.overrideLightMode) pv.overrideLightMode = { enable: false };
+          }
+          return res;
+        });
+      };
+      return $delegate;
+    }]);
   }]);
 
   // `config` is normally provided by the widget template service on the host
@@ -512,6 +540,12 @@
     return {
       availablePermission: function () { return true; },
       availableFieldPermission: function () { return true; },
+      // csGrid's link() calls isAdmin() during $digest; the real service derives
+      // it from loaded RBAC the harness doesn't bootstrap. Grant admin to match
+      // the "all permissions" stance above (else jsonToGrid throws
+      // "isAdmin is not a function" and the grid never links).
+      isAdmin: function () { return true; },
+      load: function () { return { then: function (cb) { cb && cb(); return this; }, catch: function(){ return this; } }; },
       get: function () { return {}; },
       loadCurrentUser: function () { return { then: function (cb) { cb && cb(); return this; }, catch: function(){ return this; } }; },
       getPermissions: function () { return {}; },
