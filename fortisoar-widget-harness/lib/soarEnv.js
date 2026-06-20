@@ -54,6 +54,25 @@ function parseDotenvFile() {
   }
 }
 
+// Normalize a FSR_BASE_URL (+ optional FSR_PORT) into a full origin. Scheme is
+// optional in the env value (defaults to https); an explicit port overrides any
+// port already in the URL.
+function normalizeHost(raw, port) {
+  raw = (raw || "").trim();
+  port = (port || "").trim();
+  if (!raw) return "";
+  if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+  raw = raw.replace(/\/+$/, "");
+  if (!port) return raw;
+  try {
+    const u = new URL(raw);
+    u.port = port;
+    return u.origin;
+  } catch (_) {
+    return raw;
+  }
+}
+
 function resolveSoarEnv(env, opts) {
   const useDefaultEnv = !env; // explicit env (tests) => don't touch the .env file
   env = env || process.env;
@@ -66,24 +85,10 @@ function resolveSoarEnv(env, opts) {
     return real || keyringSecret(account, service) || fileVal || "";
   }
 
-  let raw = (env.FSR_BASE_URL || env.FORTISOAR_HOST || fileEnv.FSR_BASE_URL || "").trim();
-  const port = (env.FSR_PORT || fileEnv.FSR_PORT || "").trim();
-  let host = "";
-  if (raw) {
-    if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw; // scheme optional in FSR_BASE_URL
-    raw = raw.replace(/\/+$/, "");
-    if (port) {
-      try {
-        const u = new URL(raw);
-        u.port = port; // explicit FSR_PORT overrides any port already in the URL
-        host = u.origin;
-      } catch (_) {
-        host = raw;
-      }
-    } else {
-      host = raw;
-    }
-  }
+  const host = normalizeHost(
+    env.FSR_BASE_URL || env.FORTISOAR_HOST || fileEnv.FSR_BASE_URL || "",
+    env.FSR_PORT || fileEnv.FSR_PORT || ""
+  );
 
   const user = (env.FSR_USERNAME || env.FORTISOAR_USERNAME || fileEnv.FSR_USERNAME || "").trim();
 
@@ -102,4 +107,57 @@ function resolveSoarEnv(env, opts) {
   return { host, user, pass, apiKey, service };
 }
 
-module.exports = { resolveSoarEnv, KEYRING_SERVICE };
+// Resolve SOAR connection details from ONE explicitly-chosen .env file (used by
+// the harness UI's "FortiSOAR target" picker). Unlike resolveSoarEnv, the file
+// is the intent, so file values win; the OS keychain only backfills a secret the
+// file omits. The ambient process.env (the startup .env dotenv already copied in)
+// is deliberately ignored so picking .env.box can't inherit .env's host/creds.
+function resolveSoarEnvFile(envPath, opts) {
+  const dotenv = require("dotenv");
+  const fileEnv = dotenv.parse(fs.readFileSync(envPath));
+  const service = (opts && opts.service) || KEYRING_SERVICE;
+  const host = normalizeHost(
+    fileEnv.FSR_BASE_URL || fileEnv.FORTISOAR_HOST || "",
+    fileEnv.FSR_PORT || ""
+  );
+  const user = (fileEnv.FSR_USERNAME || fileEnv.FORTISOAR_USERNAME || "").trim();
+  const pass =
+    (fileEnv.FSR_PASSWORD || fileEnv.FORTISOAR_PASSWORD || "").trim() ||
+    keyringSecret(user, service);
+  const apiKey =
+    (fileEnv.FSR_API_KEY || "").trim() ||
+    keyringSecret(user ? `${user}:apikey` : "", service);
+  return { host, user, pass, apiKey, service, file: path.basename(envPath) };
+}
+
+// Discover selectable env files in the harness root: `.env` plus every `.env.*`
+// EXCEPT templates/backups (`.example`, `.bak`). Returns a light summary (no
+// secrets) for the picker — file basename, derived host, and login id.
+function listEnvFiles(dir) {
+  dir = dir || path.resolve(__dirname, "..");
+  const dotenv = require("dotenv");
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
+  } catch (_) {
+    return [];
+  }
+  return names
+    .filter((n) => n === ".env" || (n.startsWith(".env.") && !/\.(example|bak)$/.test(n)))
+    .sort((a, b) => (a === ".env" ? -1 : b === ".env" ? 1 : a.localeCompare(b)))
+    .map((file) => {
+      try {
+        const fe = dotenv.parse(fs.readFileSync(path.join(dir, file)));
+        return {
+          file,
+          host: normalizeHost(fe.FSR_BASE_URL || fe.FORTISOAR_HOST || "", fe.FSR_PORT || ""),
+          user: (fe.FSR_USERNAME || fe.FORTISOAR_USERNAME || "").trim(),
+        };
+      } catch (_) {
+        return { file, host: "", user: "" };
+      }
+    })
+    .filter((e) => e.host); // a file with no FSR_BASE_URL isn't a usable target
+}
+
+module.exports = { resolveSoarEnv, resolveSoarEnvFile, listEnvFiles, normalizeHost, KEYRING_SERVICE };

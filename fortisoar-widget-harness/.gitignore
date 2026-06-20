@@ -9,6 +9,9 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Last UI-selected SOAR target (basename of the chosen .env). Per-machine state.
+.harness-active-env
+
 # Build / runtime output
 widget-packages/
 dev/cache/

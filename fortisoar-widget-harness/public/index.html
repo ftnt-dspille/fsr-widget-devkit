@@ -584,6 +584,11 @@
             Settings ▾
           </button>
           <div id="settings-popover" class="harness-settings-popover">
+            <label title="Which FortiSOAR box the harness proxies to. Picks one of the .env / .env.* files in the harness root; switching re-points the proxy, drops the cached token, and reloads so the widget re-fetches against the new box. Persisted across restarts.">
+              FortiSOAR target
+              <select id="soar-env-select"></select>
+            </label>
+            <div id="soar-env-host" style="opacity:0.6;font-size:11px;margin:-4px 0 4px;"></div>
             <label title="Sets both the harness chrome and the SOAR widget theme ($rootScope.theme.id). All three values produce a visibly different chrome.">
               Theme
               <select id="harness-theme">
@@ -923,6 +928,50 @@
             setTimeout(() => { cacheClear.textContent = "Clear cache"; }, 1200);
           } finally { cacheClear.disabled = false; }
         });
+
+        // FortiSOAR target selector: pick which .env the proxy points at.
+        // Switching re-points the proxy server-side, then reloads so the widget
+        // re-fetches against the new box with a fresh token.
+        const soarEnvSelect = document.getElementById("soar-env-select");
+        const soarEnvHost = document.getElementById("soar-env-host");
+        try {
+          const j = await (await fetch("/_fsr/soar-envs")).json();
+          const byFile = {};
+          for (const e of j.envs) {
+            byFile[e.file] = e;
+            const opt = document.createElement("option");
+            opt.value = e.file;
+            opt.textContent = e.file + (e.host ? "  →  " + e.host : "");
+            opt.selected = e.file === j.active;
+            soarEnvSelect.appendChild(opt);
+          }
+          const showHost = (f) => {
+            const e = byFile[f];
+            soarEnvHost.textContent = e ? (e.user ? e.user + " @ " : "") + (e.host || "(no host)") : "";
+          };
+          showHost(j.active);
+          soarEnvSelect.addEventListener("change", async () => {
+            const file = soarEnvSelect.value;
+            soarEnvSelect.disabled = true;
+            showHost(file);
+            try {
+              const r = await fetch("/_fsr/soar-env", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ file }),
+              });
+              if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+              // Proxy is re-pointed and the token dropped server-side; reload so
+              // the widget remounts and re-fetches against the new box.
+              location.reload();
+            } catch (e) {
+              soarEnvSelect.disabled = false;
+              soarEnvHost.textContent = "switch failed: " + e.message;
+            }
+          });
+        } catch (_) {
+          soarEnvSelect.style.display = "none";
+        }
 
         const HU = window.HarnessUtils;
         const frame = document.getElementById("harness-frame");
@@ -1847,7 +1896,13 @@
               const link = document.createElement("link");
               link.rel = "stylesheet";
               link.href = href;
-              document.head.appendChild(link);
+              // Append to body (not head) so SOAR sheets come after the body
+              // CDN vendor <link> tags (ui-grid, ui-bootstrap, etc.) in cascade
+              // order — body stylesheets sort after head stylesheets in the CSSOM,
+              // so head-injected SOAR sheets would lose to body CDN sheets at equal
+              // specificity.  Appending to body puts SOAR CSS last, letting theme
+              // overrides (e.g. steel.css dark row backgrounds) actually win.
+              document.body.appendChild(link);
             }
             console.log(`injected ${(stylesheets || []).length} FortiSOAR stylesheets`);
           } catch (e) {

@@ -625,7 +625,94 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
 </div>
 ```
 
-### 7.5 Chart
+**Harness gotchas (csGrid wraps angular-ui-grid):**
+- ui-grid 4.6.4 + its feature modules must be loaded (index.html / `HARNESS_VENDOR_DEPS`)
+  or csGrid throws `$injector:unpr uiGridConstants` and renders zero rows.
+- csGrid's link reads `settingsService.getSystem().publicValues.lightmode.enable`
+  (and `overrideLightMode.enable`) **unconditionally** to set `gridOptions.lightMode`.
+  A box that never configured those keys resolves a `publicValues` without them →
+  `Cannot read properties of undefined (reading 'enable')`, and the grid renders
+  un-themed (washed-out cell text). The harness backfills both keys via a
+  `settingsService` decorator (`harness.module.js`), defaulting `lightmode.enable`
+  to the harness theme. csGrid also calls `currentPermissionsService.isAdmin()`
+  (see §21 harness-stub note).
+
+### 7.5 Widget CSS — what to write, what to leave to the platform
+
+Widget CSS is injected into the SOAR document AFTER platform CSS loads. Because of
+this, widget selectors win over platform selectors at equal specificity — which is
+both the power and the footgun.
+
+**Cascade order at runtime** (last loaded = highest priority for equal specificity):
+
+```
+[page load]   platform CSS: style.min.*.css, themes/steel.*.css
+[page load]   CDN vendor CSS: ui-grid, bootstrap, etc.
+[widget mount] widget CSS  ← arrives last; wins on equal specificity
+```
+
+**What belongs in widget CSS:**
+- The widget's own layout and custom component structure
+- Visual elements that exist nowhere else in the platform (custom cards, bespoke tables)
+- Per-theme colour swaps for things the widget owns (backgrounds it draws, borders it controls)
+
+**What does NOT belong in widget CSS:**
+- `csGrid` / `csChart` / `csField` look and feel — the platform theme CSS owns this.
+  Writing widget CSS to fix grid row colours means your overrides break when the theme
+  changes. If grid rows look wrong in the harness, the cause is harness CSS ordering,
+  not the widget (see §9.4.1 gotchas).
+- Dark/light mode body-level colours — those come from the platform theme and the
+  `settingsService` lightMode path.
+
+**Two loading patterns used in the wild:**
+
+```js
+// Pattern A — single file, theme-neutral layout rules
+$scope.widgetCSS = widgetBasePath + 'widgetAssets/css/myWidget.css';
+```
+```html
+<link rel="stylesheet" href="{{widgetCSS}}">
+```
+
+```js
+// Pattern B — per-theme file (controller picks based on current theme ID)
+const themeMap = { dark: 'myWidget-dark.css', light: 'myWidget-light.css', steel: 'myWidget-steel.css' };
+$scope.themeCSS = widgetBasePath + 'widgetAssets/css/' + themeMap[themeId];
+// themeId comes from settingsService.getSystem().publicValues (same value csGrid reads)
+```
+```html
+<link rel="stylesheet" href="{{themeCSS}}">
+```
+Pattern B is used when the widget draws its own backgrounds or text colours that must
+track dark/light/steel themes. `configureIndicatorExtraction` and `multiTableView` are
+canonical examples from the platform widget library.
+
+**Scoping — mandatory, enforced by lint:**
+
+SOAR renders multiple widgets on the same dashboard page; there is no CSS isolation
+between them. Every selector in a widget CSS file MUST be prefixed with the widget's
+root class to prevent bleeding into sibling widgets:
+
+```css
+/* WRONG — leaks to every widget on the page */
+.card-title { color: red; }
+
+/* RIGHT — scoped to this widget's DOM subtree */
+.widget.widget-container .card-title { color: red; }
+```
+
+The harness lint blocks a push if any selector lacks this prefix.
+
+**Specificity cheat sheet:**
+
+| Selector | Specificity | Beats? |
+|---|---|---|
+| `.widget.widget-container .my-el` | (0,2,0) | Most platform structural rules |
+| `.widget.widget-container .parent .my-el` | (0,3,0) | Matches platform's (0,3,0) — loads later so wins |
+| Platform theme `.ui-grid-row:nth-child(odd) .ui-grid-cell` | (0,3,0) | Wins over widget selectors with < 3 classes |
+| Anything `!important` | overrides specificity | Use only when the platform uses `!important` that you must counter |
+
+### 7.6 Chart
 
 ```html
 <div data-cs-chart="chartOptions"></div>
@@ -686,6 +773,74 @@ Name | Purpose | Key functions
 `widgetTemplateService` | Generate widget render metadata | `generateWidgetDefinition(widget)`
 `widgetService` | Launch a widget programmatically | `launchStandaloneWidget(name, version, resolveObj?)`
 `websocketService` | Channel subscriptions | `subscribe(channel, callback)` → promise resolving to a subscription id; `unsubscribe(id)`
+
+#### 8.2.1 Persisting per-user widget preferences with `settingsService`
+
+`settingsService.get(key)` / `.set(key, value)` round-trips to the SOAR backend and
+is **per-user, persisted across sessions and devices**.
+
+**How it works under the hood (confirmed by probing the live box + reading `app.unmin.js`):**
+
+- `get(key)` reads synchronously from a cached copy of `actor['@settings']` (fetched
+  at login). It walks the key split on `/`: `get('jsonToGrid/columnOrder')` returns
+  `@settings.jsonToGrid.columnOrder`.
+- `set(key, value)` issues `PUT /api/3/user_settings/current/<key>` with the value
+  as the JSON body. The backend deep-merges the value at that key path and returns
+  the updated `@settings` object. **Verified working** — a `PUT` to
+  `/api/3/user_settings/current/jsonToGrid/columnOrder` with body `["name","severity"]`
+  persisted and came back on the next `GET /api/3/actors/current`.
+
+The platform uses `user/view/<key>` for its own UI prefs (theme, language, subtabs).
+Widgets should use a **widget-name-prefixed key** to avoid collisions:
+
+```js
+// Save column order after the user drags columns.
+// Key is stable across widget versions — never include the version number.
+gridApi.colMovable.on.columnPositionChanged($scope, function () {
+  var order = gridApi.grid.columns.map(function (c) { return c.field; });
+  settingsService.set('jsonToGrid/columnOrder', order);
+});
+
+// Restore on init — apply before setting gridOptions.data so the render
+// uses the saved order. Reconcile against current grid_columns (saved
+// fields may be stale if the playbook added/removed columns).
+settingsService.get('jsonToGrid/columnOrder');  // returns value synchronously
+var saved = settingsService.get('jsonToGrid/columnOrder');
+if (saved && saved.length) {
+  var reordered = _.filter(
+    saved.map(function (field) { return _.find($scope.columnDefs, { name: field }); }),
+    Boolean
+  );
+  var unseen = _.reject($scope.columnDefs, function (c) { return saved.indexOf(c.name) !== -1; });
+  $scope.columnDefs = reordered.concat(unseen);
+}
+```
+
+**Key design notes:**
+- Key must be **stable across widget versions** (`jsonToGrid/columnOrder` not
+  `jsonToGrid130/columnOrder`).
+- `settingsService.get` returns the value **synchronously** from the cached
+  `@settings` — no promise, no `.then()`.
+- `settingsService.set` is fire-and-forget (no need to await it per column move).
+- `PUT /api/3/user_settings/current/<key>` is the actual REST call. DO NOT use
+  `PUT /api/3/user_settings/<uuid>` (returns 500) or `PATCH` (405). The `/current/`
+  variant is the only working write path.
+
+**Endpoints that do NOT work (probed):**
+- `GET /api/3/settings` → 404
+- `PATCH /api/3/user_settings/<uuid>` → 405
+- `PUT /api/3/user_settings/<uuid>` → 500 (internal error)
+- `PUT /api/3/actors/current` with `@settings` → 200 but does not persist
+
+**Why `PagedCollection.contextId` column-save does NOT apply here:**
+
+The native module-list grids (Alerts, Incidents) save column visibility/width
+per-user via a `contextId` keyed to the `PagedCollection`. This mechanism requires
+the grid to be backed by a **real SOAR module collection**. The jsonToGrid widget
+uses `gridOptions.data` directly (rows come from a playbook result, not a
+PagedCollection query) and only instantiates a fake `PagedCollection('dummy_module')`
+for the empty-state UI path. `contextId`-based column saving is therefore
+**not available** to JSON-data grids — use `settingsService` instead.
 
 ### 8.3 Your own widget-local service
 
@@ -846,6 +1001,25 @@ const defaultGridOptions = {
   container + the body container ⇒ 2× rows). To count true data rows in a test,
   scope to the body container:
   `.grid-widget-container .ui-grid-render-container-body .ui-grid-row`.
+- **Do NOT write custom widget CSS to fix grid row theming.** SOAR's platform
+  theme CSS (`css/themes/steel.5065a59f.css` on this box) already overrides
+  ui-grid's default light-stripe backgrounds (`#fdfdfd`/`#f3f3f3`) to dark
+  (`#121923`) for both odd and even rows. Adding widget CSS duplicates platform
+  responsibility and will conflict when the platform theme changes. If rows look
+  wrong in the harness, the problem is harness CSS ordering, not the widget.
+- **Hermetic e2e tests have no SOAR theme CSS** (`/_fsr/stylesheets` returns `[]`
+  under `FSR_HERMETIC=1`). Cell backgrounds in hermetic tests will always be the
+  CDN ui-grid defaults (near-white). Do not assert on `backgroundColor` or
+  `color` in hermetic e2e — those tests will always see the wrong values. Theme
+  fidelity is a live-sweep concern.
+- **Harness SOAR CSS injection order footgun (fixed, know for next time).**
+  `injectFsrStylesheets()` must append sheets to `document.body`, not
+  `document.head`. The vendor CSS `<link>` tags (CDN ui-grid, ui-bootstrap,
+  etc.) live in `<body>` in `index.html`. CSS cascade orders body sheets after
+  head sheets at equal specificity, so head-injected SOAR sheets lose to body
+  CDN sheets. Symptom: grid rows stay light even with "Load FortiSOAR CSS"
+  checked. Fix is in `public/index.html` `injectFsrStylesheets()` — already
+  applied; do not revert to `document.head.appendChild`.
 
 **Harness (dev + e2e) requirements to host *any* grid widget** — all stripped
 from `app.unmin.js` and re-added in the harness:
@@ -1906,6 +2080,14 @@ currentPermissionsService.availableFieldPermission('alerts', 'severity', 'read')
 // Admin?
 if (currentPermissionsService.isAdmin()) { /* ... */ }
 ```
+
+**Harness stub (gotcha):** the harness overrides `currentPermissionsService`
+with a grant-all stub (`harness.module.js`). It must expose **every** method a
+platform directive calls during `$digest`, not just the ones widgets use — e.g.
+`csGrid`'s link calls `isAdmin()` (to set `restrictPermanentDelete`). A missing
+method throws `isAdmin is not a function` and the grid never links (jsonToGrid).
+When a built-in directive errors with `<method> is not a function` on a stubbed
+service, add that method to the stub.
 
 Always guard the view with an `unauthorized` branch:
 
