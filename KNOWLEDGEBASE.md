@@ -1056,6 +1056,51 @@ values — empty responses let the field-load chain resolve. **Footgun:** widget
 often call `loadFields().then(success)` with *no* error handler; a rejection (or
 a metadata-load race at mount) silently stalls the whole trigger chain.
 
+#### 9.4.3 `grid_columns` playbook contract (jsonToGrid widget)
+
+The `grid_columns` variable returned by the data-provider playbook is a JSON object
+with a `columns` array that drives `$scope.columnDefs` (bound to `data-column-defs`
+in the template). Each entry maps to a ui-grid `columnDef` object.
+
+```json
+{
+  "columns": [
+    { "name": "severity", "displayName": "Severity", "width": 120 },
+    { "name": "name",     "displayName": "Name" }
+  ]
+}
+```
+
+**Columns render in array order** — `orderByColumnDefs: true` enforces this regardless
+of property order in `grid_data` objects.
+
+**Supported keywords** (all optional except `name`):
+
+| Key | Type | Effect |
+|-----|------|--------|
+| `name` | string | **Required.** Field key in `grid_data` objects. |
+| `displayName` | string | Column header. Defaults to `name`. |
+| `width` | number | Fixed column width in pixels. |
+| `minWidth` / `maxWidth` | number | Width constraints in pixels. |
+| `type` | string | `string` (default), `number`, `date`, `boolean`, `object` — affects sort and filter behaviour. |
+| `cellFilter` | string | AngularJS filter applied before display: `"date:'MM/dd/yyyy'"`, `"number:2"`, `"uppercase"`. |
+| `cellTemplate` | string | Custom cell HTML; `row.entity[col.field]` is the value. |
+| `enableSorting` | boolean | Per-column sort toggle. Grid default: `true`. |
+| `enableFiltering` | boolean | Per-column filter toggle. Grid default: `true`. |
+| `visible` | boolean | Initial visibility. Default: `true`. |
+| `pinnedLeft` / `pinnedRight` | boolean | Pin column to grid edge. |
+
+**Footgun — `enableFiltering: false` at grid level overrides per-column settings.**
+Prior to v1.3.0, `setGridOptions()` set `enableFiltering: false` which silently
+disabled all column filters regardless of what `grid_columns` specified. Fixed in
+v1.3.0 — the grid now sets `enableFiltering: true` and `useExternalFiltering` is
+removed.
+
+**Detail-view context** — when `$state.params.module` and `$state.params.id` are
+set (widget placed on a record detail page), the controller fetches that record and
+passes it to the playbook as `records[0]`, so the playbook can scope `grid_data` to
+data relevant to the current record without the user selecting a row.
+
 ### 9.5 `data-cs-chart`
 
 ```html
