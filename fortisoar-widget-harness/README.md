@@ -262,7 +262,7 @@ All config is environment (via `.env`, loaded by `dotenv`). See `.env.example`.
 
 This repo is driven by AI agents. Durable references, in order:
 
-1. **`docs/KNOWLEDGEBASE.md`** — how to build FortiSOAR 7.x widgets (lifecycle,
+1. **`../KNOWLEDGEBASE.md`** — how to build FortiSOAR 7.x widgets (lifecycle,
    drawer mechanics, platform services, packaging, 60-widget gotcha catalog).
    Consult before changing any widget; add new platform gotchas back into it.
 2. **Fortinet's official widget development guide** — reference; the KNOWLEDGEBASE

@@ -11,5 +11,5 @@ Obtain it from your own licensed source:
 Then keep your local copy out of git (drop it in `docs/`; the repo ignores
 `docs/*.pdf`).
 
-`docs/KNOWLEDGEBASE.md` in this repo distills and extends the guide for the
+`KNOWLEDGEBASE.md` at the repo root distills and extends the guide for the
 widget-building workflows this harness supports.

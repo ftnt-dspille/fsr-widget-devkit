@@ -34,5 +34,5 @@ npm run test:e2e         # Playwright
 | `tests/view.controller.test.js` | jest unit test (stays with the widget). |
 | `tests/e2e/myWidget.spec.js` | Playwright e2e seed — `new-widget.sh` relocates it to `tests/e2e/<name>.spec.js` (the harness is Playwright's testDir). |
 
-Read `../docs/KNOWLEDGEBASE.md` before anything non-trivial, and `../TESTING.md`
+Read `../../KNOWLEDGEBASE.md` before anything non-trivial, and `../TESTING.md`
 for the test conventions. Every change ships with a test.
