@@ -528,6 +528,55 @@
         padding: 0 4px; border-radius: 2px;
       }
       body.theme-light .harness-status code { background: rgba(0,0,0,0.06); }
+      /* Edit-config mode toggle (Form / JSON) */
+      .edit-mode-toggle { display: flex; gap: 4px; }
+      .edit-mode-btn {
+        background: transparent; border: 1px solid rgba(255,255,255,0.2);
+        color: inherit; padding: 2px 10px; border-radius: 3px; font-size: 12px; cursor: pointer;
+      }
+      .edit-mode-btn.active { background: #2f6fed; color: #fff; border-color: #2f6fed; }
+      body.theme-light .edit-mode-btn { border-color: rgba(0,0,0,0.2); }
+      body.theme-light .edit-mode-btn.active { background: #2f6fed; color: #fff; }
+      /* JSON textarea inside edit modal */
+      #edit-modal-json-area {
+        display: none; width: 100%; height: 320px; box-sizing: border-box;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+        background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c;
+        border-radius: 3px; padding: 8px; resize: vertical; line-height: 1.5;
+      }
+      body.theme-light #edit-modal-json-area {
+        background: #f7f7f9; color: #1b1f24; border-color: #c0c5cc;
+      }
+      #edit-modal-json-err {
+        display: none; color: #d9534f; font-size: 12px; padding: 4px 0;
+      }
+      /* Record picker dropdown */
+      .record-picker { position: relative; display: inline-block; }
+      .record-picker-menu {
+        position: absolute; top: calc(100% + 4px); left: 0;
+        background: #242932; border: 1px solid #3a4049; border-radius: 4px;
+        padding: 4px; display: none; flex-direction: column;
+        min-width: 320px; max-height: 280px; overflow-y: auto;
+        z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+      .record-picker-menu.open { display: flex; }
+      body.theme-light .record-picker-menu {
+        background: #fff; border-color: #c0c5cc; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      }
+      .record-picker-opt {
+        padding: 4px 8px; border-radius: 3px; cursor: pointer;
+        font-size: 12px; color: #eee; display: flex; gap: 6px; align-items: baseline;
+        white-space: nowrap; overflow: hidden;
+      }
+      .record-picker-opt:hover { background: #2f6fed; color: #fff; }
+      body.theme-light .record-picker-opt { color: #222; }
+      .record-picker-opt .rp-label {
+        overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0;
+      }
+      .record-picker-opt .rp-id {
+        opacity: 0.5; font-size: 10px; font-family: ui-monospace, monospace; flex-shrink: 0;
+      }
+      .record-picker-status { padding: 6px 8px; font-size: 12px; opacity: 0.7; }
     </style>
   </head>
   <body>
@@ -561,7 +610,12 @@
         </label>
         <label id="vp-fields" style="display: none">
           module <input id="vp-module" value="alerts" size="10" />
-          id <input id="vp-id" size="36" placeholder="uuid" />
+          id <input id="vp-id" size="28" placeholder="uuid" />
+          <div class="record-picker" id="record-picker">
+            <button id="record-picker-btn" class="btn btn-xs btn-default" type="button"
+                    title="Browse records from the connected SOAR box">Browse…</button>
+            <div id="record-picker-menu" class="record-picker-menu"></div>
+          </div>
         </label>
         <button id="reload" class="btn btn-sm btn-primary" type="button">Reload</button>
       </div>
@@ -741,9 +795,17 @@
       <div class="harness-modal">
         <div class="harness-modal-head">
           <span>Edit widget config</span>
+          <div class="edit-mode-toggle">
+            <button id="edit-mode-form" class="edit-mode-btn active" type="button">Form</button>
+            <button id="edit-mode-json" class="edit-mode-btn" type="button">JSON</button>
+          </div>
           <button id="edit-modal-close" class="btn btn-xs btn-default" type="button">close</button>
         </div>
         <div id="edit-modal-body" class="harness-modal-body"></div>
+        <div style="padding: 0 16px;">
+          <textarea id="edit-modal-json-area" spellcheck="false"></textarea>
+          <div id="edit-modal-json-err"></div>
+        </div>
         <div class="harness-modal-foot">
           <span id="edit-modal-status" style="opacity: 0.7; font-size: 12px; margin-right: auto"></span>
           <button id="edit-modal-cancel" class="btn btn-sm btn-default" type="button">Cancel</button>
@@ -1238,6 +1300,52 @@
         vpFields.style.display = ctxNeedsRecord(ctxSel.value) ? "" : "none";
         ctxSel.addEventListener("change", () => {
           vpFields.style.display = ctxNeedsRecord(ctxSel.value) ? "" : "none";
+        });
+
+        // Record picker
+        const rpBtn = document.getElementById("record-picker-btn");
+        const rpMenu = document.getElementById("record-picker-menu");
+
+        function closeRecordPicker() {
+          rpMenu.classList.remove("open");
+        }
+
+        document.addEventListener("click", (e) => {
+          if (!document.getElementById("record-picker").contains(e.target)) closeRecordPicker();
+        });
+
+        rpBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (rpMenu.classList.contains("open")) { closeRecordPicker(); return; }
+          const mod = modEl.value.trim() || "alerts";
+          rpMenu.innerHTML = '<div class="record-picker-status">loading…</div>';
+          rpMenu.classList.add("open");
+          try {
+            const res = await fetch(`/api/3/${encodeURIComponent(mod)}?$limit=25`);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const data = await res.json();
+            const records = data["hydra:member"] || data.data || (Array.isArray(data) ? data : []);
+            if (!records.length) {
+              rpMenu.innerHTML = '<div class="record-picker-status">no records found</div>';
+              return;
+            }
+            rpMenu.innerHTML = "";
+            for (const rec of records) {
+              const id = rec["@id"] ? String(rec["@id"]).split("/").pop() : String(rec.id || "");
+              const label = rec.name || rec.title || rec.subject || rec.displayName || id;
+              const opt = document.createElement("div");
+              opt.className = "record-picker-opt";
+              opt.innerHTML = `<span class="rp-label">${label.toString().replace(/</g,"&lt;")}</span><span class="rp-id">${id.slice(0,8)}</span>`;
+              opt.addEventListener("click", () => {
+                idEl.value = id;
+                localStorage.setItem("harness.id", id);
+                closeRecordPicker();
+              });
+              rpMenu.appendChild(opt);
+            }
+          } catch (err) {
+            rpMenu.innerHTML = '<div class="record-picker-status">error: ' + err.message + '</div>';
+          }
         });
 
         const pkgPanel = document.getElementById("package-panel");
@@ -2186,6 +2294,49 @@
         const modalCancel = document.getElementById("edit-modal-cancel");
         const modalClose = document.getElementById("edit-modal-close");
         let editInjector = null;
+        const jsonArea = document.getElementById("edit-modal-json-area");
+        const jsonErr = document.getElementById("edit-modal-json-err");
+        const modeFormBtn = document.getElementById("edit-mode-form");
+        const modeJsonBtn = document.getElementById("edit-mode-json");
+        let editMode = "form"; // "form" | "json"
+
+        function getEditScope() {
+          if (!editInjector) return null;
+          const wrap = modalBody.firstChild;
+          return (wrap && wrap.firstChild && angular.element(wrap.firstChild).scope())
+            || (wrap && angular.element(wrap).scope()) || null;
+        }
+
+        function switchEditMode(mode) {
+          if (mode === editMode) return;
+          if (mode === "json") {
+            // Snapshot current config from scope (or from localStorage if no injector yet)
+            let cfg = {};
+            const scope = getEditScope();
+            if (scope && scope.config && typeof scope.config === "object") {
+              cfg = scope.config;
+            } else {
+              try {
+                const raw = localStorage.getItem(HU.configStorageKey(current.id));
+                if (raw) cfg = JSON.parse(raw);
+              } catch (_) {}
+            }
+            jsonArea.value = JSON.stringify(cfg, null, 2);
+            jsonArea.style.display = "";
+            jsonErr.style.display = "none";
+            modalBody.style.display = "none";
+          } else {
+            jsonArea.style.display = "none";
+            jsonErr.style.display = "none";
+            modalBody.style.display = "";
+          }
+          editMode = mode;
+          modeFormBtn.classList.toggle("active", mode === "form");
+          modeJsonBtn.classList.toggle("active", mode === "json");
+        }
+
+        modeFormBtn.addEventListener("click", () => switchEditMode("form"));
+        modeJsonBtn.addEventListener("click", () => switchEditMode("json"));
 
         function closeEditModal() {
           modalBackdrop.classList.remove("open");
@@ -2195,6 +2346,12 @@
           }
           while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
           modalStatus.textContent = "";
+          jsonArea.style.display = "none";
+          jsonErr.style.display = "none";
+          modalBody.style.display = "";
+          editMode = "form";
+          modeFormBtn.classList.add("active");
+          modeJsonBtn.classList.remove("active");
         }
 
         editBtn.addEventListener("click", async () => {
@@ -2259,19 +2416,34 @@
         });
 
         modalSave.addEventListener("click", async () => {
-          if (!editInjector) return closeEditModal();
+          if (!editInjector && editMode === "form") return closeEditModal();
           modalStatus.textContent = "saving…";
           try {
-            const wrap = modalBody.firstChild;
-            const scope =
-              (wrap && wrap.firstChild && angular.element(wrap.firstChild).scope()) ||
-              (wrap && angular.element(wrap).scope());
-            const cfg = scope && scope.config;
-            if (cfg && typeof cfg === "object") {
-              localStorage.setItem(HU.configStorageKey(current.id), JSON.stringify(cfg));
+            if (editMode === "json") {
+              let parsed;
+              try {
+                parsed = JSON.parse(jsonArea.value);
+              } catch (e) {
+                jsonErr.textContent = "Invalid JSON: " + e.message;
+                jsonErr.style.display = "";
+                modalStatus.textContent = "";
+                return;
+              }
+              localStorage.setItem(HU.configStorageKey(current.id), JSON.stringify(parsed));
+              closeEditModal();
+              await mountWidget();
+            } else {
+              const wrap = modalBody.firstChild;
+              const scope =
+                (wrap && wrap.firstChild && angular.element(wrap.firstChild).scope()) ||
+                (wrap && angular.element(wrap).scope());
+              const cfg = scope && scope.config;
+              if (cfg && typeof cfg === "object") {
+                localStorage.setItem(HU.configStorageKey(current.id), JSON.stringify(cfg));
+              }
+              closeEditModal();
+              await mountWidget();
             }
-            closeEditModal();
-            await mountWidget();
           } catch (e) {
             modalStatus.textContent = "save failed: " + e.message;
           }
