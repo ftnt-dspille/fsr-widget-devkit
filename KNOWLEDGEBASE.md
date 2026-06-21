@@ -3597,6 +3597,25 @@ rendered correctly because its rows are the primitives themselves). Fix: keep a
 primitive root as `rows=[rooted]` so the "value" column formats it directly.
 Pin it: assert a `{n:7}` result with `rootPath:"n"` yields `tableRows=[["7"]]`.
 
+#### `resolvePath` auto-descends single-element wrapper arrays
+
+Many FortiGate/generic-playbook responses wrap the real payload in a 1-element
+array — e.g. `gui_response.result` is `[{data:[…]}]` rather than `{data:[…]}`.
+`resolvePath` in both `view.controller.js` and `edit.controller.js` handles this:
+when traversing a dotted-key segment it checks whether the current value is a
+length-1 array and, if so, descends into `v[0]` automatically before looking up
+the next key. This means `rootPath:"data.gui_response.result.data"` reaches
+`result[0].data` without requiring an explicit `[0]` in the path.
+
+- **Only safe for length-1.** A multi-element array is ambiguous and is NOT
+  auto-descended — the path resolves to `undefined`/`{found:false}`. Use an
+  explicit index (`result[2].data`) for multi-element arrays.
+- **Explicit `[0]` is always equivalent and preferred when the shape is known**
+  (`result[0].data` and `result.data` both work; be explicit in static configs
+  to make intent clear).
+- Tested in `edit.controller.test.js` ("resolvePath auto-descends…") and
+  `view.controller.test.js` ("rootPath auto-descends…") — `widget-action-renderer`.
+
 ### The harness hot-reload watcher corrupts concurrent e2e — disable it under `FSR_HERMETIC`
 
 The dev harness (`server.js`) watches each widget dir + `harness.module.js` and
