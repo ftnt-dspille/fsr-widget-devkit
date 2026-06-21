@@ -1335,7 +1335,13 @@
               const label = rec.name || rec.title || rec.subject || rec.displayName || id;
               const opt = document.createElement("div");
               opt.className = "record-picker-opt";
-              opt.innerHTML = `<span class="rp-label">${label.toString().replace(/</g,"&lt;")}</span><span class="rp-id">${id.slice(0,8)}</span>`;
+              const lspan = document.createElement("span");
+              lspan.className = "rp-label";
+              lspan.textContent = String(label);
+              const ispan = document.createElement("span");
+              ispan.className = "rp-id";
+              ispan.textContent = id.slice(0, 8);
+              opt.append(lspan, ispan);
               opt.addEventListener("click", () => {
                 idEl.value = id;
                 localStorage.setItem("harness.id", id);
@@ -1344,7 +1350,11 @@
               rpMenu.appendChild(opt);
             }
           } catch (err) {
-            rpMenu.innerHTML = '<div class="record-picker-status">error: ' + err.message + '</div>';
+            const errDiv = document.createElement("div");
+            errDiv.className = "record-picker-status";
+            errDiv.textContent = "error: " + err.message;
+            rpMenu.innerHTML = "";
+            rpMenu.appendChild(errDiv);
           }
         });
 
