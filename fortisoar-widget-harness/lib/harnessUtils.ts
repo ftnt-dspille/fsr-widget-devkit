@@ -47,6 +47,7 @@ interface LintOpts {
 function resolvePath(obj: unknown, path: string): unknown {
   if (obj == null || typeof path !== "string" || path === "") return undefined;
   const parts = path.split(".");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic property access
   let cur: any = obj;
   for (const p of parts) {
     if (cur == null) return undefined;
@@ -377,6 +378,7 @@ const api = {
 };
 
 if (typeof window !== "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for browser-safe script
   (window as any).HarnessUtils = api;
 }
 

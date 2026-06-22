@@ -163,6 +163,7 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
 
   const dump = await page.evaluate(() => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- page.evaluate() returns unknown
       const w = window as any;
       const h = w.__harness;
       const stubHits = w.__HARNESS_STUB_HITS || {};
