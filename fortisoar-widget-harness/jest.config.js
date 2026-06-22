@@ -58,12 +58,13 @@ function discoverWidgetProjects() {
       // at construction -- a bare `undefined` crashes the environment.
       const cfgPath = path.join(dir, "jest.config.js");
       const widgetCfg = fs.existsSync(cfgPath) ? require(cfgPath) : {};
-      return {
+      const hasTsConfig = fs.existsSync(path.join(dir, "tsconfig.json"));
+
+      const baseConfig = {
         displayName: path.basename(dir),
         rootDir: dir,
         testEnvironment: widgetCfg.testEnvironment || "jsdom",
         testEnvironmentOptions: widgetCfg.testEnvironmentOptions || {},
-        testMatch: widgetCfg.testMatch || ["<rootDir>/tests/**/*.test.js"],
         // Let widget tests resolve angular / angular-mocks from the harness's
         // node_modules so the widget repo doesn't need its own copy.
         moduleDirectories: [
@@ -71,6 +72,24 @@ function discoverWidgetProjects() {
           path.resolve(__dirname, "node_modules"),
         ],
       };
+
+      if (hasTsConfig) {
+        return {
+          ...baseConfig,
+          transform: {
+            "^.+\\.tsx?$": [require.resolve("ts-jest"), {
+              tsconfig: path.join(dir, "tsconfig.json"),
+              diagnostics: { warnOnly: true },
+            }],
+          },
+          testMatch: (widgetCfg.testMatch || ["<rootDir>/tests/**/*.test.js"]).concat(["<rootDir>/tests/**/*.test.ts"]),
+        };
+      } else {
+        return {
+          ...baseConfig,
+          testMatch: widgetCfg.testMatch || ["<rootDir>/tests/**/*.test.js"],
+        };
+      }
     });
 }
 

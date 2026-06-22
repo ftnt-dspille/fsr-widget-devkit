@@ -38,6 +38,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.0.0",
     "angular": "1.8",
     "angular-mocks": "1.8",
     "eslint": "^8.57.1",
@@ -46,7 +48,9 @@
     "jest-environment-jsdom": "^29.7.0",
     "monaco-editor": "0.47.0",
     "oxlint": "^1.0.0",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "ts-jest": "^29.4.11",
+    "typescript": "^6.0.3"
   },
   "license": "MIT",
   "packageManager": "pnpm@8.14.2",
