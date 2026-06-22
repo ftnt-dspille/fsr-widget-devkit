@@ -212,6 +212,7 @@ function promptHidden(question: string): Promise<string> {
       resolve(a);
     });
     // Suppress echo of the typed secret; still print the prompt itself.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- readline internals
     rl._writeToOutput = function (this: any, str: string): void {
       if (!this.stdoutMuted || str.includes(question)) process.stdout.write(str);
     };
@@ -408,6 +409,7 @@ async function cmdRemoteList(): Promise<void> {
   const all = ((r.json as any).widgets || []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic response item shape
   const rows = all
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic response item shape
     .filter((w: any) => flags.all || !w.inbuilt) // hide platform-managed widgets unless --all
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic response item shape
     .map((w: any) => [w.name, w.version, w.inbuilt ? "inbuilt" : "custom", w.title || "", w.uuid]);

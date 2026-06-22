@@ -7,6 +7,7 @@ function resolvePath(obj, path) {
     if (obj == null || typeof path !== "string" || path === "")
         return undefined;
     const parts = path.split(".");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic property access
     let cur = obj;
     for (const p of parts) {
         if (cur == null)
@@ -322,6 +323,7 @@ const api = {
     stateForContext,
 };
 if (typeof window !== "undefined") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for browser-safe script
     window.HarnessUtils = api;
 }
 module.exports = api;

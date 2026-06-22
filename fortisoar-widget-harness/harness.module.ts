@@ -8,6 +8,7 @@
   // is instantiated by the Angular injector, we increment the counter for that
   // stub name. The introspection rig reads this to determine which stubs are
   // actually exercised vs dead.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
   const w = window as any;
   w.__HARNESS_STUB_HITS = w.__HARNESS_STUB_HITS || ({} as Record<string, number>);
   w.__HARNESS_STUB_NAMES = w.__HARNESS_STUB_NAMES || ([] as string[]);
@@ -18,15 +19,19 @@
     app: angular.IModule,
     name: string,
     deps: string[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI factory callback
     fn: (...args: any[]) => any
   ): void {
     w.__HARNESS_STUB_NAMES.push(name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI wrapper callback
     const wrappedFn = function (...args: any[]): any {
       w.__HARNESS_STUB_HITS[name] = (w.__HARNESS_STUB_HITS[name] || 0) + 1;
       return fn(...args);
     };
     const depsAndFn = deps.slice();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI array format requires any
     (depsAndFn as any[]).push(wrappedFn);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI array requires any
     app.factory(name, depsAndFn as any);
   }
 
@@ -35,15 +40,19 @@
     app: angular.IModule,
     name: string,
     deps: string[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI service callback
     fn: (...args: any[]) => any
   ): void {
     w.__HARNESS_STUB_NAMES.push(name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI wrapper callback
     const wrappedFn = function (...args: any[]): any {
       w.__HARNESS_STUB_HITS[name] = (w.__HARNESS_STUB_HITS[name] || 0) + 1;
       return fn(...args);
     };
     const depsAndFn = deps.slice();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI array format requires any
     (depsAndFn as any[]).push(wrappedFn);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS DI array requires any
     app.service(name, depsAndFn as any);
   }
 
@@ -99,6 +108,7 @@
   // into the provider function itself. (A prior typing pass moved $q up here and
   // broke bootstrap with `$injector:unpr <- $q`.)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS provider-constructor idiom: $get is attached via `this`, which @types/angular's IServiceProvider overload can't express
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AngularJS provider-constructor idiom: $get is attached via `this`, which @types/angular's IServiceProvider overload can't express
   app.provider("$stomp", function (this: any): void {
     this.$get = ["$q", function ($q: angular.IQService): StompService {
       function neverResolves(): angular.IPromise<unknown> { return $q.defer().promise; }
@@ -111,7 +121,7 @@
         send: function (): void {},
       };
     }];
-  } as any);
+  } as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- AngularJS provider registration
 
   // Pipe Angular's exception channel into the harness debug drawer. Without
   // this override, controller/digest errors only land in DevTools — the
@@ -121,6 +131,7 @@
   regFactory(app, "$exceptionHandler", ["$log"], function ($log: angular.ILogService): angular.IExceptionHandlerService {
     return function (exception: unknown, cause: unknown) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
         const w = window as any;
         if (w.__harnessReportError) {
           // For "Possibly unhandled rejection" the `exception` is the
@@ -136,7 +147,9 @@
           } catch (_: unknown) {}
           w.__harnessReportError({
             source: "angular",
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exception type is unknown at runtime
             message: (exception && (exception as any).message) || String(exception),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exception type is unknown at runtime
             stack: (exception && (exception as any).stack) || null,
             creationStack: creationStack,
             cause: cause || null,
@@ -158,7 +171,9 @@
     $provide.decorator("$q", ["$delegate", function ($delegate: angular.IQService): angular.IQService {
       const stacks: WeakMap<object, string> | null = (typeof WeakMap === "function") ? new WeakMap() : null;
       function captureStack(skipFn: Function): string | undefined {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stack capture object
         const e: any = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Error constructor has optional method
         const errorCtor = Error as any;
         if (errorCtor.captureStackTrace) errorCtor.captureStackTrace(e, skipFn);
         else { try { throw new Error(); } catch (x: unknown) { e.stack = (x as Error).stack; } }
@@ -168,6 +183,7 @@
         if (!promise || !stack) return promise;
         try {
           if (stacks && typeof promise === "object") stacks.set(promise as object, stack);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fallback property assignment for promise tracking
           else if (typeof promise === "object") (promise as any).__creationStack = stack;
         } catch (_: unknown) {}
         return promise;
@@ -194,9 +210,11 @@
         return p;
       };
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
       const w = window as any;
       w.__harnessQ = {
         lookup: function (key: unknown): string | null {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- fallback property access for promise tracking
           if (!stacks) return (key && (key as any).__creationStack) || null;
           try { return (typeof key === "object" && key ? stacks.get(key as object) : null) || null; } catch (_: unknown) { return null; }
         },
@@ -215,15 +233,18 @@
     // keys when absent so the grid themes itself to match the harness chrome
     // (light theme => lightMode; dark/navy => dark mode).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- $delegate is opaque SOAR service
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- $delegate is opaque SOAR service
     $provide.decorator("settingsService", ["$delegate", function ($delegate: any): any {
       const orig = $delegate.getSystem;
       if (typeof orig !== "function") return $delegate;
       $delegate.getSystem = function () {
         const p = orig.apply($delegate, arguments);
         if (!p || typeof p.then !== "function") return p;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SOAR API response is unknown
         return p.then(function (res: any): any {
           const pv = res && res.publicValues;
           if (pv) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
             const w = window as any;
             const lightChrome = (w.__HARNESS_THEME_ID || "dark") === "light";
             if (!pv.lightmode) pv.lightmode = { enable: lightChrome };
@@ -241,7 +262,9 @@
   // boot page rewrites before each angular.bootstrap (initial mount, edit
   // modal open, post-save remount). Registered as a factory so each injector
   // pulls the current global instead of the snapshot at module load.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic config object
   regFactory(app, "config", [], function (): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
     const w = window as any;
     return w.__HARNESS_CONFIG || { title: "(harness)", defaultTemplate: "" };
   });
@@ -258,6 +281,7 @@
   app.run(["modelMetadatasService", "$log", function (modelMetadatasService: any, $log: angular.ILogService): void {
     try {
       modelMetadatasService.loadAllModules(true).then(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
         function (): void { const w = window as any; w.__HARNESS_MMD_LOADED = true; },
         function (e: unknown): void { $log.warn("[harness] loadAllModules failed", e); }
       );
@@ -305,12 +329,15 @@
   }]);
 
   app.run(["$rootScope", function ($rootScope: angular.IRootScopeService): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
     const w = window as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic theme assignment
     ($rootScope as any).theme = { id: w.__HARNESS_THEME_ID || "dark" };
     // window.__HARNESS_RECORD is the current View Panel / Drawer record, set
     // by index.html before bootstrap. Exposed on $rootScope so widgets that
     // walk parent scopes for `record` find it the same way they do in SOAR.
     if (w.__HARNESS_RECORD) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic record assignment
       ($rootScope as any).record = w.__HARNESS_RECORD;
     }
     // SOAR view-panel / dashboard hosts pass a `model` to the widget mount
@@ -324,7 +351,9 @@
       (w.__HARNESS_STATE && w.__HARNESS_STATE.params && w.__HARNESS_STATE.params.module) ||
       w.__HARNESS_MODULE ||
       "alerts";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic model assignment
     ($rootScope as any).model = w.__HARNESS_RECORD || { type: moduleType };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic model type assignment
     if (!($rootScope as any).model.type) ($rootScope as any).model.type = moduleType;
     // Most widget controllers inject `config` (counter, actionRenderer …), but
     // some read `$scope.config` directly — in SOAR the widget directive sets it
@@ -333,6 +362,7 @@
     // widget's child scope inherits it down the prototype chain. Without this,
     // such controllers throw "Cannot read properties of undefined" at init
     // (e.g. jsonToGrid's loadGriOptions reads $scope.config on boot).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic config assignment
     ($rootScope as any).config = w.__HARNESS_CONFIG || ($rootScope as any).config;
     // Mimic the resolve map that $uibModal.open populates on a modal's scope.
     // SOAR widget edit controllers read `$scope.$resolve.widget` (and the
@@ -341,6 +371,7 @@
     // "Cannot read properties of undefined (reading 'widget')" at boot.
     if (w.__HARNESS_WIDGET) {
       const widgetRef = w.__HARNESS_WIDGET;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic resolve map assignment
       ($rootScope as any).$resolve = {
         widget: { name: widgetRef.name, version: widgetRef.version },
         widgetBasePath: "widgets/installed/" + widgetRef.name + "-" + widgetRef.version + "/",
@@ -355,7 +386,7 @@
   // when present, so without this it returns the raw key string.
   app.run(["$injector", function ($injector: angular.auto.IInjectorService): void {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- translationService is optional SOAR service
-    let ts: any;
+    let ts: any; // eslint-disable-line @typescript-eslint/no-explicit-any -- optional service handle
     try { ts = $injector.get("translationService"); } catch (_: unknown) { return; }
     if (!ts || typeof ts.instantTranslate !== "function" || ts.__harnessWrapped) return;
     const orig = ts.instantTranslate.bind(ts);
@@ -376,10 +407,13 @@
   // pipeline (slug derivation + per-widget translation bundle loading).
   // The harness merges widget locales globally in index.html, so
   // checkTranslationMode just needs to resolve.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic service return type
   regFactory(app, "widgetUtilityService", ["$q"], function ($q: angular.IQService): any {
     return {
       getWidgetNameVersion: function (widget: unknown, _basePath: unknown): string | null {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- widget parameter is dynamically typed
         if (!widget || !(widget as any).name || !(widget as any).version) return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- widget parameter is dynamically typed
         return (widget as any).name + "-" + (widget as any).version;
       },
       checkTranslationMode: function (): angular.IPromise<boolean> { return $q.when(true); },
@@ -395,6 +429,7 @@
   // as a factory too. Resolves off the mounted widget; falls back to the
   // bare install root before a widget is selected.
   regFactory(app, "widgetBasePath", [], function (): string {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
     const w = window as any;
     const widget = w.__HARNESS_WIDGET;
     return widget && widget.name && widget.version
@@ -404,7 +439,9 @@
 
   // ui.router is NOT bundled in app.unmin.js (it's a vendor dep we stripped),
   // so $state has no real source. Stub it for the harness.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $state stub
   regFactory(app, "$state", [], function (): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
     const w = window as any;
     // SOAR's csChart link passes $state.params.page through $interpolate,
     // which throws on undefined. Provide a default page name; the harness
@@ -423,7 +460,9 @@
   // every grid widget fails to construct the directive ($injector:unpr) so
   // ui-grid never initializes and gridApi is never registered. Mirror the
   // params from the $state stub so the two stay consistent.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $stateParams stub
   regFactory(app, "$stateParams", [], function (): any {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
     const w = window as any;
     return (w.__HARNESS_STATE && w.__HARNESS_STATE.params) || { page: "dashboard" };
   });
@@ -440,9 +479,12 @@
 
   regFactory(app, "clipboard", ["$window"], function ($window: angular.IWindowService): ClipboardService {
     return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- navigator.clipboard is not in AngularJS types
       supported: !!($window.navigator && ($window.navigator as any).clipboard),
       copyText: function (text: string): void {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- navigator.clipboard is not in AngularJS types
         if ($window.navigator && ($window.navigator as any).clipboard) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- navigator.clipboard is not in AngularJS types
           ($window.navigator as any).clipboard.writeText(text);
         }
       },
@@ -453,8 +495,10 @@
   // ui.bootstrap ($uibModal) — vendor module stripped. Stub returns a
   // never-resolving modal; widgets that try to .open one in the harness
   // will silently no-op (acceptable for our mount-and-render scope).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $uibModal stub
   regFactory(app, "$uibModal", ["$q"], function ($q: angular.IQService): any {
     return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
       open: function (): any {
         const d = $q.defer();
         return { result: d.promise, opened: $q.when(true), rendered: $q.when(true), closed: d.promise, dismiss: function(){}, close: function(){} };
@@ -470,6 +514,7 @@
   // COMPONENTS.FORM.TYPEAHEAD.MULTI_SELECT_DROPDOWN render literal `{{ ... }}`
   // through ng-bind-html (which does not compile expressions).
   function harnessTranslateLookup(key: unknown): unknown {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
     const w = window as any;
     const dict = w.__HARNESS_TRANSLATIONS || {};
     let keyStr: unknown = key;
@@ -479,7 +524,9 @@
     let node: unknown = dict;
     const parts = keyStr.split(".");
     for (let i = 0; i < parts.length; i++) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic property access
       if (node && typeof node === "object" && parts[i] in (node as any)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic property access
         node = (node as any)[parts[i]];
       } else { return keyStr; }
     }
@@ -490,12 +537,14 @@
   // undefined sub-expressions (e.g. `value.display` when value is empty)
   // coerce to "" instead of the JS string "undefined" that Function-eval
   // produces. Falls back to "" on any parse error.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic translate filter
   app.filter("translate", ["$interpolate", function ($interpolate: angular.IInterpolateService): any {
     const f = function (key: unknown, params: unknown): unknown {
       const str = harnessTranslateLookup(key);
       if (typeof str !== "string" || str.indexOf("{{") === -1) return str;
       try { return $interpolate(str)(params || {}); } catch (_: unknown) { return ""; }
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Angular filter metadata
     (f as any).$stateful = false;
     return f;
   }]);
@@ -503,6 +552,7 @@
   // angular-translate ($translate) — vendor module stripped. SOAR's
   // translationService -> statusCodeService -> Entity -> CommonUtils chain
   // injects it. Identity stub: returns the key (or first element if array).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $translate stub
   regFactory(app, "$translate", ["$q", "$interpolate"], function ($q: angular.IQService, $interpolate: angular.IInterpolateService): any {
     // Same lookup + Angular-semantics param interpolation as the filter above.
     function id(k: unknown, params: unknown): unknown {
@@ -511,13 +561,21 @@
       try { return $interpolate(str)(params || {}); } catch (_: unknown) { return ""; }
     }
     function translate(k: unknown, params: unknown): angular.IPromise<unknown> { return $q.when(id(k, params)); }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).instant = function (k: unknown, params: unknown): unknown { return id(k, params); };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).use = function (): string { return "en"; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).refresh = function (): angular.IPromise<boolean> { return $q.when(true); };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).proposedLanguage = function (): null { return null; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).preferredLanguage = function (): string { return "en"; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).fallbackLanguage = function (): string { return "en"; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).storageKey = function (): string { return "NG_TRANSLATE_LANG_KEY"; };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic method attachment
     (translate as any).onReady = function (): angular.IPromise<boolean> { return $q.when(true); };
     return translate;
   });
@@ -601,8 +659,9 @@
 
   regFactory(app, "toaster", [
     "$document",
-  ], function ($document: any): ToasterService {
+  ], function ($document: any): ToasterService { // eslint-disable-line @typescript-eslint/no-explicit-any -- $document is AngularJS service
     function pop(kind: string, opts: unknown): void {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- opts is dynamically typed
       const body = (opts && (opts as any).body) || "";
       console.log(`[toaster.${kind}] ${body}`);
       const doc = ($document[0] || $document) as Document;
@@ -615,9 +674,13 @@
       setTimeout(() => el.remove(), 3500);
     }
     return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- toast message can be any type
       success: (o: unknown): void => pop("success", o),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- toast message can be any type
       error: (o: unknown): void => pop("error", o),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- toast message can be any type
       warning: (o: unknown): void => pop("warning", o),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- toast message can be any type
       info: (o: unknown): void => pop("info", o),
     };
   });
@@ -628,6 +691,7 @@
   // buttons. The harness exposes its own Save/Cancel in the modal chrome,
   // so these stubs are no-ops — Save/Cancel in the harness toolbar drives
   // the persist + remount path instead.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $uibModalInstance stub
   regFactory(app, "$uibModalInstance", [], function (): any {
     return {
       close: function (): void {},
@@ -643,6 +707,7 @@
   // Override SOAR's currentPermissionsService — the real one walks loaded user
   // RBAC data we don't bootstrap in the harness, so every availablePermission()
   // returns false and widgets toast "necessary permission" errors. Grant all.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic currentPermissionsService stub
   regFactory(app, "currentPermissionsService", [], function (): any {
     return {
       availablePermission: function (): boolean { return true; },
@@ -652,8 +717,10 @@
       // the "all permissions" stance above (else jsonToGrid throws
       // "isAdmin is not a function" and the grid never links).
       isAdmin: function (): boolean { return true; },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
       load: function (): any { return { then: function (cb: unknown): any { cb && (cb as Function)(); return this; }, catch: function(): any { return this; } }; },
       get: function (): object { return {}; },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
       loadCurrentUser: function (): any { return { then: function (cb: unknown): any { cb && (cb as Function)(); return this; }, catch: function(): any { return this; } }; },
       getPermissions: function (): object { return {}; },
     };
@@ -670,6 +737,7 @@
   // chartService: real implementation lives in the c3charts widgetAssets/
   // bundle that SOAR loads at runtime; the harness doesn't load widget
   // assets, so register a stub that satisfies the injector.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic chartService stub
   regFactory(app, "chartService", ["$q"], function ($q: angular.IQService): any {
     return {
       buildAggregationQuery: function (): object { return {}; },
@@ -681,7 +749,7 @@
 
   regFactory(app, "dynamicValueService", [
     "$http",
-  ], function ($http: angular.IHttpService): any {
+  ], function ($http: angular.IHttpService): any { // eslint-disable-line @typescript-eslint/no-explicit-any -- dynamic dynamicValueService stub
     return {
       evaluateJinja(jinja: unknown): angular.IPromise<unknown> {
         return $http
@@ -780,6 +848,7 @@
       ["codeEditor",              "codeEditor",      "codeEditor","app/components/form/fields/codeEditor.html"],
       ["emailTemplate",           "emailTemplate",   "string",   "app/components/form/fields/emailTemplate.html"],
     ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- field definition tuples
     FIELD_DEFS.forEach(function (def: any): void {
       moduleAttribute.types[def[0]] = {
         formType: def[1] || def[0],

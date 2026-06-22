@@ -54,6 +54,7 @@ interface EnvOpts {
 function keyringSecret(account: string, service: string): string {
   if (!account) return "";
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- optional dependency
     const { Entry } = require("@napi-rs/keyring") as any;
     return new Entry(service || KEYRING_SERVICE, account).getPassword() || "";
   } catch (_) {
@@ -67,6 +68,7 @@ function keyringSecret(account: string, service: string): string {
 // former is a *real* exported override or merely the .env copy.
 function parseDotenvFile(): Record<string, string> {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- require() dynamic module
     const dotenv = require("dotenv") as any;
     const p = path.resolve(__dirname, "..", ".env");
     if (!fs.existsSync(p)) return {};
@@ -135,6 +137,7 @@ function resolveSoarEnv(env?: Record<string, string | undefined>, opts?: EnvOpts
 // file omits. The ambient process.env (the startup .env dotenv already copied in)
 // is deliberately ignored so picking .env.box can't inherit .env's host/creds.
 function resolveSoarEnvFile(envPath: string, opts?: EnvOpts): SoarEnvFileResult {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- require() dynamic module
   const dotenv = require("dotenv") as any;
   const fileEnv = dotenv.parse(fs.readFileSync(envPath));
   const service = (opts && opts.service) || KEYRING_SERVICE;
@@ -157,6 +160,7 @@ function resolveSoarEnvFile(envPath: string, opts?: EnvOpts): SoarEnvFileResult 
 // secrets) for the picker — file basename, derived host, and login id.
 function listEnvFiles(dir?: string): EnvFileSummary[] {
   dir = dir || path.resolve(__dirname, "..");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- require() dynamic module
   const dotenv = require("dotenv") as any;
   let names: string[] = [];
   try {

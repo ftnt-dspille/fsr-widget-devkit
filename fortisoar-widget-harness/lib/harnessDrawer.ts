@@ -46,6 +46,7 @@
     attrs?: Record<string, string>;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness debug drawer
   const w = window as any;
 
   const MAX = 200;
@@ -243,8 +244,10 @@
     return e.stack || "";
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console is patched/wrapped
   const origConsole: Record<string, (...args: any[]) => void> = {};
   ["log", "warn", "error", "info", "debug"].forEach((level) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console patching
     origConsole[level] = (console as any)[level].bind(console);
     function wrappedConsole() {
       try {
@@ -257,8 +260,10 @@
         push("console", { level: level, text: text, ts: Date.now(), stack: stack });
         if (level === "error") push("errors", { source: "console.error", message: text, stack: stack, ts: Date.now() });
       } catch (_) {}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arguments forwarding to original console
       origConsole[level].apply(null, arguments as any);
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console patching
     (console as any)[level] = wrappedConsole;
   });
 

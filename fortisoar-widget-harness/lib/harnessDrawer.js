@@ -10,6 +10,7 @@
    surface) are attached through a cast alias instead of Window augmentation. */
 "use strict";
 (function () {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness debug drawer
     const w = window;
     const MAX = 200;
     const buffers = { errors: [], network: [], console: [] };
@@ -247,8 +248,10 @@
         }
         return e.stack || "";
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console is patched/wrapped
     const origConsole = {};
     ["log", "warn", "error", "info", "debug"].forEach((level) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console patching
         origConsole[level] = console[level].bind(console);
         function wrappedConsole() {
             try {
@@ -271,8 +274,10 @@
                     push("errors", { source: "console.error", message: text, stack: stack, ts: Date.now() });
             }
             catch (_) { }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arguments forwarding to original console
             origConsole[level].apply(null, arguments);
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- console patching
         console[level] = wrappedConsole;
     });
     window.addEventListener("error", function (ev) {
