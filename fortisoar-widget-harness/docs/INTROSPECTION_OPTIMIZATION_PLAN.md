@@ -81,10 +81,26 @@ Each entry carries its measured before-number.
 ### Phase 4 — Optimize behind the rig, one lever at a time ⬜ PENDING
 Apply each change, re-run Phase 1 + Phase 2 diff. Accept only if payload/boot improves **and** fidelity doesn't regress. Conditional bundles = headline (likely the 60–80% cut); fonts = quick win.
 
-### Phase 5 — Lock it in ⬜ PENDING
-- Commit baseline reports; add `make introspect` (+ live-fidelity variant) wired through the parent Makefile per testing rules.
-- Regression gate: render report must not grow payload/boot past threshold or lose fidelity.
-- Type the rig fully — introspection data structures get real interfaces (no `any`).
+### Phase 5 — Lock it in ✅ DONE (2026-06-22)
+- ✅ **Committed baseline reports** in `tests/introspect/baseline/*.json` (14 widgets, all mounted except 3 known no-mounts).
+- ✅ **`make introspect` + `make introspect-gate` wired through parent Makefile** per testing discipline:
+  - `make introspect` boots dedicated port (14403), runs rig, tears down server (hermetic, FSR_HERMETIC=1 by default)
+  - `make introspect-gate` runs gate after introspect (or standalone) and fails if regressions detected
+  - See parent Makefile lines ~109-124 for implementation
+- ✅ **Regression gate thresholds (per-widget budgets):**
+  - Payload: +10% (e.g., 10 MB → 11 MB allowed)
+  - Boot (DCL): +15% (e.g., 500 ms → 575 ms allowed)
+  - Console errors: must not increase (baseline becomes the cap)
+  - Editor-byte leaks: widget without monaco/editors cap must not pull editor bytes
+  - Known no-mounts (fsocFieldsOfInterest, funnelChart, jsonToGrid, fortiaiInsight-flaky) treated as baseline-documented, gate doesn't fail them
+- ✅ **Rig fully typed:** 1 justified `// eslint-disable-next-line @typescript-eslint/no-explicit-any` remains on line 166-167 (page.evaluate() returns unknown, cast to any required by Playwright API)
+  - `scripts/introspect.ts` + `lib/types.ts` both pass `pnpm typecheck`, `pnpm lint:eslint:ts`
+  - No new `any` types introduced; introspection structs use RenderReport/ResourceEntry/BootTimeline/RuntimeStats/WidgetCapabilities from lib/types.ts
+- ⬜ **Phase 2 live-fidelity remains pending** — the hermetic gate in Phase 5 is complete, but Phase 2's soarBrowser.ts fidelity diff is out-of-scope for this phase. A TODO marks the seam in the plan (Phase 2 "not yet wired") and in the rig code (introspect.ts line ~18 comment).
+
+**Baseline location:** `/Users/dylanspille/WebstormProjects/fsr_all_widgets/fortisoar-widget-harness/tests/introspect/baseline/`  
+**Gate location:** `/Users/dylanspille/WebstormProjects/fsr_all_widgets/fortisoar-widget-harness/scripts/introspect-gate.js`  
+**Thresholds:** payload +10%, boot +15%, console-error-count cap, editor-byte leak detection (see introspect-gate.js checks).
 
 ---
 

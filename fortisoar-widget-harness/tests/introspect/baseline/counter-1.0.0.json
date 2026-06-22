@@ -1,0 +1,789 @@
+{
+  "widgetId": "counter-1.0.0",
+  "source": "harness",
+  "caps": {
+    "monaco": false,
+    "editors": false
+  },
+  "wallMs": 2485,
+  "totalBytes": 9209757,
+  "resourceCount": 106,
+  "resources": [
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css",
+      "size": 5931,
+      "start": 6,
+      "dur": 259,
+      "type": "css"
+    },
+    {
+      "name": "https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css",
+      "size": 18202,
+      "start": 6,
+      "dur": 395,
+      "type": "css"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js",
+      "size": 54506,
+      "start": 6,
+      "dur": 413,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.6/ui-bootstrap-csp.min.css",
+      "size": 783,
+      "start": 7,
+      "dur": 265,
+      "type": "css"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.6/ui-bootstrap-tpls.min.js",
+      "size": 28555,
+      "start": 7,
+      "dur": 274,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-resource/1.8.3/angular-resource.min.js",
+      "size": 2312,
+      "start": 7,
+      "dur": 325,
+      "type": "script"
+    },
+    {
+      "name": "https://cdn.jsdelivr.net/npm/ui-select@0.20.0/dist/select.min.css",
+      "size": 1905,
+      "start": 7,
+      "dur": 419,
+      "type": "css"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-messages/1.8.3/angular-messages.min.js",
+      "size": 1669,
+      "start": 7,
+      "dur": 414,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-ui-grid/4.6.4/ui-grid.min.css",
+      "size": 4291,
+      "start": 7,
+      "dur": 266,
+      "type": "css"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-ui-grid/4.6.4/ui-grid.min.js",
+      "size": 72451,
+      "start": 7,
+      "dur": 331,
+      "type": "script"
+    },
+    {
+      "name": "https://cdn.jsdelivr.net/npm/ui-select@0.20.0/dist/select.min.js",
+      "size": 13342,
+      "start": 7,
+      "dur": 415,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-sanitize/1.8.3/angular-sanitize.min.js",
+      "size": 3297,
+      "start": 7,
+      "dur": 402,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/d3/5.16.0/d3.min.js",
+      "size": 68735,
+      "start": 7,
+      "dur": 363,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js",
+      "size": 17255,
+      "start": 7,
+      "dur": 376,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/angular-moment/1.3.0/angular-moment.min.js",
+      "size": 1970,
+      "start": 7,
+      "dur": 414,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/danialfarid-angular-file-upload/12.2.13/ng-file-upload.min.js",
+      "size": 11176,
+      "start": 7,
+      "dur": 414,
+      "type": "script"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/c3/0.7.20/c3.min.css",
+      "size": 1010,
+      "start": 7,
+      "dur": 274,
+      "type": "css"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/c3/0.7.20/c3.min.js",
+      "size": 40760,
+      "start": 7,
+      "dur": 402,
+      "type": "script"
+    },
+    {
+      "name": "/lib/harnessDrawer.js",
+      "size": 14770,
+      "start": 7,
+      "dur": 5,
+      "type": "script"
+    },
+    {
+      "name": "/lib/harnessUtils.js",
+      "size": 15437,
+      "start": 7,
+      "dur": 4,
+      "type": "script"
+    },
+    {
+      "name": "/_fsr/cache/mode",
+      "size": 317,
+      "start": 452,
+      "dur": 2,
+      "type": "fetch"
+    },
+    {
+      "name": "/_fsr/soar-envs",
+      "size": 587,
+      "start": 454,
+      "dur": 3,
+      "type": "fetch"
+    },
+    {
+      "name": "/_fsr/info",
+      "size": 369,
+      "start": 458,
+      "dur": 2,
+      "type": "fetch"
+    },
+    {
+      "name": "/_fsr/widgets",
+      "size": 15064,
+      "start": 458,
+      "dur": 2,
+      "type": "fetch"
+    },
+    {
+      "name": "/_fsr/stylesheets",
+      "size": 510,
+      "start": 468,
+      "dur": 85,
+      "type": "fetch"
+    },
+    {
+      "name": "/node_modules/angular-ui-grid/ui-grid.min.20a34dc2.css",
+      "size": 6050,
+      "start": 553,
+      "dur": 417,
+      "type": "css"
+    },
+    {
+      "name": "/css/style.min.a2cb33c9.css",
+      "size": 83730,
+      "start": 553,
+      "dur": 685,
+      "type": "css"
+    },
+    {
+      "name": "/css/themes/steel.5065a59f.css",
+      "size": 186420,
+      "start": 553,
+      "dur": 1295,
+      "type": "css"
+    },
+    {
+      "name": "/%7B%7Btheme.path%7D%7D",
+      "size": 3186,
+      "start": 553,
+      "dur": 459,
+      "type": "css"
+    },
+    {
+      "name": "https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js",
+      "size": 23340,
+      "start": 554,
+      "dur": 119,
+      "type": "script"
+    },
+    {
+      "name": "/_fsr/app.unmin.js",
+      "size": 2321236,
+      "start": 680,
+      "dur": 13,
+      "type": "script"
+    },
+    {
+      "name": "/_fsr/templates.min.js",
+      "size": 2649382,
+      "start": 752,
+      "dur": 21,
+      "type": "script"
+    },
+    {
+      "name": "/harness.module.js",
+      "size": 50080,
+      "start": 784,
+      "dur": 2,
+      "type": "script"
+    },
+    {
+      "name": "/counter-1.0.0/view.controller.js",
+      "size": 2362,
+      "start": 787,
+      "dur": 1,
+      "type": "script"
+    },
+    {
+      "name": "/counter-1.0.0/widgetAssets/locales/en.json",
+      "size": 302,
+      "start": 789,
+      "dur": 1,
+      "type": "fetch"
+    },
+    {
+      "name": "/locales/static/en.json",
+      "size": 381206,
+      "start": 791,
+      "dur": 5,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/3/model_metadatas?$limit=1000&$relationships=true&$orderby=type",
+      "size": 1486128,
+      "start": 801,
+      "dur": 11,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/agents/en.json",
+      "size": 1134,
+      "start": 822,
+      "dur": 6,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/alerts/en.json",
+      "size": 3890,
+      "start": 822,
+      "dur": 14,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/announcements/en.json",
+      "size": 601,
+      "start": 822,
+      "dur": 21,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/appliances/en.json",
+      "size": 429,
+      "start": 822,
+      "dur": 23,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/approvals/en.json",
+      "size": 768,
+      "start": 822,
+      "dur": 25,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/assets/en.json",
+      "size": 1582,
+      "start": 822,
+      "dur": 28,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/attachments/en.json",
+      "size": 729,
+      "start": 823,
+      "dur": 30,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/campaigns/en.json",
+      "size": 807,
+      "start": 823,
+      "dur": 36,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/comments/en.json",
+      "size": 1354,
+      "start": 823,
+      "dur": 37,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/communication/en.json",
+      "size": 776,
+      "start": 823,
+      "dur": 38,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/companies/en.json",
+      "size": 711,
+      "start": 823,
+      "dur": 39,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/c_v_es/en.json",
+      "size": 1658,
+      "start": 823,
+      "dur": 40,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/devices/en.json",
+      "size": 1910,
+      "start": 823,
+      "dur": 40,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/employeewatchlist/en.json",
+      "size": 482,
+      "start": 823,
+      "dur": 41,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/events/en.json",
+      "size": 551,
+      "start": 823,
+      "dur": 42,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/f_i_r_e_i_rs/en.json",
+      "size": 795,
+      "start": 823,
+      "dur": 42,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/firewall_announcements/en.json",
+      "size": 583,
+      "start": 823,
+      "dur": 42,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/firewall_connection_trackers/en.json",
+      "size": 607,
+      "start": 823,
+      "dur": 43,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/firewall_devices/en.json",
+      "size": 977,
+      "start": 823,
+      "dur": 43,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/firewall_rules/en.json",
+      "size": 914,
+      "start": 823,
+      "dur": 44,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/fsr_queues/en.json",
+      "size": 713,
+      "start": 823,
+      "dur": 46,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/hunt/en.json",
+      "size": 605,
+      "start": 823,
+      "dur": 48,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/incident_fifth/en.json",
+      "size": 416,
+      "start": 823,
+      "dur": 48,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/incidents/en.json",
+      "size": 3065,
+      "start": 823,
+      "dur": 48,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/indicators/en.json",
+      "size": 1304,
+      "start": 824,
+      "dur": 49,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/keys/en.json",
+      "size": 457,
+      "start": 824,
+      "dur": 49,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/leave_schedules/en.json",
+      "size": 527,
+      "start": 824,
+      "dur": 50,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/managers/en.json",
+      "size": 953,
+      "start": 824,
+      "dur": 50,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/metafield_templates/en.json",
+      "size": 650,
+      "start": 824,
+      "dur": 50,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/mitre_groups/en.json",
+      "size": 850,
+      "start": 824,
+      "dur": 51,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/mitre_mitigations/en.json",
+      "size": 612,
+      "start": 824,
+      "dur": 51,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/mitre_software/en.json",
+      "size": 883,
+      "start": 824,
+      "dur": 52,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/mitre_sub_techniques/en.json",
+      "size": 958,
+      "start": 824,
+      "dur": 52,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/mitre_tactics/en.json",
+      "size": 678,
+      "start": 824,
+      "dur": 53,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/mitre_techniques/en.json",
+      "size": 1003,
+      "start": 824,
+      "dur": 53,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_domains/en.json",
+      "size": 678,
+      "start": 824,
+      "dur": 53,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_output_data_profiles/en.json",
+      "size": 633,
+      "start": 824,
+      "dur": 54,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_output_groups/en.json",
+      "size": 626,
+      "start": 824,
+      "dur": 54,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_output_report_profiles/en.json",
+      "size": 835,
+      "start": 824,
+      "dur": 55,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_output_reports/en.json",
+      "size": 843,
+      "start": 824,
+      "dur": 55,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_target_output_profiles/en.json",
+      "size": 910,
+      "start": 824,
+      "dur": 55,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_target_outputs/en.json",
+      "size": 859,
+      "start": 824,
+      "dur": 56,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/netshot_targets/en.json",
+      "size": 1188,
+      "start": 824,
+      "dur": 56,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/oguraly_test_processes/en.json",
+      "size": 564,
+      "start": 824,
+      "dur": 57,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/people/en.json",
+      "size": 872,
+      "start": 824,
+      "dur": 57,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/policy_requests/en.json",
+      "size": 748,
+      "start": 824,
+      "dur": 57,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/revision_histories/en.json",
+      "size": 674,
+      "start": 824,
+      "dur": 58,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/routers/en.json",
+      "size": 838,
+      "start": 825,
+      "dur": 59,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/saved_reports/en.json",
+      "size": 517,
+      "start": 825,
+      "dur": 59,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/scans/en.json",
+      "size": 757,
+      "start": 825,
+      "dur": 89,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/scenario/en.json",
+      "size": 549,
+      "start": 825,
+      "dur": 89,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/scripts/en.json",
+      "size": 668,
+      "start": 825,
+      "dur": 90,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/sensitivefile/en.json",
+      "size": 508,
+      "start": 825,
+      "dur": 90,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/shifts/en.json",
+      "size": 483,
+      "start": 825,
+      "dur": 91,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/sla_template/en.json",
+      "size": 869,
+      "start": 825,
+      "dur": 91,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/tasks/en.json",
+      "size": 1156,
+      "start": 825,
+      "dur": 91,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/tenants/en.json",
+      "size": 638,
+      "start": 825,
+      "dur": 92,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/threat_actors/en.json",
+      "size": 1520,
+      "start": 825,
+      "dur": 92,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/threat_intel_feeds/en.json",
+      "size": 1398,
+      "start": 825,
+      "dur": 93,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/threat_intel_reports/en.json",
+      "size": 1540,
+      "start": 825,
+      "dur": 94,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/vulnerabilities/en.json",
+      "size": 1531,
+      "start": 825,
+      "dur": 95,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/warrooms/en.json",
+      "size": 1033,
+      "start": 825,
+      "dur": 95,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/workspaces/en.json",
+      "size": 967,
+      "start": 825,
+      "dur": 95,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/z_t_p_profiles/en.json",
+      "size": 1759,
+      "start": 825,
+      "dur": 96,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/locale/1/z_t_p_scripts/en.json",
+      "size": 432,
+      "start": 825,
+      "dur": 96,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/3/model_metadatas?$limit=2147483647&$orderby=type&$relationships=true",
+      "size": 1486134,
+      "start": 953,
+      "dur": 11,
+      "type": "fetch"
+    },
+    {
+      "name": "/api/system/fixtures",
+      "size": 38782,
+      "start": 953,
+      "dur": 574,
+      "type": "fetch"
+    },
+    {
+      "name": "/counter-1.0.0/view.html",
+      "size": 1358,
+      "start": 953,
+      "dur": 13,
+      "type": "fetch"
+    },
+    {
+      "name": "/_fsr/proxy-log",
+      "size": 33332,
+      "start": 954,
+      "dur": 14,
+      "type": "fetch"
+    }
+  ],
+  "boot": {
+    "domContentLoaded": 452,
+    "appUnmin": 751,
+    "templates": 784,
+    "harnessModule": 787,
+    "widgetServices": 787,
+    "controller": 788,
+    "mountComplete": 953
+  },
+  "runtime": {
+    "digestCount": 0,
+    "slowestDigestMs": 0,
+    "stubHits": {
+      "$exceptionHandler": 1,
+      "localStorageService": 1,
+      "$state": 1,
+      "toaster": 1,
+      "$translate": 1,
+      "config": 1
+    },
+    "templateCacheHits": 0,
+    "templateCacheMisses": 0,
+    "unresolvedProviders": []
+  },
+  "correctness": {
+    "errorCount": 1,
+    "warningCount": 0,
+    "consoleErrors": [
+      "[pageerror] module is not defined"
+    ],
+    "sceFallbacks": 0
+  },
+  "mounted": true,
+  "mountState": "mounted"
+}
