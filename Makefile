@@ -1,16 +1,18 @@
 HARNESS := fortisoar-widget-harness
 
-# Two dedicated, never-overlapping ports:
-#   DEV_PORT  — the harness you drive by hand (`make dev`)
-#   TEST_PORT — the isolated server Playwright boots for `make test`
+# Three dedicated, never-overlapping ports:
+#   DEV_PORT        — the harness you drive by hand (`make dev`)
+#   TEST_PORT       — the isolated server Playwright boots for `make test`
+#   INTROSPECT_PORT — the introspection rig (`make introspect`)
 # They differ on purpose so running tests never kills (or races) your dev
 # server, and a stale dev server never serves the wrong widget to a test run.
-# Both are forced here via PORT=, which overrides .env (dotenv does not
+# All are forced here via PORT=, which overrides .env (dotenv does not
 # override an already-set env var) so the port can't drift out from under us.
-DEV_PORT  := 14400
-TEST_PORT := 14401
+DEV_PORT        := 14400
+TEST_PORT       := 14401
+INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live ship-verify clean
+.PHONY: help setup install widgets assets dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live introspect introspect-gate ship-verify clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -89,6 +91,24 @@ test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.playbookListingLive.spec.js --reporter=list
+
+introspect: ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
+	-lsof -ti:$(INTROSPECT_PORT) | xargs kill -9 2>/dev/null || true
+	@echo "▶ Starting introspection harness on port $(INTROSPECT_PORT)…"
+	@( cd $(HARNESS) && PORT=$(INTROSPECT_PORT) node server.js > /dev/null 2>&1 & \
+	  server_pid=$$!; \
+	  sleep 2; \
+	  if ! kill -0 $$server_pid 2>/dev/null; then \
+	    echo "Failed to start server"; exit 1; \
+	  fi; \
+	  trap "kill $$server_pid 2>/dev/null || true" EXIT; \
+	  echo "▶ Running introspection rig…"; \
+	  cd $(HARNESS) && HARNESS_URL=http://localhost:$(INTROSPECT_PORT) pnpm node scripts/introspect.js; \
+	)
+
+introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors).
+	@echo "▶ Checking regressions against baseline…"
+	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js
 
 clean: ## Remove harness node_modules + test artifacts
 	rm -rf $(HARNESS)/node_modules $(HARNESS)/test-results test-results
