@@ -885,11 +885,37 @@
            - toastui Editor + DOMPurify back the markdown editor
            - tinymce backs the html editor
          Without these, the directives throw on init and the unprocessed
-         <div ng-model="value"> renders `[object Object]`. -->
-    <link rel="stylesheet" href="https://uicdn.toast.com/editor/latest/toastui-editor.min.css">
-    <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+         <div ng-model="value"> renders `[object Object]`.
+         These are NOT loaded statically — they're ~0.5 MB of CDN payload that
+         most widgets never touch. `loadRichTextEditors()` (below) injects them
+         lazily, gated on the widget's `caps.editors` flag, during the boot
+         chain. Idempotent. -->
+    <script>
+      window.__harnessRichEditorsPromise = null;
+      function loadRichTextEditors() {
+        if (window.__harnessRichEditorsPromise) return window.__harnessRichEditorsPromise;
+        const inject = (src) => new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error("failed to load " + src));
+          document.head.appendChild(s);
+        });
+        window.__harnessRichEditorsPromise = (async () => {
+          const css = document.createElement("link");
+          css.rel = "stylesheet";
+          css.href = "https://uicdn.toast.com/editor/latest/toastui-editor.min.css";
+          document.head.appendChild(css);
+          // toastui + dompurify + tinymce have no load-order dependency.
+          await Promise.all([
+            inject("https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"),
+            inject("https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"),
+            inject("https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js"),
+          ]);
+        })();
+        return window.__harnessRichEditorsPromise;
+      }
+    </script>
     <script src="/lib/harnessUtils.js"></script>
     <script src="/lib/harnessDrawer.js"></script>
 
@@ -2002,7 +2028,7 @@
           return window.__harnessMonacoPromise;
         }
 
-        async function injectFsrStylesheets() {
+        async function injectFsrStylesheets(wantMonaco) {
           try {
             const r = await fetch("/_fsr/stylesheets");
             if (!r.ok) {
@@ -2011,6 +2037,10 @@
             }
             const { stylesheets } = await r.json();
             for (const href of stylesheets || []) {
+              // The SOAR manifest includes Monaco's editor.main.css (~124 KB).
+              // Skip it for widgets that don't use a code editor — it's the only
+              // Monaco byte that leaks past the lazy-load gate otherwise.
+              if (!wantMonaco && /monaco-editor\/.*editor\.main\.css/.test(href)) continue;
               const link = document.createElement("link");
               link.rel = "stylesheet";
               link.href = href;
@@ -2061,7 +2091,7 @@
         window.__HARNESS_THEME_ID = document.getElementById("harness-theme").value;
 
         if (loadCssEl.checked) {
-          await injectFsrStylesheets();
+          await injectFsrStylesheets(!!(current && current.caps && current.caps.monaco));
         }
 
         await loadScript("https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js");
@@ -2115,16 +2145,37 @@
             },
           };
         }
+        // Boot-timeline marks consumed by the introspection rig
+        // (scripts/introspect.ts → BootTimeline). Each names a milestone in the
+        // serial loadScript chain so a render report can attribute boot time to
+        // the platform bundles vs the widget vs mount. No-op if performance
+        // marks aren't available; purely observational.
+        const bootMark = (n) => { try { performance.mark("harness:" + n); } catch (_) {} };
         await loadScript("/_fsr/app.unmin.js");
+        bootMark("appUnmin");
         await loadScript("/_fsr/templates.min.js");
+        bootMark("templates");
         await loadScript("/harness.module.js");
-        await preloadMonaco();
+        bootMark("harnessModule");
+        // Lazy-load the heavy editor stacks ONLY for widgets that statically
+        // reference them (server-derived caps). Most widgets need neither, so
+        // they skip Monaco's ~4 MB / ~150 ms serial preload and the ~0.5 MB
+        // rich-text CDN payload entirely. Editor widgets still preload eagerly,
+        // matching real SOAR's bootstrap behavior. See server.ts scanCapabilities.
+        const caps = (current && current.caps) || { monaco: false, editors: false };
+        if (caps.monaco) await preloadMonaco();
+        // Await: the old static <head> tags guaranteed these were parsed before
+        // bootstrap, so widgets whose controllers touch tinymce/toastui at init
+        // (csConditional value cells) don't race. Only editor widgets pay it.
+        if (caps.editors) await loadRichTextEditors();
         // Load any widget-local JS under widgetAssets/ (e.g. c3charts'
         // chartService) so widget-defined services register before bootstrap.
         for (const rel of (current.assetScripts || [])) {
           await loadScript("/" + current.id + "/" + rel);
         }
+        bootMark("widgetServices");
         await loadScript("/" + current.id + "/view.controller.js");
+        bootMark("controller");
 
         function setRecordHeader(parts) {
           while (recordHeader.firstChild) recordHeader.removeChild(recordHeader.firstChild);
@@ -2286,6 +2337,7 @@
         }
 
         await mountWidget();
+        bootMark("mountComplete");
 
         const themeSelect = document.getElementById("harness-theme");
         themeSelect.addEventListener("change", function () {
