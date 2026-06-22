@@ -30,54 +30,47 @@
  *   // ... assert .action-renderer-widget ...
  *   await s.close();
  */
-
-const { chromium } = require("@playwright/test");
-const { resolveSoarEnv } = require("./soarEnv");
-
+const test_1 = require("@playwright/test");
+const soarEnv = require("./soarEnv");
 // A real desktop Chrome UA — REQUIRED to get past the FortiGuard IPS. Single
 // source of truth: liveUiDriver re-exports THIS constant (do not fork it).
-const DESKTOP_UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
-  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
+const DESKTOP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const LOGIN = {
-  user: "#username",
-  pass: "#login_password",
-  submit: 'button[type="submit"], button:has-text("Login"), button:has-text("Log In")',
+    user: "#username",
+    pass: "#login_password",
+    submit: 'button[type="submit"], button:has-text("Login"), button:has-text("Log In")',
 };
-
 /** Resolve the box origin (scheme-qualified) from soarEnv. Throws if unset. */
 function baseUrl(soar) {
-  const h = (soar.host || "").replace(/\/+$/, "");
-  if (!h) throw new Error("soarBrowser: no FSR_BASE_URL resolved (set it in .env)");
-  return /^https?:\/\//i.test(h) ? h : "https://" + h;
+    const h = (soar.host || "").replace(/\/+$/, "");
+    if (!h)
+        throw new Error("soarBrowser: no FSR_BASE_URL resolved (set it in .env)");
+    return /^https?:\/\//i.test(h) ? h : "https://" + h;
 }
-
 /** Launch a Chrome context the box's WAF will accept (desktop UA + TLS allow). */
 async function launchContext({ headless = true } = {}) {
-  const browser = await chromium.launch({
-    headless,
-    args: ["--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"],
-  });
-  const context = await browser.newContext({
-    ignoreHTTPSErrors: true,
-    viewport: { width: 1500, height: 1100 },
-    userAgent: DESKTOP_UA,
-    extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
-  });
-  return { browser, context };
+    const browser = await test_1.chromium.launch({
+        headless,
+        args: ["--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"],
+    });
+    const context = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width: 1500, height: 1100 },
+        userAgent: DESKTOP_UA,
+        extraHTTPHeaders: { "Accept-Language": "en-US,en;q=0.9" },
+    });
+    return { browser, context };
 }
-
 /** Log in with resolved creds (local csadmin). Throws if the form never appears. */
 async function login(page, base, soar) {
-  await page.goto(base + "/login", { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector(LOGIN.pass, { timeout: 30000 });
-  await page.fill(LOGIN.user, soar.user);
-  await page.fill(LOGIN.pass, soar.pass);
-  await page.click(LOGIN.submit);
-  await page.waitForTimeout(8000); // SPA app-shell boot
+    await page.goto(base + "/login", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForSelector(LOGIN.pass, { timeout: 30000 });
+    await page.fill(LOGIN.user, soar.user);
+    await page.fill(LOGIN.pass, soar.pass);
+    await page.click(LOGIN.submit);
+    await page.waitForTimeout(8000); // SPA app-shell boot
 }
-
 /**
  * Reusable ≥400 /api response + console-error + pageerror collector. Returns an
  * object whose arrays fill as the page runs; call before navigating.
@@ -86,46 +79,46 @@ async function login(page, base, soar) {
  *   expect(errs.meaningful()).toEqual([]);
  */
 function captureApiErrors(page) {
-  const apiErrors = [];
-  const consoleErrors = [];
-  const pageErrors = [];
-  page.on("response", (r) => {
-    try {
-      if (r.status() >= 400 && /\/api\//.test(r.url())) {
-        apiErrors.push({ status: r.status(), url: r.url() });
-      }
-    } catch (_) { /* response went away */ }
-  });
-  page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
-  page.on("pageerror", (e) => pageErrors.push(String(e && e.message ? e.message : e)));
-  return {
-    apiErrors, consoleErrors, pageErrors,
-    /** Errors worth failing on — drops known-benign noise (favicon, ResizeObserver,
-     *  and the box's pre-existing malformed-CSP referrer-policy warning). */
-    meaningful() {
-      const benign =
-        /favicon|ResizeObserver|Non-Error promise rejection|referrer policy|about:srcdoc|frame is sandboxed/i;
-      return [
-        ...apiErrors.map((e) => `HTTP ${e.status} ${e.url}`),
-        ...consoleErrors.filter((t) => !benign.test(t)),
-        ...pageErrors.filter((t) => !benign.test(t)),
-      ];
-    },
-  };
+    const apiErrors = [];
+    const consoleErrors = [];
+    const pageErrors = [];
+    page.on("response", (r) => {
+        try {
+            if (r.status() >= 400 && /\/api\//.test(r.url())) {
+                apiErrors.push({ status: r.status(), url: r.url() });
+            }
+        }
+        catch (_) { /* response went away */ }
+    });
+    page.on("console", (m) => { if (m.type() === "error")
+        consoleErrors.push(m.text()); });
+    page.on("pageerror", (e) => pageErrors.push(String(e && typeof e === "object" && "message" in e ? e.message : e)));
+    return {
+        apiErrors, consoleErrors, pageErrors,
+        /** Errors worth failing on — drops known-benign noise (favicon, ResizeObserver,
+         *  and the box's pre-existing malformed-CSP referrer-policy warning). */
+        meaningful() {
+            const benign = /favicon|ResizeObserver|Non-Error promise rejection|referrer policy|about:srcdoc|frame is sandboxed/i;
+            return [
+                ...apiErrors.map((e) => `HTTP ${e.status} ${e.url}`),
+                ...consoleErrors.filter((t) => !benign.test(t)),
+                ...pageErrors.filter((t) => !benign.test(t)),
+            ];
+        },
+    };
 }
-
 /**
  * Deep-link to a record's detail page and wait for it to settle. Uses the
  * `/modules/<module>/<uuid>` form (bare `/<module>/<uuid>` redirects to login).
  */
 async function openRecord(page, base, module, uuid, { settleMs = 10000 } = {}) {
-  if (!uuid) throw new Error("openRecord: uuid is required");
-  await page.goto(`${base}/modules/${module}/${uuid}`, {
-    waitUntil: "domcontentloaded", timeout: 60000,
-  });
-  await page.waitForTimeout(settleMs); // record + widgets render
+    if (!uuid)
+        throw new Error("openRecord: uuid is required");
+    await page.goto(`${base}/modules/${module}/${uuid}`, {
+        waitUntil: "domcontentloaded", timeout: 60000,
+    });
+    await page.waitForTimeout(settleMs); // record + widgets render
 }
-
 /**
  * Full flow: launch desktop-UA Chrome → log in → return a ready, authenticated
  * session. opts: { headless=true, env }. Returns
@@ -133,24 +126,23 @@ async function openRecord(page, base, module, uuid, { settleMs = 10000 } = {}) {
  * where `errors` is the captureApiErrors handle attached before login.
  */
 async function launchSoarSession(opts = {}) {
-  const soar = resolveSoarEnv(opts.env);
-  const base = baseUrl(soar);
-  const { browser, context } = await launchContext({ headless: opts.headless !== false });
-  const page = await context.newPage();
-  const errors = captureApiErrors(page);
-  await login(page, base, soar);
-  return {
-    browser, context, page, base, soar, errors,
-    async close() { await browser.close().catch(() => {}); },
-  };
+    const soar = soarEnv.resolveSoarEnv(opts.env);
+    const base = baseUrl(soar);
+    const { browser, context } = await launchContext({ headless: opts.headless !== false });
+    const page = await context.newPage();
+    const errors = captureApiErrors(page);
+    await login(page, base, soar);
+    return {
+        browser, context, page, base, soar, errors,
+        async close() { await browser.close().catch(() => { }); },
+    };
 }
-
 module.exports = {
-  DESKTOP_UA,
-  baseUrl,
-  launchContext,
-  login,
-  captureApiErrors,
-  openRecord,
-  launchSoarSession,
+    DESKTOP_UA,
+    baseUrl,
+    launchContext,
+    login,
+    captureApiErrors,
+    openRecord,
+    launchSoarSession,
 };

@@ -51,3 +51,6 @@ docs/*.pdf
 
 # Internal connector/widget design docs — not shipped with the public harness
 FSR_PLAYBOOK_BUILDER_*
+
+# Introspection rig output (generated; baselines are committed separately)
+/introspection-reports/

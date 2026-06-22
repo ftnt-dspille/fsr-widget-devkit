@@ -3,7 +3,7 @@
     "target": "ES2017",
     "module": "CommonJS",
     "lib": ["ES2020", "DOM"],
-    "types": ["node"],
+    "types": ["node", "angular"],
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -12,7 +12,22 @@
     "ignoreDeprecations": "5.0"
   },
   "include": [
+    "lib/types.ts",
     "lib/soarEnv.ts",
-    "lib/harnessUtils.ts"
+    "lib/harnessUtils.ts",
+    "lib/harnessDrawer.ts",
+    "lib/soarBrowser.ts",
+    "lib/liveUiDriver.ts",
+    "harness.module.ts",
+    "packager.ts",
+    "server.ts",
+    "scripts/widget.ts",
+    "scripts/widget-verify-remote.ts",
+    "scripts/lint-angular.ts",
+    "scripts/lint-testids.ts",
+    "scripts/extract-templates.ts",
+    "scripts/probe-bootstrap.ts",
+    "scripts/drive-live-widget.ts",
+    "scripts/introspect.ts"
   ]
 }
