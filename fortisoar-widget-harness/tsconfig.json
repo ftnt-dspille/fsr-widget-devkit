@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "CommonJS",
+    "lib": ["ES2020", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "declaration": false,
+    "skipLibCheck": true,
+    "ignoreDeprecations": "5.0"
+  },
+  "include": [
+    "lib/soarEnv.ts",
+    "lib/harnessUtils.ts"
+  ]
+}
