@@ -29,6 +29,7 @@
     "scripts/extract-templates.ts",
     "scripts/probe-bootstrap.ts",
     "scripts/drive-live-widget.ts",
-    "scripts/introspect.ts"
+    "scripts/introspect.ts",
+    "scripts/introspect-gate.ts"
   ]
 }
