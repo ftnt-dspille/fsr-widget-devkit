@@ -206,6 +206,40 @@ describe("rewriteForVersion", () => {
     const after2 = fs.readFileSync(path.join(tmpDir, "view.controller.js"), "utf8");
     expect(after1).toBe(after2);
   });
+
+  test("also rewrites controller names + versioned ids in the sibling tests/ tree", () => {
+    // A bump must update the widget's OWN tests too, otherwise the unit/e2e
+    // suite hardcodes the old controller name and goes red until hand-fixed.
+    const widgetDir = path.join(tmpDir, "widget");
+    makeWidget(widgetDir, "1.0.0");
+    const testsDir = path.join(tmpDir, "tests");
+    fs.mkdirSync(path.join(testsDir, "e2e"), { recursive: true });
+    fs.writeFileSync(
+      path.join(testsDir, "view.controller.test.js"),
+      `const CTRL_NAME = "myWidget100DevCtrl";\nconst EDIT = "editmyWidget100DevCtrl";\n`
+    );
+    fs.writeFileSync(
+      path.join(testsDir, "e2e", "smoke.spec.js"),
+      `const url = "/?widget=myWidget-1.0.0";\n`
+    );
+    // node_modules under tests/ must be skipped.
+    fs.mkdirSync(path.join(testsDir, "node_modules"), { recursive: true });
+    fs.writeFileSync(path.join(testsDir, "node_modules", "x.js"), `myWidget100DevCtrl\n`);
+
+    rewriteForVersion(widgetDir, "myWidget", "1.0.1");
+
+    const unit = fs.readFileSync(path.join(testsDir, "view.controller.test.js"), "utf8");
+    expect(unit).toContain("myWidget101DevCtrl");
+    expect(unit).toContain("editmyWidget101DevCtrl");
+    expect(unit).not.toContain("myWidget100DevCtrl");
+
+    const e2e = fs.readFileSync(path.join(testsDir, "e2e", "smoke.spec.js"), "utf8");
+    expect(e2e).toContain("myWidget-1.0.1");
+
+    // node_modules left untouched.
+    const nm = fs.readFileSync(path.join(testsDir, "node_modules", "x.js"), "utf8");
+    expect(nm).toContain("myWidget100DevCtrl");
+  });
 });
 
 // ---------------------------------------------------------------------------
