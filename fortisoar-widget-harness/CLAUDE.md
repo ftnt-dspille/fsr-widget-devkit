@@ -17,6 +17,17 @@ curl -s http://localhost:4401/ > /dev/null && echo "already running"
 
 The harness listens on **port 4401** (set via `.env`). Always use `http://localhost:4401` — never 3000 or 4400.
 
+## Inspecting/validating a widget's DOM (dropdown size, grid rows, clipping…)
+
+Don't hand-roll Playwright to mount a widget and measure it — that re-derives a
+pile of harness foot-guns (hidden `#widget-select`, reload-on-pick, multi-stage
+mount, `networkidle` hang). Use the **widget-harness kit** instead:
+- **Ad-hoc, no spec file:** `node scripts/widget-inspect.js --widget <name> [--config '<json>'] [--edit] [--click <sel>] [--clipped 'child::ancestor'] [--rows <sel>] [--box <sel>] …` → prints JSON. (or `make widget-inspect ARGS='…'`).
+- **In a spec:** `const { mountWidget } = require('./_widgetHarness')` → `mountWidget(page, name, {config})` then `.box/.count/.rowCount/.style/.text/.visible/.clippedBy/.click/.openEditModal`.
+
+Full reference + the foot-guns it owns: `SOAR_TEST_KIT_DESIGN.md` §4.4. Self-tests:
+`tests/e2e/widgetHarness.spec.js`.
+
 ## Testing & deploying widgets — go through the parent Makefile, never by hand
 
 This `pnpm dev` server is for **interactive** use only. Builds, tests, and

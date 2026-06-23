@@ -1293,6 +1293,33 @@ Validates the bound value is not present in a list:
 - `as-sortable` / `as-sortable-item` / `as-sortable-item-handle` — drag-and-drop lists and kanban (`taskManagement`, `playbookButtons`).
 - `ngf-select`, `ngf-drop` — `ng-file-upload` for file attachments (`configureIndicatorExtraction`, `submitContentForm`).
 
+### 9.15 `ui-select` — dropdown clipped inside modals / scroll containers
+
+An in-place `ui-select` opens its `.ui-select-choices` list as a normal child of
+`.ui-select-container`. Any ancestor with `overflow:auto|hidden|scroll` (a modal
+body, a scrollable card) **clips the open dropdown** — symptom: only 2–3 rows show
+even though `max-height` allows more, the rest cut off at the container edge. (Same
+class as the uib grid-header dropdown clipping in §7.4 — `dropdown-append-to-body`.)
+
+Two fixes, with a real trade-off:
+
+- **`data-append-to-body="true"`** escapes the clip, but ui-select 0.20.0 moves the
+  **whole `.ui-select-container`** (match button included) into `<body>`, not just the
+  choices. That detaches it from its form scope — in `widget-action-renderer` this
+  broke the connector-config param renderer and dropped the match input, so that widget
+  deliberately keeps the dropdown **in-place**. Test before relying on it.
+- **Keep in-place, un-clip the ancestor only while open.** Let the dropdown spill:
+  ```css
+  .my-modal:has(.ui-select-container.open) { overflow: visible; }
+  /* and lift it above sibling stacking contexts */
+  .my-modal .ui-select-bootstrap > .ui-select-choices { z-index: 1100; }
+  ```
+  `:has()` scopes the overflow-visible to *only* when a dropdown is open, so the
+  container still scrolls normally otherwise. This is what the harness edit modal uses
+  for the action-renderer connector picker (`fortisoar-widget-harness/public/index.html`).
+  See `widget-action-renderer/widget/widgetAssets/css/actionRenderer.css` (the
+  `.ui-select-bootstrap` rules) for the in-place z-index/contrast handling.
+
 ---
 
 ## 10. Filters

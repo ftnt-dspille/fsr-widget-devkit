@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live introspect introspect-gate ship-verify clean
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live introspect introspect-gate ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -72,6 +72,15 @@ test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fre
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC) --reporter=list
 
+# Ad-hoc one-shot widget inspector: mount a widget in the RUNNING dev harness and
+# answer a visual/DOM question as JSON (dropdown clipped? grid row count? size?).
+# Needs the dev server up (pnpm dev on :4401, or pass BASE=). Pass-through flags
+# via ARGS. See scripts/widget-inspect.js --help for the full flag list.
+#   make widget-inspect ARGS='--widget counter --config {"start":7} --text [data-testid=counter-value]'
+widget-inspect: ## Mount a widget in the running harness + measure it as JSON (ARGS='--widget <name> ...')
+	@if [ -z "$(ARGS)" ]; then cd $(HARNESS) && node scripts/widget-inspect.js --help; exit 0; fi
+	cd $(HARNESS) && $(if $(BASE),HARNESS_BASE=$(BASE) ,)node scripts/widget-inspect.js $(ARGS)
+
 BUMP ?= patch
 ship-verify: ## CANONICAL ship path: lint→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
@@ -85,6 +94,10 @@ ship-verify: ## CANONICAL ship path: lint→unit→e2e(mock)→deploy→live-swe
 	  if [ "$(WIDGET)" = "fsrSocAssistant" ]; then $(MAKE) test-live-sweep; \
 	  else echo "  (no live sweep defined for $(WIDGET) — skipping)"; fi
 	@echo "✅ ship-verify complete: $(WIDGET) gated, deployed, and live-verified."
+
+release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
+	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
+	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
 
 test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats (default 1)
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
