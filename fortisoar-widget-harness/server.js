@@ -277,8 +277,12 @@ function decodeJwtExpiryMs(token) {
         return null;
     }
 }
+// Default upstream wall-clock timeout. Generous enough for a slow appliance,
+// short enough that a dead box fails the route fast instead of hanging it.
+const UPSTREAM_TIMEOUT_MS = Number(process.env.FSR_UPSTREAM_TIMEOUT_MS) || 8000;
 function upstreamRequest(opts) {
     return new Promise((resolve, reject) => {
+        var _a;
         const url = new URL(HOST.replace(/\/$/, "") + opts.pathAndQuery);
         const mod = url.protocol === "https:" ? https : http;
         const req = mod.request({
@@ -294,6 +298,10 @@ function upstreamRequest(opts) {
             res.on("end", () => resolve({ status: res.statusCode || 0, body: data }));
         });
         req.on("error", reject);
+        const timeoutMs = (_a = opts.timeoutMs) !== null && _a !== void 0 ? _a : UPSTREAM_TIMEOUT_MS;
+        req.setTimeout(timeoutMs, () => {
+            req.destroy(new Error(`upstream timeout after ${timeoutMs}ms: ${opts.method} ${opts.pathAndQuery}`));
+        });
         if (opts.body)
             req.write(opts.body);
         req.end();
@@ -1820,6 +1828,9 @@ app.get("/_fsr/stylesheets", async (_req, res) => {
             method: "GET",
             pathAndQuery: "/",
             headers: cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {},
+            // Cosmetic, bootstrap-blocking route — fail fast against a dead box so the
+            // widget still mounts (chrome-only styling) instead of the page hanging.
+            timeoutMs: 3000,
         });
         if (result.status < 200 || result.status >= 400) {
             return res.status(502).json({
