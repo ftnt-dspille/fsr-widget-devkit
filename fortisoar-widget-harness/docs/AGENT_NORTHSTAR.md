@@ -139,8 +139,23 @@ Everything else is an implementation detail the agent should never have to learn
    sync". (The `tests/` rewrite itself already existed in `rewriteForVersion`;
    both now correctly target the sibling `<widget>/tests`, not `widget/tests`.)
    7 jest regressions in `tests/packager.test.js`.
-4. **Contract helpers**: a `triggerPlaybook(playbook)` the widgets share so the
-   endpoint choice is impossible to get wrong; same for csGrid wiring.
+4. ✅ **Contract helpers**: a `triggerPlaybook(playbook)` the widgets share so the
+   endpoint choice is impossible to get wrong; same for csGrid wiring. **DONE
+   (2026-06-23).** `lib/harnessUtils.ts` now holds the canonical, unit-tested
+   encoding of both contracts: `selectPlaybookTrigger({triggerType,route,
+   noRecordExecution,uuid,API})` → `{url,isManual}` (the KB §19.3 endpoint split —
+   action-by-route vs notrigger-by-uuid) and `buildCsGridPaged(rows)` →
+   `{list,keyPairs,visited}` (the csGrid render contract — rows come from
+   `list`/`keyPairs`, not `hydra:member`). The "impossible to get wrong" guarantee
+   is a **lint rule**: `lintWidget` now emits `trigger-endpoint-misuse` (error)
+   when a controller builds `ACTION_TRIGGER + <uuid|getEndPathName>` — the classic
+   silent-404 bug that only shows up against the box. **Design note:** the helpers
+   are NOT injected into shipped widgets (`HarnessUtils` is a harness-page global,
+   absent on the SOAR box); the two existing widgets already encode the split
+   correctly and inline, and the lint now keeps them + any new widget honest. The
+   generator (NS5) emits the helper's pattern inline. 14 jest regressions
+   (`tests/harnessUtils.test.js`, 218 green); detector verified zero false
+   positives on action-renderer + jsonToGrid's real controllers.
 5. **Generator** (`make new-widget`) emitting harness-wired tests.
 6. ✅ **Agent-facing docs**: `HARNESS_RENDERING.md` + this north star, kept short.
    **DONE (2026-06-23).** `docs/HARNESS_RENDERING.md` documents the render

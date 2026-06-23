@@ -12,6 +12,9 @@ const {
   extractInjectedDependencies,
   parseRegisteredServices,
   inertStubFinding,
+  selectPlaybookTrigger,
+  buildCsGridPaged,
+  triggerEndpointMisuse,
   rootNgControllerError,
   lintWidget,
 } = require("../lib/harnessUtils");
@@ -329,5 +332,108 @@ describe("inertStubFinding (NS2 faithful-or-loud)", () => {
     expect(f.indexOf("$uibModalInstance.close ×5")).toBeLessThan(
       f.indexOf("localStorageService.clearAll ×1")
     );
+  });
+});
+
+describe("selectPlaybookTrigger (NS4 contract helper)", () => {
+  test("record-context action trigger uses the action endpoint by route", () => {
+    expect(selectPlaybookTrigger({ route: "blockIp", uuid: "u1" })).toEqual({
+      url: "api/triggers/1/action/blockIp",
+      isManual: false,
+    });
+  });
+
+  test("manual trigger type runs by uuid via notrigger", () => {
+    expect(selectPlaybookTrigger({ triggerType: "manual", route: "r", uuid: "u1" })).toEqual({
+      url: "api/triggers/1/notrigger/u1",
+      isManual: true,
+    });
+  });
+
+  test("no route OR noRecordExecution falls back to notrigger by uuid", () => {
+    expect(selectPlaybookTrigger({ uuid: "u1" }).isManual).toBe(true);
+    expect(selectPlaybookTrigger({ noRecordExecution: true, route: "r", uuid: "u1" }).isManual).toBe(true);
+  });
+
+  test("honors injected API constants", () => {
+    const API = { MANUAL_TRIGGER: "m/", ACTION_TRIGGER: "a/" };
+    expect(selectPlaybookTrigger({ route: "x", uuid: "u", API }).url).toBe("a/x");
+    expect(selectPlaybookTrigger({ uuid: "u", API }).url).toBe("m/u");
+  });
+});
+
+describe("buildCsGridPaged (NS4 contract helper)", () => {
+  test("sets list + keyPairs + visited so csGrid paints rows", () => {
+    const out = buildCsGridPaged([{ a: 1 }, { a: 2 }]);
+    expect(out.visited).toBe(true);
+    expect(out.list).toHaveLength(2);
+    expect(out.keyPairs).toHaveLength(2);
+    // synthesized IRI/uuid for selection tracking
+    expect(out.keyPairs[0]["@id"]).toContain("dummy_module/");
+    expect(out.keyPairs[0].uuid).toBeDefined();
+  });
+
+  test("preserves an existing @id / uuid", () => {
+    const out = buildCsGridPaged([{ "@id": "/api/3/alerts/x", a: 1 }]);
+    expect(out.keyPairs[0]["@id"]).toBe("/api/3/alerts/x");
+  });
+
+  test("empty / non-array yields empty list (zero rows, not a crash)", () => {
+    expect(buildCsGridPaged(null).list).toEqual([]);
+    expect(buildCsGridPaged(undefined).keyPairs).toEqual([]);
+  });
+});
+
+describe("triggerEndpointMisuse (NS4 lint detector)", () => {
+  test("flags ACTION_TRIGGER concatenated with a uuid", () => {
+    expect(triggerEndpointMisuse("url = API.ACTION_TRIGGER + playbook.uuid;")).toMatch(/ACTION_TRIGGER/);
+    expect(triggerEndpointMisuse("url = API.ACTION_TRIGGER + inputData.__uuid;")).toMatch(/__uuid/);
+  });
+
+  test("flags ACTION_TRIGGER + getEndPathName(...)", () => {
+    expect(
+      triggerEndpointMisuse('url = API.ACTION_TRIGGER + $filter("getEndPathName")(pb["@id"]);')
+    ).toMatch(/getEndPathName/);
+  });
+
+  test("does NOT flag the correct ACTION_TRIGGER + route", () => {
+    expect(triggerEndpointMisuse("url = API.ACTION_TRIGGER + route;")).toBeNull();
+    expect(triggerEndpointMisuse("url = API.ACTION_TRIGGER + src.route + '?force_debug=true';")).toBeNull();
+  });
+
+  test("ignores the pattern inside a // comment", () => {
+    expect(triggerEndpointMisuse("// using ACTION_TRIGGER + uuid here would 404\nurl = API.ACTION_TRIGGER + route;")).toBeNull();
+  });
+
+  test("null / non-string is safe", () => {
+    expect(triggerEndpointMisuse(null)).toBeNull();
+    expect(triggerEndpointMisuse(123)).toBeNull();
+  });
+});
+
+describe("lintWidget trigger-endpoint-misuse integration", () => {
+  const baseInfo = { name: "foo", version: "1.1.2", title: "Foo" };
+  test("a controller that appends uuid to the action endpoint is an error", () => {
+    const files = {
+      "view.html": "<div>x</div>",
+      "edit.html": "<div>y</div>",
+      "view.controller.js": "var url = API.ACTION_TRIGGER + playbook.uuid;",
+      "edit.controller.js": "",
+    };
+    const r = lintWidget({ info: baseInfo, files });
+    const e = r.errors.find((x) => x.code === "trigger-endpoint-misuse");
+    expect(e).toBeTruthy();
+    expect(e.file).toBe("view.controller.js");
+  });
+
+  test("the correct route-based endpoint produces no such error", () => {
+    const files = {
+      "view.html": "<div>x</div>",
+      "edit.html": "<div>y</div>",
+      "view.controller.js": "var url = API.ACTION_TRIGGER + route;",
+      "edit.controller.js": "",
+    };
+    const r = lintWidget({ info: baseInfo, files });
+    expect(r.errors.some((x) => x.code === "trigger-endpoint-misuse")).toBe(false);
   });
 });

@@ -216,6 +216,81 @@ function inertStubFinding(inert: Record<string, number> | null | undefined): str
   return `inert stub(s) invoked during render: ${list} — confirm the widget's behavior isn't silently dropped (harness drives these paths another way)`;
 }
 
+/* ── NS4 contract helpers ────────────────────────────────────────────────────
+
+   The platform's real rules — which playbook-trigger endpoint to use, how csGrid
+   reads its rows — are folklore that bit jsonToGrid and action-renderer (KB §19.3,
+   csgrid_renders_from_list_keypairs). These pure helpers encode each rule ONCE so
+   the generator (NS5) emits correct code and the linter rejects the wrong one.
+   They are intentionally dependency-free and exposed on window.HarnessUtils, but
+   note: HarnessUtils is a *harness-page* global — it is NOT present on the SOAR
+   box, so a shipped widget cannot inject it. The contract is enforced two ways:
+   (1) the generator pastes the correct inline pattern, (2) lintWidget flags the
+   wrong endpoint pattern. selectPlaybookTrigger/buildCsGridPaged are the canonical
+   reference + the unit-tested source of truth those two paths mirror. */
+
+interface PlaybookTriggerOpts {
+  /** Trigger TYPE as chosen at pick time ('manual' ⇒ run-by-uuid). */
+  triggerType?: string;
+  /** The action trigger step's registered route (arguments.route). */
+  route?: string | null;
+  /** True for a no-record / data-provider playbook (runs by uuid). */
+  noRecordExecution?: boolean;
+  /** The playbook @id UUID. */
+  uuid?: string;
+  /** API constants ({ MANUAL_TRIGGER, ACTION_TRIGGER }); falls back to defaults. */
+  API?: { MANUAL_TRIGGER?: string; ACTION_TRIGGER?: string } | null;
+}
+
+/* Select the correct trigger ENDPOINT by trigger TYPE (KB §19.3). The classic
+   404 ("Resource Not Found In Request") is using the action endpoint by uuid:
+   `ACTION_TRIGGER + uuid` is WRONG — the action endpoint keys off the registered
+   ROUTE. A manual / no-record / no-route playbook runs by uuid via the notrigger
+   endpoint. This function is the one place that decision lives. */
+function selectPlaybookTrigger(opts: PlaybookTriggerOpts): { url: string; isManual: boolean } {
+  const o = opts || {};
+  const MANUAL = (o.API && o.API.MANUAL_TRIGGER) || "api/triggers/1/notrigger/";
+  const ACTION = (o.API && o.API.ACTION_TRIGGER) || "api/triggers/1/action/";
+  const isManual = o.triggerType === "manual" || !o.route || o.noRecordExecution === true;
+  if (isManual) {
+    return { url: MANUAL + (o.uuid || ""), isManual: true };
+  }
+  return { url: ACTION + o.route, isManual: false };
+}
+
+/* Build the PagedCollection shape csGrid actually paints from
+   (csgrid_renders_from_list_keypairs): csGrid renders rows from `list`/`keyPairs`,
+   NOT from `hydra:member` — leaving `list` undefined yields column headers but
+   ZERO body rows. Each row gets a synthesized @id/uuid when missing (csGrid tracks
+   selection by IRI). Returns the fields to assign onto the PagedCollection. */
+function buildCsGridPaged(
+  rows: Array<Record<string, unknown>> | null | undefined,
+  opts?: { idBase?: string }
+): { list: Array<Record<string, unknown>>; keyPairs: Array<Record<string, unknown>>; visited: boolean } {
+  const idBase = (opts && opts.idBase) || "/api/3/dummy_module/";
+  const list = Array.isArray(rows) ? rows.slice() : [];
+  const keyPairs = list.map((row, i) => {
+    if (row && typeof row === "object" && (row["@id"] || row.uuid)) return row;
+    const uuid = (row && (row as Record<string, unknown>).uuid) || `row-${i}`;
+    return Object.assign({ "@id": idBase + uuid, uuid }, row);
+  });
+  return { list, keyPairs, visited: true };
+}
+
+/* Detect the wrong playbook-trigger endpoint pattern in controller source:
+   `API.ACTION_TRIGGER + <something containing uuid / getEndPathName>`. The action
+   endpoint keys off the registered ROUTE — concatenating a uuid 404s. Returns the
+   offending fragment or null. (Correct code is `ACTION_TRIGGER + route`.) */
+function triggerEndpointMisuse(source: string | null | undefined): string | null {
+  if (typeof source !== "string" || !source) return null;
+  // Strip line comments so a cautionary comment ("ACTION_TRIGGER + route for…")
+  // can't trip the scan; we only want real concatenations.
+  const code = source.replace(/\/\/[^\n]*/g, "");
+  const re = /ACTION_TRIGGER\s*\+\s*([^;,)\n]*?(?:uuid|getEndPathName)[^;,)\n]*)/i;
+  const m = re.exec(code);
+  return m ? `API.ACTION_TRIGGER + ${m[1].trim()}` : null;
+}
+
 const ANGULAR_BUILTINS = new Set<string>([
   "$scope", "$rootScope", "$element", "$attrs", "$transclude",
   "$http", "$q", "$timeout", "$interval", "$window", "$document", "$location",
@@ -384,6 +459,23 @@ function lintWidget(opts?: LintOpts): LintResult {
   checkDeps("view.controller.js");
   checkDeps("edit.controller.js");
 
+  // NS4: the wrong playbook-trigger endpoint is a silent 404 in production
+  // (passes lint-free, fails only against the box). Flag it loudly. See KB §19.3.
+  for (const f of ["view.controller.js", "edit.controller.js"]) {
+    const frag = triggerEndpointMisuse(files[f]);
+    if (frag) {
+      errors.push({
+        code: "trigger-endpoint-misuse",
+        file: f,
+        message:
+          `${f} builds a trigger URL as \`${frag}\` — the action endpoint keys off the ` +
+          `registered ROUTE, not the playbook uuid, so this 404s ("Resource Not Found In Request"). ` +
+          `Use \`ACTION_TRIGGER + route\` for record-context action triggers, or the manual/notrigger ` +
+          `endpoint by uuid for no-record/data-provider playbooks (see HarnessUtils.selectPlaybookTrigger / KB §19.3).`,
+      });
+    }
+  }
+
   return { errors, warnings };
 }
 
@@ -395,6 +487,9 @@ const api = {
   extractInjectedDependencies,
   parseRegisteredServices,
   inertStubFinding,
+  selectPlaybookTrigger,
+  buildCsGridPaged,
+  triggerEndpointMisuse,
   rootNgControllerError,
   lintWidget,
   ANGULAR_BUILTINS,
