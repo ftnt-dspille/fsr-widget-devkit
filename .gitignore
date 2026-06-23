@@ -69,3 +69,6 @@ FortiSOAR-*.pdf
 scripts/steel.*.css
 scripts/dark.*.css
 scripts/light.*.css
+
+# WIP typing plan — kept local, not tracked
+fortisoar-widget-harness/docs/TYPING_ELIMINATE_ANY_PLAN.md
