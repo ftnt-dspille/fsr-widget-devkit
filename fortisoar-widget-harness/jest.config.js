@@ -113,8 +113,17 @@ module.exports = {
       displayName: "harness",
       rootDir: __dirname,
       testEnvironment: "node",
-      testMatch: ["<rootDir>/tests/**/*.test.js"],
-      testPathIgnorePatterns: ["<rootDir>/tests/e2e/"],
+      transform: {
+        "^.+\\.tsx?$": [require.resolve("ts-jest"), {
+          tsconfig: {
+            ...require("./tsconfig.json").compilerOptions,
+            jsx: "react",
+          },
+          diagnostics: { warnOnly: true },
+        }],
+      },
+      testMatch: ["<rootDir>/tests/**/*.test.js", "<rootDir>/tests/**/*.test.ts"],
+      testPathIgnorePatterns: ["<rootDir>/tests/e2e/", "<rootDir>/tests/live/"],
     },
     ...discoverWidgetProjects(),
   ],
