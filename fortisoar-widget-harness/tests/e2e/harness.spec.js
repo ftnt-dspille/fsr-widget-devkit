@@ -156,7 +156,23 @@ async function selectWidget(page) {
   const { widgets } = await resp.json();
   const jinja = widgets.find((w) => w.name === "jinjaEditorWidget");
   if (!jinja) throw new Error("jinjaEditorWidget not found in /_fsr/widgets");
-  await select.selectOption({ value: jinja.id });
+  // #widget-select is now display:none — the harness drives a custom dropdown
+  // off the hidden native select as source of truth (see index.html ~L592).
+  // Playwright's selectOption requires a visible control, so set the value and
+  // dispatch `change` directly; the harness's existing change listener fires
+  // exactly as a real pick would.
+  // The widget-select `change` handler persists the pick to localStorage and
+  // does location.reload() — the widget mounts on the fresh load. Dispatch the
+  // change and wait for that navigation to settle so callers see the mounted
+  // widget rather than the pre-reload page.
+  await Promise.all([
+    page.waitForLoadState("domcontentloaded"),
+    page.evaluate((id) => {
+      const sel = document.getElementById("widget-select");
+      sel.value = id;
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    }, jinja.id),
+  ]);
 }
 
 // The controller sets monacoReady=true after monaco.ensure() resolves, which
