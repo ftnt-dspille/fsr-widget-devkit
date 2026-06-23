@@ -130,13 +130,30 @@ getModules(modules: unknown[]): unknown[];
 Anchor signature emitted correctly (proves Phase 3 payoff):
 `executeConnectorAction(connectorName: string, connectorVersion: string, operation: string, configuration: string, params: object, audit?: boolean, auditInfo?: object, agent?: string): Promise<unknown>` — `configuration` required, so passing `null` is a type error under checkJs.
 
-### Phase 3 — Opt-in type-check of widget source (`checkJs`) — the headline win
-- [ ] Programmatic `ts.Program` per widget: widget `.js` + `allowJs`/`checkJs`/
-      `noEmit` + `soar-platform.d.ts` ambient.
-- [ ] Surface type errors as a new lint tier, **warnings first** (non-blocking).
-- [ ] Proven payoff: null-`configuration`, misspelled service methods, wrong
-      arg counts become compile diagnostics for free. *Effort: L. Expect a
-      noise-tuning pass before it can ever block.*
+### Phase 3 — Opt-in type-check of widget source (`checkJs`) — the headline win — IN PROGRESS
+- [x] Engine `lib/widgetTypecheck.ts`: parses a controller, **auto-annotates
+      injected params** with their `Soar.*` types (JSDoc `@param`, non-destructive,
+      back-to-front splice), runs `checkJs` with `strictNullChecks` on but
+      `noImplicitAny` off so only SOAR-contract misuse surfaces, not AngularJS
+      boilerplate. Diagnostics scoped to the widget file.
+- [x] **Automatic surface (no step to remember):** `tests/widgetTypecheck.test.js`
+      — known-broken-widget fixtures assert each planted bug is caught
+      (null-config → TS2345, bad method → TS2551, wrong arity → TS2554) + clean /
+      no-false-positive guards. Runs in `make test-unit` (jest). 8 cases green.
+- [x] On-demand CLI `scripts/typecheck-widgets.ts` (`pnpm typecheck:widgets [name]`)
+      — strict, exits non-zero on any error. **Not yet wired to block** anything.
+- [ ] **Noise-scoping (the gate-blocker):** full-strict on the 13 real widgets is
+      ~85% noise — `TS2339` on `window`/monkey-patched fns, `TS2304` on 3rd-party
+      globals (`echarts`/`c3`), null-inference on untyped locals. None involve a
+      SOAR service. To make the CLI a clean blocking gate: walk each diagnostic to
+      its AST node, keep it ONLY if the expression's type resolves to a `Soar.*`
+      interface (use the TypeChecker). Then wire the scoped CLI into `ship-verify`
+      step 1 (lint), blocking per shipped widget.
+- [ ] **Model gap:** ~15 `TS2351` "Type 'Entity'/'Query' has no construct
+      signatures" — widgets use `new Entity()`/`new Query()`. Add a small curated
+      overlay marking `Entity`/`Query`/`PagedCollection` constructable (merged
+      onto the generated `.d.ts`, since the generator can't infer it from docs).
+- [ ] Triage the residual real signal (a few `TS2554`/`TS2345`) once noise-scoped.
 
 ### Phase 4 — Port remaining KB gotchas onto the unified engine
 - [ ] AST-accurate where applicable: copyright-header-missing (KB §2/§28.3),
