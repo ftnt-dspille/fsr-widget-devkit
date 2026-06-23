@@ -1428,50 +1428,88 @@ function blockingLintErrors(w) {
     const errs = (w.lint && w.lint.errors) || [];
     return errs;
 }
-// Applies a JSON merge patch to the widget's info.json. Intended to be called
-// by the harness UI after a 400 from /_fsr/package or /_fsr/install — the
-// failure response includes a `suggestedFix` patch the user can review and
-// POST back here. Body: { patch: <object> }. Refuses any patch that wouldn't
-// clear validation errors so we never silently introduce something invalid.
+// Applies a JSON merge patch to the widget's info.json, OR bumps the version and
+// syncs source controllers. Intended to be called by the harness UI after a 400
+// from /_fsr/package or /_fsr/install — the failure response includes a
+// `suggestedFix` patch the user can review and POST back here.
+// Body: { patch: <object> } OR { bump: 'patch'|'minor'|'major' }.
+// The patch branch refuses any patch that wouldn't clear validation errors so we
+// never silently introduce something invalid. The bump branch syncs controllers
+// and versioned references in source (tests/ included) atomically.
 app.post("/_fsr/fix-info/:id", express.json(), (req, res) => {
     const w = widgetsById.get(req.params.id);
     if (!w)
         return res.status(404).json({ error: "unknown widget id" });
-    const patch = req.body && req.body.patch;
-    if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-        return res.status(400).json({ error: "body.patch must be an object" });
+    const body = (req.body || {});
+    const patch = body.patch;
+    const bump = body.bump;
+    // Route to either the patch or bump handler.
+    if (bump && typeof bump === "string") {
+        // Bump handler: version + sync source.
+        if (!["patch", "minor", "major"].includes(bump)) {
+            return res.status(400).json({ error: `invalid bump: ${bump}` });
+        }
+        try {
+            const { info, infoPath } = readCurrentInfo(w);
+            const newVersion = bumpVersion(info.version, bump);
+            writeInfoVersion(infoPath, newVersion);
+            // Keep source controllers + view.html + test references in lockstep with
+            // info.json so the harness-mounted ng-controller matches the registered name
+            // and tests reference the correct versioned identifier. This walk includes
+            // tests/ (syncSourceToInfoJson calls rewriteForVersion which has already
+            // been proven to walk tests/ in packager.test.js).
+            syncSourceToInfoJson(w.dir, info.name, newVersion);
+            refreshWidget(w);
+            const after = validateWidget(w.dir, readCurrentInfo(w).info);
+            console.log(`fix-info: ${w.folder} bumped ${info.version} -> ${newVersion}`);
+            res.json({
+                ok: true,
+                version: newVersion,
+                validation: after,
+            });
+        }
+        catch (e) {
+            console.error(`fix-info bump failed for ${w.folder}: ${e instanceof Error ? e.message : String(e)}`);
+            res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+        }
     }
-    try {
-        const { info, infoPath } = readCurrentInfo(w);
-        // Sanity check: the patch must only touch known-safe keys (currently
-        // metadata.* fields the validator can suggest defaults for). Block any
-        // attempt to rewrite name/version/etc through this endpoint.
-        const allowedTopLevel = new Set(["metadata"]);
-        const allowedMetaKeys = new Set(["windowClass", "size", "standalone", "pages", "compatibility"]);
-        for (const k of Object.keys(patch)) {
-            if (!allowedTopLevel.has(k)) {
-                return res.status(400).json({ error: `patch key '${k}' not allowed` });
-            }
-            if (k === "metadata") {
-                for (const mk of Object.keys(patch.metadata || {})) {
-                    if (!allowedMetaKeys.has(mk)) {
-                        return res.status(400).json({ error: `patch metadata.${mk} not allowed` });
+    else if (patch && typeof patch === "object" && !Array.isArray(patch)) {
+        // Patch handler: merge metadata fixes.
+        try {
+            const { info, infoPath } = readCurrentInfo(w);
+            // Sanity check: the patch must only touch known-safe keys (currently
+            // metadata.* fields the validator can suggest defaults for). Block any
+            // attempt to rewrite name/version/etc through this endpoint.
+            const allowedTopLevel = new Set(["metadata"]);
+            const allowedMetaKeys = new Set(["windowClass", "size", "standalone", "pages", "compatibility"]);
+            for (const k of Object.keys(patch)) {
+                if (!allowedTopLevel.has(k)) {
+                    return res.status(400).json({ error: `patch key '${k}' not allowed` });
+                }
+                if (k === "metadata") {
+                    for (const mk of Object.keys(patch.metadata || {})) {
+                        if (!allowedMetaKeys.has(mk)) {
+                            return res.status(400).json({ error: `patch metadata.${mk} not allowed` });
+                        }
                     }
                 }
             }
+            const updated = applyInfoFix(infoPath, patch);
+            const after = validateWidget(w.dir, updated);
+            console.log(`fix-info: ${w.folder} patched ${JSON.stringify(patch)}`);
+            res.json({
+                ok: true,
+                info: updated,
+                validation: after,
+            });
         }
-        const updated = applyInfoFix(infoPath, patch);
-        const after = validateWidget(w.dir, updated);
-        console.log(`fix-info: ${w.folder} patched ${JSON.stringify(patch)}`);
-        res.json({
-            ok: true,
-            info: updated,
-            validation: after,
-        });
+        catch (e) {
+            console.error(`fix-info patch failed for ${w.folder}: ${e instanceof Error ? e.message : String(e)}`);
+            res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+        }
     }
-    catch (e) {
-        console.error(`fix-info failed for ${w.folder}: ${e instanceof Error ? e.message : String(e)}`);
-        res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+    else {
+        return res.status(400).json({ error: "body must contain either {bump:'patch'|'minor'|'major'} or {patch:<object>}" });
     }
 });
 app.post("/_fsr/package/:id", express.json(), async (req, res) => {

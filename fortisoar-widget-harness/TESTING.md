@@ -86,6 +86,10 @@ Conventions that matter:
 - **Don't put `data-ng-controller` on the view root** — the harness (and SOAR
   after publish) wraps the widget with its own; a second one creates a dead
   parallel scope and nothing renders. (KNOWLEDGEBASE.md §18.)
+- **Replace ad-hoc `waitForTimeout(N)` + `scope().$apply()` pokes with `settleRender(page)`** — see
+  `docs/HARNESS_RENDERING.md` for the render contract, settle semantics, and
+  troubleshooting stale DOM. E2e helpers: `waitForRender(page)` (waits for mount)
+  and `settleRender(page)` (drains async work).
 - Let Playwright auto-retry: `await expect(locator).toHaveText(...)` waits for the
   async Angular mount; no manual sleeps.
 

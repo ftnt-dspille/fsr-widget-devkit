@@ -116,13 +116,30 @@ Everything else is an implementation detail the agent should never have to learn
    action-renderer seeded. 6 jest regressions (`tests/hermeticFixtures.test.ts`),
    171 harness jest green. Doc: `TESTING.md` → "Default fixture layer".
 2. **Stub policy: faithful-or-loud** + introspect check for no-op stub hits on
-   mount.
-3. **Versioning single-source**: bump rewrites tests with source; remove the
-   hand-bump footgun.
+   mount. *(next)*
+3. ✅ **Versioning single-source**: bump rewrites tests with source; remove the
+   hand-bump footgun. **DONE (2026-06-23).** Fixed the CLI bump wiring bug —
+   `POST /_fsr/fix-info/:id` now accepts `{bump}` (was silently ignored; only
+   `{patch}` worked), computes the new version and calls `syncSourceToInfoJson`
+   so source controllers **and** the sibling `tests/` tree rewrite atomically.
+   Added a **desync lint gate** in `validateControllers`: a hand-edited
+   `info.json` version whose digits don't match a `tests/` `CTRL_NAME =`/
+   `.controller(…)` reference fails `/_fsr/lint/:id` with "run `widget bump` to
+   sync". (The `tests/` rewrite itself already existed in `rewriteForVersion`;
+   both now correctly target the sibling `<widget>/tests`, not `widget/tests`.)
+   7 jest regressions in `tests/packager.test.js`.
 4. **Contract helpers**: a `triggerPlaybook(playbook)` the widgets share so the
    endpoint choice is impossible to get wrong; same for csGrid wiring.
 5. **Generator** (`make new-widget`) emitting harness-wired tests.
-6. **Agent-facing docs**: `HARNESS_RENDERING.md` + this north star, kept short.
+6. ✅ **Agent-facing docs**: `HARNESS_RENDERING.md` + this north star, kept short.
+   **DONE (2026-06-23).** `docs/HARNESS_RENDERING.md` documents the render
+   lifecycle state machine, the `settle()`/`waitForRender()` contract, the
+   render-state snapshot fields, the safety digest + disable flag, and the
+   faithful-or-loud stub policy (cross-refs KB §18 + TESTING.md). Render
+   primitives pinned by 22 jest self-tests (`tests/harnessRender.test.ts`).
+   *(Deferred: the full e2e rendering suite — render-state phases, `$uibModal`
+   faithfulness, empty-state ×N stability — needs the parent Makefile +
+   widgets-src; noted at the bottom of HARNESS_RENDERING.md.)*
 
 Done already this session: P0/P1 render-settle + state, real `$uibModal`,
 `module is not defined` removal, upstream timeout, trigger-endpoint contract

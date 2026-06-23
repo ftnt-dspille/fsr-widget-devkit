@@ -519,3 +519,201 @@ describe("applyInfoFix", () => {
     expect(fs.readFileSync(infoPath, "utf8").endsWith("\n")).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: atomic bump + test rewrite (ROADMAP ITEM #3)
+// ---------------------------------------------------------------------------
+describe("bump + test rewrite atomicity", () => {
+  let tmpDir;
+
+  // Real widget layout: source in <root>/widget (what server.ts passes as
+  // `w.dir`), tests in the SIBLING <root>/tests. Returns the source dir.
+  function makeWidget(root, name, version) {
+    const src = path.join(root, "widget");
+    fs.mkdirSync(src, { recursive: true });
+    const cap = name.charAt(0).toUpperCase() + name.slice(1);
+    const digits = version.replace(/\./g, "");
+    const info = {
+      name,
+      version,
+      title: name,
+      metadata: validMetadata(),
+    };
+    fs.writeFileSync(path.join(src, "info.json"), JSON.stringify(info, null, 2));
+    fs.writeFileSync(path.join(src, "view.html"), "<div>view</div>");
+    fs.writeFileSync(path.join(src, "edit.html"), "<div>edit</div>");
+    fs.writeFileSync(
+      path.join(src, "view.controller.js"),
+      `angular.module("cybersponse").controller("${cap}${digits}DevCtrl", function(){});\n`
+    );
+    fs.writeFileSync(
+      path.join(src, "edit.controller.js"),
+      `angular.module("cybersponse").controller("edit${cap}${digits}DevCtrl", function(){});\n`
+    );
+    // Sibling tests/ dir with a CTRL_NAME reference (common pattern).
+    fs.mkdirSync(path.join(root, "tests"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "tests", "widget.spec.js"),
+      `const CTRL_NAME = "${cap}${digits}DevCtrl";\n` +
+      `angular.module("cybersponse").controller("edit${cap}${digits}DevCtrl", function(){});\n`
+    );
+    return src;
+  }
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "fsr-bump-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("rewriteForVersion updates test file CTRL_NAME when version bumps", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    rewriteForVersion(src, "testWidget", "2.0.0");
+    const testContent = fs.readFileSync(path.join(tmpDir, "tests", "widget.spec.js"), "utf8");
+    expect(testContent).toContain('const CTRL_NAME = "TestWidget200DevCtrl"');
+    expect(testContent).not.toContain("TestWidget100DevCtrl");
+    expect(testContent).toContain('angular.module("cybersponse").controller("editTestWidget200DevCtrl"');
+  });
+
+  test("rewriteForVersion is idempotent on test files", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    rewriteForVersion(src, "testWidget", "2.0.0");
+    const after1 = fs.readFileSync(path.join(tmpDir, "tests", "widget.spec.js"), "utf8");
+    rewriteForVersion(src, "testWidget", "2.0.0");
+    const after2 = fs.readFileSync(path.join(tmpDir, "tests", "widget.spec.js"), "utf8");
+    expect(after1).toBe(after2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Desync lint gate (ROADMAP ITEM #3)
+// ---------------------------------------------------------------------------
+describe("validateControllers desync detection", () => {
+  let tmpDir;
+
+  // Real widget layout: source in <root>/widget, tests in sibling <root>/tests.
+  // Returns the source dir (passed to validateControllers as `w.dir`).
+  function makeWidget(root, name, version) {
+    const src = path.join(root, "widget");
+    fs.mkdirSync(src, { recursive: true });
+    const cap = name.charAt(0).toUpperCase() + name.slice(1);
+    const digits = version.replace(/\./g, "");
+    const info = {
+      name,
+      version,
+      title: name,
+      metadata: validMetadata(),
+    };
+    fs.writeFileSync(path.join(src, "info.json"), JSON.stringify(info, null, 2));
+    fs.writeFileSync(
+      path.join(src, "view.controller.js"),
+      `angular.module("cybersponse").controller("${cap}${digits}DevCtrl", function(){});\n`
+    );
+    fs.writeFileSync(
+      path.join(src, "edit.controller.js"),
+      `angular.module("cybersponse").controller("edit${cap}${digits}DevCtrl", function(){});\n`
+    );
+    return src;
+  }
+
+  // Read info.json from the source dir for the validateControllers call.
+  const infoOf = (src) => JSON.parse(fs.readFileSync(path.join(src, "info.json"), "utf8"));
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "fsr-desync-test-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("detects desync when test file CTRL_NAME version doesn't match info.json", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    // Simulate hand-editing: bump info.json + source controllers but leave the
+    // test file with the old CTRL_NAME, so only the test desync is caught.
+    fs.writeFileSync(
+      path.join(src, "view.controller.js"),
+      'angular.module("cybersponse").controller("TestWidget200DevCtrl", function(){});\n'
+    );
+    fs.writeFileSync(
+      path.join(src, "edit.controller.js"),
+      'angular.module("cybersponse").controller("editTestWidget200DevCtrl", function(){});\n'
+    );
+    // Sibling tests/ file with the stale CTRL_NAME.
+    fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "tests", "old.spec.js"),
+      'const CTRL_NAME = "TestWidget100DevCtrl";\n'
+    );
+    fs.writeFileSync(
+      path.join(src, "info.json"),
+      JSON.stringify({ name: "testWidget", version: "2.0.0", title: "testWidget", metadata: validMetadata() }, null, 2)
+    );
+    const result = validateControllers(src, infoOf(src));
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0]).toContain("old.spec.js");
+    expect(result.errors[0]).toContain("CTRL_NAME");
+    expect(result.errors[0]).toContain("100");
+    expect(result.errors[0]).toContain("200");
+    expect(result.errors[0]).toContain("widget bump");
+  });
+
+  test("detects desync when test file .controller(...) version doesn't match info.json", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    fs.writeFileSync(
+      path.join(src, "view.controller.js"),
+      'angular.module("cybersponse").controller("TestWidget200DevCtrl", function(){});\n'
+    );
+    fs.writeFileSync(
+      path.join(src, "edit.controller.js"),
+      'angular.module("cybersponse").controller("editTestWidget200DevCtrl", function(){});\n'
+    );
+    fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "tests", "old.spec.js"),
+      'angular.module("cybersponse").controller("TestWidget100DevCtrl", function(){});\n'
+    );
+    fs.writeFileSync(
+      path.join(src, "info.json"),
+      JSON.stringify({ name: "testWidget", version: "2.0.0", title: "testWidget", metadata: validMetadata() }, null, 2)
+    );
+    const result = validateControllers(src, infoOf(src));
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0]).toContain("old.spec.js");
+    expect(result.errors[0]).toContain(".controller");
+  });
+
+  test("passes when test file version matches info.json", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "tests", "valid.spec.js"),
+      'const CTRL_NAME = "TestWidget100DevCtrl";\n' +
+      'angular.module("cybersponse").controller("TestWidget100DevCtrl", function(){});\n'
+    );
+    const result = validateControllers(src, infoOf(src));
+    expect(result.errors).toEqual([]);
+  });
+
+  test("ignores test files without controller refs", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmpDir, "tests", "utils.spec.js"),
+      "// Just a utility file, no controllers\n"
+    );
+    const result = validateControllers(src, infoOf(src));
+    expect(result.errors).toEqual([]);
+  });
+
+  test("warns instead of erroring on tests/ read failure", () => {
+    const src = makeWidget(tmpDir, "testWidget", "1.0.0");
+    // Make the sibling tests/ unreadable by creating a file instead of a dir.
+    fs.writeFileSync(path.join(tmpDir, "tests"), "not a directory");
+    const result = validateControllers(src, infoOf(src));
+    expect(result.errors).toEqual([]);
+    expect(result.warnings.some((w) => w.includes("tests/ scan failed"))).toBe(true);
+  });
+});
