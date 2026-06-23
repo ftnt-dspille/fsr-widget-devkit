@@ -284,6 +284,25 @@ function decodeJwtExpiryMs(token) {
         return null;
     }
 }
+// Decide whether a SOAR widget record (the body of a PUT/GET to
+// /api/3/widgets/<uuid>) is in the PUBLISHED state. A 2xx on the publish PUT is
+// NOT proof on its own: PUTting `draft:true` returns 200 yet leaves the widget a
+// draft. Published widgets are `draft === false`. Returns true (published),
+// false (still draft), or null (unparseable / field absent → inconclusive).
+function widgetIsPublished(raw) {
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    }
+    catch (_a) {
+        return null;
+    }
+    if (parsed.draft === false)
+        return true;
+    if (parsed.draft === true)
+        return false;
+    return null;
+}
 // Default upstream wall-clock timeout. Generous enough for a slow appliance,
 // short enough that a dead box fails the route fast instead of hanging it.
 const UPSTREAM_TIMEOUT_MS = Number(process.env.FSR_UPSTREAM_TIMEOUT_MS) || 8000;
@@ -1659,7 +1678,11 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         console.log(`install: uploaded widget uuid=${uuid}, now publishing…`);
         // Publish via PUT. SOAR needs a beat to finish processing the tgz
         // before it accepts the draft->published transition, so retry a few
-        // times on 4xx. 200 on success.
+        // times. A 2xx ALONE is NOT proof of publish: PUTting `draft:true`
+        // returns 200 but leaves the widget a draft (it stays out of pickers and
+        // the Dev-strip publish pipeline never runs), which forces a manual
+        // publish in the UI. So we publish for real (`draft:false`) AND validate
+        // the response body shows `draft === false` before declaring success.
         const freshInfo = readCurrentInfo(w).info;
         const publishPayload = {
             name: freshInfo.name,
@@ -1670,16 +1693,20 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
             releaseNotes: freshInfo.releaseNotes,
             metadata: freshInfo.metadata,
             "@id": `/api/3/widgets/${uuid}`,
-            draft: true,
+            draft: false,
             installed: true,
-            enablePublish: false,
+            enablePublish: true,
             replace: true,
             replaceVersions: [],
             publishedDate: Math.floor(Date.now() / 1000),
         };
         const publishBody = JSON.stringify(publishPayload);
+        // widgetIsPublished (module-level, tested) decides whether the PUT actually
+        // took effect: `draft === false` → published, `draft === true` →
+        // still-draft, null → inconclusive (keep retrying / confirm via GET).
         let publishRes = null;
         let lastErr = null;
+        let confirmedPublished = false;
         const maxAttempts = 10;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
             if (attempt > 0)
@@ -1693,14 +1720,39 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
                     "Content-Type": "application/json",
                 },
             });
-            if (publishRes.status >= 200 && publishRes.status < 300)
+            if (publishRes.status < 200 || publishRes.status >= 300) {
+                lastErr = `HTTP ${publishRes.status}: ${publishRes.body.slice(0, 300)}`;
+                console.warn(`install: publish attempt ${attempt + 1} failed: ${lastErr}`);
+                continue;
+            }
+            // 2xx — but did it actually publish? Validate the response body.
+            const ok = widgetIsPublished(publishRes.body);
+            if (ok === true) {
+                confirmedPublished = true;
                 break;
-            lastErr = `${publishRes.status} ${publishRes.body.slice(0, 300)}`;
-            console.warn(`install: publish attempt ${attempt + 1} failed: ${lastErr}`);
+            }
+            // 2xx but still a draft (or inconclusive) — confirm with a GET before
+            // burning another PUT, since SOAR may lag the state change.
+            const check = await upstreamRequest({
+                method: "GET",
+                pathAndQuery: `/api/3/widgets/${uuid}`,
+                headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+            });
+            if (check.status >= 200 && check.status < 300 && widgetIsPublished(check.body) === true) {
+                confirmedPublished = true;
+                break;
+            }
+            lastErr = `widget still draft after PUT (HTTP ${publishRes.status})`;
+            console.warn(`install: publish attempt ${attempt + 1}: ${lastErr}`);
         }
-        if (!publishRes || publishRes.status < 200 || publishRes.status >= 300) {
+        if (!confirmedPublished) {
+            // The tgz IS uploaded (the widget exists), but it never flipped to
+            // published. Report it explicitly so the caller knows the widget is a
+            // draft and won't silently treat a 2xx as success.
             return res.status(502).json({
-                error: `publish failed after ${maxAttempts} attempts: ${lastErr}`,
+                error: `widget uploaded but NOT published after ${maxAttempts} attempts: ${lastErr}. The widget is installed as a DRAFT — publish it manually from the SOAR UI or re-run.`,
+                uuid,
+                draft: true,
             });
         }
         console.log(`install: published ${freshInfo.name}-${freshInfo.version}`);
@@ -1709,6 +1761,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
             uuid: uuid,
             name: freshInfo.name,
             version: freshInfo.version,
+            published: true,
             archive: pkg.archiveName,
             size: pkg.size,
         });
@@ -2245,5 +2298,5 @@ if (require.main === module) {
     });
 }
 else {
-    module.exports = { app, isLocalPath, discoverWidgets, decodeJwtExpiryMs };
+    module.exports = { app, isLocalPath, discoverWidgets, decodeJwtExpiryMs, widgetIsPublished };
 }

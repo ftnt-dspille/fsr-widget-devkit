@@ -6,7 +6,7 @@ process.env.FSR_USERNAME = "admin";
 process.env.FSR_PASSWORD = "testpass";
 
 const request = require("supertest");
-const { app, isLocalPath, discoverWidgets, decodeJwtExpiryMs } = require("../server");
+const { app, isLocalPath, discoverWidgets, decodeJwtExpiryMs, widgetIsPublished } = require("../server");
 
 // ---------------------------------------------------------------------------
 // isLocalPath
@@ -54,6 +54,36 @@ describe("decodeJwtExpiryMs", () => {
   test("returns null for malformed token", () => {
     expect(decodeJwtExpiryMs("notavalidtoken")).toBeNull();
     expect(decodeJwtExpiryMs("a.b")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// widgetIsPublished — the publish-response validation gate. A 2xx PUT is not
+// proof of publish; only `draft === false` is. This is why a draft:true PUT
+// "succeeded" yet forced a manual publish in the UI.
+// ---------------------------------------------------------------------------
+describe("widgetIsPublished", () => {
+  test("draft:false → published (true)", () => {
+    expect(widgetIsPublished(JSON.stringify({ name: "w", draft: false }))).toBe(true);
+  });
+
+  test("draft:true → still a draft (false), even with a 2xx body", () => {
+    expect(widgetIsPublished(JSON.stringify({ name: "w", draft: true }))).toBe(false);
+  });
+
+  test("draft field absent → inconclusive (null)", () => {
+    expect(widgetIsPublished(JSON.stringify({ name: "w", installed: true }))).toBeNull();
+  });
+
+  test("unparseable body → inconclusive (null)", () => {
+    expect(widgetIsPublished("<html>502 Bad Gateway</html>")).toBeNull();
+    expect(widgetIsPublished("")).toBeNull();
+  });
+
+  test("truthy non-boolean draft is not treated as published", () => {
+    // only an explicit boolean false counts as published
+    expect(widgetIsPublished(JSON.stringify({ draft: "false" }))).toBeNull();
+    expect(widgetIsPublished(JSON.stringify({ draft: 0 }))).toBeNull();
   });
 });
 
