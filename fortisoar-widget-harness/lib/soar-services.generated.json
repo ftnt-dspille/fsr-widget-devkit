@@ -1,0 +1,1816 @@
+{
+  "version": "8.0.0",
+  "services": [
+    {
+      "id": "fortisoar.appModulesService",
+      "inject": "appModulesService",
+      "iface": "AppModulesService",
+      "description": "The appModulesService loads application modules and provides state information from module names.",
+      "methods": [
+        {
+          "name": "checkViolations",
+          "params": [
+            {
+              "name": "rejection",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "attributes",
+              "type": "unknown[]",
+              "optional": true
+            },
+            {
+              "name": "isConfigurationManager",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "getListState",
+          "params": [
+            {
+              "name": "moduleName",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "getModules",
+          "params": [
+            {
+              "name": "modules",
+              "type": "unknown[]",
+              "optional": false
+            }
+          ],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getQueueModules",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getState",
+          "params": [
+            {
+              "name": "moduleName",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "string"
+        },
+        {
+          "name": "load",
+          "params": [
+            {
+              "name": "excludeSystemModule",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "forceReload",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.AuthenticationConfig",
+      "inject": "AuthenticationConfig",
+      "iface": "AuthenticationConfig",
+      "description": "The AuthenticationConfig service handles API requests to gather configuration options.",
+      "methods": []
+    },
+    {
+      "id": "fortisoar.AuthenticationService",
+      "inject": "AuthenticationService",
+      "iface": "AuthenticationService",
+      "description": "The AuthenticationService handles submitting credentials, NFA, and logout.",
+      "methods": []
+    },
+    {
+      "id": "fortisoar.CommonUtils",
+      "inject": "CommonUtils",
+      "iface": "CommonUtils",
+      "description": "The commonUtils service contains commonly used functions.",
+      "methods": [
+        {
+          "name": "copyToClipboard",
+          "params": [
+            {
+              "name": "fields",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "row",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "col",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "rows",
+              "type": "object",
+              "optional": true
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "generateUUID",
+          "params": [],
+          "returns": "string"
+        },
+        {
+          "name": "isBase64Image",
+          "params": [
+            {
+              "name": "value",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "isJinja",
+          "params": [
+            {
+              "name": "value",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "isNumber",
+          "params": [
+            {
+              "name": "value",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "isObject",
+          "params": [
+            {
+              "name": "value",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "isUUID",
+          "params": [
+            {
+              "name": "s",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "isUndefined",
+          "params": [
+            {
+              "name": "value",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "isValidURL",
+          "params": [
+            {
+              "name": "value",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "parseJSON",
+          "params": [
+            {
+              "name": "str",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "searchInJSON",
+          "params": [
+            {
+              "name": "jsonObj",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "searchText",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.connectorService",
+      "inject": "connectorService",
+      "iface": "ConnectorService",
+      "description": "The purpose of the service is to handle connector-specific operations like creating connectors, getting connector details, etc.",
+      "methods": [
+        {
+          "name": "deleteConnector",
+          "params": [
+            {
+              "name": "id",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "executeConnectorAction",
+          "params": [
+            {
+              "name": "connectorName",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "connectorVersion",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "operation",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "configuration",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "params",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "audit",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "auditInfo",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "agent",
+              "type": "string",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getConnector",
+          "params": [
+            {
+              "name": "name",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "version",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "agent",
+              "type": "string",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getConnectorHealth",
+          "params": [
+            {
+              "name": "connector",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "configUUID",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "agent",
+              "type": "string",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getDevelopedConnector",
+          "params": [
+            {
+              "name": "id",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "editRepoConnector",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "updateConnectorConfig",
+          "params": [
+            {
+              "name": "connector",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "newConfig",
+              "type": "boolean",
+              "optional": false
+            },
+            {
+              "name": "deleteConfig",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.currentPermissionsService",
+      "inject": "currentPermissionsService",
+      "iface": "CurrentPermissionsService",
+      "description": "The purpose of the currentPermissionsService is to get module specific permission details.",
+      "methods": [
+        {
+          "name": "availableFieldPermission",
+          "params": [
+            {
+              "name": "module",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "fieldName",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "action",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "availablePermission",
+          "params": [
+            {
+              "name": "module",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "action",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "boolean"
+        },
+        {
+          "name": "availablePermissions",
+          "params": [
+            {
+              "name": "modules",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "action",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "get",
+          "params": [],
+          "returns": "object"
+        },
+        {
+          "name": "getPermission",
+          "params": [
+            {
+              "name": "module",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "getPermissions",
+          "params": [
+            {
+              "name": "modules",
+              "type": "unknown[]",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "isAdmin",
+          "params": [],
+          "returns": "boolean"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.editorLanguageService",
+      "inject": "editorLanguageService",
+      "iface": "EditorLanguageService",
+      "description": "The editorLanguageService handles the language server functionality to communicate with the language server for providing IntelliSense in the Editor.",
+      "methods": [
+        {
+          "name": "closeEditor",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "closeLangSocket",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "connectLangSocket",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "createAndListenOnLangSocket",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "initMonacoEditorService",
+          "params": [],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.Entity",
+      "inject": "Entity",
+      "iface": "Entity",
+      "description": "The Entity service is a prototyped object that represents a module and all of its metadata and fields. Handles loading and population of data based on permissions, module name, and id. Takes care of a",
+      "methods": [
+        {
+          "name": "applyDefaultValues",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "delete",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "evaluate",
+          "params": [
+            {
+              "name": "query",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "evaluateAllFields",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "get",
+          "params": [
+            {
+              "name": "id",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "userParams",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "ignoreErrors",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "refresh",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getEmptyRequiredFields",
+          "params": [],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getEmptyRequiredFieldsObject",
+          "params": [],
+          "returns": "object"
+        },
+        {
+          "name": "getExportData",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getFieldTitles",
+          "params": [],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getFormFields",
+          "params": [
+            {
+              "name": "sorted",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "getFormFieldsArray",
+          "params": [],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getFormFieldsArrayWithoutSystem",
+          "params": [],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getFormFieldsWithoutSystem",
+          "params": [],
+          "returns": "object"
+        },
+        {
+          "name": "getRelationship",
+          "params": [
+            {
+              "name": "fieldName",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "getObjects",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "recordSize",
+              "type": "unknown",
+              "optional": true
+            },
+            {
+              "name": "columns",
+              "type": "unknown[]",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getRelationshipFields",
+          "params": [],
+          "returns": "object"
+        },
+        {
+          "name": "getRelationshipFieldsArray",
+          "params": [],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "hasEmptyRequiredFields",
+          "params": [],
+          "returns": "boolean"
+        },
+        {
+          "name": "loadAllRelationships",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadFields",
+          "params": [
+            {
+              "name": "mode",
+              "type": "string",
+              "optional": true
+            },
+            {
+              "name": "ignoreRBAC",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "save",
+          "params": [
+            {
+              "name": "data",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "params",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "fieldsToKeep",
+              "type": "unknown[]",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.exportService",
+      "inject": "exportService",
+      "iface": "ExportService",
+      "description": "The exportService handles copying, exporting, and downloading playbooks",
+      "methods": [
+        {
+          "name": "changePlaybookAndStepsUuid",
+          "params": [
+            {
+              "name": "playbook",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "uuidPlaybookMap",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "replaceAllUuids",
+              "type": "boolean",
+              "optional": false
+            },
+            {
+              "name": "collectionClone",
+              "type": "boolean",
+              "optional": false
+            },
+            {
+              "name": "existingOutsideCollection",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "copyEntities",
+          "params": [
+            {
+              "name": "entities",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "entityName",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "userParams",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "downloadJsonFile",
+          "params": [
+            {
+              "name": "data",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "fileName",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "exportGridRecords",
+          "params": [
+            {
+              "name": "route",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "params",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getMacrosFromPlaybook",
+          "params": [
+            {
+              "name": "playbook",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "variables",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getReferencePlaybookForExport",
+          "params": [
+            {
+              "name": "playbooks",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "includeVersions",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadCollectionNames",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadCollectionPlaybooks",
+          "params": [
+            {
+              "name": "collection",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadRowsForExport",
+          "params": [
+            {
+              "name": "rows",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "entityName",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "saveNewMacrosFromPlaybook",
+          "params": [
+            {
+              "name": "macros",
+              "type": "unknown[]",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.Field",
+      "inject": "Field",
+      "iface": "Field",
+      "description": "The Field service is an object that represents the model of a field.",
+      "methods": [
+        {
+          "name": "evaluateRequired",
+          "params": [
+            {
+              "name": "entity",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "evaluateVisible",
+          "params": [
+            {
+              "name": "entity",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "getFormValue",
+          "params": [],
+          "returns": "string"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.FormEntityService",
+      "inject": "FormEntityService",
+      "iface": "FormEntityService",
+      "description": "The FormEntityService handles entity related operation like set, get and submit fields.",
+      "methods": [
+        {
+          "name": "get",
+          "params": [],
+          "returns": "object"
+        },
+        {
+          "name": "set",
+          "params": [
+            {
+              "name": "newEntity",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.licenseService",
+      "inject": "licenseService",
+      "iface": "LicenseService",
+      "description": "The licenseService gets and sets license details.",
+      "methods": [
+        {
+          "name": "getBrandingDetails",
+          "params": [
+            {
+              "name": "latest",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getLicenseDetails",
+          "params": [
+            {
+              "name": "reload",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "includeNodes",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.modelMetadatasService",
+      "inject": "modelMetadatasService",
+      "iface": "ModelMetadatasService",
+      "description": "The modelMetadatasService loads model metadata and retrieves information from it.",
+      "methods": [
+        {
+          "name": "getIriByType",
+          "params": [
+            {
+              "name": "type",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "string"
+        },
+        {
+          "name": "getMetadataByModuleType",
+          "params": [
+            {
+              "name": "type",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "string"
+        },
+        {
+          "name": "getModuleList",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getModuleNameByType",
+          "params": [
+            {
+              "name": "moduleTypes",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "isPlural",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "getTenantModuleList",
+          "params": [
+            {
+              "name": "tenantUuid",
+              "type": "string",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getTenantStaggingModule",
+          "params": [
+            {
+              "name": "tenantUuid",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "moduleUuid",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadAllModules",
+          "params": [
+            {
+              "name": "forceUpdate",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "publishTenant",
+          "params": [
+            {
+              "name": "tenantUuid",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.Modules",
+      "inject": "Modules",
+      "iface": "Modules",
+      "description": "The Modules service is simply a wrapper for ng.$resource and adds update. Optionally accepts module, id, and fieldName",
+      "methods": [
+        {
+          "name": "save",
+          "params": [
+            {
+              "name": "config",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "params",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.services:PagedCollection",
+      "inject": "PagedCollection",
+      "iface": "PagedCollection",
+      "description": "PagedCollection service creates objects that work against the paged crud-hub API. This is the base class that other PagedCollection child classes would use.",
+      "methods": [
+        {
+          "name": "buildSortQuery",
+          "params": [
+            {
+              "name": "sortColumns",
+              "type": "unknown[]",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "convertToKeyPairs",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "extendFilter",
+          "params": [
+            {
+              "name": "_config",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "value",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "field",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "gotoPage",
+          "params": [
+            {
+              "name": "params",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "load",
+          "params": [
+            {
+              "name": "customQuery",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "customColumns",
+              "type": "unknown[]",
+              "optional": true
+            },
+            {
+              "name": "relationshipKey",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadByPost",
+          "params": [
+            {
+              "name": "config",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "sortApplied",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadDefaultColumns",
+          "params": [
+            {
+              "name": "relationshipKey",
+              "type": "string",
+              "optional": true
+            },
+            {
+              "name": "mergeDefaults",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "loadGridRecord",
+          "params": [
+            {
+              "name": "config",
+              "type": "object",
+              "optional": true
+            },
+            {
+              "name": "sortApplied",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "getAllColumns",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "recordId",
+              "type": "unknown",
+              "optional": true
+            },
+            {
+              "name": "associationField",
+              "type": "string",
+              "optional": true
+            },
+            {
+              "name": "csvNeutralization",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "pageFirst",
+          "params": [
+            {
+              "name": "loadByPost",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "pageLast",
+          "params": [
+            {
+              "name": "loadByPost",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "pageNext",
+          "params": [
+            {
+              "name": "loadByPost",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "pagePrevious",
+          "params": [
+            {
+              "name": "loadByPost",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "setPage",
+          "params": [
+            {
+              "name": "data",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "sortColumnsByFieldName",
+          "params": [
+            {
+              "name": "direction",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.picklistsService",
+      "inject": "picklistsService",
+      "iface": "PicklistsService",
+      "description": "The picklistsService will facilitate performing actions in regards gathering and manipulating picklists.",
+      "methods": [
+        {
+          "name": "getPicklistByIri",
+          "params": [
+            {
+              "name": "iri",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getPicklistByItemValue",
+          "params": [
+            {
+              "name": "field",
+              "type": "unknown",
+              "optional": false
+            },
+            {
+              "name": "itemValue",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadAllPicklists",
+          "params": [
+            {
+              "name": "useExport",
+              "type": "boolean",
+              "optional": true
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadPicklistsByParams",
+          "params": [
+            {
+              "name": "itemVal",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "itemKey",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.playbookService",
+      "inject": "playbookService",
+      "iface": "PlaybookService",
+      "description": "The purpose of the playbookService is to perform playbook related operation like get playbook details, create playbook, get playbook execution log details etc.",
+      "methods": [
+        {
+          "name": "getPlaybookExecutionCount",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getRunningPlaybookDetails",
+          "params": [
+            {
+              "name": "id",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getRunningPlaybooks",
+          "params": [
+            {
+              "name": "query",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getStepRunningDetails",
+          "params": [
+            {
+              "name": "id",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.PromiseQueue",
+      "inject": "PromiseQueue",
+      "iface": "PromiseQueue",
+      "description": "The PromiseQueue service stores, retrieves, and clears promises so they can be shared instead of doing the same work multiple times. This is very useful when making API calls in quick succession when ",
+      "methods": [
+        {
+          "name": "clear",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "get",
+          "params": [
+            {
+              "name": "key",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "set",
+          "params": [
+            {
+              "name": "key",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "promise",
+              "type": "Promise<unknown>",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.Query",
+      "inject": "Query",
+      "iface": "Query",
+      "description": "The Query service provides an object that represents API query parameters and filters and exposes methods for manipulating and retrieving data about them.",
+      "methods": [
+        {
+          "name": "buildOrderForPostRequest",
+          "params": [
+            {
+              "name": "entity",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "queryParam",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "getFlatQuery",
+          "params": [
+            {
+              "name": "entity",
+              "type": "object",
+              "optional": true
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "getQuery",
+          "params": [
+            {
+              "name": "useValue",
+              "type": "boolean",
+              "optional": true
+            },
+            {
+              "name": "dataMode",
+              "type": "string",
+              "optional": true
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "getQueryModifiers",
+          "params": [
+            {
+              "name": "entity",
+              "type": "object",
+              "optional": true
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "updateFilter",
+          "params": [
+            {
+              "name": "filter",
+              "type": "object",
+              "optional": false
+            },
+            {
+              "name": "type",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        },
+        {
+          "name": "updateFilters",
+          "params": [
+            {
+              "name": "filters",
+              "type": "unknown[]",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.queryCollectionService",
+      "inject": "queryCollectionService",
+      "iface": "QueryCollectionService",
+      "description": "The queryCollectionService loads, saves, manipulates, and deletes query collections, etc..",
+      "methods": [
+        {
+          "name": "load",
+          "params": [
+            {
+              "name": "model",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "storeTime",
+              "type": "unknown",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadQueryFilterValues",
+          "params": [
+            {
+              "name": "query",
+              "type": "unknown",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadResource",
+          "params": [
+            {
+              "name": "iri",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.settingsService",
+      "inject": "settingsService",
+      "iface": "SettingsService",
+      "description": "The settingsService gets and sets user and system settings.",
+      "methods": [
+        {
+          "name": "get",
+          "params": [
+            {
+              "name": "key",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "string"
+        },
+        {
+          "name": "getSystem",
+          "params": [],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.tokenService",
+      "inject": "tokenService",
+      "iface": "TokenService",
+      "description": "The tokenService handles idle and session timers, and provides methods for manipulating and getting information from JWT web tokens.",
+      "methods": [
+        {
+          "name": "get",
+          "params": [],
+          "returns": "string"
+        },
+        {
+          "name": "set",
+          "params": [
+            {
+              "name": "token",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.usersService",
+      "inject": "usersService",
+      "iface": "UsersService",
+      "description": "The usersService is an auxiliary service that performs actions regarding users. It includes methods for interacting with the current user and updating DAS users.",
+      "methods": [
+        {
+          "name": "getAvatar",
+          "params": [
+            {
+              "name": "avatarIri",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getCurrentAvatar",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getCurrentUser",
+          "params": [],
+          "returns": "object"
+        },
+        {
+          "name": "getUserByIri",
+          "params": [
+            {
+              "name": "userIri",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "loadCurrentUser",
+          "params": [],
+          "returns": "Promise<unknown>"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.ViewTemplateService",
+      "inject": "ViewTemplateService",
+      "iface": "ViewTemplateService",
+      "description": "The ViewTemplateService loads and saves view templates.",
+      "methods": [
+        {
+          "name": "changeStructure",
+          "params": [
+            {
+              "name": "structure",
+              "type": "number",
+              "optional": false
+            },
+            {
+              "name": "currentColumns",
+              "type": "unknown[]",
+              "optional": false
+            },
+            {
+              "name": "objectName",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "unknown[]"
+        },
+        {
+          "name": "get",
+          "params": [
+            {
+              "name": "page",
+              "type": "string",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "getConditionalVisibilityFilteredData",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "populateConditionalFields",
+          "params": [],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.websocketService",
+      "inject": "websocketService",
+      "iface": "WebsocketService",
+      "description": "The websocketService handles the websocket functionality to update the UI and backend with live data",
+      "methods": [
+        {
+          "name": "disconnect",
+          "params": [
+            {
+              "name": "logout",
+              "type": "boolean",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        },
+        {
+          "name": "generateWebsocketSessionId",
+          "params": [],
+          "returns": "string"
+        },
+        {
+          "name": "getHeader",
+          "params": [],
+          "returns": "string"
+        },
+        {
+          "name": "getWebsocketSessionId",
+          "params": [],
+          "returns": "string"
+        },
+        {
+          "name": "openSocket",
+          "params": [],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "reconnect",
+          "params": [],
+          "returns": "void"
+        },
+        {
+          "name": "subscribe",
+          "params": [
+            {
+              "name": "topic",
+              "type": "string",
+              "optional": false
+            },
+            {
+              "name": "callback",
+              "type": "unknown",
+              "optional": false
+            }
+          ],
+          "returns": "Promise<unknown>"
+        },
+        {
+          "name": "unsubscribe",
+          "params": [
+            {
+              "name": "subscription",
+              "type": "unknown",
+              "optional": false
+            }
+          ],
+          "returns": "void"
+        }
+      ]
+    },
+    {
+      "id": "fortisoar.widgetTemplateService",
+      "inject": "widgetTemplateService",
+      "iface": "WidgetTemplateService",
+      "description": "The widgetTemplateService loads widget definition.",
+      "methods": [
+        {
+          "name": "generateWidgetDefinition",
+          "params": [
+            {
+              "name": "widget",
+              "type": "object",
+              "optional": false
+            }
+          ],
+          "returns": "object"
+        }
+      ]
+    }
+  ]
+}

@@ -98,8 +98,28 @@ const VENDOR_PROVIDED_SERVICES = ["$resource"];
 // Real at install time; the harness.module.js factory only makes it resolve
 // for the local mount.
 const KNOWN_PLATFORM_EXTRAS = ["widgetUtilityService", "widgetBasePath"];
+// Committed, contenthub-derived service catalog (lib/soar-services.generated.json,
+// produced by `pnpm gen-types`) + the dev-guide injectables not in that catalog.
+// This is the platform-service FLOOR: it makes unknown-dependency accurate even
+// in a standalone clone where fsr_src/app.unmin.js isn't on disk (so the bundle
+// parse above returns []). When the bundle IS present the two sets overlap.
+const GENERATED_PLATFORM_SERVICES = (() => {
+    try {
+        const model = JSON.parse(fs.readFileSync(path.join(__dirname, "lib", "soar-services.generated.json"), "utf8"));
+        return HU.generatedServiceNames(model);
+    }
+    catch (_a) {
+        return [];
+    }
+})();
 // Real-in-SOAR set: present at install time without the widget shipping it.
-const PLATFORM_SERVICES = Array.from(new Set([...FSR_BUNDLE_SERVICES, ...VENDOR_PROVIDED_SERVICES, ...KNOWN_PLATFORM_EXTRAS]));
+const PLATFORM_SERVICES = Array.from(new Set([
+    ...FSR_BUNDLE_SERVICES,
+    ...GENERATED_PLATFORM_SERVICES,
+    ...HU.SOAR_DEV_GUIDE_INJECTABLES,
+    ...VENDOR_PROVIDED_SERVICES,
+    ...KNOWN_PLATFORM_EXTRAS,
+]));
 // Harness-only stub set: services registered solely by harness.module.js so
 // the local mount renders. Publish-time lint flags injection of these as a
 // real risk because SOAR will not have them unless the widget ships its own.
@@ -212,6 +232,29 @@ function widgetLocalServicesFor(widgetDir) {
     walk(root);
     return Array.from(out);
 }
+// Every file in the widget tree, as widget-relative paths — lets the linter
+// flag <script src>/<link href> references that point at a non-existent file.
+function listWidgetFiles(widgetDir) {
+    const out = [];
+    const walk = (dir, rel) => {
+        let entries;
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        }
+        catch (_a) {
+            return;
+        }
+        for (const e of entries) {
+            const sub = rel ? `${rel}/${e.name}` : e.name;
+            if (e.isDirectory())
+                walk(path.join(dir, e.name), sub);
+            else if (e.isFile())
+                out.push(sub);
+        }
+    };
+    walk(widgetDir, "");
+    return out;
+}
 // Lint context files we read off disk per widget.
 const LINT_FILES = ["view.controller.js", "edit.controller.js", "view.html", "edit.html"];
 function readLintFiles(widgetDir) {
@@ -247,6 +290,7 @@ function lintFor(widget) {
         staleVersionRefs: widget.staleVersionRefs || [],
         viewControllers: widget.viewControllers || [],
         editControllers: widget.editControllers || [],
+        existingAssetPaths: listWidgetFiles(widget.dir),
     });
 }
 // Credential check is deferred to startup so the module can be imported
