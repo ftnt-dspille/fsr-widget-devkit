@@ -636,6 +636,97 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
   `settingsService` decorator (`harness.module.js`), defaulting `lightmode.enable`
   to the harness theme. csGrid also calls `currentPermissionsService.isAdmin()`
   (see §21 harness-stub note).
+- **csGrid renders rows from `pagedCollection.list`/`.keyPairs`, NOT from
+  `.data['hydra:member']`.** Its link logic is:
+  `if (isUndefined(pc.list) || pc.list.length===0) gridOptions.data=[]; else gridOptions.data=pc.keyPairs;`
+  So if you build a static `PagedCollection` and set only
+  `.data['hydra:member']`, csGrid takes the empty branch and renders the **column
+  headers but zero body rows** (a very confusing symptom — columns appear, data
+  is "there", but no rows). The base `PagedCollection.convertToKeyPairs` iterates
+  `this.list` (it never reads `data['hydra:member']`), and nothing calls it for a
+  hand-built static collection. Fix: set `pc.list = rows`, `pc.keyPairs = rows`,
+  and `pc.visited = true` directly (see `widget-json-to-grid`
+  `view.controller.js`). Corollary: if your widget already renders rows via its
+  own `gridOptions.data` (no pagedCollection), do **not** also attach a
+  pagedCollection unless you populate `.list`/`.keyPairs` — an empty-`list`
+  collection will override `gridOptions.data` to `[]`.
+- **csGrid sort/filter/column-order are SERVER-backed — they do nothing for an
+  in-memory (playbook-result) grid unless you intercept.** Concretely (verified
+  in `app.unmin.js`):
+  - `orderByColumnDefs` and `viewType:'staticGrid'` have **0 references** in the
+    bundle — both are dead/cosmetic flags. Don't rely on them.
+  - `enableSorting` defaults to **false** at the grid level; you must set it
+    explicitly or header sorting never turns on.
+  - On sort, csGrid calls `pagedCollection.buildSortQuery(cols)` then
+    `pagedCollection.loadGridRecord(...)` (an API reload). On filter,
+    `filterChanged` builds `query.filters` from each column's `filters[0].field`
+    expecting a **SOAR field-metadata object** (`.name`/`.type`); plain string
+    `field`s yield no filters, then it still calls `loadGridRecord`.
+  - ui-grid binds cells from `field`, not `name` — copy `name`→`field`.
+  - **Fix for static grids (verified live):** set
+    `gridOptions.useExternalSorting = false` and
+    `gridOptions.useExternalFiltering = false`. The widget's gridOptions win over
+    csGrid's defaults — the merge is
+    `angular.extend(gridOptions, angular.extend(defaults, gridOptions))` — so
+    these stick, and ui-grid's NATIVE client-side engine sorts/filters
+    `gridOptions.data` in memory (numeric-aware sort + per-column substring
+    filter, no server query). Also set `enableSorting: true` (grid default is
+    false). Belt-and-suspenders: stub the collection's `loadGridRecord` to
+    `return $q.when()` so any stray csGrid reload can't query the dead endpoint.
+    `viewType:'staticGrid'`/`orderByColumnDefs` do nothing — don't rely on them.
+    See `widget-json-to-grid` `view.controller.js` (`normalizeColumns`,
+    `setGridOptions`).
+  - **FortiSOAR-style per-column filters (custom `filterHeaderTemplate`):**
+    ui-grid's native per-column filter is a plain text box — and even its
+    `SELECT` type is a bare dropdown, nothing like FortiSOAR's metadata-driven
+    grid filters (picklist multi-select, boolean Not Set/Yes/No, datetime
+    relative-range presets). A static widget grid (synthetic `dummy_module`, no
+    field metadata) can't reuse csGrid's server-side filter UI, but you CAN
+    replicate the look client-side: set `colDef.filterHeaderTemplate` to a custom
+    template (a directive) per column, render the FortiSOAR-style dropdown, and
+    write the chosen value into `col.filters[0].term`, then
+    `grid.api.core.notifyDataChange(...COLUMN)` + `grid.refresh()`. ui-grid runs
+    each colDef's `condition(term, cellValue)` over the in-memory rows, so the
+    term can be any shape (a preset key, an array of picklist values, a tri-state
+    string). The dropdown menu must `dropdown-append-to-body` (uib) to escape the
+    clipped grid header — style it with globally-unique classes since it lives
+    outside `.widget`. **Infer the column type from the data** when
+    `grid_columns` omits it (the platform's own "JSON to Grid" example emits NO
+    `type`, so without inference every column falls back to plain text). Auto-
+    detect enum = a low-cardinality, clearly-repeating string column. See
+    `widget-json-to-grid` `decorateColumnFilter` + the `jtgColumnFilter`
+    directive (`view.controller.js`). Number/string keep the native input; don't
+    clobber an explicit `filter`/`filters`, and skip when `enableFiltering:false`.
+    NOTE: if you still use `uiGridConstants` anywhere, resolve it as a **soft**
+    dependency (`$injector.has('uiGridConstants') ? $injector.get(...) : null`),
+    NOT a hard `$inject` entry — the hermetic e2e harness loads ui-grid's CSS/JS
+    but doesn't reliably register `uiGridConstants` as an injectable, so a hard
+    dependency aborts controller instantiation and the whole widget fails to
+    mount (zero `.widget h5`, no rows).
+  - **Runtime column show/hide + width/order persistence:** for the END USER,
+    turn on `enableGridMenu`/`gridMenuShowHideColumns` (ui-grid's hamburger gives
+    a column chooser). Persist per-user width/order to `settingsService`
+    (`jsonToGrid/columnWidths` via `colResizable.on.columnSizeChanged` using each
+    column's `drawnWidth`; `jsonToGrid/columnOrder` via
+    `colMovable.on.columnPositionChanged`) and re-apply on load. This mirrors how
+    a native SOAR module grid POSTs column state (it uses
+    `/api/views/1/grid_columns`, which is module-scoped and not available to a
+    synthetic widget grid) — POST on change, read from the settings cache, no GET
+    afterward, and never re-run the data playbook on a column change.
+  - **Discovering a playbook's output schema at CONFIG time:** the edit modal
+    has no runtime result, but you can run the data-provider playbook *from
+    edit.html* to discover its columns. Use the same chain the view uses:
+    fetch the playbook (`$relationships:true`), ensure the
+    `SystemWaitForCompletion` recordTag, POST to `API.ACTION_TRIGGER + route +
+    '?force_debug=true'` with `records:[]` (record-less — no selection in edit),
+    then `playbookService.checkPlaybookExecutionCompletion` →
+    `getExecutedPlaybookLogData` and read `data.result`. Gate on
+    `currentPermissionsService.availablePermission(FIXED_MODULE.PLAYBOOK,'read')`
+    (force_debug needs read). Persist the admin's choices as a config array and
+    merge it at runtime BEFORE any per-user (settingsService) override, treating
+    the runtime `grid_columns` as the source of truth for existence. See
+    `widget-json-to-grid` `edit.controller.js` `runProviderForColumns` +
+    `view.controller.js` `applyColumnPrefs`.
 
 ### 7.5 Widget CSS — what to write, what to leave to the platform
 
@@ -836,11 +927,13 @@ if (saved && saved.length) {
 
 The native module-list grids (Alerts, Incidents) save column visibility/width
 per-user via a `contextId` keyed to the `PagedCollection`. This mechanism requires
-the grid to be backed by a **real SOAR module collection**. The jsonToGrid widget
-uses `gridOptions.data` directly (rows come from a playbook result, not a
-PagedCollection query) and only instantiates a fake `PagedCollection('dummy_module')`
-for the empty-state UI path. `contextId`-based column saving is therefore
-**not available** to JSON-data grids — use `settingsService` instead.
+the grid to be backed by a **real SOAR module collection** whose
+`loadDefaultColumns` round-trips to the `GRID_COLUMNS` settings store. The
+jsonToGrid widget hand-builds a synthetic `PagedCollection('dummy_module')` whose
+`loadGridRecord` is overridden to never hit an API (see §7 csGrid gotcha below),
+so `loadDefaultColumns` never runs and `contextId`-based column saving is
+**not available** — use `settingsService` with a widget-prefixed, version-stable
+key (`jsonToGrid/columnOrder`) instead.
 
 ### 8.3 Your own widget-local service
 
@@ -1820,6 +1913,25 @@ are now fixed in `fsrSocAssistant` and worth copying:
   `stop_reason` is the literal `"accepted"` — detect it (or `accepted:true`) +
   no-transcript as the no-op.
 
+- **`stop_reason` is an Anthropic-native vocabulary — switching the connector's
+  LLM provider to OpenAI silently broke it.** The contract's terminal value for a
+  normal turn is `"end_turn"` (plus `awaiting_*` / `max_turns` / `error`). The
+  AnthropicProvider satisfies this *natively* because Anthropic's own
+  `stop_reason` already returns `"end_turn"` — there is **no normalization layer**
+  between provider and contract. So when the box connector was repointed to
+  OpenAI (`gpt-4o-mini`), the provider leaked OpenAI's raw chat-completions
+  `finish_reason` (`"stop"`, `"length"`, …) straight into `stop_reason`, and a
+  normal turn started ending on `stop_reason:"stop"`. The widget *tolerates* it
+  only by accident (its `view.controller` branches on `awaiting_*`/`error`/
+  `approval_*` and lets everything else fall through to idle), but the live
+  contract test `tests/live/chat.live.test.js` T3 asserts `=== "end_turn"` and
+  any strict consumer breaks. Fix is in `fsr_playbooks/llm/openai_provider.py`
+  (`_contract_stop_reason()`: `stop→end_turn`, `length→max_turns`,
+  `content_filter→error`, empty→`end_turn`) — normalize at the provider so OpenAI
+  emits the same vocabulary Anthropic does. **Lesson: any provider added behind
+  this connector must map its native finish/stop tokens onto the contract
+  vocabulary; the contract is not provider-agnostic by construction.**
+
 - **The stale-replay race: a concurrent `chat_poll` can be served the PREVIOUS,
   already-terminal turn and commit it as the new one.** The widget starts
   polling the moment it fires `chat_turn` (poll at delay 0), and the connector's
@@ -2048,12 +2160,49 @@ $scope.$on('$destroy', () => {
 });
 ```
 
-### 19.3 Direct trigger (action trigger endpoint)
+### 19.3 Direct trigger — pick the endpoint by trigger TYPE (live-verified 2026-06-23)
+
+There are **three** trigger endpoints and they take **different identifiers**.
+Using the wrong one is the classic `404 NotFoundHttpException "Resource Not
+Found In Request"`. All three derive from the platform's own `playbookService` /
+`SchedulesService` (`app.unmin.js`) and are verified against box 205.
+
+| Use case | Endpoint (`API.*`) | Identifier in the URL | Body |
+|---|---|---|---|
+| **Run a playbook now, by UUID** (no record, designer "Run", scheduled, data-provider) | `MANUAL_TRIGGER` = `api/triggers/1/notrigger/` | the **playbook `@id` UUID** | `{}` or `{ input vars }` |
+| **Record-context action** (Manual / `cybersponse.action` trigger fired from a record) | `ACTION_TRIGGER` = `api/triggers/1/action/` | the trigger step's **`arguments.route`** (NOT the playbook uuid) | `{ __uuid: <pbUuid>, __resource: <module>, records: [<iri>…] }`; `noRecordExecution:true` ⇒ `records: []` |
+| **External API/HMAC trigger** (`cybersponse.api_call`) | `API_HMAC_TRIGGER_URL` = `api/triggers/1/` | the api_call **route** | per-trigger, HMAC-signed |
 
 ```js
-// API.ACTION_TRIGGER = 'api/triggers/1/action/'
-$http.post(API.ACTION_TRIGGER + playbookUuid, { recordIri: ['/api/3/alerts/<id>'] });
+// Universal "run this playbook" — works regardless of trigger type or whether
+// the manual-action route is registered. This is what to use for a data-provider
+// playbook (e.g. jsonToGrid's grid source).
+//   POST api/triggers/1/notrigger/<playbookUuid>  ->  { task_id }   (HTTP 200, verified)
+$resource(API.MANUAL_TRIGGER + playbookUuid).save({}).$promise;
+
+// Record-context action trigger — needs the trigger step's ROUTE, not the uuid:
+$resource(API.ACTION_TRIGGER + triggerStep.arguments.route)
+  .save({ __uuid: playbookUuid, __resource: entity.module, records: [recordIri] });
 ```
+
+**Gotcha that bit jsonToGrid (and the misleading old text here):**
+`API.ACTION_TRIGGER + playbookUuid` is WRONG — the action endpoint keys off the
+registered **route**, so passing a playbook UUID 404s. Worse, even with the
+correct route, `action/<route>` 404s when that manual-action route **isn't
+registered** in the box's trigger registry — which happens when the playbook
+lives in an **unpublished / "Drafts" collection** (playbook-level `isActive:true`
+is necessary but not sufficient; the *collection* must be active). For a
+no-record data-provider playbook, prefer `notrigger/<uuid>` and the whole class
+of problem disappears. `action-renderer` already encodes this split
+(`triggerPlaybookHeadless`: `isManual = triggerType==='manual' || !route` →
+`notrigger/<uuid>`, else `action/<route>`); **jsonToGrid does not yet** and so
+404s on a Drafts/no-route data provider.
+
+After triggering, poll for output with `task_id`(s):
+`playbookService.checkPlaybookExecutionCompletion(taskIds, cb)` →
+`getExecutedPlaybookLogData(instance_ids)` → `{ status:'finished', result }`.
+See also the endpoint table in the "Two trigger endpoints — by trigger TYPE"
+note (§ API constants, ~L3270).
 
 ### 19.4 Conditional button display
 
@@ -3842,6 +3991,55 @@ disruptive) is a one-directive shim — only worth it for tightly-scoped
 features.
 
 ---
+
+## Harness surfaces widget render errors (view + edit modal)
+
+A widget controller that throws synchronously during construction or its first
+`$digest` (e.g. dereferencing an unconfigured config field like
+`config.actionButtons[0].uuid`) is routed to AngularJS's `$exceptionHandler`,
+which **swallows it** — `angular.bootstrap` never rejects. The result is a
+**blank/empty render** (`#widget-host` shows the bare `ng-controller` div, or the
+edit-config modal is empty) with the error visible only in DevTools.
+
+The harness now closes that hole. During the mount window it sets
+`window.__HARNESS_MOUNTING` around `angular.bootstrap`; `harness.module.js`'s
+`$exceptionHandler` stashes the **first** error on `window.__HARNESS_RENDER_ERROR`
+(`{controller, message, stack}`), and `public/index.html` renders a visible red
+panel (controller name + message + stack) into the host — for **both** the view
+mount and the edit-config modal. The global is also a machine-readable signal for
+e2e/automation, mirroring `window.__HARNESS_LINT_BLOCKED__`.
+
+So: if a widget mounts blank in the harness, you'll now see the throw inline. The
+full error (with `$q` creation stack) is also in the Debug drawer → Errors tab.
+
+## Diagnosing "edit.html (or the whole widget) won't render" — checklist
+
+Blank modal / empty widget with no obvious error. Causes, ordered by where they
+bite:
+
+1. **Controller ↔ `info.json` version desync (real box AND harness).** The #1
+   box cause. SOAR derives the expected controller name `<name><digits>DevCtrl`
+   (and `edit<Name><digits>DevCtrl`) from `info.json.version` at install time;
+   the numeric version (`1.3.1`→`131`) must match the suffix registered in
+   `view.controller.js` **and** `edit.controller.js` (plus any `ng-controller`/CSS
+   href in templates). Mismatch → SOAR can't instantiate → **blank, no error.**
+   **Never hand-edit `info.json` version** — only the CLI bump rewrites the names
+   in lockstep (`node scripts/widget.js push <id> --bump patch`, which fast-fails
+   on desync). A blank modal on the box with *consistent source* almost always
+   means the **installed** package predates the sync — just re-push.
+2. **`moduleAttribute` registry empty (harness only).** Field value inputs render
+   as empty `<div>`s. Not a box cause. See "moduleAttribute registry" memory.
+3. **csField `$parent.value` misbind (harness only).** Inputs show
+   `[object Object]`. Not a box cause.
+4. **cs-conditional dropdown empty (both).** A *dropdown* (not the whole form)
+   stays empty until the controller `$broadcast('conditional:fieldListChanged')`
+   after an async field load.
+5. **Stripped `uib-*` vendors (harness only).** `uib-*` directives no-op silently
+   — see "Harness gaps from the stripped SOAR bundle" above.
+
+Note the **bump now also rewrites the widget's sibling `tests/` tree** (controller
+names + versioned IDs, skipping `node_modules`), so a version bump no longer reds
+the widget's own unit/e2e suite with a stale hardcoded controller name.
 
 ## License
 
