@@ -17,6 +17,7 @@
     "lib/soarEnv.ts",
     "lib/harnessUtils.ts",
     "lib/harnessDrawer.ts",
+    "lib/harnessRender.ts",
     "lib/soarBrowser.ts",
     "lib/liveUiDriver.ts",
     "harness.module.ts",
