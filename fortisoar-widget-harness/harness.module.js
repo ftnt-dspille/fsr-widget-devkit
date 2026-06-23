@@ -111,15 +111,34 @@
                         }
                     }
                     catch (_) { }
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exception type is unknown at runtime
+                    const message = (exception && exception.message) || String(exception);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exception type is unknown at runtime
+                    const stack = (exception && exception.stack) || null;
                     w.__harnessReportError({
                         source: "angular",
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exception type is unknown at runtime
-                        message: (exception && exception.message) || String(exception),
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exception type is unknown at runtime
-                        stack: (exception && exception.stack) || null,
+                        message: message,
+                        stack: stack,
                         creationStack: creationStack,
                         cause: cause || null,
                     });
+                    // While the harness is bootstrapping a widget (index.html sets
+                    // __HARNESS_MOUNTING around angular.bootstrap), a synchronous throw
+                    // in the widget's controller constructor or its init $digest routes
+                    // here — AngularJS does not surface it in the DOM, so the widget host
+                    // would otherwise render an empty/broken shell with the error visible
+                    // only in DevTools or the debug drawer. Stash the FIRST such error so
+                    // index.html can render a visible render-error panel in #widget-host
+                    // (and so automation can read a machine-readable signal). First write
+                    // wins: the original throw is the root cause; later cascade errors are
+                    // noise.
+                    if (w.__HARNESS_MOUNTING && !w.__HARNESS_RENDER_ERROR) {
+                        w.__HARNESS_RENDER_ERROR = {
+                            controller: w.__HARNESS_MOUNTING_CTRL || null,
+                            message: message,
+                            stack: stack,
+                        };
+                    }
                 }
             }
             catch (_) { }
@@ -677,6 +696,12 @@
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
             loadCurrentUser: function () { return { then: function (cb) { cb && cb(); return this; }, catch: function () { return this; } }; },
             getPermissions: function () { return {}; },
+            // csGrid's link() also calls getPermission(module, action) (singular) to
+            // decide whether to show row actions; the real service reads unloaded
+            // RBAC. Match the grant-all stance so the grid links instead of throwing
+            // "getPermission is not a function" (surfaced by jsonToGrid once it
+            // mounts and renders cs-grid).
+            getPermission: function () { return true; },
         };
     });
     // Modules: provided by SOAR's app.unmin.js (real $resource-backed factory).

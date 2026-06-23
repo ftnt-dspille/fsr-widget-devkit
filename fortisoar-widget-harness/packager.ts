@@ -126,6 +126,29 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
   rewrite(path.join(dir, "view.controller.js"), { rewritePaths: true });
   rewrite(path.join(dir, "view.html"), { rewritePaths: true });
   rewrite(path.join(dir, "edit.html"), { rewritePaths: true });
+
+  // A bump renames the controllers (<name><digits>DevCtrl) and rewrites
+  // versioned IDs in widget/. The widget's own tests hardcode those same
+  // names (e.g. `const CTRL_NAME = "jsonToGrid130DevCtrl"`) and versioned IDs,
+  // so without sweeping them too every bump silently reds the unit/e2e suite
+  // until someone fixes them by hand. Sweep the sibling tests/ tree with the
+  // identical idempotent rewrite. (During packaging `dir` is a tmp copy with
+  // no tests sibling — the walk simply finds nothing.)
+  const testsDir = path.join(dir, "..", "tests");
+  if (fs.existsSync(testsDir)) {
+    const walk = (d: string): void => {
+      let entries: fs.Dirent[];
+      try { entries = fs.readdirSync(d, { withFileTypes: true }); }
+      catch { return; }
+      for (const e of entries) {
+        if (e.name === "node_modules") continue;
+        const abs = path.join(d, e.name);
+        if (e.isDirectory()) walk(abs);
+        else if (/\.(js|ts)$/.test(e.name)) rewrite(abs, { rewritePaths: true });
+      }
+    };
+    walk(testsDir);
+  }
 }
 
 // Convenience alias — same function is used by packageWidget (against a

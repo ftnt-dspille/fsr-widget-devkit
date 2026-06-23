@@ -30,10 +30,13 @@ const BASELINE_DIR = path.resolve(__dirname, "..", "tests", "introspect", "basel
 
 // Pre-existing no-mounts documented in the plan (Phase 1 findings).
 // The gate must NOT fail these.
+// jsonToGrid was here until its view controller was hardened (it crashed on
+// actionButtons[0]/resources[0] for an unconfigured or generic provider
+// playbook); it now mounts, so the baseline is a real mounted render and the
+// gate holds it to mount.
 const KNOWN_NO_MOUNTS = new Set([
   "fsocFieldsOfInterest-1.0.0",
   "funnelChart-1.0.2",
-  "jsonToGrid-1.3.0",
   "fortiaiInsight-1.0.1", // flaky under parallel
 ]);
 

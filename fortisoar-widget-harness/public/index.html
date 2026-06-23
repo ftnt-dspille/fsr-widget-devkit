@@ -1268,6 +1268,45 @@
           hostEl.appendChild(box);
         }
 
+        // A widget controller can throw synchronously during construction or
+        // its first $digest (e.g. dereferencing an unconfigured config field).
+        // AngularJS routes that to $exceptionHandler (harness.module.js) but
+        // never reflects it in the DOM, so #widget-host would otherwise show an
+        // empty/broken shell and the analyst has to dig through DevTools. We
+        // capture the first such error on window.__HARNESS_RENDER_ERROR during
+        // the mount window and render it here as a visible, copyable panel.
+        function renderRenderError(hostEl, widget, err) {
+          while (hostEl.firstChild) hostEl.removeChild(hostEl.firstChild);
+          const box = document.createElement("div");
+          box.className = "harness-render-error";
+          box.style.cssText = "padding:16px;border:1px solid #c33;background:#fee;color:#900;font-family:ui-monospace,monospace;border-radius:4px;";
+          const head = document.createElement("div");
+          head.style.cssText = "font-weight:600;margin-bottom:8px;";
+          head.textContent = "Widget render error — " + (widget.title || widget.name) + " failed to mount";
+          box.appendChild(head);
+          if (err.controller) {
+            const ctrl = document.createElement("div");
+            ctrl.style.cssText = "margin:4px 0;opacity:0.85;";
+            ctrl.textContent = "controller: " + err.controller;
+            box.appendChild(ctrl);
+          }
+          const msg = document.createElement("div");
+          msg.style.cssText = "margin:8px 0;font-weight:600;white-space:pre-wrap;";
+          msg.textContent = err.message || "(no message)";
+          box.appendChild(msg);
+          if (err.stack) {
+            const pre = document.createElement("pre");
+            pre.style.cssText = "margin:8px 0 0;max-height:240px;overflow:auto;font-size:12px;white-space:pre-wrap;color:#700;background:rgba(0,0,0,0.04);padding:8px;border-radius:3px;";
+            pre.textContent = err.stack;
+            box.appendChild(pre);
+          }
+          const hint = document.createElement("div");
+          hint.style.cssText = "margin-top:12px;opacity:0.8;";
+          hint.textContent = "Tip: the full error (with creation stack) is also in the Debug drawer → Errors tab. Check the widget's controller init and its required config fields.";
+          box.appendChild(hint);
+          hostEl.appendChild(box);
+        }
+
         function renderLintBanner(hostEl, widget, errors) {
           const err = document.createElement("div");
           err.style.cssText = "padding:16px;border:1px solid #c33;background:#fee;color:#900;font-family:ui-monospace,monospace;white-space:pre-wrap;border-radius:4px;";
@@ -2317,7 +2356,28 @@
           inc.setAttribute("ng-include", "'/" + current.id + "/view.html'");
           wrap.appendChild(inc);
           host.appendChild(wrap);
+
+          // Open the mount window: a synchronous throw in the widget's
+          // controller constructor or its init $digest lands in
+          // harness.module.js's $exceptionHandler, which stashes the first one
+          // on window.__HARNESS_RENDER_ERROR while __HARNESS_MOUNTING is set.
+          // (angular.bootstrap swallows controller-init throws — it never
+          // rejects — so a try/catch here would not see them; the global is the
+          // reliable channel.)
+          window.__HARNESS_RENDER_ERROR = null;
+          window.__HARNESS_MOUNTING = true;
+          window.__HARNESS_MOUNTING_CTRL = ctrlName;
           currentInjector = angular.bootstrap(wrap, ["cybersponse"]);
+          // Close the window after the bootstrap digest settles, then surface
+          // any captured render error as a visible panel in #widget-host.
+          currentInjector.invoke(["$timeout", function ($timeout) {
+            $timeout(function () {
+              window.__HARNESS_MOUNTING = false;
+              if (window.__HARNESS_RENDER_ERROR) {
+                renderRenderError(host, current, window.__HARNESS_RENDER_ERROR);
+              }
+            });
+          }]);
 
           const $rootScope = currentInjector.get("$rootScope");
           window.__harnessApplyTheme = function (id) {
@@ -2464,7 +2524,25 @@
             editWrap.innerHTML = editHtml;
             while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
             modalBody.appendChild(editWrap);
+
+            // Same render-error capture as the view mount: a throw in the edit
+            // controller's constructor/init $digest goes to $exceptionHandler
+            // (which swallows it), leaving a BLANK modal. Surface it instead.
+            // This is the harness analog of the "edit.html not displaying"
+            // failure on the box — see KB §"edit-modal render errors".
+            window.__HARNESS_RENDER_ERROR = null;
+            window.__HARNESS_MOUNTING = true;
+            window.__HARNESS_MOUNTING_CTRL = editCtrlName;
             editInjector = angular.bootstrap(editWrap, ["cybersponse"]);
+            editInjector.invoke(["$timeout", function ($timeout) {
+              $timeout(function () {
+                window.__HARNESS_MOUNTING = false;
+                if (window.__HARNESS_RENDER_ERROR) {
+                  renderRenderError(modalBody, current, window.__HARNESS_RENDER_ERROR);
+                  modalStatus.textContent = "edit controller failed to render — see panel";
+                }
+              });
+            }]);
             modalStatus.textContent = "";
           } catch (e) {
             modalStatus.textContent = "open failed: " + e.message;
