@@ -289,7 +289,16 @@ interface UpstreamRequestOpts {
   pathAndQuery: string;
   body?: string;
   headers?: Record<string, string>;
+  // Hard wall-clock bound. A dead/unreachable box (e.g. a stale .env pointing at
+  // a downed appliance) would otherwise leave the socket open forever and hang
+  // whatever route awaits it — bootstrap's /_fsr/stylesheets fetch was observed
+  // stuck pending for minutes. Defaults to UPSTREAM_TIMEOUT_MS.
+  timeoutMs?: number;
 }
+
+// Default upstream wall-clock timeout. Generous enough for a slow appliance,
+// short enough that a dead box fails the route fast instead of hanging it.
+const UPSTREAM_TIMEOUT_MS = Number(process.env.FSR_UPSTREAM_TIMEOUT_MS) || 8000;
 
 interface UpstreamResponse {
   status: number;
@@ -320,6 +329,10 @@ function upstreamRequest(opts: UpstreamRequestOpts): Promise<UpstreamResponse> {
       }
     );
     req.on("error", reject);
+    const timeoutMs = opts.timeoutMs ?? UPSTREAM_TIMEOUT_MS;
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`upstream timeout after ${timeoutMs}ms: ${opts.method} ${opts.pathAndQuery}`));
+    });
     if (opts.body) req.write(opts.body);
     req.end();
   });
@@ -1910,6 +1923,9 @@ app.get("/_fsr/stylesheets", async (_req: express.Request, res: express.Response
       method: "GET",
       pathAndQuery: "/",
       headers: cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {},
+      // Cosmetic, bootstrap-blocking route — fail fast against a dead box so the
+      // widget still mounts (chrome-only styling) instead of the page hanging.
+      timeoutMs: 3000,
     });
     if (result.status < 200 || result.status >= 400) {
       return res.status(502).json({
