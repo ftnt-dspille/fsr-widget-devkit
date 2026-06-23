@@ -81,6 +81,14 @@ const HERMETIC = process.env.FSR_HERMETIC === "1";
 // Records every distinct hermetic miss so a test run can dump the worklist.
 const hermeticMisses = new Set<string>();
 
+// NS1 default fixture layer (AGENT_NORTHSTAR.md roadmap #1). The harness page
+// POSTs the active widget's id here on every mount (index.html mountWidget) so
+// the hermetic /api/3 record + connector handlers below can resolve a
+// per-widget fixture (widgetAssets/fixtures/api3/*.json) without the request
+// itself carrying widget identity. One widget mounts per (per-worker) server,
+// so a single module-level value is race-free.
+let activeFixtureWidgetId: string | null = null;
+
 const HARNESS_MODULE_PATH = path.resolve(__dirname, "harness.module.js");
 
 // Where the FortiSOAR app shell (app.unmin.js + extracted templates) lives.
@@ -1099,6 +1107,16 @@ app.get("/_fsr/info", (_req: express.Request, res: express.Response) => {
   let host = "";
   try { host = new URL(HOST || "").host; } catch (_) { host = HOST || "(unset)"; }
   res.json({ proxyHost: host, widgetCount: WIDGETS.length, activeEnv: ACTIVE_ENV });
+});
+
+// NS1: the page declares which widget is mounting so the hermetic record +
+// connector fixture handlers can resolve a per-widget fixture. Always accepted
+// (harmless outside hermetic mode); a null/unknown id just falls back to the
+// synthesised scaffold. See activeFixtureWidgetId.
+app.post("/_fsr/active-widget", express.json(), (req: express.Request, res: express.Response) => {
+  const id = req.body && typeof req.body.id === "string" ? req.body.id : null;
+  activeFixtureWidgetId = id;
+  res.json({ activeWidget: activeFixtureWidgetId });
 });
 
 // SOAR target picker: list the selectable .env files and which one is active.
@@ -2175,6 +2193,80 @@ if (HERMETIC) {
       });
     }
   });
+
+  // NS1 default fixture layer (AGENT_NORTHSTAR.md #1) — un-reds every
+  // record-context widget in the mock tier so a spec stubs only what's UNIQUE
+  // to its scenario. Today each spec re-stubs /api/3/<module>/<id> +
+  // /api/integration/connectors/ inline and one omission 599s the whole suite.
+  //
+  // Resolution order for both handlers: a per-widget fixture
+  // (<widget>/widgetAssets/fixtures/api3/<name>.json, resolved via the active
+  // widget the page POSTed to /_fsr/active-widget), else a believable default
+  // synthesised from the request. Fixtures are OPTIONAL — the default alone
+  // clears the 599 and sets window.__HARNESS_RECORD so viewpanel widgets mount.
+
+  // Read a JSON fixture from the active widget's fixtures/api3 dir, or null.
+  const readWidgetApi3Fixture = (name: string): unknown | null => {
+    if (!activeFixtureWidgetId) return null;
+    const w = WIDGETS.find((x) => x.id === activeFixtureWidgetId);
+    if (!w) return null;
+    const p = path.join(w.dir, "widgetAssets", "fixtures", "api3", name);
+    try {
+      return JSON.parse(fs.readFileSync(p, "utf8"));
+    } catch {
+      return null; // absent or unreadable → caller falls back to default
+    }
+  };
+
+  // Platform modules already handled above or by dedicated routes — never treat
+  // these path heads as a record module to scaffold (they'd shadow real stubs
+  // or mask a genuinely-novel platform call that SHOULD surface as a miss).
+  const RESERVED_API3_HEADS = new Set([
+    "actors", "picklists", "system_settings", "widgets", "solutionpacks",
+    "model_metadatas", "modules", "appsettings", "people", "picklist_names",
+    "files", "attachments", "query", "export",
+  ]);
+
+  // GET /api/3/<module>/<id>[?$relationships=true] — the record fetch every
+  // viewpanel/record-context widget makes before mounting (index.html
+  // applyContext). Serve a per-widget record fixture if present, else a minimal
+  // but valid scaffold synthesised from the URL so the widget mounts non-empty.
+  app.get(/^\/api\/3\/([^/]+)\/([^/]+)$/, (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const module = decodeURIComponent((req.params as unknown as string[])[0]);
+    const id = decodeURIComponent((req.params as unknown as string[])[1]);
+    if (RESERVED_API3_HEADS.has(module)) return next(); // → loud HERMETIC-MISS
+    const fixture = readWidgetApi3Fixture("record.json");
+    if (fixture && typeof fixture === "object") return res.json(fixture);
+    // Synthesised scaffold: identity + the handful of fields a generic widget
+    // reads (name/recordTags/__self). Believable, module-agnostic, tiny.
+    const typeName = module.charAt(0).toUpperCase() + module.slice(1).replace(/s$/, "");
+    res.json({
+      "@id": `/api/3/${module}/${id}`,
+      "@type": typeName || "Record",
+      uuid: id,
+      id: 1,
+      name: `${typeName || module} ${id.slice(0, 8)}`,
+      description: "",
+      recordTags: [],
+      __self: `/api/3/${module}/${id}`,
+    });
+  });
+
+  // GET /api/integration/connectors/ — the connector list (action-renderer's
+  // edit modal, any connector-driven widget). Real SOAR returns a
+  // {status,totalItems,…,data:[]} envelope (NOT hydra). Serve a per-widget
+  // fixture or an empty-but-valid envelope so an un-fixtured widget doesn't
+  // error on `.data`.
+  const serveConnectors = (_req: express.Request, res: express.Response): void => {
+    const fixture = readWidgetApi3Fixture("connectors.json");
+    if (fixture && typeof fixture === "object") {
+      res.json(fixture);
+      return;
+    }
+    res.json({ status: "success", totalItems: 0, itemsPerPage: 30, nextPage: null, previousPage: null, data: [] });
+  };
+  app.get("/api/integration/connectors/", serveConnectors);
+  app.get("/api/integration/connectors", serveConnectors);
 }
 
 // Hermetic gate: in hermetic mode nothing reaches the proxy. A request that
