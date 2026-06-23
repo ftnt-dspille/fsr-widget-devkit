@@ -24,6 +24,7 @@
     "assets": "bash scripts/fetch-soar-assets.sh",
     "new-widget": "node scripts/new-widget.js",
     "gen-types": "node scripts/gen-soar-types.js",
+    "typecheck:widgets": "node scripts/typecheck-widgets.js",
     "login": "node scripts/widget.js login",
     "list": "node scripts/widget.js list",
     "remote-list": "node scripts/widget.js remote-list",
