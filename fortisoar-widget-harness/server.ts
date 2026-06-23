@@ -825,6 +825,27 @@ app.use(
   "/harness.module.js",
   express.static(path.resolve(__dirname, "harness.module.js"), { etag: false, cacheControl: false })
 );
+// harnessUtils.js is dual-use: server.ts + jest `require()` it (needs the CJS
+// `module.exports = api` tail emitted from `export = api`), but it also loads in
+// the browser via <script>, where `module` is undefined → `ReferenceError:
+// module is not defined` on every page (backlog #4 — pervasive console noise
+// that also fails clean-error probes). A global `module` shim would make UMD
+// libs (lodash/angular/ui-grid) detect CommonJS and skip their window globals,
+// so instead serve THIS one file wrapped in an IIFE that provides a local
+// module/exports. The file still sets window.HarnessUtils (what the browser
+// uses); the CJS tail becomes a harmless local assignment. Must precede the
+// /lib static handler.
+app.get("/lib/harnessUtils.js", (_req: express.Request, res: express.Response) => {
+  try {
+    const src = fs.readFileSync(path.resolve(__dirname, "lib", "harnessUtils.js"), "utf8");
+    const wrapped = `(function (module, exports) {\n${src}\n})({ exports: {} }, {});`;
+    res.set("Content-Type", "application/javascript; charset=utf-8");
+    res.set("Cache-Control", "no-store");
+    res.send(wrapped);
+  } catch (e: unknown) {
+    res.status(500).type("text/plain").send(`failed to load harnessUtils.js: ${e instanceof Error ? e.message : String(e)}`);
+  }
+});
 app.use(
   "/lib",
   express.static(path.resolve(__dirname, "lib"), { etag: false, cacheControl: false })

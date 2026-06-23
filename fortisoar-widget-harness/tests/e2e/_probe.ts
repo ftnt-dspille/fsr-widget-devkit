@@ -51,14 +51,24 @@ interface ProbeOptions {
 
 async function selectWidget(page: Page, widgetName: string): Promise<void> {
   const select = page.locator("#widget-select");
-  await select.waitFor({ state: "visible", timeout: 10000 });
+  // The harness chrome now drives widget choice through a custom picker button,
+  // leaving the native #widget-select present-but-hidden. Playwright's
+  // selectOption requires visibility, so set the value + dispatch `change`
+  // directly (the harness listens for change to remount) — robust to the hidden
+  // native control.
+  await select.waitFor({ state: "attached", timeout: 10000 });
   const resp = await page.request.get("/_fsr/widgets");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- response json is dynamic
   const { widgets } = (await resp.json()) as {widgets: WidgetInfo[]};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- search result is dynamic
   const w = widgets.find((x: any) => x.name === widgetName);
   if (!w) throw new Error("probeWidget: widget not found: " + widgetName);
-  await select.selectOption({ value: w.id });
+  await page.evaluate((id) => {
+    const sel = document.getElementById("widget-select") as HTMLSelectElement | null;
+    if (!sel) return;
+    sel.value = id;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  }, w.id);
 }
 
 export async function probeWidget(

@@ -24,12 +24,22 @@ const path = require("path");
 
 async function selectWidget(page, widgetName) {
   const select = page.locator("#widget-select");
-  await select.waitFor({ state: "visible", timeout: 10000 });
+  // The harness chrome now drives widget choice through a custom picker button,
+  // leaving the native #widget-select present-but-hidden. Playwright's
+  // selectOption requires visibility, so set the value + dispatch `change`
+  // directly (the harness listens for change to remount) — robust to the hidden
+  // native control.
+  await select.waitFor({ state: "attached", timeout: 10000 });
   const resp = await page.request.get("/_fsr/widgets");
   const { widgets } = await resp.json();
   const w = widgets.find((x) => x.name === widgetName);
   if (!w) throw new Error("probeWidget: widget not found: " + widgetName);
-  await select.selectOption({ value: w.id });
+  await page.evaluate((id) => {
+    const sel = document.getElementById("widget-select");
+    if (!sel) return;
+    sel.value = id;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  }, w.id);
 }
 
 async function probeWidget(page, widgetName, scenario, opts) {
