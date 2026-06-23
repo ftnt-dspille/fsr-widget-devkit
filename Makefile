@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live introspect introspect-gate ship-verify clean
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live introspect introspect-gate ship-verify clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -28,6 +28,15 @@ widgets: ## Clone/update widget repos into widgets-src/ from widgets.manifest
 
 assets: ## Fetch the FortiSOAR app shell into fsr_src/ (needed for e2e; reads harness .env)
 	bash scripts/fetch-soar-assets.sh
+
+new-widget: ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSummary [KIND=record] [TRIGGER=1] [TITLE="…"]
+	@if [ -n "$(SPEC)" ]; then \
+	  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/new-widget.js --spec $(CURDIR)/$(SPEC); \
+	elif [ -n "$(NAME)" ]; then \
+	  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/new-widget.js "$(NAME)" $(if $(TITLE),--title "$(TITLE)") $(if $(KIND),--kind $(KIND)) $(if $(TRIGGER),--triggers-playbook); \
+	else \
+	  echo "Usage: make new-widget SPEC=spec.json   (or)   make new-widget NAME=<camelCase> [KIND=record] [TRIGGER=1] [TITLE=\"…\"]"; exit 2; \
+	fi
 
 dev: ## Run the harness you drive by hand — http://localhost:14400
 	cd $(HARNESS) && PORT=$(DEV_PORT) pnpm start
