@@ -24,6 +24,7 @@
     "packager.ts",
     "server.ts",
     "scripts/widget.ts",
+    "scripts/new-widget.ts",
     "scripts/widget-verify-remote.ts",
     "scripts/lint-angular.ts",
     "scripts/lint-testids.ts",

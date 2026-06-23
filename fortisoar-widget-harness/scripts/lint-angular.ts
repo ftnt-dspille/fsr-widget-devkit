@@ -89,7 +89,9 @@ function checkConfigDefaultsBeforeAccess(file: string, lines: string[]): void {
   lines.forEach((line, i) => {
     if (/if\s*\(\s*!?\s*\$scope\.config\s*[)|=]/.test(line)
       || /\$scope\.config\s*=\s*(\$scope\.config\s*\|\|\s*\{\}|\{\})/.test(line)
-      || /\$scope\.config\s*\|\|\s*\(\s*\$scope\.config\s*=\s*\{\}/.test(line)) {
+      || /\$scope\.config\s*\|\|\s*\(\s*\$scope\.config\s*=\s*\{\}/.test(line)
+      // angular.extend({}, defaults, config || {}) is a valid defaults guard.
+      || /\$scope\.config\s*=\s*angular\.extend\(/.test(line)) {
       if (guardLine === -1) guardLine = i;
     }
     if (/\$scope\.config\.\w+/.test(line) && !/^\s*(?:\/\/|\*)/.test(line)) {
