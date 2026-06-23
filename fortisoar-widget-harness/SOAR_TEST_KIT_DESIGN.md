@@ -1,6 +1,12 @@
 # SOAR Widget Test Architecture + Reusable Test Kit — Design
 
 Status: **DRAFT for review** (2026-05-30). Author: working session on fsrPlaybookBuilder.
+
+> **2026-06-23 — Layer 2 mount/measure surface LANDED.** The §4.2 "faithful mount +
+> measure" piece now exists as `tests/e2e/_widgetHarness.js` (library) and
+> `scripts/widget-inspect.js` (one-shot CLI). See the new **§4.4** below. The live-box
+> driver (§7b) was already built; this fills the local-harness Layer-2 gap that every
+> spec (and every ad-hoc agent check) used to re-derive by hand.
 Scope: the testing foundation for FortiSOAR AngularJS widgets in this repo, and the
 reusable kit that lifts the FortiSOAR-specific parts out for other projects.
 
@@ -112,6 +118,51 @@ assertNoCssBleed(widgetDir);
 // fixture loader (shared by jest + Playwright + live)
 const fx = loadFixture('c2_hunt');
 ```
+
+### 4.4 Layer-2 mount + measure — BUILT (`tests/e2e/_widgetHarness.js`)
+
+The reusable "mount a widget, then ask a visual/DOM question about it" surface. Two
+consumers share one module: committed Playwright specs, and the one-shot CLI.
+
+**Foot-guns it owns** (each previously re-derived per ad-hoc check):
+- `#widget-select` is `display:none` (a custom dropdown drives it) → `selectOption` fails
+  "not visible"; the kit sets the value + dispatches `change`.
+- Picking a widget persists to localStorage and `location.reload()`s → the kit waits for
+  the navigation so `evaluate` doesn't die "Execution context was destroyed".
+- `networkidle` never settles (harness SSE) → the kit uses `domcontentloaded`.
+- Mount is multi-stage (`loading…` placeholder → `[ng-controller]` wrapper → `ng-include`
+  view renders) → the kit's settle polls for the *view's* element children, excluding the
+  `.harness-empty` placeholder and handling the config-prompt / render-error terminal states.
+- Toolbar listeners (`#edit-config`) wire up *after* mount → `openEditModal()` poll-clicks.
+- A widget with no saved config shows a "configure me" prompt → pass `{config}` to seed
+  `localStorage['harness:config:<id>']` and render real content hermetically (no live box).
+
+**Library API** (`const { mountWidget } = require('./_widgetHarness')`):
+```
+const w = await mountWidget(page, "counter", { config: { start: 7 } });
+await w.box(sel)            // {x,y,width,height,top,right,bottom,left} | null
+await w.count(sel) / w.rowCount(sel)
+await w.style(sel, prop)    // computed style value
+await w.text(sel) / w.visible(sel)
+await w.clippedBy(child, ancestor)   // {clipped, ancestorOverflow, edges, childBox, ancestorBox}
+await w.renderError()       // harness panel text, or null if clean mount
+await w.click(sel) / w.clickText(t) / w.openEditModal() / w.settle()
+```
+No `waitForTimeout` anywhere (the §3 determinism rule) — waits are state-based
+(`waitForFunction`) or a double-rAF `settle()`.
+
+**One-shot CLI** (`scripts/widget-inspect.js`, or `make widget-inspect ARGS='…'`) — for
+ad-hoc agent checks with no spec file; mounts in the *running* dev harness (`:4401`) and
+prints JSON. Example — the check that motivated this kit (is the action-renderer connector
+dropdown clipped by the modal?):
+```
+node scripts/widget-inspect.js --widget actionRendererWidget \
+  --edit --click-text "Connector action" --click ".ui-select-match" \
+  --clipped ".ui-select-choices::.harness-modal"
+```
+For `--config`, call the script directly (single-quoted JSON); `make ARGS=` re-quoting of
+embedded JSON spaces is painful. Self-tests: `tests/e2e/widgetHarness.spec.js` (hermetic,
+green via `make test-e2e-spec`).
 
 ### 4.3 Boundaries — what is kit vs widget
 - **Kit (reusable, SOAR-generic):** mount/shim/track/guard, fixture IO, the oddity handling.
