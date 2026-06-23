@@ -156,7 +156,25 @@ Everything else is an implementation detail the agent should never have to learn
    generator (NS5) emits the helper's pattern inline. 14 jest regressions
    (`tests/harnessUtils.test.js`, 218 green); detector verified zero false
    positives on action-renderer + jsonToGrid's real controllers.
-5. **Generator** (`make new-widget`) emitting harness-wired tests.
+5. ✅ **Generator** (`make new-widget`) emitting harness-wired tests. **DONE
+   (2026-06-23).** `scripts/new-widget.ts` is a spec-driven generator (the old
+   bash scaffold is now a thin shim over it). It emits three variants from a spec
+   — **dashboard**, **record** (View-Panel; reads the open record via
+   `FormEntityService`, wired to the NS1 default fixture layer so it's green on
+   mock e2e with *zero* per-spec platform stubs), and **playbook-triggering**
+   (the NS4 endpoint split inline — `action/<route>` vs `notrigger/<uuid>` — plus
+   a config form). Every emitted skeleton carries the controller-name ↔
+   version-digits convention, a jest unit test, and a Playwright e2e bound to
+   `waitForRender()` (the NS-P0/P1 render state machine, which *throws* on a
+   swallowed controller error). Invoke via `make new-widget SPEC=spec.json` or
+   `make new-widget NAME=<camelCase> [KIND=record] [TRIGGER=1] [TITLE="…"]`;
+   inline flags (`--spec`, `--kind`, `--triggers-playbook`, `--category`, …) and
+   the back-compat positional form are all accepted. Generated widgets lint clean
+   (`lint-angular` now recognizes the `angular.extend({},defaults,config||{})`
+   defaults guard — a pre-existing false positive that flagged the template too)
+   and `make test-unit WIDGET=<name>` is green immediately. 16 jest regressions
+   (`tests/newWidget.test.js`) including real angular instantiation of each
+   variant and a lint-clean integration check.
 6. ✅ **Agent-facing docs**: `HARNESS_RENDERING.md` + this north star, kept short.
    **DONE (2026-06-23).** `docs/HARNESS_RENDERING.md` documents the render
    lifecycle state machine, the `settle()`/`waitForRender()` contract, the
