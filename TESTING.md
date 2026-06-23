@@ -155,6 +155,31 @@ box outage can't red a mock test. The harness enforces this with `FSR_HERMETIC=1
   under concurrent workers a stray FS event would otherwise re-mount a widget
   mid-test and wipe its in-flight state. Tests never edit source mid-run.
 
+#### Default fixture layer — record-context widgets mount with zero per-spec stubbing
+
+A viewpanel/record-context widget fetches `GET /api/3/<module>/<id>?$relationships=true`
+(and often `/api/integration/connectors/`) **before it mounts**. Under hermetic
+mode the harness serves both by default, so a spec stubs only what's *unique* to
+its scenario instead of re-stubbing the platform surface (and 599-ing the whole
+suite when it forgets one):
+
+- **Record:** `/api/3/<module>/<id>` returns a believable record. If the active
+  widget ships `widgetAssets/fixtures/api3/record.json`, that's served verbatim;
+  otherwise a minimal scaffold is synthesised from the URL (`@id`/`@type`/`uuid`/
+  `name`/`recordTags`) — enough to set `window.__HARNESS_RECORD` and mount.
+- **Connectors:** `/api/integration/connectors/` returns the active widget's
+  `widgetAssets/fixtures/api3/connectors.json`, else an empty-but-valid
+  `{status,totalItems,…,data:[]}` envelope (real SOAR shape — **not** hydra).
+- **Per-widget resolution:** the harness page POSTs the mounting widget's id to
+  `/_fsr/active-widget`, so the handlers know whose fixtures to read (one widget
+  per per-worker server → race-free).
+- **Reserved platform heads** (`model_metadatas`, `widgets`, `picklists`, …) are
+  *not* treated as records — they still surface as a loud `HERMETIC-MISS` so a
+  genuinely-novel platform call can't hide behind a scaffold.
+- **Fixtures are OPTIONAL and version with the widget.** Seed them (faithfully —
+  snapshot a real response from the box) only when a scenario needs richer fields
+  than the scaffold. Keep them lean (trim giant blobs like `sourcedata`).
+
 The **live sweep** (`E2E_LIVE=1`, serial, `FSR_HERMETIC=0`) is the only tier that
 reaches the real box. Refresh the local platform snapshot with `make assets` when
 the box's FortiSOAR version bumps.

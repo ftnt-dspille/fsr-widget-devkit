@@ -105,8 +105,16 @@ Everything else is an implementation detail the agent should never have to learn
 
 ## Roadmap (each item retires a scar)
 
-1. **Default hermetic fixture layer** incl. a real record fixture — *unblocks all
-   record-context widgets in the mock tier; biggest single win.* (P-now)
+1. ✅ **Default hermetic fixture layer** incl. a real record fixture — *unblocks all
+   record-context widgets in the mock tier; biggest single win.* **DONE
+   (2026-06-23).** `server.ts` serves `/api/3/<module>/<id>` (per-widget
+   `widgetAssets/fixtures/api3/record.json` else a synthesised scaffold) +
+   `/api/integration/connectors/` (fixture else empty `{…,data:[]}` envelope) under
+   `FSR_HERMETIC`; the page declares the mounting widget via `POST /_fsr/active-widget`
+   so handlers resolve the right fixtures. Reserved platform heads still
+   `HERMETIC-MISS`. Fixtures captured faithfully from the live box (10.99.249.205) —
+   action-renderer seeded. 6 jest regressions (`tests/hermeticFixtures.test.ts`),
+   171 harness jest green. Doc: `TESTING.md` → "Default fixture layer".
 2. **Stub policy: faithful-or-loud** + introspect check for no-op stub hits on
    mount.
 3. **Versioning single-source**: bump rewrites tests with source; remove the

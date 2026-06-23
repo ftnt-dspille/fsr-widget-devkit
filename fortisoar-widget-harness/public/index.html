@@ -2282,6 +2282,17 @@
         let currentInjector = null;
         async function mountWidget() {
           const ctx = ctxSel.value;
+          // NS1: tell the server which widget is mounting so its hermetic
+          // /api/3 record + connector handlers can resolve this widget's
+          // fixtures (widgetAssets/fixtures/api3/*). Best-effort; a failure
+          // just means the synthesised default scaffold is used.
+          try {
+            await fetch("/_fsr/active-widget", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: current.id }),
+            });
+          } catch (_) {}
           const record = await applyContext(ctx);
 
           let savedConfig = null;
