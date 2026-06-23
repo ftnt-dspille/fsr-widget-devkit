@@ -2198,6 +2198,25 @@ of problem disappears. `action-renderer` already encodes this split
 `notrigger/<uuid>`, else `action/<route>`); **jsonToGrid does not yet** and so
 404s on a Drafts/no-route data provider.
 
+**Listing playbooks for a picker — don't `GET /api/3/workflows`.** That endpoint
+returns EVERY workflow with its **full step bodies** even without `$relationships`
+(~700 playbooks → multiple MB → ~7 s), which a name/uuid dropdown doesn't need.
+Use `POST /api/query/workflows?$limit=1000` with a trimmed body instead — an
+order-of-magnitude smaller/faster payload:
+```js
+{ logic: "AND",                                   // filters are SILENTLY dropped without explicit logic
+  filters: [{ field: "isActive", operator: "eq", value: true }],
+  __selectFields: ["uuid", "name"],               // server trims the response columns
+  sort: [{ field: "name", direction: "asc" }] }
+```
+Drive it via `$resource("/api/query/workflows?$limit=1000").save(body)` (`$limit`
+must be baked into the URL — Angular's param serializer drops `$`-prefixed params).
+The trimmed response may omit `@id`; reconstruct the IRI as `/api/3/workflows/<uuid>`.
+Fetch the picked playbook's trigger step (type + input vars) on demand — a ~5 KB,
+sub-second `GET /api/3/workflows/<uuid>?$relationships=true&$triggerOnly=true` —
+so no fidelity is lost. `action-renderer`'s "Show all playbooks" branch
+(`loadAllPlaybooks`) does exactly this.
+
 After triggering, poll for output with `task_id`(s):
 `playbookService.checkPlaybookExecutionCompletion(taskIds, cb)` →
 `getExecutedPlaybookLogData(instance_ids)` → `{ status:'finished', result }`.
@@ -3506,6 +3525,32 @@ scrollbar next to the host page's. Make the panel a flex column and let
 Also neutralize Bootstrap's `.close` leakage (`float:none; opacity:1;
 text-shadow:none`) so the × sits where flex puts it, not floated.
 (fsrSocAssistant settings/history/export modals.)
+
+### Edit-modal chrome strip — keep stepper/nav INSIDE `.modal-body`, and mind a stray `</div>`
+
+SOAR's "Edit widget config" wraps your `edit.html` with its OWN modal-header and
+Cancel/Save footer, **stripping** any `modal-header`/`modal-footer` you ship. So
+a multi-step wizard's stepper and its Back/Next nav must live **inside
+`.modal-body`** to survive (see `action-renderer/edit.html` top comment).
+
+Corollary, learned the hard way: a single **unbalanced `</div>`** that closes
+`.modal-body` *before* the nav makes the browser's HTML parser **reparent** the
+nav out of the body. On a tall step (e.g. the Output step) the floated/normal-flow
+nav then **overlaps** the form controls below it (Back/Next sitting on top of the
+Table-Mode select; the nav's `border-top` separator landing mid-form). It renders
+fine on short steps, so it's easy to miss. Guard it cheaply offline: count
+`<div>` vs `</div>` in the stripped template and assert the nav sits between
+`.modal-body` open and `</form>` (`action-renderer/tests/edit.template.test.js`).
+
+### Harness gotcha — `el.style.display = ""` falls back to a `display:none` stylesheet rule
+
+When an element is hidden by a **stylesheet** rule (`#x { display:none }`), setting
+`el.style.display = ""` only clears the *inline* style — it falls back to the CSS
+rule and stays hidden. To reveal it you must set an explicit value
+(`"block"`/`"flex"`). This bit the harness edit-modal **JSON switcher**: the
+Form/JSON toggle hid the form and set the JSON textarea's inline display to `""`,
+but the textarea's stylesheet default was `display:none`, so JSON mode showed a
+blank modal. Fixed by setting `"block"` (harness `public/index.html`).
 
 ### Hello World connector for tests
 

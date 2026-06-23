@@ -2478,7 +2478,10 @@
               } catch (_) {}
             }
             jsonArea.value = JSON.stringify(cfg, null, 2);
-            jsonArea.style.display = "";
+            // NB: the stylesheet rule for #edit-modal-json-area is `display:none`,
+            // so clearing the inline style ("") would fall back to that and keep
+            // the textarea hidden — set an explicit visible value instead.
+            jsonArea.style.display = "block";
             jsonErr.style.display = "none";
             modalBody.style.display = "none";
           } else {
@@ -2599,7 +2602,9 @@
                 parsed = JSON.parse(jsonArea.value);
               } catch (e) {
                 jsonErr.textContent = "Invalid JSON: " + e.message;
-                jsonErr.style.display = "";
+                // Same display:none stylesheet default as the textarea — must
+                // set an explicit visible value, not "".
+                jsonErr.style.display = "block";
                 modalStatus.textContent = "";
                 return;
               }
@@ -2611,6 +2616,21 @@
               const scope =
                 (wrap && wrap.firstChild && angular.element(wrap.firstChild).scope()) ||
                 (wrap && angular.element(wrap).scope());
+              // Honor the widget's own save gating. On the real SOAR box the
+              // modal Save submits the edit form (ng-submit="save()"), so a
+              // controller that exposes canSave() can refuse an incomplete
+              // config (e.g. action-renderer's 4-step wizard). The harness
+              // toolbar Save bypassed that path and persisted regardless — let
+              // the widget block here too, and call its save() so it can surface
+              // its own guidance (toaster / step jump). Widgets without
+              // canSave() keep the previous direct-persist behavior.
+              if (scope && typeof scope.canSave === "function" && !scope.canSave()) {
+                if (typeof scope.save === "function") {
+                  try { scope.$apply(function () { scope.save(); }); } catch (_) {}
+                }
+                modalStatus.textContent = "widget blocked save — complete the required steps first";
+                return;
+              }
               const cfg = scope && scope.config;
               if (cfg && typeof cfg === "object") {
                 localStorage.setItem(HU.configStorageKey(current.id), JSON.stringify(cfg));
