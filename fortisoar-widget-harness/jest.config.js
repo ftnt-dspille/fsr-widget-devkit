@@ -123,7 +123,13 @@ module.exports = {
         }],
       },
       testMatch: ["<rootDir>/tests/**/*.test.js", "<rootDir>/tests/**/*.test.ts"],
-      testPathIgnorePatterns: ["<rootDir>/tests/e2e/", "<rootDir>/tests/live/"],
+      testPathIgnorePatterns: [
+        "<rootDir>/tests/e2e/",
+        "<rootDir>/tests/live/",
+        // Ignore .js test files if a corresponding .ts version exists (avoid running tests twice)
+        "<rootDir>/tests/soarEnv\\.test\\.js",
+        "<rootDir>/tests/server\\.test\\.js",
+      ],
     },
     ...discoverWidgetProjects(),
   ],
