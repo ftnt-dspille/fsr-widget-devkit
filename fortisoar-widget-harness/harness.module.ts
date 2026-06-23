@@ -511,19 +511,128 @@
     };
   });
 
-  // ui.bootstrap ($uibModal) — vendor module stripped. Stub returns a
-  // never-resolving modal; widgets that try to .open one in the harness
-  // will silently no-op (acceptable for our mount-and-render scope).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $uibModal stub
-  regFactory(app, "$uibModal", ["$q"], function ($q: angular.IQService): any {
-    return {
+  // ui.bootstrap ($uibModal) — vendor module stripped. The CDN
+  // ui-bootstrap-tpls bundle registers the uib-* directives (datepicker,
+  // dropdown, etc.) but cybersponse shadows the real $uibModal, so we provide a
+  // faithful-enough implementation here: it resolves the `resolve` map, runs the
+  // controller with `$uibModalInstance` + resolved locals, compiles the template
+  // into a real <div class="modal"> appended to <body>, and wires close/dismiss
+  // (with DOM + scope cleanup) so the returned `.result` promise behaves like
+  // the vendor's. This lets widgets that open modals (e.g. jsonToGrid's custom
+  // date-range popup) be exercised end-to-end.
+  regFactory(
+    app,
+    "$uibModal",
+    ["$q", "$injector", "$compile", "$rootScope", "$controller", "$templateCache", "$http", "$timeout"],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $uibModal stub
+    function (
+      $q: angular.IQService,
+      $injector: angular.auto.IInjectorService,
+      $compile: angular.ICompileService,
+      $rootScope: angular.IRootScopeService,
+      $controller: angular.IControllerService,
+      $templateCache: angular.ITemplateCacheService,
+      $http: angular.IHttpService,
+      $timeout: angular.ITimeoutService
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
-      open: function (): any {
-        const d = $q.defer();
-        return { result: d.promise, opened: $q.when(true), rendered: $q.when(true), closed: d.promise, dismiss: function(){}, close: function(){} };
-      },
-    };
-  });
+    ): any {
+      return {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
+        open: function (opts: any): any {
+          opts = opts || {};
+          const deferred = $q.defer();
+          const modalScope: angular.IScope = ((opts.scope as angular.IScope) || $rootScope).$new();
+          // The vendor $uibModal exposes $close/$dismiss on the modal scope so
+          // templates can call ng-click="$close(x)" / "m.apply()" → "$scope.$close".
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vendor scope augmentation
+          (modalScope as any).$close = function (result: any): void { modalInstance.close(result); };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vendor scope augmentation
+          (modalScope as any).$dismiss = function (reason: any): void { modalInstance.dismiss(reason); };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DOM element refs
+          let windowEl: any = null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DOM element refs
+          let backdropEl: any = null;
+          let settled = false;
+          function cleanup(): void {
+            if (windowEl) { windowEl.remove(); windowEl = null; }
+            if (backdropEl) { backdropEl.remove(); backdropEl = null; }
+            try { modalScope.$destroy(); } catch (_) { /* already gone */ }
+          }
+          // The vendor $uibModal runs several digests during its close
+          // animation; downstream `.result.then(...)` handlers (e.g. a ui-grid
+          // filter change → grid.refresh()) schedule DOM repaints that only
+          // flush on a subsequent digest. Our close is synchronous, so kick a
+          // couple of fresh digest cycles to let that deferred render settle.
+          function settleTick(): void {
+            $timeout(angular.noop);
+            $timeout(angular.noop, 0);
+          }
+          const modalInstance = {
+            result: deferred.promise,
+            opened: $q.when(true),
+            rendered: $q.when(true),
+            closed: deferred.promise,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vendor signature
+            close: function (result: any): void { if (settled) return; settled = true; deferred.resolve(result); cleanup(); settleTick(); },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vendor signature
+            dismiss: function (reason: any): void { if (settled) return; settled = true; deferred.reject(reason); cleanup(); settleTick(); },
+          };
+          // Resolve the `resolve` map (each entry can be a value, DI array, or fn).
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic locals
+          const resolved: Record<string, any> = {};
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise list
+          const pending: any[] = [];
+          angular.forEach(opts.resolve || {}, function (val: unknown, key: string) {
+            const p = $q.when(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- $injector.invoke accepts a DI-annotated fn/array
+              typeof val === "function" || Array.isArray(val) ? $injector.invoke(val as any) : val
+            );
+            pending.push(p.then(function (r: unknown) { resolved[key] = r; }));
+          });
+          $q.all(pending).then(function () {
+            const tplPromise = opts.template != null
+              ? $q.when(opts.template as string)
+              : $http
+                  .get(opts.templateUrl as string, { cache: $templateCache })
+                  .then(function (r) { return r.data as string; });
+            return tplPromise;
+          }).then(function (tpl: string) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- controller locals
+            const locals: Record<string, any> = { $scope: modalScope, $uibModalInstance: modalInstance };
+            angular.forEach(resolved, function (v, k) { locals[k] = v; });
+            if (opts.controller) {
+              const ctrl = $controller(opts.controller, locals);
+              if (opts.controllerAs) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic controllerAs assignment
+                (modalScope as any)[opts.controllerAs] = ctrl;
+              }
+            }
+            // Build the modal DOM with explicit element refs — jqLite's
+            // `.find()` only matches tag names (not `.modal-content`), so we
+            // assemble parent/child by hand and inject the (string) template.
+            backdropEl = angular.element('<div class="modal-backdrop fade in"></div>');
+            const contentEl = angular.element('<div class="modal-content"></div>');
+            contentEl.append(angular.element(tpl as string));
+            const dialogEl = angular.element('<div class="modal-dialog"></div>');
+            dialogEl.append(contentEl);
+            windowEl = angular.element(
+              '<div class="modal fade in ' + (opts.windowClass || "") + '" tabindex="-1" role="dialog" style="display:block"></div>'
+            );
+            windowEl.append(dialogEl);
+            const body = angular.element(document.body);
+            body.append(backdropEl);
+            body.append(windowEl);
+            $compile(windowEl.contents())(modalScope);
+            // Flush the compile's watchers so the modal content (ng-if, bindings,
+            // uib-datepicker) paints without waiting for an unrelated digest.
+            if (!$rootScope.$$phase) { modalScope.$applyAsync(); }
+            settleTick();
+          });
+          return modalInstance;
+        },
+      };
+    }
+  );
 
   // angular-translate `translate` filter — used heavily in SOAR templates
   // (`{{ "APP.LABEL.X" | translate }}` and `'K' | translate: { p: v }`).
