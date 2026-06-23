@@ -92,6 +92,13 @@ test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.playbookListingLive.spec.js --reporter=list
 
+test-ar-jtg-flow-live: ## LIVE action-renderer FULL edit flow (pick JSON-to-Grid playbook -> Run sample via notrigger -> Output) vs .env.box (205). AR_PLAYBOOK_NAME=<name> to override.
+	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
+	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
+	  PORT=$(TEST_PORT) E2E_LIVE=1 \
+	  pnpm test:e2e tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js --reporter=list
+
 introspect: ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
 	-lsof -ti:$(INTROSPECT_PORT) | xargs kill -9 2>/dev/null || true
 	@echo "▶ Starting introspection harness on port $(INTROSPECT_PORT)…"
