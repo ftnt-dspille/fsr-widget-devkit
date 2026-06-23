@@ -2204,6 +2204,24 @@ After triggering, poll for output with `task_id`(s):
 See also the endpoint table in the "Two trigger endpoints — by trigger TYPE"
 note (§ API constants, ~L3270).
 
+**The log payload also carries `data.env` — a flat namespace of EVERY variable
+set anywhere in the playbook, not just the final step's output.** Verified live
+(`GET /api/wf/api/workflows/<inst>/?format=json`, force_debug run): top-level
+keys are `{ result, env, steps, status, debug, … }`. A variable assigned in *any*
+step (e.g. a "Set Variable" or connector step) appears as a top-level key in
+`env` (alongside system keys `input`/`request`/`route`/`resources`/`task_id`/
+`auth_info`/`currentUser`/…). `steps[]` carries only `name`/`status`/timing —
+**no per-step `result`** — so you cannot attribute a var to a step, but you don't
+need to: `env` is the merged final variable space. `data.result` is only what the
+playbook's output/Return-Output step populated. Practical consequence: a widget
+can source two independent values (e.g. jsonToGrid's `grid_data` rows and
+`grid_columns`) from *different* steps by reading `env`, instead of forcing the
+playbook author to assemble both in one final step. jsonToGrid's
+`resolveGridPayload` does exactly this with precedence `result.<x>` → named
+`env.<x>` → shape-sniff of `env` (rows = longest array-of-objects; columns = a
+`{columns:[…]}`-shaped value; system keys excluded). No extra API call — `env` is
+in the same response.
+
 ### 19.4 Conditional button display
 
 Most button widgets evaluate each playbook's `displayConditions` (a `Query`-compatible filter) against the current record to decide which buttons to show. See `playbookButtons-1.1.1/view.controller.js:96-110`.
@@ -2758,6 +2776,16 @@ State name | URL-ish | Use for
 18. **Validation bypass.** Remember to `$setTouched()` and return early in `save()` when `$invalid`; otherwise users submit empty configs.
 19. **Circular `$broadcast`.** Widgets broadcasting events on `$rootScope` can cascade into infinite loops if two widgets subscribe to each other's events with the same namespace.
 20. **Connector calls without `configId`.** `executeConnectorAction` silently picks a random config if you pass `null`. Always resolve the config first.
+21. **Deploy "publish" that only registers a draft.** Shipping a widget is two
+    steps: `POST /api/3/solutionpacks/install?$type=widget&$replace=true` (tgz
+    upload) **then** `PUT /api/3/widgets/<uuid>` to publish. The PUT must send
+    **`draft: false`** to actually publish — `PUT … {draft:true}` returns **200
+    yet leaves the widget a DRAFT** (stays out of widget pickers, the Dev-strip
+    publish pipeline may not run), forcing a manual publish from the UI.
+    Verified on 205: published built-ins are `draft:false`; dev-pushed drafts are
+    `draft:true`. **A 2xx is NOT proof of publish** — validate the PUT response
+    (or a follow-up GET) shows `draft === false` before declaring success. The
+    harness `POST /_fsr/install/:id` now does this (`server.ts` `widgetIsPublished`).
 
 ---
 
@@ -4040,6 +4068,60 @@ bite:
 Note the **bump now also rewrites the widget's sibling `tests/` tree** (controller
 names + versioned IDs, skipping `node_modules`), so a version bump no longer reds
 the widget's own unit/e2e suite with a stale hardcoded controller name.
+
+## 30. Releasing a widget (GitHub release flow)
+
+Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-json-to-grid`),
+with a single GitHub Actions workflow that publishes a downloadable `.tgz` on
+every version bump. The flow is **bump → commit → push to `develop`** — nothing
+else. No manual tagging, no manual `gh release`.
+
+### 30.1 How to cut a release
+
+1. **Bump the version through the CLI/packager — never hand-edit `info.json`.**
+   The controller name embeds the numeric version (`jsonToGrid131DevCtrl` →
+   `jsonToGrid132DevCtrl`); hand-editing desyncs it and trips the stale-version
+   lint. Use `widget bump <id> --bump patch`, or call the packager's
+   `syncSourceToInfoJson(<widgetDir>, <name>, <newVersion>)` against the **inner
+   `widget/` dir** (it joins `view.controller.js` etc. directly and sweeps the
+   sibling `tests/` tree). It rewrites `info.json` + every controller name +
+   versioned path/ID refs in source **and** tests atomically.
+2. **Verify locally what CI runs:** `npm test` (jest) and `npm run package`
+   (must emit `dist/<name>-<version>.tgz`).
+3. **Commit and push to `develop`.** If you split into multiple commits, the
+   commit that bumps `info.json` must be **HEAD** (or at least the version at
+   HEAD must differ from HEAD~1) — the workflow compares `HEAD` vs `HEAD~1`
+   `info.json` and skips if unchanged.
+
+The workflow then tags `v<version>`, packages, and publishes a GitHub Release
+with two assets:
+- `<name>-<version>.tgz` — the versioned artifact
+- `<name>-latest.tgz` — a version-agnostic copy, so there is a **permanent
+  latest-download URL**:
+  `https://github.com/<owner>/<repo>/releases/latest/download/<name>-latest.tgz`
+
+### 30.2 Two hazards the pipeline design avoids (don't reintroduce them)
+
+- **One workflow, not two.** A tag pushed by a separate job using the default
+  `GITHUB_TOKEN` does **not** trigger a tag-keyed workflow — GitHub suppresses
+  workflow runs from `GITHUB_TOKEN` events to prevent recursion. A split
+  `tag.yml` (push tag) → `release.yml` (on `v*` tag) chain therefore never hands
+  off and silently produces zero releases. Keep tagging + releasing in the
+  **same** job (branch-triggered), or push the tag with a PAT.
+- **Trigger on the real default branch.** This repo's default branch is
+  `develop` (there is no `main`); release branches are `release/*` and legacy
+  tags are `release-*`. A workflow keyed on `main` never fires. Confirm the
+  branch name (`git remote show origin` / `remotes/origin/HEAD`) before keying a
+  workflow to it.
+
+The canonical example is `widget-json-to-grid/.github/workflows/release.yml`
+(`on: push: branches:[develop], paths:[widget/info.json]` + `workflow_dispatch`;
+detect version change → install → test → package + latest copy → tag → release).
+
+(Deploying to a live FortiSOAR box is a **separate** path — see §19.3 and the
+harness `make ship-verify` / `widget push` flow, which uploads the tgz via
+`solutionpacks/install` then publishes with `draft:false`. GitHub release ≠ box
+deploy.)
 
 ## License
 
