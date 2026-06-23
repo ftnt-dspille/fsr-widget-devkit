@@ -115,8 +115,19 @@ Everything else is an implementation detail the agent should never have to learn
    `HERMETIC-MISS`. Fixtures captured faithfully from the live box (10.99.249.205) —
    action-renderer seeded. 6 jest regressions (`tests/hermeticFixtures.test.ts`),
    171 harness jest green. Doc: `TESTING.md` → "Default fixture layer".
-2. **Stub policy: faithful-or-loud** + introspect check for no-op stub hits on
-   mount. *(next)*
+2. ✅ **Stub policy: faithful-or-loud** + introspect check for no-op stub hits on
+   mount. **DONE (2026-06-23).** Declared-inert stub methods (no-ops the harness
+   drives another way — `$uibModalInstance.close`/`dismiss`,
+   `localStorageService.clearAll`) are now wrapped with an in-page `inert(label)`
+   helper in `harness.module.ts` that records each invocation into
+   `window.__HARNESS_INERT_INVOCATIONS`. The introspect rig reads that map and,
+   via `HarnessUtils.inertStubFinding`, emits a **loud, machine-readable finding**
+   when a widget's render actually depended on a no-op (the original `$uibModal`
+   "mounted but did nothing" scar) — a green mount can no longer hide a dead
+   feature. Faithful stubs (toaster paints a real toast, localStorageService
+   reads/writes real storage) are untouched. 4 jest regressions in
+   `tests/harnessUtils.test.js`; live-verified the DI bootstrap still mounts
+   (helloCounter: clean mount, `inertInvocations: {}` — no false positive).
 3. ✅ **Versioning single-source**: bump rewrites tests with source; remove the
    hand-bump footgun. **DONE (2026-06-23).** Fixed the CLI bump wiring bug —
    `POST /_fsr/fix-info/:id` now accepts `{bump}` (was silently ignored; only

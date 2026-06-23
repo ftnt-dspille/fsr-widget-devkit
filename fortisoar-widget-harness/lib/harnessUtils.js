@@ -150,6 +150,34 @@ function parseRegisteredServices(harnessSource) {
         out.add(m[1]);
     return Array.from(out);
 }
+/* Faithful-or-loud stub policy (NS2).
+
+   A harness stub for a platform service is either *faithful* (behaves like the
+   real thing — e.g. toaster paints a real toast, localStorageService reads/writes
+   window.localStorage) or *declared-inert* (a deliberate no-op because the
+   harness drives that path another way — e.g. $uibModalInstance.close/dismiss,
+   since the harness toolbar's Save/Cancel drives persist+remount instead of the
+   bootstrap modal). Declared-inert methods are wrapped with the in-page `inert()`
+   helper in harness.module.js, which records each invocation into
+   window.__HARNESS_INERT_INVOCATIONS.
+
+   The scar: a no-op stub that a widget actually *depends on* (the original
+   $uibModal modal "mounted" but did nothing) is invisible — a green mount hides a
+   dead feature. This helper turns a silent no-op into a loud, machine-readable
+   introspection finding: if a deliberately-inert stub method was invoked during a
+   widget's render, the agent is told so it can confirm the behavior wasn't
+   silently dropped. */
+function inertStubFinding(inert) {
+    if (!inert || typeof inert !== "object")
+        return null;
+    const entries = Object.keys(inert)
+        .filter((k) => (inert[k] || 0) > 0)
+        .sort((a, b) => (inert[b] || 0) - (inert[a] || 0));
+    if (entries.length === 0)
+        return null;
+    const list = entries.map((k) => `${k} ×${inert[k]}`).join(", ");
+    return `inert stub(s) invoked during render: ${list} — confirm the widget's behavior isn't silently dropped (harness drives these paths another way)`;
+}
 const ANGULAR_BUILTINS = new Set([
     "$scope", "$rootScope", "$element", "$attrs", "$transclude",
     "$http", "$q", "$timeout", "$interval", "$window", "$document", "$location",
@@ -313,6 +341,7 @@ const api = {
     extractRegisteredControllers,
     extractInjectedDependencies,
     parseRegisteredServices,
+    inertStubFinding,
     rootNgControllerError,
     lintWidget,
     ANGULAR_BUILTINS,
