@@ -29,6 +29,9 @@ widgets: ## Clone/update widget repos into widgets-src/ from widgets.manifest
 assets: ## Fetch the FortiSOAR app shell into fsr_src/ (needed for e2e; reads harness .env)
 	bash scripts/fetch-soar-assets.sh
 
+refresh-soar-types: ## Regenerate lib/soar-platform.d.ts from contenthub widgetServiceAPI docs (cross-checks fsr_src/app.unmin.js if present)
+	cd $(HARNESS) && pnpm build && pnpm gen-types
+
 new-widget: ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSummary [KIND=record] [TRIGGER=1] [TITLE="…"]
 	@if [ -n "$(SPEC)" ]; then \
 	  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/new-widget.js --spec $(CURDIR)/$(SPEC); \

@@ -223,6 +223,121 @@ function triggerEndpointMisuse(source) {
     const m = re.exec(code);
     return m ? `API.ACTION_TRIGGER + ${m[1].trim()}` : null;
 }
+/* ── More statically-detectable footguns (no box needed) ─────────────────────
+
+   Each of these is a silent-wrong-behavior trap that passes a naive eye but
+   maps to a real bug we hit. Pure string scans, comment-stripped, returning the
+   offending fragment(s) so lintWidget can quote them. */
+/* Strip JS line + block comments so a cautionary comment can't trip a scan.
+   The `[^:]` guard keeps `://` in a URL literal (https://…) from being read as
+   a line comment. */
+function stripJsComments(source) {
+    return source
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+/* SOAR's `/api/3/...` query params are `$`-prefixed ($limit, $relationships,
+   $triggerOnly, …). Passed inside a `params` object to $resource/$http, Angular's
+   default param serializer SILENTLY DROPS every key beginning with `$` — the
+   request goes out without them and quietly does the wrong thing (this was the
+   loadAllPlaybooks bug: `$limit`/`$relationships` dropped → unpaginated/under-
+   hydrated results). They must be baked into the URL string instead. Detect a
+   `$`-prefixed SOAR param used as an OBJECT KEY (form `$key:` / `"$key":`).
+   The URL-string form (`?$limit=30`) has no `:` after the key, so it won't match.
+   Returns the distinct offending keys. */
+const SOAR_DOLLAR_PARAMS = "limit|relationships|triggerOnly|search|page|sort|by|skip|orderBy|recordValues|aggregates";
+function dollarParamObjectKeys(source) {
+    if (typeof source !== "string" || !source)
+        return [];
+    const code = stripJsComments(source);
+    const re = new RegExp("[{,]\\s*['\"]?\\$(" + SOAR_DOLLAR_PARAMS + ")['\"]?\\s*:", "g");
+    const found = new Set();
+    let m;
+    while ((m = re.exec(code)))
+        found.add("$" + m[1]);
+    return Array.from(found);
+}
+/* A POST to `/api/query` whose body carries `filters:` but no sibling `logic:`
+   has its filters SILENTLY DROPPED — the query returns the unfiltered baseline
+   (soar_query_filter_uuid). Heuristic association: for each `filters:` key, look
+   at a window around it; if `/api/query` appears in that window and no `logic:`
+   does, flag it. Returns true when at least one such site is found. */
+function queryFilterMissingLogic(source) {
+    if (typeof source !== "string" || !source)
+        return false;
+    const code = stripJsComments(source);
+    if (code.indexOf("/api/query") === -1)
+        return false;
+    const re = /\bfilters\s*:/g;
+    let m;
+    while ((m = re.exec(code))) {
+        const start = Math.max(0, m.index - 500);
+        const win = code.slice(start, m.index + 500);
+        if (win.indexOf("/api/query") !== -1 && !/\blogic\s*:/.test(win))
+            return true;
+    }
+    return false;
+}
+/* Local <script src> / <link href> references in a template. Returns the
+   widget-relative paths only — absolute (`/…`), protocol (`http(s)://`),
+   protocol-relative (`//cdn…`), and Angular-interpolated (`{{…}}`) srcs are
+   skipped (those are SOAR-served / CDN / dynamic, not files we can verify). */
+function referencedLocalAssets(html) {
+    if (typeof html !== "string" || !html)
+        return [];
+    const stripped = html.replace(/<!--[\s\S]*?-->/g, "");
+    const out = new Set();
+    const re = /<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*["']([^"']+)["']/gi;
+    let m;
+    while ((m = re.exec(stripped))) {
+        let p = m[1].trim();
+        if (!p || p.startsWith("/") || p.startsWith("//") || /^[a-z]+:/i.test(p) || p.includes("{{"))
+            continue;
+        p = p.replace(/^\.\//, "").replace(/[?#].*$/, "");
+        out.add(p);
+    }
+    return Array.from(out);
+}
+/* Absolute host URLs in controller JS. SOAR widgets must call the platform via
+   proxy-RELATIVE paths (`api/3/…`); an absolute URL works in the harness but
+   breaks (or CORS-fails) on the box. Flags any `http(s)://…` string literal, plus
+   the test box IP wherever it appears. Comments are stripped first. Returns the
+   distinct offending hosts/fragments. */
+const TEST_BOX_IP = "10.99.249.205";
+function absoluteHostUrls(source) {
+    if (typeof source !== "string" || !source)
+        return [];
+    const code = stripJsComments(source);
+    const out = new Set();
+    const urlRe = /https?:\/\/[^\s"'`)]+/gi;
+    let m;
+    while ((m = urlRe.exec(code)))
+        out.add(m[0]);
+    if (code.indexOf(TEST_BOX_IP) !== -1)
+        out.add(TEST_BOX_IP);
+    return Array.from(out);
+}
+/* Platform services a widget may legitimately inject that are NOT in the scraped
+   widgetServiceAPI catalog (lib/soar-services.generated.json) and are NOT angular
+   builtins — taken from the FortiSOAR 8.0 Widget Dev Guide "Widget Dependencies"
+   page. Note `Config` (capital, the app-config service) is distinct from `config`
+   (lowercase, the widget-instance $controller local already in ANGULAR_BUILTINS).
+   Used together with the generated catalog as the platform-service floor so the
+   unknown-dependency rule stays accurate even when app.unmin.js isn't on disk. */
+const SOAR_DEV_GUIDE_INJECTABLES = [
+    "WizardHandler", "LocalStorageService", "Constants", "Config", "_",
+];
+/* Extract the injectable service names from the generated catalog model
+   (lib/soar-services.generated.json — produced by scripts/gen-soar-types.ts).
+   Pure + defensive: returns [] for any non-conforming input. */
+function generatedServiceNames(model) {
+    const services = model === null || model === void 0 ? void 0 : model.services;
+    if (!Array.isArray(services))
+        return [];
+    return services
+        .map((s) => (s && typeof s === "object" ? s.inject : undefined))
+        .filter((n) => typeof n === "string" && n.length > 0);
+}
 const ANGULAR_BUILTINS = new Set([
     "$scope", "$rootScope", "$element", "$attrs", "$transclude",
     "$http", "$q", "$timeout", "$interval", "$window", "$document", "$location",
@@ -255,11 +370,42 @@ function rootNgControllerError(viewHtmlSource) {
     }
     return null;
 }
+/* Balanced-container check for AngularJS templates. A stray or missing closing
+   tag (e.g. an extra </div>) doesn't error anywhere — the browser silently
+   reparents the following markup, so a wizard's Back/Next nav can float over
+   other controls and it only shows on certain viewport heights. Catch it the
+   same way a compiler would: count opens vs closes for the container elements
+   that are ALWAYS explicitly closed in these templates. We deliberately skip
+   HTML "optional end tag" elements (li/option/tr/td/p/…) and void elements,
+   which are legitimately left unclosed, to avoid false positives. Returns one
+   entry per imbalanced tag. */
+const BALANCED_CONTAINER_TAGS = [
+    "div", "form", "ng-form", "table", "thead", "tbody", "tfoot",
+    "select", "ui-select", "ui-select-match", "ui-select-choices",
+];
+function htmlTagBalanceErrors(source) {
+    if (typeof source !== "string" || !source)
+        return [];
+    const stripped = source.replace(/<!--[\s\S]*?-->/g, "");
+    const out = [];
+    for (const tag of BALANCED_CONTAINER_TAGS) {
+        // Opening tags must be followed by whitespace, > or / so `<select` doesn't
+        // count `<ui-select` and `<ui-select` doesn't count `<ui-select-match`.
+        const openRe = new RegExp("<" + tag + "(?=[\\s>/])", "gi");
+        const selfRe = new RegExp("<" + tag + "\\b[^>]*/>", "gi");
+        const closeRe = new RegExp("</" + tag + "\\s*>", "gi");
+        const opens = (stripped.match(openRe) || []).length - (stripped.match(selfRe) || []).length;
+        const closes = (stripped.match(closeRe) || []).length;
+        if (opens !== closes)
+            out.push({ tag, opens, closes });
+    }
+    return out;
+}
 /* Pure lint pass over a widget's in-memory state. Inputs: parsed info.json,
    a map of filename->source, and pre-computed metadata. Returns
    { errors, warnings } where each issue is { code, message, file?, fixable? }. */
 function lintWidget(opts) {
-    const { info, files = {}, requiredFiles = ["info.json", "view.html", "edit.html", "view.controller.js", "edit.controller.js"], registeredServices = [], harnessStubbedServices = [], widgetLocalServices = [], widgetAssetServiceMap = {}, staleVersionRefs = [], viewControllers = [], editControllers = [], } = opts || {};
+    const { info, files = {}, requiredFiles = ["info.json", "view.html", "edit.html", "view.controller.js", "edit.controller.js"], registeredServices = [], harnessStubbedServices = [], widgetLocalServices = [], widgetAssetServiceMap = {}, staleVersionRefs = [], viewControllers = [], editControllers = [], existingAssetPaths = [], } = opts || {};
     const errors = [];
     const warnings = [];
     if (!info || typeof info !== "object") {
@@ -313,6 +459,20 @@ function lintWidget(opts) {
         const rootErr = rootNgControllerError(files["view.html"] || "");
         if (rootErr)
             errors.push({ code: "root-ng-controller", file: "view.html", message: rootErr });
+    }
+    for (const f of ["view.html", "edit.html"]) {
+        if (!files[f])
+            continue;
+        for (const im of htmlTagBalanceErrors(files[f] || "")) {
+            errors.push({
+                code: "html-tag-imbalance",
+                file: f,
+                message: `${f} has unbalanced <${im.tag}> tags: ${im.opens} opening vs ${im.closes} closing. ` +
+                    `A stray or missing </${im.tag}> makes the browser reparent the following markup ` +
+                    `(e.g. a wizard's Back/Next nav ends up outside .modal-body and floats over other ` +
+                    `controls). Balance the tags.`,
+            });
+        }
     }
     const realProviders = new Set([
         ...ANGULAR_BUILTINS,
@@ -392,6 +552,67 @@ function lintWidget(opts) {
             });
         }
     }
+    // $-prefixed SOAR params in an object literal → Angular's serializer drops
+    // them and the request silently does the wrong thing (loadAllPlaybooks bug).
+    for (const f of ["view.controller.js", "edit.controller.js"]) {
+        const keys = dollarParamObjectKeys(files[f]);
+        if (keys.length > 0) {
+            errors.push({
+                code: "dollar-param-drop",
+                file: f,
+                message: `${f} passes ${keys.join(", ")} as object key(s). Angular's param serializer ` +
+                    `SILENTLY DROPS every key beginning with \`$\`, so $resource/$http sends the ` +
+                    `request without them and it quietly does the wrong thing (unpaginated / under-` +
+                    `hydrated results). Bake SOAR query params into the URL string instead ` +
+                    `(e.g. \`'/api/3/x?$limit=30&$relationships=true'\`).`,
+            });
+        }
+    }
+    // /api/query body with filters but no logic → filters silently dropped, query
+    // returns the unfiltered baseline (soar_query_filter_uuid).
+    for (const f of ["view.controller.js", "edit.controller.js"]) {
+        if (queryFilterMissingLogic(files[f])) {
+            warnings.push({
+                code: "query-filter-no-logic",
+                file: f,
+                message: `${f} POSTs to /api/query with a \`filters:\` body but no sibling \`logic:\` key. ` +
+                    `Without \`logic: "AND"\` (or "OR") SOAR SILENTLY DROPS the filters and returns the ` +
+                    `unfiltered baseline. Add \`logic\` next to \`filters\`.`,
+            });
+        }
+    }
+    // <script src>/<link href> pointing at a widget-local file that doesn't exist
+    // → silent 404, dead/unstyled widget. Only check when we were given the listing.
+    if (existingAssetPaths.length > 0) {
+        const have = new Set(existingAssetPaths);
+        for (const f of ["view.html", "edit.html"]) {
+            for (const ref of referencedLocalAssets(files[f])) {
+                if (!have.has(ref)) {
+                    errors.push({
+                        code: "broken-asset-path",
+                        file: f,
+                        message: `${f} references \`${ref}\`, which does not exist in the widget dir — ` +
+                            `it 404s silently on the box, leaving the widget unstyled or dead. ` +
+                            `Fix the path or ship the missing file.`,
+                    });
+                }
+            }
+        }
+    }
+    // Absolute host URLs in controllers → work in the harness, break / CORS-fail
+    // on the box. Calls must be proxy-relative.
+    for (const f of ["view.controller.js", "edit.controller.js"]) {
+        const urls = absoluteHostUrls(files[f]);
+        if (urls.length > 0) {
+            warnings.push({
+                code: "absolute-host-url",
+                file: f,
+                message: `${f} contains absolute host URL(s): ${urls.join(", ")}. SOAR widgets must call the ` +
+                    `platform via proxy-RELATIVE paths (\`api/3/…\`) — an absolute URL works in the harness ` +
+                    `but breaks (or CORS-fails) on the box. Make the path relative.`,
+            });
+        }
+    }
     return { errors, warnings };
 }
 const api = {
@@ -405,7 +626,14 @@ const api = {
     selectPlaybookTrigger,
     buildCsGridPaged,
     triggerEndpointMisuse,
+    generatedServiceNames,
+    SOAR_DEV_GUIDE_INJECTABLES,
+    dollarParamObjectKeys,
+    queryFilterMissingLogic,
+    referencedLocalAssets,
+    absoluteHostUrls,
     rootNgControllerError,
+    htmlTagBalanceErrors,
     lintWidget,
     ANGULAR_BUILTINS,
     mergeConfig,
