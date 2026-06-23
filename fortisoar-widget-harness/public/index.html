@@ -918,6 +918,7 @@
     </script>
     <script src="/lib/harnessUtils.js"></script>
     <script src="/lib/harnessDrawer.js"></script>
+    <script src="/lib/harnessRender.js"></script>
 
     <script>
       function setEmpty(host, text) {
@@ -2367,6 +2368,14 @@
           window.__HARNESS_RENDER_ERROR = null;
           window.__HARNESS_MOUNTING = true;
           window.__HARNESS_MOUNTING_CTRL = ctrlName;
+          // P1: machine-readable render state. beginMount() flips phase to
+          // 'mounting'; the active injector is the view's until the edit modal
+          // overrides it. Tests/agents read window.__HARNESS_RENDER_STATE and
+          // await window.__harness.settle() instead of arbitrary timeouts.
+          if (window.__harnessRender) {
+            window.__harnessRender.beginMount();
+            window.__harnessRender.setInjectorGetter(function () { return currentInjector; });
+          }
           currentInjector = angular.bootstrap(wrap, ["cybersponse"]);
           // Close the window after the bootstrap digest settles, then surface
           // any captured render error as a visible panel in #widget-host.
@@ -2375,6 +2384,20 @@
               window.__HARNESS_MOUNTING = false;
               if (window.__HARNESS_RENDER_ERROR) {
                 renderRenderError(host, current, window.__HARNESS_RENDER_ERROR);
+              }
+              // P0/P1: drive the app to quiescence, then record the final phase
+              // ('rendered' or 'error'). The settle pump flushes the same
+              // deferred ui-grid/$timeout work that otherwise leaves the DOM
+              // lagging the model.
+              if (window.__harnessRender) {
+                window.__harnessRender.settle().then(function () {
+                  window.__harnessRender.endMount();
+                  // Start the ambient safety digest so post-mount async renders
+                  // (e.g. playbook-execution completion → grid data) flush
+                  // deterministically, the way the real SOAR app's ambient
+                  // digest activity would.
+                  window.__harnessRender.startSafetyDigest();
+                });
               }
             });
           }]);

@@ -1,6 +1,21 @@
 # Harness rendering hardening plan — make rendering deterministic & agent-legible
 
-**Status:** proposed (2026-06-23)
+**Status:** P0 + P1 DONE (2026-06-23); P2–P4 proposed.
+
+> **P0/P1 shipped 2026-06-23.** `lib/harnessRender.ts` adds
+> `window.__HARNESS_RENDER_STATE` (phase/mountId/lastError) + `window.__harness.settle()`
+> (bounded drain of $http+digest+$timeout) + an ambient **safety digest**
+> (`$interval(noop)`, default-on, `window.__HARNESS_NO_SAFETY_DIGEST` to disable)
+> that restores the platform's ambient digest activity so post-mount async
+> renders (e.g. playbook-execution completion → grid data) flush deterministically.
+> `index.html` drives the phase transitions + starts the safety digest after the
+> mount settle. Test helper `tests/e2e/_render.ts` exports `waitForRender(page)` /
+> `settleRender(page)`. **Result:** the jsonToGrid empty-state render flake (was
+> ~40% on fast runs) is gone — 19/19 fast e2e runs green; the only residual
+> failures were ~57s slow-boot timeouts (pre-existing infra, orthogonal). The
+> `$uibModal` rewrite (commit eb08c6a) and the upstream-timeout fix (2e7b343)
+> landed alongside. P2 (no silent stubs) partially exercised: the playbook-trigger
+> 404 path is now documented (KB §19.3) and jsonToGrid picks the right endpoint.
 **Why now:** verifying jsonToGrid surfaced a class of footguns where a widget
 *looks* mounted but a feature is silently dead or paints non-deterministically.
 An AI agent then burns turns adding arbitrary `waitForTimeout`s and poking
