@@ -27,6 +27,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  */
 const fs = require("fs");
 const path = require("path");
+const HarnessUtils = require("../lib/harnessUtils");
 const test_1 = require("@playwright/test");
 const HARNESS_URL = process.env.HARNESS_URL || "http://localhost:4401";
 const MOUNT_TIMEOUT_MS = Number(process.env.INTROSPECT_MOUNT_TIMEOUT_MS || 20000);
@@ -157,14 +158,16 @@ async function introspectWidget(browser, widget) {
             const h = w.__harness;
             const stubHits = w.__HARNESS_STUB_HITS || {};
             const stubNames = w.__HARNESS_STUB_NAMES || [];
+            const inertInvocations = w.__HARNESS_INERT_INVOCATIONS || {};
             return {
                 errors: h ? h.errors().length : 0,
                 stubHits,
                 stubNames,
+                inertInvocations,
             };
         }
         catch (_) {
-            return { errors: 0, stubHits: {}, stubNames: [] };
+            return { errors: 0, stubHits: {}, stubNames: [], inertInvocations: {} };
         }
     });
     const correctness = {
@@ -178,6 +181,7 @@ async function introspectWidget(browser, widget) {
         digestCount: 0,
         slowestDigestMs: 0,
         stubHits: dump.stubHits,
+        inertInvocations: dump.inertInvocations,
         templateCacheHits: 0,
         templateCacheMisses: 0,
         unresolvedProviders: [],
@@ -254,6 +258,13 @@ function findings(rep) {
         const deadStubs = ["$stomp", "websocketService", "tokenService"].filter((s) => !stubHits[s]);
         const deadList = deadStubs.length > 0 ? ` (dead: ${deadStubs.join(", ")})` : "";
         out.push(`stubs: ${hitCount} exercised${deadList}`);
+    }
+    // Faithful-or-loud (NS2): a deliberately-inert stub method invoked during the
+    // render is the "$uibModal mounted but did nothing" scar — surface it loudly.
+    if (rep.runtime && rep.runtime.inertInvocations) {
+        const f = HarnessUtils.inertStubFinding(rep.runtime.inertInvocations);
+        if (f)
+            out.push(f);
     }
     return out;
 }

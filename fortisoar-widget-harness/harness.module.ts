@@ -12,6 +12,19 @@
   const w = window as any;
   w.__HARNESS_STUB_HITS = w.__HARNESS_STUB_HITS || ({} as Record<string, number>);
   w.__HARNESS_STUB_NAMES = w.__HARNESS_STUB_NAMES || ([] as string[]);
+  // Faithful-or-loud stub policy (NS2). Methods that are deliberate no-ops —
+  // because the harness drives that path another way (e.g. $uibModalInstance
+  // Save/Cancel is driven by the harness toolbar, not the bootstrap modal) —
+  // are wrapped with inert(). Each invocation is recorded here so the
+  // introspection rig can surface a *loud* finding: if a widget's render
+  // actually depended on a no-op, a green mount would otherwise silently hide a
+  // dead feature (the original $uibModal scar). See HarnessUtils.inertStubFinding.
+  w.__HARNESS_INERT_INVOCATIONS = w.__HARNESS_INERT_INVOCATIONS || ({} as Record<string, number>);
+  function inert(label: string): () => void {
+    return function (): void {
+      w.__HARNESS_INERT_INVOCATIONS[label] = (w.__HARNESS_INERT_INVOCATIONS[label] || 0) + 1;
+    };
+  }
 
   // Helper to register a stub factory with hit counting. When the injector
   // instantiates the factory, the hit counter increments.
@@ -733,7 +746,7 @@
       get: function (k: string): unknown { try { const v = ls.getItem(key(k)); return JSON.parse(v || ""); } catch { return ls.getItem(key(k)); } },
       set: function (k: string, v: unknown): boolean { ls.setItem(key(k), typeof v === "string" ? v : JSON.stringify(v)); return true; },
       remove: function (k: string): boolean { ls.removeItem(key(k)); return true; },
-      clearAll: function (): void { /* harness no-op: avoid nuking unrelated keys */ },
+      clearAll: inert("localStorageService.clearAll"), // harness no-op: avoid nuking unrelated keys
       keys: function (): string[] {
         const out: string[] = [];
         for (let i = 0; i < ls.length; i++) {
@@ -822,8 +835,8 @@
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic $uibModalInstance stub
   regFactory(app, "$uibModalInstance", [], function (): any {
     return {
-      close: function (): void {},
-      dismiss: function (): void {},
+      close: inert("$uibModalInstance.close"),
+      dismiss: inert("$uibModalInstance.dismiss"),
       result: { then: function (): void {}, catch: function (): void {} },
     };
   });

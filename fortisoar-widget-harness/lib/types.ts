@@ -153,6 +153,9 @@ export interface RuntimeStats {
   slowestDigestMs: number;
   /** harness.module stub name -> times its factory/decorator was invoked. */
   stubHits: Record<string, number>;
+  /** declared-inert stub method ("svc.method") -> times invoked during render
+      (faithful-or-loud policy; a non-empty map is a loud introspection finding). */
+  inertInvocations: Record<string, number>;
   templateCacheHits: number;
   templateCacheMisses: number;
   unresolvedProviders: string[];

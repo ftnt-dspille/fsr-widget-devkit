@@ -27,6 +27,7 @@
 
 import fs = require("fs");
 import path = require("path");
+import HarnessUtils = require("../lib/harnessUtils");
 import { chromium, Browser } from "@playwright/test";
 import {
   RenderReport,
@@ -168,12 +169,14 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
       const h = w.__harness;
       const stubHits = w.__HARNESS_STUB_HITS || {};
       const stubNames = w.__HARNESS_STUB_NAMES || [];
+      const inertInvocations = w.__HARNESS_INERT_INVOCATIONS || {};
       return {
         errors: h ? h.errors().length : 0,
         stubHits,
         stubNames,
+        inertInvocations,
       };
-    } catch (_) { return { errors: 0, stubHits: {}, stubNames: [] }; }
+    } catch (_) { return { errors: 0, stubHits: {}, stubNames: [], inertInvocations: {} }; }
   });
 
   const correctness: RenderCorrectness = {
@@ -188,6 +191,7 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
     digestCount: 0,
     slowestDigestMs: 0,
     stubHits: dump.stubHits,
+    inertInvocations: dump.inertInvocations,
     templateCacheHits: 0,
     templateCacheMisses: 0,
     unresolvedProviders: [],
@@ -259,6 +263,13 @@ function findings(rep: RenderReport): string[] {
     const deadStubs = ["$stomp", "websocketService", "tokenService"].filter((s) => !stubHits[s]);
     const deadList = deadStubs.length > 0 ? ` (dead: ${deadStubs.join(", ")})` : "";
     out.push(`stubs: ${hitCount} exercised${deadList}`);
+  }
+
+  // Faithful-or-loud (NS2): a deliberately-inert stub method invoked during the
+  // render is the "$uibModal mounted but did nothing" scar — surface it loudly.
+  if (rep.runtime && rep.runtime.inertInvocations) {
+    const f = HarnessUtils.inertStubFinding(rep.runtime.inertInvocations);
+    if (f) out.push(f);
   }
   return out;
 }

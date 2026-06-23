@@ -11,6 +11,7 @@ const {
   stateForContext,
   extractInjectedDependencies,
   parseRegisteredServices,
+  inertStubFinding,
   rootNgControllerError,
   lintWidget,
 } = require("../lib/harnessUtils");
@@ -298,5 +299,35 @@ describe("lintWidget", () => {
   test("missing info.json yields a single error", () => {
     const r = lintWidget({ info: null, files: {} });
     expect(r.errors[0].code).toBe("info-missing");
+  });
+});
+
+describe("inertStubFinding (NS2 faithful-or-loud)", () => {
+  test("null/empty inputs produce no finding", () => {
+    expect(inertStubFinding(null)).toBeNull();
+    expect(inertStubFinding(undefined)).toBeNull();
+    expect(inertStubFinding({})).toBeNull();
+    expect(inertStubFinding("nope")).toBeNull();
+  });
+
+  test("zero-count entries are ignored (registered but never invoked)", () => {
+    expect(inertStubFinding({ "$uibModalInstance.close": 0 })).toBeNull();
+  });
+
+  test("an invoked inert method yields a loud, located finding", () => {
+    const f = inertStubFinding({ "$uibModalInstance.close": 2 });
+    expect(f).toMatch(/inert stub/i);
+    expect(f).toContain("$uibModalInstance.close ×2");
+    expect(f).toMatch(/silently dropped/i);
+  });
+
+  test("multiple methods are listed, most-invoked first", () => {
+    const f = inertStubFinding({
+      "localStorageService.clearAll": 1,
+      "$uibModalInstance.close": 5,
+    });
+    expect(f.indexOf("$uibModalInstance.close ×5")).toBeLessThan(
+      f.indexOf("localStorageService.clearAll ×1")
+    );
   });
 });
