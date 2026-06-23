@@ -477,6 +477,60 @@ function validateControllers(dir, info) {
     }
     check("edit.controller.js", editPat, `edit${capitalize(obj.name)}${expectedDigits}(Dev)?Ctrl`);
     check("view.controller.js", viewPat, `${capitalize(obj.name)}${expectedDigits}(Dev)?Ctrl`);
+    // Desync check: scan tests/ for any CTRL_NAME = "..." or .controller(...) that
+    // reference a controller name NOT matching info.json's current version digits.
+    // This catches the case where someone hand-edited info.json without running
+    // the CLI bump, leaving source + tests out of sync. Report the mismatches so
+    // the user can run `widget bump` to fix it atomically.
+    // Real widget layout: `dir` is the `widget/` source folder and the tests live
+    // in the SIBLING `<widget>/tests` (mirrors rewriteForVersion's walk), not
+    // `dir/tests`. During packaging `dir` is a tmp copy with no tests sibling, so
+    // the scan simply finds nothing.
+    const testsDir = path.join(dir, "..", "tests");
+    if (fs.existsSync(testsDir)) {
+        try {
+            const testFiles = fs.readdirSync(testsDir)
+                .filter((f) => f.endsWith(".js") || f.endsWith(".spec.js"))
+                .map((f) => path.join(testsDir, f));
+            for (const testFile of testFiles) {
+                const content = fs.readFileSync(testFile, "utf8");
+                // Match CTRL_NAME = "..." pattern (common in test files).
+                const ctrlNameRe = /CTRL_NAME\s*=\s*['"]([^'"]+)['"]/g;
+                let m;
+                while ((m = ctrlNameRe.exec(content)) !== null) {
+                    const testCtrlName = m[1];
+                    // Check if the test's controller name has version digits that differ
+                    // from info.json's expected digits.
+                    const testMatch = testCtrlName.match(/^(edit)?(?:[\w]+?)(\d+)(?:Dev)?Ctrl$/);
+                    if (testMatch) {
+                        const testDigits = testMatch[2];
+                        if (testDigits !== expectedDigits) {
+                            const relPath = path.relative(dir, testFile);
+                            errors.push(`${relPath}: CTRL_NAME references '${testCtrlName}' with version digits '${testDigits}' but info.json version '${obj.version}' -> '${expectedDigits}' — run \`widget bump ${obj.name}\` to sync`);
+                        }
+                    }
+                }
+                // Also match .controller("...") registrations in test files for consistency.
+                const ctrlRegRe = /\.controller\(\s*['"]([^'"]+)['"]/g;
+                while ((m = ctrlRegRe.exec(content)) !== null) {
+                    const testCtrlName = m[1];
+                    const testMatch = testCtrlName.match(/^(edit)?(?:[\w]+?)(\d+)(?:Dev)?Ctrl$/);
+                    if (testMatch) {
+                        const testDigits = testMatch[2];
+                        if (testDigits !== expectedDigits) {
+                            const relPath = path.relative(dir, testFile);
+                            errors.push(`${relPath}: .controller('${testCtrlName}') has version digits '${testDigits}' but info.json version '${obj.version}' -> '${expectedDigits}' — run \`widget bump ${obj.name}\` to sync`);
+                        }
+                    }
+                }
+            }
+        }
+        catch (e) {
+            // If tests/ walk fails, don't block; warn instead so a missing or malformed
+            // test file doesn't prevent the widget from being packaged.
+            warnings.push(`tests/ scan failed (will not validate test controller refs): ${e instanceof Error ? e.message : String(e)}`);
+        }
+    }
     return { errors, warnings };
 }
 // Suggests a minimal JSON merge patch (RFC 7396 shape) that, when deep-merged

@@ -1,6 +1,12 @@
 # Harness rendering hardening plan — make rendering deterministic & agent-legible
 
-**Status:** P0 + P1 DONE (2026-06-23); P2–P4 proposed.
+**Status:** P0 + P1 DONE (2026-06-23); **P3 doc + P4 jest self-tests DONE
+(2026-06-23)** — `docs/HARNESS_RENDERING.md` (agent-facing render contract:
+lifecycle, `settle()`/`waitForRender()`, render-state, safety digest, stub
+policy) + `tests/harnessRender.test.ts` (22 jest pinning the primitives). The
+P4 **e2e** self-tests (render-state phases, `$uibModal` faithfulness,
+empty-state ×N stability, render-error panel) remain — they need the parent
+Makefile + widgets-src. **P2 (faithful-or-loud stubs) is next** (north star #2).
 
 > **P0/P1 shipped 2026-06-23.** `lib/harnessRender.ts` adds
 > `window.__HARNESS_RENDER_STATE` (phase/mountId/lastError) + `window.__harness.settle()`

@@ -206,6 +206,9 @@ per spec. Unit tests need nothing extra. **e2e additionally needs the SOAR app
 shell** (`fsr_src/`) to render widgets in a browser — run `pnpm assets` once
 to fetch it from your own licensed box (see "SOAR app shell" below).
 
+For understanding the harness render model, deterministic settle helpers, and troubleshooting
+flaky tests, see **`docs/HARNESS_RENDERING.md`**.
+
 ```bash
 pnpm test                          # jest: harness suites only (fast default)
 WIDGET=helloCounter pnpm test      # + the example widget's unit tests
