@@ -673,9 +673,20 @@ function lintWidget(opts?: LintOpts): LintResult {
   // → silent 404, dead/unstyled widget. Only check when we were given the listing.
   if (existingAssetPaths.length > 0) {
     const have = new Set(existingAssetPaths);
+    // On the box, widget assets serve from a `<name>-<version>/` mount prefix,
+    // so view/edit.html legitimately reference e.g.
+    // `c3Charts-1.3.0/widgetAssets/js/x.js`. The on-disk listing has no such
+    // prefix, so strip the widget's own mount prefix before the existence
+    // check — otherwise the canonical convention false-positives.
+    const mountPrefix = info && info.name && info.version
+      ? `${info.name}-${info.version}/`
+      : null;
     for (const f of ["view.html", "edit.html"]) {
       for (const ref of referencedLocalAssets(files[f])) {
-        if (!have.has(ref)) {
+        const local = mountPrefix && ref.startsWith(mountPrefix)
+          ? ref.slice(mountPrefix.length)
+          : ref;
+        if (!have.has(local)) {
           errors.push({
             code: "broken-asset-path",
             file: f,

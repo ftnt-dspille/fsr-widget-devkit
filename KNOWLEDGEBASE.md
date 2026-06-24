@@ -1320,6 +1320,34 @@ Two fixes, with a real trade-off:
   See `widget-action-renderer/widget/widgetAssets/css/actionRenderer.css` (the
   `.ui-select-bootstrap` rules) for the in-place z-index/contrast handling.
 
+### 9.16 `ui-select` match — custom `<span>`s get forced to `inline-block; width:~50%`
+
+When you put two custom spans in a `ui-select-match` (e.g. a name `.ar-match-label`
++ a version `.ar-match-meta`), the **`ui-select-bootstrap` / SOAR theme forces the
+match-text's children to `display:inline-block; width:~50%`**. Symptom: the second
+span (version) drifts to the far right / off-screen, ellipsized to "…"; naively
+pinning the label with `flex:0 1 auto; overflow:hidden` instead **clips the name to
+nothing** (label shrinks to 0). Fix — lay the match text out as a plain inline flow
+and beat the themed rule with `!important`:
+```css
+.my-edit .ui-select-bootstrap .ui-select-match-text { display:block; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.my-edit .ui-select-bootstrap .ui-select-match-text .ar-match-label,
+.my-edit .ui-select-bootstrap .ui-select-match-text .ar-match-meta {
+  display:inline !important; width:auto !important; float:none !important; }
+```
+(`action-renderer` v1.0.8, harness-verified.)
+
+Two related interaction fixes shipped with it:
+- **Force-close on pick.** SOAR doesn't always auto-close a `ui-select` after a
+  selection — append `; $select.close()` to the `data-on-select` expression.
+- **Label click → focus the search.** A native `<label for=>` can't target
+  ui-select's generated search input. Use a directive on the label that, on click,
+  clicks the `.ui-select-toggle` and focuses `.ui-select-search` — but **defer both
+  to `setTimeout(…,0)`**: the label's own click is still bubbling and ui-select's
+  document-level outside-click handler will close the just-opened dropdown otherwise.
+  (`actionRendererPickerLabel` directive in `directives.js`.)
+
 ---
 
 ## 10. Filters
@@ -3568,6 +3596,19 @@ Table-Mode select; the nav's `border-top` separator landing mid-form). It render
 fine on short steps, so it's easy to miss. Guard it cheaply offline: count
 `<div>` vs `</div>` in the stripped template and assert the nav sits between
 `.modal-body` open and `</form>` (`action-renderer/tests/edit.template.test.js`).
+
+Second corollary — **the Save button vanishes on tall steps.** SOAR's edit
+modal is a fixed flex column (`header + body + Cancel/Save footer`). When the
+widget ships its **own `.modal-body` wrapped in a `<form>`**, the platform's flex
+height chain stops at the `<form>` (it never reaches `.modal-body`), so a tall
+step grows the body unbounded, the modal exceeds the viewport, and the injected
+**Save/Cancel footer is pushed off the bottom edge — no visible Save button**.
+Renders fine on short steps. Fix: cap the widget body so it scrolls internally —
+`max-height: calc(100vh - 240px); overflow-y:auto` on `.action-renderer-body`
+(`action-renderer` v1.0.7, live-verified on 205; guard in
+`tests/edit.css.test.js`). Safe here because the Output-step dropdowns are native
+`<select>`; if a step has a **ui-select**, `overflow:auto` would clip its popup —
+scope `overflow:visible` while open (see §ui-select clip note).
 
 ### Harness gotcha — `el.style.display = ""` falls back to a `display:none` stylesheet rule
 

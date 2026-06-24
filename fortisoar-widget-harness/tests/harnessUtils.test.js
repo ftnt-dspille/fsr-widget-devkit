@@ -607,6 +607,31 @@ describe("lintWidget footgun integration", () => {
     expect(r.errors.some((x) => x.code === "broken-asset-path")).toBe(false);
   });
 
+  test("broken-asset-path clean when ref carries the box `<name>-<version>/` mount prefix", () => {
+    // On the box, assets serve from `<name>-<version>/`; the on-disk listing has
+    // no such prefix. Stripping the widget's own mount prefix must avoid a false
+    // positive on this canonical convention (regression: c3Charts/action-renderer).
+    const files = Object.assign({}, tmpl, {
+      "view.html": '<div></div><script src="foo-1.1.2/widgetAssets/real.js"></script>',
+      "view.controller.js": "",
+      "edit.controller.js": "",
+    });
+    const r = lintWidget({ info: baseInfo, files, existingAssetPaths: ["widgetAssets/real.js"] });
+    expect(r.errors.some((x) => x.code === "broken-asset-path")).toBe(false);
+  });
+
+  test("broken-asset-path still fires for a missing file under the mount prefix", () => {
+    const files = Object.assign({}, tmpl, {
+      "view.html": '<div></div><script src="foo-1.1.2/widgetAssets/missing.js"></script>',
+      "view.controller.js": "",
+      "edit.controller.js": "",
+    });
+    const r = lintWidget({ info: baseInfo, files, existingAssetPaths: ["widgetAssets/real.js"] });
+    const e = r.errors.find((x) => x.code === "broken-asset-path");
+    expect(e).toBeTruthy();
+    expect(e.message).toMatch(/missing\.js/);
+  });
+
   test("absolute-host-url is a warning", () => {
     const files = Object.assign({}, tmpl, {
       "view.controller.js": '$http.get("https://10.99.249.205/api/3/x");',
