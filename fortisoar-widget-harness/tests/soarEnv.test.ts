@@ -36,7 +36,7 @@ jest.mock("@napi-rs/keyring", () => ({
   },
 }));
 
-const { resolveSoarEnv } = require("../lib/soarEnv");
+const { resolveSoarEnv, isExplicitHostOverride } = require("../lib/soarEnv");
 
 beforeEach(() => {
   for (const k of Object.keys(KEYCHAIN)) delete KEYCHAIN[k];
@@ -105,5 +105,29 @@ describe("api key precedence (separate keychain account)", () => {
 describe("service name", () => {
   test("defaults to fsr-widget-harness", () => {
     expect(resolveSoarEnv({}).service).toBe("fsr-widget-harness");
+  });
+});
+
+// Regression: `ship.sh` exports FSR_BASE_URL for a one-shot target. The server
+// must treat that as an explicit override that wins over the persisted UI pick,
+// or a push silently lands on the last box the UI was pointed at. The file tier
+// is injected here to keep the test independent of the real `.env`.
+describe("isExplicitHostOverride", () => {
+  const FILE = { FSR_BASE_URL: "https://10.99.249.205" };
+
+  test("true when env host differs from the .env file host", () => {
+    expect(isExplicitHostOverride({ FSR_BASE_URL: "https://10.99.249.159" }, FILE)).toBe(true);
+  });
+  test("false when env host equals the .env file host (mere dotenv copy)", () => {
+    expect(isExplicitHostOverride({ FSR_BASE_URL: "https://10.99.249.205" }, FILE)).toBe(false);
+  });
+  test("false when no host is set on the environment", () => {
+    expect(isExplicitHostOverride({}, FILE)).toBe(false);
+  });
+  test("legacy FORTISOAR_HOST is honored as the env host", () => {
+    expect(isExplicitHostOverride({ FORTISOAR_HOST: "https://10.99.249.159" }, FILE)).toBe(true);
+  });
+  test("true when env host is set but the .env file declares none", () => {
+    expect(isExplicitHostOverride({ FSR_BASE_URL: "https://10.99.249.159" }, {})).toBe(true);
   });
 });

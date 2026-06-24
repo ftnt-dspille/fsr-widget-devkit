@@ -186,4 +186,27 @@ function listEnvFiles(dir?: string): EnvFileSummary[] {
     .filter((e) => e.host); // a file with no FSR_BASE_URL isn't a usable target
 }
 
-export = { resolveSoarEnv, resolveSoarEnvFile, listEnvFiles, normalizeHost, KEYRING_SERVICE };
+// True when the process was started with an EXPLICIT host override on the real
+// environment (e.g. `ship.sh` sourcing `.env.159` and exporting FSR_BASE_URL),
+// as opposed to the value merely being the `.env` copy dotenv loaded. Same
+// "real exported override" test used for secrets above. Callers use this to let
+// an explicit env target win over a persisted UI pick.
+function isExplicitHostOverride(
+  env?: Record<string, string | undefined>,
+  fileEnv?: Record<string, string>
+): boolean {
+  env = env || process.env;
+  fileEnv = fileEnv || parseDotenvFile();
+  const envHost = (env.FSR_BASE_URL || env.FORTISOAR_HOST || "").trim();
+  if (!envHost) return false;
+  return envHost !== (fileEnv.FSR_BASE_URL || "").trim() && envHost !== (fileEnv.FORTISOAR_HOST || "").trim();
+}
+
+export = {
+  resolveSoarEnv,
+  resolveSoarEnvFile,
+  listEnvFiles,
+  normalizeHost,
+  isExplicitHostOverride,
+  KEYRING_SERVICE,
+};
