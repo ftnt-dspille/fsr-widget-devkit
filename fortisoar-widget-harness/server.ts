@@ -33,10 +33,11 @@ const {
 // Default port intentionally non-common so dev sessions don't collide with
 // the 3000/4000/4400/8080 buckets that other tools grab. Override with PORT=.
 const PORT = Number(process.env.PORT || 14400);
-const { resolveSoarEnv, resolveSoarEnvFile, listEnvFiles } = require("./lib/soarEnv") as {
+const { resolveSoarEnv, resolveSoarEnvFile, listEnvFiles, isExplicitHostOverride } = require("./lib/soarEnv") as {
   resolveSoarEnv: () => { host: string; user: string; pass: string };
   resolveSoarEnvFile: (filePath: string) => { host?: string; user: string; pass: string };
   listEnvFiles: (dir: string) => Array<{ file: string; host: string; user: string }>;
+  isExplicitHostOverride: () => boolean;
 };
 
 // SOAR connection is MUTABLE at runtime: the harness UI can re-point the proxy
@@ -301,8 +302,17 @@ const FALLBACK_TTL_MS = 50 * 60 * 1000;
 // Restore the last UI-selected SOAR target. `.env` is already the startup
 // default, so only a non-default persisted choice needs re-applying. A stale
 // pointer (file deleted/renamed) silently falls back to the default.
+//
+// EXCEPTION: an explicit FSR_BASE_URL on the real environment (e.g. `ship.sh`
+// sourcing `.env.159` and exporting it) is a deliberate one-shot target and
+// MUST win over the persisted UI pick — otherwise a push silently lands on the
+// last box the UI was pointed at instead of the one the operator asked for.
 (function restoreActiveSoarEnv() {
   try {
+    if (isExplicitHostOverride()) {
+      console.log(`[soar-env] explicit FSR_BASE_URL override present (${HOST}); ignoring persisted UI target`);
+      return;
+    }
     if (!fs.existsSync(ACTIVE_ENV_STATE_FILE)) return;
     const want = fs.readFileSync(ACTIVE_ENV_STATE_FILE, "utf8").trim();
     if (want && want !== ".env") applySoarEnvFile(want);
