@@ -75,7 +75,10 @@ const HARNESS_MODULE_PATH = path.resolve(__dirname, "harness.module.js");
 // populated by `npm run assets` (scripts/fetch-soar-assets.sh). Prefer the
 // monorepo sibling when present so we don't duplicate the ~200M reference set.
 const FSR_SRC_DIR = [path.resolve(__dirname, "..", "fsr_src"), path.resolve(__dirname, "fsr_src")].find((d) => fs.existsSync(d)) || path.resolve(__dirname, "fsr_src");
-const FSR_APP_PATH_FOR_LINT = path.join(FSR_SRC_DIR, "app.unmin.js");
+// app.unmin.js may sit flat in fsr_src/ (legacy) or under fsr_src/app_min/
+// (newer asset layout). Probe both so a box-asset reshuffle doesn't dark the shell.
+const resolveAppUnmin = (dir) => [path.join(dir, "app.unmin.js"), path.join(dir, "app_min", "app.unmin.js")].find((p) => fs.existsSync(p)) || path.join(dir, "app.unmin.js");
+const FSR_APP_PATH_FOR_LINT = resolveAppUnmin(FSR_SRC_DIR);
 // Services registered by the SOAR bundle; parsed once at startup. The bundle
 // is large (~2.5MB) so we don't watch/re-parse it. These ship to SOAR for real.
 const FSR_BUNDLE_SERVICES = (() => {
@@ -902,7 +905,7 @@ app.use("/app", express.static(path.join(FSR_SRC_DIR, "templates-extracted", "ap
 // Serve fsr_src/app.unmin.js with the cybersponse module's dep array stripped
 // so the harness can register an empty cybersponse module without dragging in
 // ~50 vendor/fortisoar.* sub-modules. The on-disk file stays pristine.
-const FSR_APP_PATH = path.join(FSR_SRC_DIR, "app.unmin.js");
+const FSR_APP_PATH = resolveAppUnmin(FSR_SRC_DIR);
 let FSR_APP_PATCHED = null;
 function loadPatchedFsrApp() {
     if (FSR_APP_PATCHED)
