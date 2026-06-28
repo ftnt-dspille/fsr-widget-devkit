@@ -19,7 +19,7 @@ templates-extracted/
 # FortiSOAR platform assets — proprietary Fortinet JS, NOT redistributed.
 # Each developer fetches their own from a licensed box via `make assets`
 # (scripts/fetch-soar-assets.sh). Only the extractor tooling + docs are tracked.
-fsr_src/app.unmin.js
+fsr_src/app_min/app.unmin.js
 fsr_src/app.min.*.js
 fsr_src/templates.min.*.js
 fsr_src/system_fixtures.json
