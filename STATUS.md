@@ -9,6 +9,43 @@ _Last updated: 2026-06-28_
 
 ---
 
+## 🎯 Widget live-validation pass (action-renderer + json-to-grid)
+
+Goal: validate **all configurable options** for both widgets — live against the
+box where the box adds signal, hermetic (mountWidget kit / stubbed grid) for
+config-driven render options.
+
+**✅ Done & pushed**
+- **action-renderer — complete.**
+  - Live (vs box): playbook listing (show-all/search/pick/classify), JSON-to-Grid
+    flow (notrigger→grid_data→table), **connector flow** (connector→op→config→run→table,
+    env-aware `[[AR-ENV-SKIP]]`). Targets: `make test-ar-playbook-live`,
+    `test-ar-jtg-flow-live`, `test-ar-connector-live`.
+  - Hermetic output matrix: raw, table styles ×5, sticky, auto+explicit alignment,
+    custom columns, empty message, sandboxed-iframe jinja (11 assertions).
+    `tests/e2e/actionRenderer.outputRender.spec.js` + `applyOutput()` seam.
+- **json-to-grid — filter matrix complete.** boolean/enum/date (pre-existing) +
+  **number, string, column sort** (new). All 10 e2e green.
+- **Harness fixes** (both unblocked the above): app-shell path now probes
+  `fsr_src/app_min/`; `dollar-param-drop` lint downgraded error→advisory warning
+  (was darking the whole JTG hermetic tier; single-`$` query params verified safe —
+  KB updated).
+
+**🔄 Continuing layer — remaining**
+| Widget | Item | Type | Notes |
+|---|---|---|---|
+| JTG | Column discovery (runs provider playbook) | live | edit-flow `discoverColumns()` |
+| JTG | Action buttons (with / without record) | live | execute selected playbooks |
+| JTG | Execution wizard launch | live | `showExecutionProgress` |
+| JTG | Card view, expandable rows | hermetic | grid-menu / expand template |
+| JTG | Column width + order persistence | hermetic | `settingsService` keys |
+| AR | Module-scoped playbook picker | ⛔ blocked | Application-Editor only, not harness-testable |
+
+**Env note:** lab **FortiGate connector config is down** ("invalid endpoint or
+credentials") — env, not a widget bug; connector test env-skips it cleanly.
+
+---
+
 ## 🔴 Open / next up
 
 | Thread | Next action | Blocker | Doc |
