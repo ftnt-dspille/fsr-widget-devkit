@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live introspect introspect-gate ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -123,6 +123,13 @@ test-ar-jtg-flow-live: ## LIVE action-renderer FULL edit flow (pick JSON-to-Grid
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js --reporter=list
+
+test-ar-connector-live: ## LIVE action-renderer CONNECTOR edit flow (pick connector -> operation -> Run sample -> table) vs .env.box. AR_CONNECTOR/AR_OPERATION to override (default mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]]).
+	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
+	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
+	  PORT=$(TEST_PORT) E2E_LIVE=1 \
+	  pnpm test:e2e tests/e2e/actionRenderer.connectorFlowLive.spec.js --reporter=list
 
 introspect: ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
 	-lsof -ti:$(INTROSPECT_PORT) | xargs kill -9 2>/dev/null || true
