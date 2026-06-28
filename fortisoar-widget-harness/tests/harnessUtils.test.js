@@ -567,13 +567,16 @@ describe("lintWidget footgun integration", () => {
   const baseInfo = { name: "foo", version: "1.1.2", title: "Foo" };
   const tmpl = { "view.html": "<div>x</div>", "edit.html": "<div>y</div>" };
 
-  test("dollar-param-drop is an error", () => {
+  test("dollar-param-drop is an advisory warning, not a bootstrap-blocking error", () => {
+    // Single-`$` query params serialize correctly in this Angular build (verified
+    // against $httpParamSerializer), so the rule must NOT dark known-good widgets.
     const files = Object.assign({}, tmpl, {
       "view.controller.js": "$resource(u, { $limit: 30 });",
       "edit.controller.js": "",
     });
     const r = lintWidget({ info: baseInfo, files });
-    expect(r.errors.some((e) => e.code === "dollar-param-drop")).toBe(true);
+    expect(r.errors.some((e) => e.code === "dollar-param-drop")).toBe(false);
+    expect(r.warnings.some((e) => e.code === "dollar-param-drop")).toBe(true);
   });
 
   test("query-filter-no-logic is a warning", () => {

@@ -636,20 +636,25 @@ function lintWidget(opts?: LintOpts): LintResult {
     }
   }
 
-  // $-prefixed SOAR params in an object literal → Angular's serializer drops
-  // them and the request silently does the wrong thing (loadAllPlaybooks bug).
+  // $-prefixed SOAR params in an object literal. NOTE: this is ADVISORY, not a
+  // hard error — empirically (verified against the shipped app's
+  // $httpParamSerializer / $httpParamSerializerJQLike) single-`$` keys are NOT
+  // dropped: `{$relationships:true,$export:true}` serializes to
+  // `$relationships=true&$export=true`. Only DOUBLE-`$$` keys are stripped (by
+  // angular.toJson, for request bodies). So this no longer blocks bootstrap; it
+  // flags the pattern as worth a glance (prefer baking SOAR query params into
+  // the URL string for clarity), but known-good widgets must still render.
   for (const f of ["view.controller.js", "edit.controller.js"]) {
     const keys = dollarParamObjectKeys(files[f]);
     if (keys.length > 0) {
-      errors.push({
+      warnings.push({
         code: "dollar-param-drop",
         file: f,
         message:
-          `${f} passes ${keys.join(", ")} as object key(s). Angular's param serializer ` +
-          `SILENTLY DROPS every key beginning with \`$\`, so $resource/$http sends the ` +
-          `request without them and it quietly does the wrong thing (unpaginated / under-` +
-          `hydrated results). Bake SOAR query params into the URL string instead ` +
-          `(e.g. \`'/api/3/x?$limit=30&$relationships=true'\`).`,
+          `${f} passes ${keys.join(", ")} as object key(s) to $resource/$http. ` +
+          `Single-\`$\` query params DO serialize correctly in this Angular build (only ` +
+          `\`$$\`-prefixed keys are stripped), so this is advisory only. For clarity you ` +
+          `may bake SOAR query params into the URL string (e.g. \`'/api/3/x?$limit=30&$relationships=true'\`).`,
       });
     }
   }
