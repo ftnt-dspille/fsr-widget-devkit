@@ -37,9 +37,26 @@ config-driven render options.
 | JTG | Column discovery (runs provider playbook) | live | edit-flow `discoverColumns()` |
 | JTG | Action buttons (with / without record) | live | execute selected playbooks |
 | JTG | Execution wizard launch | live | `showExecutionProgress` |
-| JTG | Card view, expandable rows | hermetic | grid-menu / expand template |
-| JTG | Column width + order persistence | hermetic | `settingsService` keys |
+| JTG | ✅ Card view, expandable rows | hermetic | **done** — 2 new e2e tests (see below) |
+| JTG | Column width + order persistence | hermetic→live | `settingsService` keys; restore path needs box-seeded user_settings, defer to live |
 | AR | Module-scoped playbook picker | ⛔ blocked | Application-Editor only, not harness-testable |
+
+**Card view / expandable rows (done 2026-06-28).** Two hermetic e2e tests added
+to `widget-json-to-grid/tests/e2e/jsonToGrid.spec.js` (12 green):
+- **Expandable rows** — per-row `ui-grid-icon-plus-squared` toggle renders (one
+  per row); clicking flips to `minus-squared` and mounts the `.expandableRow`
+  sub-row container. Two non-obvious findings recorded in KNOWLEDGEBASE.md:
+  (1) the detail body (`rowExpandable.html`) uses `cs-markdown-editor`, which the
+  harness only vendors when editor markers appear in `view.html`/`edit.html` —
+  **not** in `widgetAssets/` sub-templates — so the detail TEXT + row height are
+  **live-only** (deferred to box); (2) the platform binds expanded height to
+  `row.expandedRowHeight`, not `gridOptions.expandableRowHeight`.
+- **Card view** — the `#grid-card-view-btn`/`#grid-list-view-btn` toggle is
+  ng-show-gated on `allowGlobalFilter && allowCardView`; the widget disables
+  `allowGlobalFilter`, so the toggle is intentionally unreachable and the grid
+  always renders list view. Test pins that contract (a future `allowGlobalFilter`
+  flip would expose a half-wired card view — `cardView.html` binds
+  `record.name/image`, a collection shape, not arbitrary `grid_data`).
 
 **Env note:** lab **FortiGate connector config is down** ("invalid endpoint or
 credentials") — env, not a widget bug; connector test env-skips it cleanly.

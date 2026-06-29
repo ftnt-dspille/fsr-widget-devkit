@@ -1196,6 +1196,27 @@ set (widget placed on a record detail page), the controller fetches that record 
 passes it to the playbook as `records[0]`, so the playbook can scope `grid_data` to
 data relevant to the current record without the user selecting a row.
 
+**Card-view toggle is gated on `allowGlobalFilter`, not `allowCardView`.** The
+`#grid-card-view-btn` / `#grid-list-view-btn` toggle in `grid.html` is
+`data-ng-show="csOptions.allowGlobalFilter && csOptions.allowCardView"`. Setting
+`allowCardView:true` alone does nothing if `allowGlobalFilter:false` — the toggle
+stays hidden and the grid is list-only. (jsonToGrid disables global filter, so its
+card view is intentionally unreachable; `cardView.html` also binds
+`record.name`/`record.image`, a collection shape, not arbitrary `grid_data`.)
+
+**Expandable rows: detail height binds to `row.expandedRowHeight`, not
+`gridOptions.expandableRowHeight`.** With `enableExpandable:true` +
+`expandableRowTemplate`, ui-grid renders a per-row `i.ui-grid-icon-plus-squared`
+toggle inside `.ui-grid-expandable-buttons-cell` (flips to `minus-squared` on
+expand) and mounts a `.expandableRow` sub-row container. The expanded height comes
+from the per-row `row.expandedRowHeight`, so setting `gridOptions.expandableRowHeight`
+does **not** drive it. **Harness caveat:** if the expandable template
+(`widgetAssets/html/*.html`) uses `cs-markdown-editor`/`cs-html-editor`, the harness
+will NOT vendor toastui for it — its editor detection scans only `view.html` /
+`edit.html`, not `widgetAssets/` sub-templates — so the detail body stays empty in
+the hermetic e2e tier. Verify the rendered detail content + height live on the box;
+the toggle + expand/collapse state is what the hermetic tier can lock.
+
 ### 9.5 `data-cs-chart`
 
 ```html
