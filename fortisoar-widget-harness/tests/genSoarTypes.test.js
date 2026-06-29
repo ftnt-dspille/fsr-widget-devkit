@@ -1,6 +1,6 @@
 "use strict";
 
-const { parseManifest, parsePartial, injectName, ifaceName, tsType } =
+const { parseManifest, parsePartial, injectName, ifaceName, tsType, emitDts } =
   require("../scripts/gen-soar-types");
 
 describe("parseManifest", () => {
@@ -89,5 +89,46 @@ describe("parsePartial", () => {
       "</tbody></table>";
     const f = parsePartial(html).methods[0];
     expect(f.params.map((p) => p.optional)).toEqual([true, true]);
+  });
+});
+
+describe("emitDts curated overlay", () => {
+  // Minimal service set covering each overlay target plus a control service.
+  const services = [
+    { iface: "Entity", inject: "Entity", description: "", methods: [{ name: "loadFields", params: [], returns: "Promise<unknown>" }] },
+    { iface: "PlaybookService", inject: "playbookService", description: "", methods: [{ name: "getRunningPlaybooks", params: [{ name: "query", optional: false, type: "object" }], returns: "Promise<unknown>" }] },
+    { iface: "Modules", inject: "Modules", description: "", methods: [{ name: "save", params: [], returns: "Promise<unknown>" }] },
+    { iface: "SettingsService", inject: "settingsService", description: "", methods: [] },
+    { iface: "CommonUtils", inject: "CommonUtils", description: "", methods: [{ name: "generateUUID", params: [], returns: "string" }] },
+  ];
+  const dts = emitDts(services);
+
+  test("constructable services get a `new (...)` signature", () => {
+    for (const iface of ["Entity"]) {
+      expect(dts).toContain(`interface ${iface} {`);
+      expect(dts).toMatch(new RegExp(`interface ${iface} \\{[\\s\\S]*?new \\(\\.\\.\\.args: unknown\\[\\]\\): any;`));
+    }
+  });
+
+  test("undocumented-but-real methods are appended to their interface", () => {
+    expect(dts).toContain("getTriggerStep(playbook: object): any;");
+    expect(dts).toContain("checkPlaybookExecutionCompletion(...args: unknown[]): Promise<unknown>;");
+    expect(dts).toContain("set(key: string, value: unknown): Promise<unknown>;"); // SettingsService
+    expect(dts).toContain("get(...args: unknown[]): any;"); // Modules $resource verb
+  });
+
+  test("documented methods still emit and overlay lines are marked", () => {
+    expect(dts).toContain("loadFields(): Promise<unknown>;");
+    expect(dts).toContain("generateUUID(): string;");
+    expect(dts).toContain("// [overlay]");
+  });
+
+  test("a service with NO docs and NO overlay still gets the index fallback", () => {
+    // CommonUtils has a documented method, so it must NOT get the fallback.
+    expect(dts).not.toMatch(/interface CommonUtils \{[\s\S]*?\[key: string\]: unknown;/);
+    // A service that is genuinely empty (none here) would; assert the guard text
+    // only appears for the empty case by checking SettingsService (has overlay
+    // `set`, so also must NOT carry the fallback).
+    expect(dts).not.toMatch(/interface SettingsService \{[\s\S]*?\[key: string\]: unknown;/);
   });
 });

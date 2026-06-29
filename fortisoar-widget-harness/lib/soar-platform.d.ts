@@ -6,6 +6,8 @@
 // inject. Used by the harness's own TS and (Phase 3) by an opt-in checkJs
 // pass over widget source. Param NAMES come from the docs; types are the
 // documented ngdoc types mapped to TS (unknown where undocumented).
+// A curated overlay (CONSTRUCTABLE / EXTRA_METHODS in the generator) adds
+// real construct signatures + undocumented methods — marked `// [overlay]`.
 
 declare namespace Soar {
   /** The appModulesService loads application modules and provides state information from module names. */
@@ -70,6 +72,7 @@ declare namespace Soar {
   }
   /** The Entity service is a prototyped object that represents a module and all of its metadata and fields. Handles loading and population of data based on permissions, module name, and id. Takes care of a */
   interface Entity {
+    new (...args: unknown[]): any; // [overlay] injected as a constructor; instance is dynamic
     applyDefaultValues(): void;
     delete(): Promise<unknown>;
     evaluate(query: object): object;
@@ -106,6 +109,7 @@ declare namespace Soar {
   }
   /** The Field service is an object that represents the model of a field. */
   interface Field {
+    new (...args: unknown[]): any; // [overlay] injected as a constructor; instance is dynamic
     evaluateRequired(entity: object): void;
     evaluateVisible(entity: object): void;
     getFormValue(): string;
@@ -114,6 +118,7 @@ declare namespace Soar {
   interface FormEntityService {
     get(): object;
     set(newEntity: object): void;
+    submitField(field: unknown): Promise<unknown>; // [overlay] real, undocumented
   }
   /** The licenseService gets and sets license details. */
   interface LicenseService {
@@ -134,9 +139,15 @@ declare namespace Soar {
   /** The Modules service is simply a wrapper for ng.$resource and adds update. Optionally accepts module, id, and fieldName */
   interface Modules {
     save(config: object, params: object): Promise<unknown>;
+    get(...args: unknown[]): any; // [overlay] real, undocumented
+    query(...args: unknown[]): any; // [overlay] real, undocumented
+    update(...args: unknown[]): any; // [overlay] real, undocumented
+    remove(...args: unknown[]): any; // [overlay] real, undocumented
+    delete(...args: unknown[]): any; // [overlay] real, undocumented
   }
   /** PagedCollection service creates objects that work against the paged crud-hub API. This is the base class that other PagedCollection child classes would use. */
   interface PagedCollection {
+    new (...args: unknown[]): any; // [overlay] injected as a constructor; instance is dynamic
     buildSortQuery(sortColumns: unknown[]): void;
     convertToKeyPairs(): Promise<unknown>;
     extendFilter(_config: object, value: object, field: object): void;
@@ -165,6 +176,9 @@ declare namespace Soar {
     getRunningPlaybookDetails(id: string): Promise<unknown>;
     getRunningPlaybooks(query: object): Promise<unknown>;
     getStepRunningDetails(id: string): Promise<unknown>;
+    getTriggerStep(playbook: object): any; // [overlay] real, undocumented
+    getExecutedPlaybookLogData(...args: unknown[]): Promise<unknown>; // [overlay] real, undocumented
+    checkPlaybookExecutionCompletion(...args: unknown[]): Promise<unknown>; // [overlay] real, undocumented
   }
   /** The PromiseQueue service stores, retrieves, and clears promises so they can be shared instead of doing the same work multiple times. This is very useful when making API calls in quick succession when  */
   interface PromiseQueue {
@@ -174,6 +188,7 @@ declare namespace Soar {
   }
   /** The Query service provides an object that represents API query parameters and filters and exposes methods for manipulating and retrieving data about them. */
   interface Query {
+    new (...args: unknown[]): any; // [overlay] injected as a constructor; instance is dynamic
     buildOrderForPostRequest(entity: object, queryParam: object): void;
     getFlatQuery(entity?: object): object;
     getQuery(useValue?: boolean, dataMode?: string): object;
@@ -191,6 +206,7 @@ declare namespace Soar {
   interface SettingsService {
     get(key: string): string;
     getSystem(): Promise<unknown>;
+    set(key: string, value: unknown): Promise<unknown>; // [overlay] real, undocumented
   }
   /** The tokenService handles idle and session timers, and provides methods for manipulating and getting information from JWT web tokens. */
   interface TokenService {

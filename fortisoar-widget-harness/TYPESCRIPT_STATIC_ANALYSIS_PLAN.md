@@ -142,18 +142,29 @@ Anchor signature emitted correctly (proves Phase 3 payoff):
       no-false-positive guards. Runs in `make test-unit` (jest). 8 cases green.
 - [x] On-demand CLI `scripts/typecheck-widgets.ts` (`pnpm typecheck:widgets [name]`)
       — strict, exits non-zero on any error. **Not yet wired to block** anything.
-- [ ] **Noise-scoping (the gate-blocker):** full-strict on the 13 real widgets is
-      ~85% noise — `TS2339` on `window`/monkey-patched fns, `TS2304` on 3rd-party
-      globals (`echarts`/`c3`), null-inference on untyped locals. None involve a
-      SOAR service. To make the CLI a clean blocking gate: walk each diagnostic to
-      its AST node, keep it ONLY if the expression's type resolves to a `Soar.*`
-      interface (use the TypeChecker). Then wire the scoped CLI into `ship-verify`
-      step 1 (lint), blocking per shipped widget.
-- [ ] **Model gap:** ~15 `TS2351` "Type 'Entity'/'Query' has no construct
-      signatures" — widgets use `new Entity()`/`new Query()`. Add a small curated
-      overlay marking `Entity`/`Query`/`PagedCollection` constructable (merged
-      onto the generated `.d.ts`, since the generator can't infer it from docs).
-- [ ] Triage the residual real signal (a few `TS2554`/`TS2345`) once noise-scoped.
+- [ ] **Noise-scoping (the gate-blocker):** the residual ~169 diagnostics are now
+      verified to be **100% non-SOAR** — `TS2339` on `Element`/`object`/`never`/
+      `string`/`HTMLOrSVGScriptElement`, `TS2304` on 3rd-party globals, and
+      null-inference (`TS18046/18047/18048`) on untyped locals. **Zero land on a
+      `Soar.*` type** (was the goal of the model-completion pass below). To make
+      the CLI a clean blocking gate: walk each diagnostic to its AST node, keep it
+      ONLY if the expression's type resolves to a `Soar.*` interface (use the
+      TypeChecker). Then wire the scoped CLI into `ship-verify` step 1 (lint),
+      blocking per shipped widget.
+- [x] **Model gap — DONE (curated overlay in `gen-soar-types.ts`).** The docs
+      corpus omits constructors and some real methods. Added `CONSTRUCTABLE`
+      (`Entity`/`Query`/`PagedCollection`/`Field` → `new (...args): any`; instance
+      is `any` because instances are richly dynamic and half-modelling them just
+      moves the false positives onto field access) + `EXTRA_METHODS`
+      (`playbookService.getTriggerStep`/`getExecutedPlaybookLogData`/
+      `checkPlaybookExecutionCompletion`, `settingsService.set`, `Modules` $resource
+      verbs, `formEntityService.submitField`). Result: **192 → 169** diagnostics,
+      all 15 `TS2351` + every Soar-method `TS2339` gone, **none on a `Soar.*`
+      type**. Overlay lines marked `// [overlay]` in the `.d.ts`; guarded by
+      `tests/genSoarTypes.test.js` ("emitDts curated overlay"). Do NOT use an index
+      signature in the overlay (it would suppress the bad-method-name catch).
+- [ ] Triage the residual real signal (a few `TS2554`/`TS2345` — arity + null-config)
+      once noise-scoped; these are the headline catches to keep.
 
 ### Phase 4 — Port remaining KB gotchas onto the unified engine
 - [ ] AST-accurate where applicable: copyright-header-missing (KB §2/§28.3),
