@@ -68,7 +68,7 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 | Thread | Next action | Blocker | Doc |
 |---|---|---|---|
 | **8.0 box live verification** | (#3) Seed records on the 8.0 box via `fortisoar-soc-simulator`, then drive live triage; (#4) confirm widget renders on 8.0 shell via WAF-safe Playwright | the 8.0 box has 0 alerts/incidents | memory `deploy_159_fortisoar_8`, `pyfsr_8_0_config_fixes` |
-| **TS static analysis — Phase 3 wiring** | Wire `pnpm typecheck:widgets` into `ship-verify` as a gate; harden | — | `fortisoar-widget-harness/TYPESCRIPT_STATIC_ANALYSIS_PLAN.md` |
+| **TS static analysis — Phase 3** | **Model gap DONE** (curated overlay: constructables + real methods; 192→169 diagnostics, 0 left on a `Soar.*` type — harness commit `9ab54d1`). **Next:** AST noise-scoping filter (keep only diagnostics resolving to `Soar.*`), then wire scoped CLI into `ship-verify` step 1 | — | `fortisoar-widget-harness/TYPESCRIPT_STATIC_ANALYSIS_PLAN.md` |
 | **Chat Intelligence — Track B** | Live drive vs forticloud + re-capture 2 stale goldens, then start Track B | Phase 0 done offline; needs live | memory `chat_intelligence_plan` |
 | **Introspection Phase 2** | Build live-fidelity rig | not started | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
 
