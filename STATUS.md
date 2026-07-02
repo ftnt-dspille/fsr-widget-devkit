@@ -142,27 +142,35 @@ credits, no sim/mock. **Full how-to + no-cache discipline: `LOCAL_DEV.md`.**
   peels `.data` when `typeof status === 'string'` (the real SOAR envelope is
   `{"status": "Success"|"Failed", "data": ...}`), so numeric status silently
   broke every real-mode call with a false "connector too old" error. Fixed.
-- **push_playbook DONE (2026-07-01), live-verified on 159.** Two more real bugs
-  found + fixed while driving an actual build→create-playbook turn: (1) widget
-  `pushPlaybook` did `'Create failed: ' + (res.error || JSON.stringify(res))`
-  — `res.error` is an object `{code,message}`, truthy, so it never reached
-  `JSON.stringify` and coerced to `[object Object]`; now prefers
-  `error.message`/`error.code`. (2) connector `push_playbook`'s retry loop
-  conflated "all 6 attempts raised" with "the first attempt succeeded at the
-  transport layer but returned an empty body" — both left `resp is None`, so a
-  real RBAC/team-ownership create failure on `workflow_collections` reported a
-  bogus "could not create after 6 attempts: None" instead of the honest
-  `push_no_record` diagnosis that already existed one branch below. Fixed by
-  tracking `call_succeeded` explicitly. Live-verified against 159: now
-  correctly reports "create returned no workflow_collection record ... check
-  RBAC/team ownership" — csadmin apparently lacks create rights on
-  `workflow_collections` on this box (env/RBAC issue, not a code bug; no
-  orphan records were created since the transport call echoed no row).
+- **push_playbook DONE (2026-07-01), live-verified end-to-end on 159 —
+  playbook actually created, confirmed via GET, then cleaned up.** Three real
+  bugs found + fixed chasing this down: (1) widget `pushPlaybook` did
+  `'Create failed: ' + (res.error || JSON.stringify(res))` — `res.error` is
+  an object `{code,message}`, truthy, so it never reached `JSON.stringify`
+  and coerced to `[object Object]`; now prefers `error.message`/`error.code`.
+  (2) connector `push_playbook`'s retry loop conflated "all 6 attempts
+  raised" with "the first attempt succeeded at the transport layer but
+  returned an empty body" — both left `resp is None`, producing a bogus
+  "could not create after 6 attempts: None" instead of the honest
+  `push_no_record` diagnosis one branch below; fixed by tracking
+  `call_succeeded` explicitly. (3) **the actual root cause**, initially
+  misdiagnosed as an RBAC/team-ownership gap (it was NOT — csadmin has create
+  rights, confirmed): `push_playbook`/`render_jinja`/`dry_run_playbook`
+  imported `integrations.crudhub.make_request` directly, which IS importable
+  off-platform (the connectors SDK dev package ships it) but is a **stub that
+  unconditionally `return None`** — meant to be shadowed by the real
+  implementation only at deploy time. A raw `pyfsr` POST to the identical
+  `/api/3/workflow_collections` endpoint succeeded immediately, proving the
+  box/creds/RBAC were fine all along. Fixed `_make_request()` (the shared
+  helper all three ops call) to resolve through `probes._env.get_client()` —
+  the same bridge `run_op`/`get_record`/every other live tool already uses —
+  instead of the dead crudhub stub. Live-verified: the widget now shows
+  "Created playbook in FortiSOAR: 00 - FSR Studio", confirmed via a direct
+  `GET /api/3/workflows/<uuid>` against 159, then deleted (hard-delete,
+  no orphan left).
 - **NOT yet proven:** `chat_resume` approval-card lifecycle, the PROMPT_FLOW
-  flows, triage quality (turn hit `max_tool_turns`). The RBAC gap above blocks
-  actually seeing a created playbook end-to-end on 159 until someone grants
-  csadmin create rights on `workflow_collections` (or the config is switched
-  to a config/team that has them).
+  flows, triage quality (turn hit `max_tool_turns`). No known blocker on any
+  of these now — the crudhub/transport gap that blocked push is fixed.
 - The internal LLM gateway name is **never in tracked files** — public text
   says "the LLM gateway"; real creds only in gitignored `scripts/localdev.env`.
 - **Full-chain inspection is built in:** `chat_history` (full transcript incl.
