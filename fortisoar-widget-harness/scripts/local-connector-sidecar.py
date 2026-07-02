@@ -80,6 +80,18 @@ if not os.path.isdir(CONNECTOR_DIR):
 _pkg = types.ModuleType("fsrpb_connector")
 _pkg.__path__ = [CONNECTOR_DIR]
 sys.modules["fsrpb_connector"] = _pkg
+# On a real FortiSOAR box the connector dir is put directly on sys.path, so
+# operations.py's bare `import fsr_soc_triage` (a sibling-package import, not
+# a relative one) resolves as a top-level module. The synthetic
+# "fsrpb_connector" package above only covers RELATIVE imports
+# (`from .storage import ...`); it does NOT make `fsr_soc_triage` importable
+# as a top-level name. Without this, that bare import silently fails inside
+# operations.py's broad `except Exception`, the triage system prompt falls
+# back to a stub, and the triage tool registry (search_module_records,
+# get_record, SIEM/FAZ/FMG tools) never gets injected — the model then
+# flails hunting for a nonexistent generic "search" connector op instead.
+if CONNECTOR_DIR not in sys.path:
+    sys.path.insert(0, CONNECTOR_DIR)
 operations_mod = importlib.import_module("fsrpb_connector.operations")
 OPERATIONS = operations_mod.operations  # {name: _sim_aware(_mock_aware(fn))}
 print(f"[sidecar] loaded {len(OPERATIONS)} ops from {CONNECTOR_DIR}", flush=True)

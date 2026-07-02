@@ -36,7 +36,7 @@ test('alert: jinja stripped, badge shows real severity not ERROR', async ({ page
     window.__fsrPbEntity__ = entity;
   }, { id: WIDGET_ID, entity: ALERT });
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=incident_smtp_intrusion&fastmock=1`, { waitUntil: 'domcontentloaded' });
-  await waitForWidgetIdle(page, '__fsrSocAssistant__');
+  await waitForWidgetIdle(page, '__fortiaiAgenticAssistant__');
 
   const card = page.locator('[data-testid="info-card-entity-777"]');
   await expect(card).toBeVisible();
@@ -67,7 +67,7 @@ const INCIDENT_DETAIL = {
   id: 558, uuid: 'a0668705-9dc8-4797-a2c8-8f1e1f34942a'
 };
 
-test('detail-view entity seed renders as a structured card; build toggle round-trips', async ({ page }) => {
+test('detail-view entity seed renders as a structured card; no manual build toggle', async ({ page }) => {
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', e => errors.push(String(e)));
@@ -81,7 +81,7 @@ test('detail-view entity seed renders as a structured card; build toggle round-t
     window.__fsrPbEntity__ = entity;
   }, { id: WIDGET_ID, entity: INCIDENT_DETAIL });
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=incident_smtp_intrusion&fastmock=1`, { waitUntil: 'domcontentloaded' });
-  await waitForWidgetIdle(page, '__fsrSocAssistant__');
+  await waitForWidgetIdle(page, '__fortiaiAgenticAssistant__');
 
   const card = page.locator('[data-testid="info-card-entity-558"]');
   await expect(card).toBeVisible();
@@ -91,15 +91,46 @@ test('detail-view entity seed renders as a structured card; build toggle round-t
   await expect(card.locator('.status-row-label', { hasText: 'MITRE' })).toBeVisible();
   await expect(card.locator('.status-tag').first()).toBeVisible();
 
-  expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('triage');
-  await page.locator('[data-testid="switch-to-build"]').click();
-  expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('build');
-  await expect(page.locator('[data-testid="build-hint"]')).toBeVisible();
-  await expect(page.locator('[data-testid="switch-to-triage"]')).toBeVisible();
-  await page.locator('[data-testid="switch-to-triage"]').click();
-  expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('triage');
+  expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('triage');
+  // No manual build toggle over a record — build intent is only reachable
+  // via the earned triage->playbook handoff, never a raw switch.
+  await expect(page.locator('[data-testid="switch-to-build"]')).toHaveCount(0);
 
   await page.screenshot({ path: '/tmp/detail_view.png', fullPage: true });
+  expect(errors, 'no errors: ' + errors.join(' | ')).toEqual([]);
+});
+
+// ─── Playbook-editor mount (main.playbookDetail) ─────────────────────────────
+
+test('playbook-editor mount forces build intent and shows playbook quick actions', async ({ page }) => {
+  const errors = [];
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', e => errors.push(String(e)));
+  await page.addInitScript((id) => {
+    localStorage.setItem('harness:config:' + id, JSON.stringify({
+      connectorName: 'fortinet-fsr-playbook-builder', defaultIntent: 'triage', maxTurns: 10, showUsage: true, seedFromEntity: true }));
+    localStorage.setItem('harness.widget', id);
+    // The "Playbook Editor" context (HarnessUtils.stateForContext('playbook', ...))
+    // wires the harness's $state stub (harness.module.ts) to
+    // { current: { name: 'main.playbookDetail' }, params: { id: '' } } —
+    // exactly what the real playbook designer state looks like (KB §18.4).
+    localStorage.setItem('harness.ctx', 'playbook');
+    localStorage.removeItem('fsrPbSession');
+  }, WIDGET_ID);
+  await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&fastmock=1`, { waitUntil: 'domcontentloaded' });
+  await waitForWidgetIdle(page, '__fortiaiAgenticAssistant__');
+
+  // defaultIntent config says 'triage' and there is no entity — without the
+  // main.playbookDetail override this would be 'triage'. The hard override
+  // in _inPlaybookEditor() must win.
+  expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('build');
+  expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.inPlaybookEditor)).toBe(true);
+  await expect(page.locator('[data-testid="playbook-quick-actions"]')).toBeVisible();
+  await expect(page.locator('[data-testid="playbook-quick-action-explain"]')).toBeVisible();
+  // Never over an alert/case investigation chip set in this mount.
+  await expect(page.locator('[data-testid="quick-actions"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="switch-to-build"]')).toHaveCount(0);
+
   expect(errors, 'no errors: ' + errors.join(' | ')).toEqual([]);
 });
 
@@ -117,7 +148,7 @@ test('info_cards fixture renders all card kinds without errors', async ({ page }
     localStorage.removeItem('fsrPbSession');
   }, WIDGET_ID);
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=info_cards&fastmock=1&opener=1`, { waitUntil: 'domcontentloaded' });
-  await waitForWidgetIdle(page, '__fsrSocAssistant__');
+  await waitForWidgetIdle(page, '__fortiaiAgenticAssistant__');
 
   // Backend pre-flight activity trail (contract 2.8.0) coalesces into one
   // block of bulleted phase lines, rendered ahead of the cards.

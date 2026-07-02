@@ -3,7 +3,7 @@
 //   - Phase A: contract_version drift (banner + strict halt), mode/intent/entity
 //              stamped into outgoing payloads
 //   - Phase B: auto-seed a record summary as the assistant's first message
-//   - Phase C: triage hides the YAML pane; "Build mode" reveals it
+//   - Phase C: triage hides the YAML pane; the earned handoff reveals it
 //   - Phase D: incident_smtp_intrusion fixture (intel hops → action_card → exec)
 //   - Phase E: action_card Confirm gated on required fields
 //   - c2_hunt: multi-pivot enrichment, consolidated IOC card, approve + reject
@@ -63,7 +63,7 @@ async function boot(page, scenario, opts) {
 
   await page.goto(urlFor(scenario, opts.extra), { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 30000 }
   );
   // For an `&opener=1` boot, settle the opening chat_turn before returning: the
@@ -74,7 +74,7 @@ async function boot(page, scenario, opts) {
   if (((opts.extra || '') + '').includes('opener=1')) {
     await page.waitForFunction(
       () => {
-        const p = window.__fsrSocAssistant__;
+        const p = window.__fortiaiAgenticAssistant__;
         return p && p.state === 'idle' && !!p.lastPayload;
       },
       null, { timeout: 10000 }
@@ -84,7 +84,7 @@ async function boot(page, scenario, opts) {
 
 async function waitForState(page, state, timeout = 10000) {
   await page.waitForFunction(
-    (s) => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.state === s,
+    (s) => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.state === s,
     state, { timeout }
   );
 }
@@ -98,7 +98,7 @@ test.describe('incident_smtp_intrusion — triage flow', () => {
 
     // Phase B: the first assistant message is the seeded record summary.
     await page.waitForFunction(
-      () => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.messageCount > 0,
+      () => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.messageCount > 0,
       null, { timeout: 5000 }
     );
     const messages = page.locator('[data-testid="messages"]');
@@ -108,9 +108,9 @@ test.describe('incident_smtp_intrusion — triage flow', () => {
 
     // Phase A: intent + entity + mode stamped into outgoing payload.
     const probe = await page.evaluate(() => ({
-      intent: window.__fsrSocAssistant__.intent,
-      entity: window.__fsrSocAssistant__.entity,
-      lastPayload: window.__fsrSocAssistant__.lastPayload
+      intent: window.__fortiaiAgenticAssistant__.intent,
+      entity: window.__fortiaiAgenticAssistant__.entity,
+      lastPayload: window.__fortiaiAgenticAssistant__.lastPayload
     }));
     expect(probe.intent).toBe('triage');
     expect(probe.entity && probe.entity.iri).toBe(SAMPLE_INCIDENT['@id']);
@@ -168,12 +168,13 @@ test.describe('incident_smtp_intrusion — triage flow', () => {
 
 test.describe('Phase C — intent-aware layout', () => {
 
-  test('triage hides YAML pane; "Build mode" flips intent and reveals it', async ({ page }) => {
+  test('triage hides YAML pane; no manual build toggle over a record', async ({ page }) => {
     await boot(page, 'playbook_soc_demo', { entity: SAMPLE_INCIDENT, extra: '&opener=1' });
 
-    expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('triage');
-    const buildBtn = page.locator('[data-testid="switch-to-build"]');
-    await expect(buildBtn).toBeVisible();
+    expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('triage');
+    // Build intent must never be a raw toggle over a record — only the
+    // earned triage->playbook handoff (buildPlaybookFromTriage) can flip it.
+    await expect(page.locator('[data-testid="switch-to-build"]')).toHaveCount(0);
 
     const intentChoice = page.locator('[data-testid="choice-intent-playbook"]');
     await intentChoice.waitFor({ state: 'visible', timeout: 30000 });
@@ -182,18 +183,17 @@ test.describe('Phase C — intent-aware layout', () => {
     await huntChoice.waitFor({ state: 'visible', timeout: 30000 });
     await huntChoice.click();
 
-    await page.waitForFunction(() => window.__fsrSocAssistant__.currentYaml.length > 0, null, { timeout: 30000 });
+    await page.waitForFunction(() => window.__fortiaiAgenticAssistant__.currentYaml.length > 0, null, { timeout: 30000 });
     await expect(page.locator('[data-testid="yaml-pane"]')).toHaveCount(0);
-
-    await buildBtn.click();
-    await expect(page.locator('[data-testid="yaml-pane"]')).toBeVisible();
-    await expect(buildBtn).toHaveCount(0);
-    expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('build');
+    // This scenario drove straight to authoring via choice cards, with no
+    // real investigation tool calls, so the earned handoff correctly stays
+    // gated — canBuildFromTriage requires toolsUsedInTriage().length > 0.
+    expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.canBuildFromTriage)).toBe(false);
   });
 
   test('dashboard mount (no entity) defaults to build — no Build-mode button', async ({ page }) => {
     await boot(page, 'playbook_soc_demo', { extra: '&opener=1' });
-    expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('build');
+    expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('build');
     await expect(page.locator('[data-testid="switch-to-build"]')).toHaveCount(0);
   });
 });
@@ -228,7 +228,7 @@ test.describe('Phase F — ?mode=mock override', () => {
       extra: '&opener=1&mode=mock'
     });
     await page.locator('[data-testid="choice-card-intent"]').waitFor({ state: 'visible', timeout: 6000 });
-    const lastPayload = await page.evaluate(() => window.__fsrSocAssistant__.lastPayload);
+    const lastPayload = await page.evaluate(() => window.__fortiaiAgenticAssistant__.lastPayload);
     expect(lastPayload.mode).toBe('mock');
   });
 });

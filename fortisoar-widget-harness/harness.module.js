@@ -101,6 +101,33 @@
                 };
             }];
     }); // eslint-disable-line @typescript-eslint/no-explicit-any -- AngularJS provider registration
+    // $state stub. Real angular-ui-router is intentionally NOT loaded (would
+    // try to actually route the harness page) — see index.html's vendor-script
+    // comment. Widgets that read `$state.current.name` / `$state.params` to
+    // detect their mount context (e.g. fortiaiAgenticAssistant's
+    // _entityFromState / _inPlaybookEditor, KB §18.4) previously got
+    // `Unknown provider: $stateProvider <- $state` via $injector.get('$state')
+    // — silently caught by those widgets' try/catch, so context-dependent
+    // behavior was simply untestable in the harness. index.html's mountWidget()
+    // already computes `window.__HARNESS_STATE` per context (HarnessUtils.
+    // stateForContext) before each bootstrap but nothing consumed it. This
+    // reads it live — a fresh injector is created on every mountWidget() call,
+    // so each context switch gets the current value at bootstrap time. `go`/
+    // `href`/`includes` are inert no-ops (recorded like other stubs) for
+    // widgets that call them defensively; nothing in the harness needs them to
+    // actually navigate.
+    regFactory(app, "$state", [], function () {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- window augmentation for harness globals
+        const state = window.__HARNESS_STATE || { current: { name: "" }, params: {} };
+        return {
+            current: state.current || { name: "" },
+            params: state.params || {},
+            go: inert("$state.go"),
+            href: function () { inert("$state.href")(); return ""; },
+            includes: function () { inert("$state.includes")(); return false; },
+            is: function () { inert("$state.is")(); return false; },
+        };
+    });
     // Pipe Angular's exception channel into the harness debug drawer. Without
     // this override, controller/digest errors only land in DevTools — the
     // whole point of the drawer is to keep that information visible without

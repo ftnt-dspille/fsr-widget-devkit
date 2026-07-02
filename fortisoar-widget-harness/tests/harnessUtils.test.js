@@ -192,6 +192,20 @@ describe("stateForContext", () => {
       params: { page: "dashboard" },
     });
   });
+
+  test("playbook yields main.playbookDetail with only id in params (no module)", () => {
+    expect(stateForContext("playbook", { id: "pb-uuid-1", module: "alerts" })).toEqual({
+      current: { name: "main.playbookDetail" },
+      params: { id: "pb-uuid-1" },
+    });
+  });
+
+  test("playbook with no id yields empty id, still no page/module keys", () => {
+    expect(stateForContext("playbook")).toEqual({
+      current: { name: "main.playbookDetail" },
+      params: { id: "" },
+    });
+  });
 });
 
 describe("extractInjectedDependencies", () => {

@@ -1,7 +1,7 @@
 /* Pure utilities used by the harness page. Kept dependency-free so they can
    run in both the browser (loaded via <script>) and Node (jest tests). */
 
-type StateContext = 'viewpanel' | 'drawer' | 'dashboard';
+type StateContext = 'viewpanel' | 'drawer' | 'dashboard' | 'playbook';
 
 interface SuggestedScriptTag {
   src: string;
@@ -124,6 +124,13 @@ function stateForContext(ctx: StateContext, params?: Record<string, unknown>): R
       return { current: { name: "viewPanel.modulesDetail" }, params: Object.assign({ page: "viewPanel" }, params || {}) };
     case "drawer":
       return { current: { name: "viewPanel.modulesDetail" }, params: Object.assign({ page: "viewPanel", drawer: true }, params || {}) };
+    case "playbook":
+      // The real playbook designer (main.playbookDetail, /playbooks/:id,
+      // KB §18.4) carries only `id` in $state.params -- NOT `module`, unlike
+      // the generic module-detail states. Keep that shape here: including a
+      // `module` param would make _entityFromState() (in widgets that use
+      // that pattern) misidentify this as a generic record-detail mount.
+      return { current: { name: "main.playbookDetail" }, params: { id: (params && params.id) || "" } };
     case "dashboard":
     default:
       return { current: { name: "main.dashboard" }, params: { page: "dashboard" } };

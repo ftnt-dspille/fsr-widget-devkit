@@ -616,6 +616,7 @@
             <option value="dashboard">Dashboard</option>
             <option value="viewpanel">View Panel</option>
             <option value="drawer">Drawer</option>
+            <option value="playbook">Playbook Editor</option>
           </select>
         </label>
         <label id="vp-fields" style="display: none">
@@ -911,14 +912,38 @@
           s.onerror = () => reject(new Error("failed to load " + src));
           document.head.appendChild(s);
         });
+        // injectSkipAmd: like inject(), but falsifies `define.amd` for the
+        // duration of the script's execution. Monaco's loader.js hijacks
+        // window.define (AMD); Toast UI Editor's UMD bundle then calls anonymous
+        // define() multiple times and Monaco's loader throws
+        // "Can only have one anonymous define call per script file". UMD wrappers
+        // gate the AMD branch on `typeof define === 'function' && define.amd`;
+        // falsifying just `.amd` (NOT define itself) makes them take the global
+        // branch (window.toastui.Editor) — the API csMarkdownEditor uses — while
+        // Monaco's define stays fully functional. Restore `.amd` on load/error so
+        // the falsification window is just the one script's execution.
+        const injectSkipAmd = (src) => new Promise((resolve, reject) => {
+          const d = window.define;
+          const savedAmd = d && d.amd;
+          if (d) { try { d.amd = false; } catch (_e) { /* read-only; best-effort */ } }
+          const restore = () => { if (d && savedAmd !== undefined) { try { d.amd = savedAmd; } catch (_e) { /* leave as-is */ } } };
+          const s = document.createElement("script");
+          s.src = src;
+          s.onload = () => { restore(); resolve(); };
+          s.onerror = () => { restore(); reject(new Error("failed to load " + src)); };
+          document.head.appendChild(s);
+        });
         window.__harnessRichEditorsPromise = (async () => {
           const css = document.createElement("link");
           css.rel = "stylesheet";
           css.href = "https://uicdn.toast.com/editor/latest/toastui-editor.min.css";
           document.head.appendChild(css);
-          // toastui + dompurify + tinymce have no load-order dependency.
+          // toastui + dompurify + tinymce have no load-order dependency. Only
+          // toastui needs the amd-skip bracket (its bundle trips Monaco's
+          // "one anonymous define" guard); dompurify/tinymce attach globally
+          // without conflict.
           await Promise.all([
-            inject("https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"),
+            injectSkipAmd("https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"),
             inject("https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"),
             inject("https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js"),
           ]);
@@ -2257,7 +2282,7 @@
         });
 
         async function applyContext(ctx) {
-          frame.classList.remove("ctx-dashboard", "ctx-viewpanel", "ctx-drawer");
+          frame.classList.remove("ctx-dashboard", "ctx-viewpanel", "ctx-drawer", "ctx-playbook");
           frame.classList.add("ctx-" + ctx);
           applyVpWidth();
           if (!ctxNeedsRecord(ctx)) {
