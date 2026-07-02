@@ -134,9 +134,35 @@ credits, no sim/mock. **Full how-to + no-cache discipline: `LOCAL_DEV.md`.**
 - **Verified via curl:** `list_models` to LLM models, `health_check` ok, full
   `chat_turn` (231 events, 17 tool calls, `run_op` reached 159). Tests: connector
   125 / framework 1010 / widget 481 green.
-- **NOT yet proven:** widget driving a turn **in the browser**, `chat_poll`
-  streaming, `chat_resume` approval, build/offer/push, the PROMPT_FLOW flows,
-  triage quality (turn hit `max_tool_turns`).
+- **P0 DONE (2026-07-01):** widget drives a real `chat_turn` in the browser
+  against the sidecar, both blocking and detached/`chat_poll`-streamed paths
+  proven, tool-call cards render live. Found + fixed a real bug along the way:
+  `local-connector-sidecar.py` wrapped every response as
+  `{"status": 200 (number), "data": ...}`; the widget's `_unwrapEnvelope` only
+  peels `.data` when `typeof status === 'string'` (the real SOAR envelope is
+  `{"status": "Success"|"Failed", "data": ...}`), so numeric status silently
+  broke every real-mode call with a false "connector too old" error. Fixed.
+- **push_playbook DONE (2026-07-01), live-verified on 159.** Two more real bugs
+  found + fixed while driving an actual build→create-playbook turn: (1) widget
+  `pushPlaybook` did `'Create failed: ' + (res.error || JSON.stringify(res))`
+  — `res.error` is an object `{code,message}`, truthy, so it never reached
+  `JSON.stringify` and coerced to `[object Object]`; now prefers
+  `error.message`/`error.code`. (2) connector `push_playbook`'s retry loop
+  conflated "all 6 attempts raised" with "the first attempt succeeded at the
+  transport layer but returned an empty body" — both left `resp is None`, so a
+  real RBAC/team-ownership create failure on `workflow_collections` reported a
+  bogus "could not create after 6 attempts: None" instead of the honest
+  `push_no_record` diagnosis that already existed one branch below. Fixed by
+  tracking `call_succeeded` explicitly. Live-verified against 159: now
+  correctly reports "create returned no workflow_collection record ... check
+  RBAC/team ownership" — csadmin apparently lacks create rights on
+  `workflow_collections` on this box (env/RBAC issue, not a code bug; no
+  orphan records were created since the transport call echoed no row).
+- **NOT yet proven:** `chat_resume` approval-card lifecycle, the PROMPT_FLOW
+  flows, triage quality (turn hit `max_tool_turns`). The RBAC gap above blocks
+  actually seeing a created playbook end-to-end on 159 until someone grants
+  csadmin create rights on `workflow_collections` (or the config is switched
+  to a config/team that has them).
 - The internal LLM gateway name is **never in tracked files** — public text
   says "the LLM gateway"; real creds only in gitignored `scripts/localdev.env`.
 - **Full-chain inspection is built in:** `chat_history` (full transcript incl.
