@@ -24,6 +24,19 @@ _Last updated: 2026-07-02_
 > (5 tests), widget suite **492 passed**. **SHIPPED 1.2.9 + LIVE-VERIFIED on 159's
 > designer:** "Explain this playbook" fires a chat_turn carrying the full playbook
 > in `entity` (iri+fields). Both in resume `resume_2026_07_02_contract_parity`.
+>
+> **2026-07-02 (later) — agentic workflow hardening, ALL offline-green, UNCOMMITTED,
+> one vendor bump ships it:** (a) coherence-review **decisions LOCKED** (spine first /
+> one build path / router deferred) — `AGENTIC_WORKFLOW_COHERENCE_REVIEW.md`;
+> (b) **§G jinja catalog** (Ansible namespace + advisory wording + `find_jinja_filter`
+> never-`[]`) and **§A build Deploy button** (`emit_playbook_offer(yaml=…)` + connector
+> accept prefers card `final_yaml`) built + tested; (c) **case-state spine P1+P2 BUILT**
+> per `CASE_STATE_SPINE_DESIGN.md` (framework `case_state.py`, seeded TriageDiscipline +
+> `guard_redirect`, connector `session_case_state` + grounding cache + resume parity) —
+> framework 624 / connector 169 passed (4 pre-existing fails unrelated). NEXT: re-vendor
+> (`scripts/build.sh`) + `info.json` bump + connector-repo `make ship`, then live-verify
+> the §4.6 (capability-gap resume) + §4.7 ("block ip" after triage) scenarios. Memory:
+> `hardening_g_a_built`.
 
 ---
 
@@ -101,6 +114,30 @@ chat turn streams to `done` with frames (9 polls, 7 frames). That proves the
 plumbing, not that every prompt/flow behaves. This matrix is the backlog of
 "various kinds of testing" to run later. Detail + acceptance signals live in
 `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md`.
+
+**Runner (built, branch `live-matrix-infra`):** `make test-matrix-live` drives
+the whole matrix through the deployed widget and prints per-scenario digests +
+a summary table (`tests/live/matrix.live.test.js` + `tests/live/lib/matrixDriver.js`;
+eval engine unit-tested offline in `tests/matrixEval.test.js`). Scenario rows
+(box-specific record UUIDs) go in the gitignored `tests/live/scenarios.local.json`
+(template: `scenarios.local.example.json`). Only hard-FAIL verdicts red the run.
+**Current state (2026-07-02): the probes/crudhub bridge BLOCKER is RESOLVED.**
+Root cause was NOT a code bug — the box's connector *workers were stale in
+memory* (they only recycle on a version-bumped publish; dropping 0.4.13 on disk
+didn't reload them, so they kept returning `no_fsr_configured: No module named
+'probes'` while on-disk `lc.available()` was `True`). Fixed by shipping a bump
+(0.4.13 → 0.4.14) which recycled all 7 workers; `make bridge-check` confirms the
+live crudhub bridge (30k+ alerts, `available: True`). See memory
+`ship_via_connector_makefile` + KNOWLEDGEBASE §20.4.
+
+**STANDARDIZATION (enforced):** ship + diagnose ONLY through the connector-repo
+Makefile (`/Users/dylanspille/PycharmProjects/ConnectorsV2/fsr-playbook-builder/Makefile`):
+`make ship` (connector, bump→build→install→verify workers recycled),
+`make ship-widget` (widget ship-verify), `make verify`, `make bridge-check`,
+`make matrix`. Never hand-run `deploy.sh` / `ssh` / ad-hoc `pyfsr`.
+
+**Pick up here: re-run `make matrix` (T1 should now pass) → extend
+scenarios.local.json with the T2/T4/T7/T9/P1 rows.**
 
 **Triage flows**
 - Single-alert triage → `info_card` summary (severity, indicators, next steps).
@@ -268,5 +305,6 @@ Suggested order:
 - `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md`
 - `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new — triage & playbook-creation prompt/flow test matrix)
 - `widgets-src/fortiaiAgenticAssistant/PLAN_live_updates_and_error_hardening.md`
+- `widgets-src/fortiaiAgenticAssistant/PLAN_improvement_areas.md` (new 2026-07-02 — ranked widget+connector code-review findings: security → correctness → robustness → refactor)
 - `widgets-src/c3charts/ROADMAP.md`
 - `HANDOFF.md` — most recent session snapshot
