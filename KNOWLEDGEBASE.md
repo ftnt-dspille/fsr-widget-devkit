@@ -69,7 +69,7 @@ widgets/installed/<name>-<version>/widgetAssets/...
 
 Asset references in `view.html` must use this prefix (see §7).
 
-> **Gotcha — harness lint blocks bootstrap on ANY stale version-string literal in the controller, including comments.** After bumping `info.json` (e.g. 1.0.47→1.0.48), the dev/test harness runs a `stale-version-ref` lint and *refuses to mount the widget* if `view.controller.js` contains the old `M.m.p` string anywhere — even an example URL in a code comment. Symptom: every Playwright e2e times out at `waitForFunction(() => window.__<widget>__)` because the controller never boots; the harness error panel shows `Lint blocked widget bootstrap … [stale-version-ref] references stale version(s): 1.0.47`. The jest bootstrap slug test (`fsrSocAssistant1048DevCtrl`) does NOT catch this — it only checks `…NNNNCtrl` tokens, not literal `1.0.47` dotted strings. Fix: grep the controller for the old dotted version and update every hit (comments included) in the same bump. **Better: never write the dotted version in the controller at all** — derive it from the served script URL (`fsrSocAssistant` does this via `WIDGET_VERSION`) and use a `<version>` placeholder in comments. A jest guard (`triageDraft.export.test.js`: "controller never hardcodes the info.json WIDGET version") asserts `info.json.version` never appears literally in `view.controller.js`, so the footgun can't recur.
+> **Gotcha — harness lint blocks bootstrap on ANY stale version-string literal in the controller, including comments.** After bumping `info.json` (e.g. 1.0.47→1.0.48), the dev/test harness runs a `stale-version-ref` lint and *refuses to mount the widget* if `view.controller.js` contains the old `M.m.p` string anywhere — even an example URL in a code comment. Symptom: every Playwright e2e times out at `waitForFunction(() => window.__<widget>__)` because the controller never boots; the harness error panel shows `Lint blocked widget bootstrap … [stale-version-ref] references stale version(s): 1.0.47`. The jest bootstrap slug test (`fsrSocAssistant1048DevCtrl`) does NOT catch this — it only checks `…NNNNCtrl` tokens, not literal `1.0.47` dotted strings. Fix: grep the controller for the old dotted version and update every hit (comments included) in the same bump. **Better: never write the dotted version in the controller at all** — derive it from the served script URL (`fortiaiAgenticAssistant` does this via `WIDGET_VERSION`) and use a `<version>` placeholder in comments. A jest guard (`triageDraft.export.test.js`: "controller never hardcodes the info.json WIDGET version") asserts `info.json.version` never appears literally in `view.controller.js`, so the footgun can't recur.
 
 ---
 
@@ -399,7 +399,7 @@ function myWidget120DevCtrl($scope, $timeout, $window, $sce, $injector, …) {
     var $interval = $injector.get('$interval');   // no arity change → tests unaffected
 ```
 
-(fsrSocAssistant `view.controller.js`: the live PENDING tool-duration ticker
+(fortiaiAgenticAssistant `view.controller.js`: the live PENDING tool-duration ticker
 pulls `$interval` this way.)
 
 ---
@@ -1858,7 +1858,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > doesn't *strip* a context you already have, and gate any auto-seed on an empty
 > conversation so an in-progress chat isn't clobbered. `fortisocchatagent` is the
 > canonical reference (`_updateContextFromState` + `_registerStateListener`);
-> `fsrSocAssistant`'s `_refreshEntityContext` follows the same shape.
+> `fortiaiAgenticAssistant`'s `_refreshEntityContext` follows the same shape.
 >
 > **⚠️ The `popupOpened`/`$stateChangeSuccess` hooks are NOT enough on their own —
 > also re-detect in the init `$timeout`.** Opening a drawer *directly onto* a
@@ -1869,7 +1869,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > ctor) ran on the still-empty `$state`, and your init/seed `$timeout` trusts that
 > captured-null context, the summary/seed **never appears until the user
 > navigates away and back** (which finally fires a nav event). Live regression:
-> `fsrSocAssistant` 1.0.47 → the record-summary card was missing on a case
+> `fortiaiAgenticAssistant` 1.0.47 → the record-summary card was missing on a case
 > until the analyst backed out to an incident detail and reopened the case. Fix
 > (1.0.48): in the init `$timeout`, **re-run the detect** before seeding, and if
 > it's still empty (state mid-transition at `$timeout(0)`), schedule one short
@@ -1941,11 +1941,11 @@ Drawer widgets are the most general extension primitive in SOAR. A few things th
 
 The mental shift: **widgets aren't just dashboard tiles** — they're a sanctioned plugin extension point with a stable rendering surface and event bus. The dashboard/listing picker is the documented use; `enableFor` + `popup: "custom"` is the more general primitive.
 
-### 18.6 Streaming chat-drawer gotchas (fsrSocAssistant)
+### 18.6 Streaming chat-drawer gotchas (fortiaiAgenticAssistant)
 
 A drawer widget that streams an agentic run (poll a `chat_poll` feed while a
 blocking `chat_turn` is in flight) hit four non-obvious failure modes. All four
-are now fixed in `fsrSocAssistant` and worth copying:
+are now fixed in `fortiaiAgenticAssistant` and worth copying:
 
 - **Rebuilding the live preview resets per-tool UI state.** If each poll rebuilds
   `streamingMessage` through the same renderer (`FsrPbRender.buildAssistantMessage`),
@@ -2133,9 +2133,9 @@ are now fixed in `fsrSocAssistant` and worth copying:
   poll loop had zero frontend coverage. Probe it by forcing `?mode=live` and
   `page.route`-stubbing the connector HTTP layer (`POST /api/integration/execute/`,
   `GET /api/integration/connectors/`) to script the detached contract: ack →
-  `turn_start` → frames → terminal. See `fsrSocAssistant.liveDetached.spec.js`.
+  `turn_start` → frames → terminal. See `fortiaiAgenticAssistant.liveDetached.spec.js`.
   Two gotchas building that probe: Playwright **regex** route patterns match here
-  where `**/…` glob strings silently don't; and the `__fsrSocAssistant__` test
+  where `**/…` glob strings silently don't; and the `__fortiaiAgenticAssistant__` test
   probe was previously exposed only in mock mode — broadened to any harness
   (localhost) mount so live-path state is introspectable.
 
@@ -2168,8 +2168,8 @@ are now fixed in `fsrSocAssistant` and worth copying:
   - **Flip `uiIntent` to `'build'` when YAML or a pushed card is present**, so the
     pane/toggle render and the redundant build-from-triage CTA is suppressed. A
     plain triage session (no YAML) correctly stays in triage. Drive the path in
-    e2e via the test-only `__fsrSocAssistant__.replayTurns(turns)` probe
-    (`fsrSocAssistant.rehydrateBuild.spec.js`); note `link` is a real
+    e2e via the test-only `__fortiaiAgenticAssistant__.replayTurns(turns)` probe
+    (`fortiaiAgenticAssistant.rehydrateBuild.spec.js`); note `link` is a real
     `normalizeBlocks` kind — the render-pipeline fixture validator's `BLOCK_KINDS`
     set was missing it.
 
@@ -2178,7 +2178,7 @@ are now fixed in `fsrSocAssistant` and worth copying:
   ("Triaging incident…") but NO summary card and a dead chat.** The seed is
   pushed once, gated on `messages.length === 0`, from the init flow (after a
   bounded `_resolveEntityContextWithRetry`, ~2 s) or a `popupOpened` /
-  `$stateChangeSuccess` reseed. That left three gaps, all fixed in `fsrSocAssistant`:
+  `$stateChangeSuccess` reseed. That left three gaps, all fixed in `fortiaiAgenticAssistant`:
   - **Late entity, no follow-up event.** If `$state` settles onto the
     record-detail page *after* the 2 s init retry gave up and no further
     navigation event fires, neither reseed path runs. Fix: a `$watch` on
@@ -2214,8 +2214,28 @@ are now fixed in `fsrSocAssistant` and worth copying:
   `if ($scope.messages.some(m => !m._seeded)) return;`. A lone seed card now lets
   init proceed; `_seedFromEntity`'s own `messages.length`/`_seedInFlight` latch
   prevents a double card, and `_shouldRunOpener()` still gates the opener.
-  Covered by `fsrSocAssistant.incident.spec.js` ("seeds the record summary, runs
+  Covered by `fortiaiAgenticAssistant.incident.spec.js` ("seeds the record summary, runs
   intel hops, …", `&opener=1`).
+
+### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
+
+Two platform behaviors bite any live-UI Playwright drive against a FortiSOAR 8.0
+box behind FortiGuard inline IPS (learned driving box 159; fixes in
+`fortisoar-widget-harness/lib/{soarBrowser,liveUiDriver}.{ts,js}`):
+
+- **Headless Chromium is fingerprinted and blocked at login.** The `/login` page
+  loads, but its "Sign In" `button[type=submit]` **never leaves `disabled:true`**,
+  so `page.click(submit)` times out. Running **headed** (`FSRPB_HEADED=1` →
+  `headless:false`) the same button enables after fill and login succeeds. A
+  desktop UA alone is enough for the *API* login (`soarClient.js` POST
+  `/auth/authenticate` works in node; plain `curl` gets 405 on UA) but **not** for
+  the browser UI login. 8.0's button label is **"Sign In"** (not "Login").
+- **8.0 renders multiple drawer icons; open yours by title.** The right-edge
+  drawer toggles are `img.logo-sm[title="…"]` — a record shows the native "AI
+  Assistant", "Playbook Developer Assistant", and your widget's title all at once.
+  A blind `.sub-block` click-loop opens the wrong drawer and the composer never
+  mounts. Target `img.logo-sm[title="<widget title>"]` first, fall back to the
+  loop.
 
 ---
 
@@ -3583,7 +3603,7 @@ attribute directive that listens to `input` *and* `$watch`es the element's
   }};
 })
 ```
-(fsrSocAssistant `view.controller.js`; cap matches the CSS `max-height`.)
+(fortiaiAgenticAssistant `view.controller.js`; cap matches the CSS `max-height`.)
 
 ### Custom-overlay modals: flex-column to avoid a double scrollbar
 
@@ -3602,7 +3622,7 @@ scrollbar next to the host page's. Make the panel a flex column and let
 ```
 Also neutralize Bootstrap's `.close` leakage (`float:none; opacity:1;
 text-shadow:none`) so the × sits where flex puts it, not floated.
-(fsrSocAssistant settings/history/export modals.)
+(fortiaiAgenticAssistant settings/history/export modals.)
 
 ### Edit-modal chrome strip — keep stepper/nav INSIDE `.modal-body`, and mind a stray `</div>`
 

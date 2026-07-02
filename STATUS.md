@@ -5,7 +5,25 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-01_
+_Last updated: 2026-07-02_
+
+> **2026-07-02 ship + live-verify DONE:** widget `fortiaiAgenticAssistant-1.2.8`
+> + connector `0.4.13` (both version-bumped to dodge FortiSOAR same-version
+> cache) deployed to 159. Live jest verified on 159: `chat.live.test.js` (real
+> `chat_turn`→`end_turn` on v0.4.13 + mock parity) and `widgetUi.live.test.js`
+> (drawer renders, `chat_poll` streams live frames) both PASS. Required two
+> live-UI-driver fixes (run headed + drawer-icon-by-title) — see memory
+> `live_ui_driver_8_0_fixes` + KB §18.7. Driver fixes UNCOMMITTED in harness `lib/`.
+>
+> **2026-07-02 also DONE (offline, UNCOMMITTED):** (a) **Pydantic Stage 3** —
+> params+response models for the 14 remaining connector ops + 7 storage-row
+> models in `pydantic_models.py`, `tests/test_pydantic_stage3.py` (32 tests),
+> full connector suite **176 passed**. run_op/emit_* left ungated (deliberate).
+> (b) **entityContext seeding** — the widget seeds the open playbook as its entity
+> on `main.playbookDetail` (no misfit seed card), `playbook.editor.entity.test.js`
+> (5 tests), widget suite **492 passed**. **SHIPPED 1.2.9 + LIVE-VERIFIED on 159's
+> designer:** "Explain this playbook" fires a chat_turn carrying the full playbook
+> in `entity` (iri+fields). Both in resume `resume_2026_07_02_contract_parity`.
 
 ---
 
@@ -67,6 +85,7 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 
 | Thread | Next action | Blocker | Doc |
 |---|---|---|---|
+| **Auto-approve safe / read-only actions** | Make the approval gate policy-configurable so SAFE actions can be set to run automatically instead of always staging an approval card. Today the dispatch tier gate (memory `agent_mutating_op_approval_gate`) already auto-executes tier 1/2 **safe reads** (`get_record`, `search_module_records`, reading a playbook) and only stages tier ≥3 (management/containment/remediation). The ask: (1) an explicit, surfaced policy/config for "auto-run read-only tools" (default on) so it's a first-class setting, not an implicit tier side-effect; (2) the deferred **"allow once / always-allow per tool"** mechanism (per `agent_mutating_op_approval_gate` residual). Ensure read-only playbook inspection (the new build-mode tools — explain/find-issues) never prompts. Verify tier assignment for any new playbook-read tools = safe (1/2). | none — design + wire | memory `agent_mutating_op_approval_gate`; `fsr_core/llm/tools.py::_tier_for_run_op` |
 | **Local dev loop — prove full functionality** | P0/P2 DONE (see below — sidecar `fsr_soc_triage` import bug fixed, `chat_resume` approval-card lifecycle live-verified). Remaining: P1 flip harness `.env` to 159; P3 run the PROMPT_FLOW_TEST_PLAN flows; P3 triage-quality (turn hit `max_tool_turns`). | none known | `LOCAL_DEV.md`; memory `local_dev_loop_next_steps`, `sidecar_fsr_soc_triage_import_fix` |
 | **Triage & playbook strategic vision** | Make the agent genuinely helpful: hunt/pivot via FortiSIEM/FAZ (already in ref DB — gap is prompt guidance, not data); turn-investigation-into-playbook (Track B4/B5 — **playbook-designer persona now partially built, see below**); pydantic strict-typing pass (connector's `chat_turn`/`chat_poll`/`chat_resume`/`chat_history` boundary + tool-arg models already done, commit `777bf58`); py3.12 modernization. See roadmap section below. | tune-able once local loop P0 lands | memory `triage_and_playbook_vision` |
 | **Prompt + flow test matrix (triage & playbook creation)** | Author the live prompt/flow test plan, then execute it against the 8.0 box (proven render + live triage path). See section below + `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new) | none ��� 8.0 live path proven; needs the plan authored + a run window | this file; memory `deploy_159_fortisoar_8` |

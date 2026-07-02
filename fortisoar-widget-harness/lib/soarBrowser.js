@@ -39,7 +39,7 @@ const DESKTOP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const LOGIN = {
     user: "#username",
     pass: "#login_password",
-    submit: 'button[type="submit"], button:has-text("Login"), button:has-text("Log In")',
+    submit: 'button[type="submit"], button:has-text("Login"), button:has-text("Log In"), button:has-text("Sign In")',
 };
 /** Resolve the box origin (scheme-qualified) from soarEnv. Throws if unset. */
 function baseUrl(soar) {

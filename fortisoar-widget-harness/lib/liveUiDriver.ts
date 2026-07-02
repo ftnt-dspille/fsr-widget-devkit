@@ -137,6 +137,7 @@ interface OpenWidgetDrawerOpts {
   module?: string;
   recordUuid?: string;
   headless?: boolean;
+  widgetTitle?: string;
   env?: Record<string, string | undefined>;
 }
 
@@ -165,7 +166,11 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
   const mod = opts.module || "alerts";
   const base = soarBrowser.baseUrl(soarEnvResult);
 
-  const { browser, context } = await soarBrowser.launchContext({ headless: opts.headless !== false });
+  // WAF boxes (FortiGuard inline IPS) fingerprint headless Chromium and serve a
+  // login page whose "Sign In" button never enables. FSRPB_HEADED=1 forces a
+  // real headed browser for live UI runs against such boxes.
+  const headed = opts.headless === false || process.env.FSRPB_HEADED === "1";
+  const { browser, context } = await soarBrowser.launchContext({ headless: !headed });
   const page = await context.newPage();
   const feed = captureChatFeed(page);
 
@@ -175,12 +180,23 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
   });
   await page.waitForTimeout(10000); // record + widgets render
 
-  // Open the drawer: click each right-edge .sub-block until the composer mounts.
-  const blocks = await page.$$(".sub-block");
-  for (const blk of blocks) {
-    await blk.click().catch(() => {});
-    await page.waitForTimeout(2500);
-    if (await page.$(COMPOSER)) break;
+  // Open the drawer. 8.0 renders multiple drawer icons (native "AI Assistant",
+  // "Playbook Developer Assistant", plus ours) as `img.logo-sm[title=...]`, so a
+  // blind .sub-block click-loop opens the wrong one. Target our widget's icon by
+  // its title first; fall back to the click-loop for older layouts.
+  const widgetTitle = opts.widgetTitle || process.env.FSRPB_WIDGET_TITLE || "FortiAI Agentic Assistant";
+  const titledIcon = await page.$(`img.logo-sm[title="${widgetTitle}"]`);
+  if (titledIcon) {
+    await titledIcon.click().catch(() => {});
+    await page.waitForTimeout(3000);
+  }
+  if (!(await page.$(COMPOSER))) {
+    const blocks = await page.$$(".sub-block");
+    for (const blk of blocks) {
+      await blk.click().catch(() => {});
+      await page.waitForTimeout(2500);
+      if (await page.$(COMPOSER)) break;
+    }
   }
   await page.waitForTimeout(2000);
   const composerOpen = !!(await page.$(COMPOSER));
