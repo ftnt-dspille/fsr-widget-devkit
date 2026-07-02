@@ -33,9 +33,12 @@ _Last updated: 2026-07-02_
 > accept prefers card `final_yaml`) built + tested; (c) **case-state spine P1+P2 BUILT**
 > per `CASE_STATE_SPINE_DESIGN.md` (framework `case_state.py`, seeded TriageDiscipline +
 > `guard_redirect`, connector `session_case_state` + grounding cache + resume parity) —
-> framework 624 / connector 169 passed (4 pre-existing fails unrelated). NEXT: re-vendor
-> (`scripts/build.sh`) + `info.json` bump + connector-repo `make ship`, then live-verify
-> the §4.6 (capability-gap resume) + §4.7 ("block ip" after triage) scenarios. Memory:
+> framework 624 / connector 169 passed (4 pre-existing fails unrelated).
+> **SHIPPED + LIVE-VERIFIED (same day):** fsr-playbooks **v0.4.14 on PyPI**, connector
+> **0.4.22 live** (0.4.20 briefly broke chat via a hard case_state import vs the old
+> pinned wheel — fail-open hotfix 0.4.21). Live drive PASSED all 4: §G clean validate,
+> §4.6 gap-resume = 0 tool calls, §4.7 block-ip = card only (zero re-hunt), §A build →
+> `awaiting_playbook_offer` → accept → pushed. Next: spine P3/P4. Memory:
 > `hardening_g_a_built`.
 
 ---
