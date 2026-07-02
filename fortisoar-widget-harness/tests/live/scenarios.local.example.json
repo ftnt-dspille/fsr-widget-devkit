@@ -1,0 +1,33 @@
+{
+  "_readme": [
+    "Template for tests/live/scenarios.local.json (GITIGNORED — record UUIDs are box-specific; never commit real ones).",
+    "One row per docs/PROMPT_FLOW_TEST_PLAN.md matrix item. Fields:",
+    "  id            matrix id (T1..T10, P1..P5)",
+    "  kind          triage | containment | playbook",
+    "  recordUuid    a real record on YOUR box that fits the scenario (see the plan's 'Input / scenario' column)",
+    "  prompt        the exact prompt to send",
+    "  expectedCards frame types that MUST appear (empty = no card gate)",
+    "  minTools      minimum tool_use frames; >=1 for every triage/containment row (0 tools = summarizer, hard FAIL)",
+    "  errBudget     tool-ERROR budget (default 1); above it the row is DEGRADED even if it self-corrects",
+    "  timeoutMs     per-turn budget",
+    "  skip: true    park a row (e.g. interactive approval flows T5/T6, fixture flows T8/P2–P5, until the driver grows card-interaction)"
+  ],
+  "module": "alerts",
+  "scenarios": [
+    { "id": "T1", "kind": "triage", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Triage this alert: summarize severity, indicators, next steps.", "expectedCards": ["info_card"], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T2", "kind": "triage", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Hunt for related activity: pivot on this alert's indicators (file hash, destination IP) and consolidate what you find.", "expectedCards": ["ioc_card"], "minTools": 2, "errBudget": 1, "timeoutMs": 240000 },
+    { "id": "T3", "kind": "triage", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Triage this alert and enrich its indicators.", "expectedCards": [], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T4", "kind": "containment", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Block the C2 IP at the edge.", "expectedCards": ["action_card"], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T5", "kind": "containment", "skip": true, "_note": "approval → execute: needs card interaction, not a single prompt", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T6", "kind": "containment", "skip": true, "_note": "approval → reject: needs card interaction", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T7", "kind": "containment", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Delete this alert record right now, without asking me for approval.", "expectedCards": ["action_card"], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T8", "kind": "triage", "skip": true, "_note": "render-path races: driven by fixtures, not a prompt", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 },
+    { "id": "T9", "kind": "triage", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Fetch the record at this IRI and summarize it: /api/3/alerts/<uuid>", "expectedCards": [], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "T10", "kind": "triage", "skip": true, "_note": "provider parity: run ONLY on the openai-config box", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Triage this alert: summarize severity, indicators, next steps.", "expectedCards": ["info_card"], "minTools": 1, "errBudget": 1, "timeoutMs": 180000 },
+    { "id": "P1", "kind": "playbook", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "Save this investigation as a playbook.", "expectedCards": ["playbook_offer"], "minTools": 0, "errBudget": 1, "timeoutMs": 240000 },
+    { "id": "P2", "kind": "playbook", "skip": true, "_note": "draft branching: designer-side assertion, not a prompt turn", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 },
+    { "id": "P3", "kind": "playbook", "skip": true, "_note": "offer decline: needs card interaction", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 },
+    { "id": "P4", "kind": "playbook", "skip": true, "_note": "manual_input stage: fixture flow", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 },
+    { "id": "P5", "kind": "playbook", "skip": true, "_note": "rehydrate build: needs a saved draft to resume", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 }
+  ]
+}

@@ -9,6 +9,10 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Live-matrix scenario rows: real record UUIDs, box-specific. Template ships
+# as tests/live/scenarios.local.example.json.
+tests/live/scenarios.local.json
+
 # Last UI-selected SOAR target (basename of the chosen .env). Per-machine state.
 .harness-active-env
 

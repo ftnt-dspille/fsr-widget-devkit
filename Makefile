@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -109,6 +109,16 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 	  i=$$((i+1)); \
 	done; \
 	exit $$fail
+
+MATRIX_ENV ?= .env.159
+test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P5) vs the deployed widget. HEADED (WAF blocks headless). Scenarios: tests/live/scenarios.local.json (gitignored). MATRIX_ENV=<envfile> to override creds file.
+	@if [ ! -f $(HARNESS)/$(MATRIX_ENV) ]; then echo "missing $(HARNESS)/$(MATRIX_ENV) (box creds)"; exit 2; fi
+	@if [ ! -f $(HARNESS)/tests/live/scenarios.local.json ]; then \
+	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(HARNESS)/tests/live/scenarios.local.json — copy tests/live/scenarios.local.example.json and fill in real record UUIDs (box-specific, gitignored)"; \
+	else \
+	  cd $(HARNESS) && set -a && . ./$(MATRIX_ENV) && set +a && \
+	  FSRPB_LIVE=1 FSRPB_HEADED=1 pnpm test:live tests/live/matrix.live.test.js; \
+	fi
 
 test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
