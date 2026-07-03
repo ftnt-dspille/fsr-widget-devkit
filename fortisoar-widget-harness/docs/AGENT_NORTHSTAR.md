@@ -1,6 +1,12 @@
 # North star: an agent-automatable widget harness
 
-**One sentence:** an agent should go from *intent* → *working, tested, shipped
+> **⚠ DONE / superseded — kept for history.** NS1–NS6 (fixture layer, atomic
+> bump, HARNESS_RENDERING spec, `make new-widget` generator, etc.) shipped. The
+> **active reference is `../../KNOWLEDGEBASE.md`** (widget-building knowledgebase)
+> + the harness Makefile / `SOAR_TEST_KIT_DESIGN.md` test kit. (Not archived
+> because `server.js`/`server.ts`/`hermeticFixtures.test.ts` cite this in code comments.)
+
+**One sentence:** an agent should go from *intent* to *working, tested, shipped
 FortiSOAR widget* in a single closed loop where **every check is deterministic
 and box-independent**, **every failure is loud, located, and machine-readable**,
 and **the agent never needs to read the platform source to know if the widget

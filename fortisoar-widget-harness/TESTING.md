@@ -1,5 +1,10 @@
 # Writing tests that pass in this framework
 
+> **See also:** `../TESTING.md` is the canonical build → test → **deploy** flow
+> (`make ship-verify`, lint → unit → mock-e2e → deploy → live-sweep). This file
+> is the *how to write a test* guide (jest vs Playwright conventions); that one
+> is the *how to ship* pipeline. The two share a name by history.
+
 Every widget change ships with tests: **controller logic → jest**, **DOM/template
 → Playwright e2e**. This guide captures the conventions that aren't obvious — the
 ones that otherwise cost an afternoon. Read it before writing your first spec.

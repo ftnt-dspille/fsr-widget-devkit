@@ -4,19 +4,30 @@ New to this repo? Read `ONBOARDING.md` (the three repos, `make setup`, the
 compat matrix) and `CONTRIBUTING.md` (how we build/test/ship widgets) first.
 
 ## KNOWLEDGEBASE.md is the first stop for any widget work
-`KNOWLEDGEBASE.md` (repo root) is the comprehensive reference for building
+`KNOWLEDGEBASE.md` (repo root) is the index + conceptual core for building
 FortiSOAR 7.x AngularJS widgets — lifecycle, drawer/`enableFor` mechanics,
 platform services (`FormEntityService`, `$state`, `websocketService`), packaging,
-and a catalog of gotchas distilled from 60 certified widgets.
+and a catalog of gotchas distilled from 60 certified widgets. The big
+self-contained reference topics are split into their own frontmattered files
+under `fortisoar-widget-harness/docs/kb/` so each is independently loadable:
+`services-catalog.md`, `directives-catalog.md`, `drawer-widgets.md`,
+`connector-action-ui.md`, `platform-source-refs.md`. KNOWLEDGEBASE.md's table of
+contents links to them; each extracted section in the main file has a one-line
+summary stub + link.
 
 - **Before** designing or modifying any widget (template, controller, or a
-  directly-used service), consult the relevant KNOWLEDGEBASE.md section. Its
-  table of contents is at the top; §18 covers drawer/standalone widgets.
+  directly-used service), consult the relevant KNOWLEDGEBASE.md section (the ToC
+  is at the top, §1–§36 + Appendices). §18 covers drawer/standalone widgets; its
+  full reference is `docs/kb/drawer-widgets.md`. Likewise services →
+  `docs/kb/services-catalog.md`, directives → `docs/kb/directives-catalog.md`, etc.
 - **After** discovering anything non-obvious about how the platform behaves —
   a new gotcha, a service quirk, a state-name mapping, a packaging rule — **add
-  it to KNOWLEDGEBASE.md** in the matching section (terse, with the widget/file
-  reference and, where it helps, a short code block). Treat it as the durable
-  home for platform knowledge; conversation memory is not a substitute.
+  it to the matching section**: KNOWLEDGEBASE.md for cross-cutting/lifecycle
+  gotchas, or the relevant `docs/kb/<topic>.md` file when the gotcha is specific
+  to that topic (services, directives, drawer, connector-action-UI,
+  platform-source). Terse, with the widget/file reference and, where it helps, a
+  short code block. Treat the KB as the durable home for platform knowledge;
+  conversation memory is not a substitute.
 - If a bug traces to an assumption the KB documents incorrectly, fix the KB text
   in the same change — don't leave a known-wrong reference standing.
 

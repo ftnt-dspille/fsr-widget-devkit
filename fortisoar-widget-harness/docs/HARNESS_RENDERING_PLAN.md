@@ -1,5 +1,11 @@
 # Harness rendering hardening plan — make rendering deterministic & agent-legible
 
+> **⚠ DONE / superseded — kept for history.** P0/P1/P3/P4 shipped 2026-06-23.
+> The **active, agent-facing reference is [`docs/HARNESS_RENDERING.md`](HARNESS_RENDERING.md)**
+> (render contract: lifecycle, `settle()`/`waitForRender()`, render-state, stub policy).
+> Only **P2 (faithful-or-loud stubs)** remains open — see `HARNESS_RENDERING.md` "Next".
+> (Not archived because several source files cite this path in code comments.)
+
 **Status:** P0 + P1 DONE (2026-06-23); **P3 doc + P4 jest self-tests DONE
 (2026-06-23)** — `docs/HARNESS_RENDERING.md` (agent-facing render contract:
 lifecycle, `settle()`/`waitForRender()`, render-state, safety digest, stub
@@ -128,4 +134,4 @@ No more `waitForTimeout(N)` guessing; no more `scope().$apply()` pokes in specs.
 ## Sequencing
 P0 → P1 unblock the rest and immediately remove flake/turn-waste; P2–P4 are
 hardening. P0+P1 are ~a focused session; do them first and re-verify the
-jsonToGrid + fsrSocAssistant suites before touching P2+.
+jsonToGrid + fortiaiAgenticAssistant suites before touching P2+.

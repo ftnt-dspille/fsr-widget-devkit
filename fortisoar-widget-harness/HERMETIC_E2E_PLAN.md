@@ -1,5 +1,11 @@
 # Plan: make the mock e2e tier hermetic (zero forticloud dependency)
 
+> **⚠ DONE / superseded — kept for history.** The hermetic mock-e2e tier is live
+> (`FSR_HERMETIC` gate + local Monaco + boot stubs). **Active reference:
+> `../TESTING.md` §"Two tiers: hermetic mock gate vs live sweep"** and the
+> `globalTeardown` leak gate. (Not archived because `server.js`/`server.ts` cite
+> this path in code comments.)
+
 ## Problem (why this exists)
 The "mock" e2e suite is only *half* isolated. Two distinct flake sources:
 
@@ -16,7 +22,7 @@ The "mock" e2e suite is only *half* isolated. Two distinct flake sources:
    **falls through to the forticloud proxy** (`server.js` proxy at ~:1661,
    `fallthrough:true`) for anything not snapshotted: the SOAR SPA shell, vendor
    bundles, and uncached `/api/3` metadata. A real-box 502 then fails a *mock*
-   test (it 502'd `fsrSocAssistant.history` empty-state). **Per-worker servers
+   test (it 502'd `fortiaiAgenticAssistant.history` empty-state). **Per-worker servers
    make this WORSE** — two proxies now hammer the same box.
 
 This plan eliminates #2 so the mock tier never touches forticloud, and
@@ -41,7 +47,7 @@ that — it only closes the *platform* hole.
 ## Status (2026-06-12)
 - **Phase 0 — DONE + validated.** All harness e2e specs import `./_isolated`
   (via `_fixtures.js` → `_isolated`), `_widgetId.js`/`counter.spec.js` use the
-  request fixture's per-worker baseURL (relative paths). `fsrSocAssistant.history`
+  request fixture's per-worker baseURL (relative paths). `fortiaiAgenticAssistant.history`
   green with 2 workers + `retries:0`.
 - **Phase 1 — DONE.** `FSR_HERMETIC` loud-miss gate in `server.js` (599
   `HERMETIC-MISS` + `/_fsr/hermetic-misses` worklist endpoint); on by default for
@@ -49,7 +55,7 @@ that — it only closes the *platform* hole.
   `node_modules/monaco-editor` (pinned **0.47.0** = the box's version) — it was the
   one boot-critical asset (`await preloadMonaco()`). `/_fsr/stylesheets` short-
   circuits to `[]` under hermetic (was an outbound call returning un-servable
-  `/css/...` hrefs). **Full fsrSocAssistant suite: zero HERMETIC-MISS.**
+  `/css/...` hrefs). **Full fortiaiAgenticAssistant suite: zero HERMETIC-MISS.**
 - **Phase 2 — DONE (boot reads).** Harness stubs for `/api/3/actors/current` +
   `/api/system/fixtures` (the only platform `/api/3` reads that surfaced). No
   drawer entity-context `?$relationships=true` miss appeared in the suite, so that
@@ -92,12 +98,12 @@ The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite i
 ## Phases
 
 ### Phase 0 — finish the per-worker wiring (small, unblocks the gate)
-- Re-point fsrSocAssistant e2e spec imports `require('@playwright/test')` →
+- Re-point fortiaiAgenticAssistant e2e spec imports `require('@playwright/test')` →
   `require('<rel>/_isolated')` (harness specs: `./_isolated`; widget specs:
   `../../../../tests/e2e/_isolated`).
 - Make `tests/e2e/_widgetId.js` use the `request` fixture's baseURL (drop the
   hardcoded `http://localhost:14401`) so it follows the worker's own server.
-- Validate: `make test-e2e-spec SPEC="fsrSocAssistant.history"` green with 2
+- Validate: `make test-e2e-spec SPEC="fortiaiAgenticAssistant.history"` green with 2
   workers + `retries:0`.
 
 ### Phase 1 — snapshot the platform shell so the proxy is never hit for chrome
