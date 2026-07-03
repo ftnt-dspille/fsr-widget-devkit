@@ -73,6 +73,17 @@ _Last updated: 2026-07-02_
 > enriched, unavailable_connectors}` for a widget status strip (widget-side strip
 > NOT built yet — needs the connector shipped first). Suites: framework 1757,
 > connector 192, matrixEval 15 — all green.
+>
+> **2026-07-02 (SHIPPED + matrix run 6):** framework **v0.4.16 on PyPI**,
+> connector **0.4.24 live on all 6 workers** (pin bump `fe9d30c`), provider
+> anthropic. `make matrix` run 6: **infra fully healthy** — get_record errors
+> gone, guard redirects now excluded from the eval (`da2ee3f`). T1's remaining
+> FAIL is one precise gap: **`fortinet-fortiguard-ioc` missing from the
+> reference catalog** → discovery's tier≤2 filter drops it AND the dispatch
+> tier gate stages an approval card for its read-only `ip_reputation`, so the
+> turn ends `awaiting_approval` with no info_card. Fix next: ingest
+> live-configured connectors into a warmed per-install DB, or tier-gate
+> fallback to live op metadata (see memory `matrix_run1_findings` RUN 6).
 
 ---
 
