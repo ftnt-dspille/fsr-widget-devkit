@@ -32,6 +32,12 @@ describe("isErr classifier", () => {
     expect(isErr(okResult("get_record", { ok: true, severity: "Critical" }))).toBe(false);
     expect(isErr(text("summary"))).toBe(false);
   });
+  test("guard redirects (kind:guard_redirect) are steering, not errors", () => {
+    expect(isErr(errResult("find_containment_actions", {
+      ok: false, kind: "guard_redirect", hunt_floor_guard: true,
+      error: "Do NOT call `find_containment_actions` yet — it was NOT executed.",
+    }))).toBe(false);
+  });
   test("ok:true payload with nested 'error' strings is DATA, not a failure", () => {
     // list_configured_connectors reports each config's health — one
     // unconfigured connector on the box must not red-flag the call.

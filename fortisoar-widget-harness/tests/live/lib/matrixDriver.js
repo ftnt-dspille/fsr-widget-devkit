@@ -35,6 +35,11 @@ function isErr(f) {
   if (f.type === "error") return true;
   const p = payloadOf(f);
   if (p && typeof p === "object") {
+    // Guard redirects (hunt-floor / call-once / capability guards) are
+    // STEERING, not failures — the framework marks them kind:"guard_redirect"
+    // (AGENT_HARDENING §D) exactly so evals and the widget can tell them
+    // apart from real tool errors.
+    if (p.kind === "guard_redirect") return false;
     if (p.ok === false) return true;
     if (p.error || p.code === "error" || p.exception) return true;
     // Structured success: a nested "error" string is DATA, not a tool
