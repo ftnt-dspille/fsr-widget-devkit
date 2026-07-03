@@ -82,9 +82,10 @@ widget-inspect: ## Mount a widget in the running harness + measure it as JSON (A
 	cd $(HARNESS) && $(if $(BASE),HARNESS_BASE=$(BASE) ,)node scripts/widget-inspect.js $(ARGS)
 
 BUMP ?= patch
-ship-verify: ## CANONICAL ship path: lint→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
+ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	@echo "▶ 1/5 lint";       cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
+	@echo "▶ 1/5 typecheck";  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
 	@echo "▶ 2/5 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
 	@echo "▶ 3/5 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
 	@echo "▶ 4/5 deploy ($(BUMP)) via ship.sh (bulletproof start+push, harness .env → same box tests hit)"; \
@@ -111,12 +112,15 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 	exit $$fail
 
 MATRIX_ENV ?= .env.159
+# MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
+# (the connector-repo Makefile passes one).
+MATRIX_ENV_PATH := $(if $(filter /%,$(MATRIX_ENV)),$(MATRIX_ENV),$(abspath $(HARNESS)/$(MATRIX_ENV)))
 test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P5) vs the deployed widget. HEADED (WAF blocks headless). Scenarios: tests/live/scenarios.local.json (gitignored). MATRIX_ENV=<envfile> to override creds file.
-	@if [ ! -f $(HARNESS)/$(MATRIX_ENV) ]; then echo "missing $(HARNESS)/$(MATRIX_ENV) (box creds)"; exit 2; fi
+	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
 	@if [ ! -f $(HARNESS)/tests/live/scenarios.local.json ]; then \
 	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(HARNESS)/tests/live/scenarios.local.json — copy tests/live/scenarios.local.example.json and fill in real record UUIDs (box-specific, gitignored)"; \
 	else \
-	  cd $(HARNESS) && set -a && . ./$(MATRIX_ENV) && set +a && \
+	  cd $(HARNESS) && set -a && . "$(MATRIX_ENV_PATH)" && set +a && \
 	  FSRPB_LIVE=1 FSRPB_HEADED=1 pnpm test:live tests/live/matrix.live.test.js; \
 	fi
 

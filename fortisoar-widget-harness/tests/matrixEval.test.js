@@ -32,6 +32,15 @@ describe("isErr classifier", () => {
     expect(isErr(okResult("get_record", { ok: true, severity: "Critical" }))).toBe(false);
     expect(isErr(text("summary"))).toBe(false);
   });
+  test("ok:true payload with nested 'error' strings is DATA, not a failure", () => {
+    // list_configured_connectors reports each config's health — one
+    // unconfigured connector on the box must not red-flag the call.
+    expect(isErr(okResult("list_configured_connectors", {
+      ok: true,
+      configured: [{ name: "imap", status: "error" },
+                   { name: "smtp", status: "Available" }],
+    }))).toBe(false);
+  });
 });
 
 describe("evaluate() verdict ladder", () => {
@@ -108,6 +117,29 @@ describe("evaluate() verdict ladder", () => {
     const ev = evaluate(frames, { expectedCards: [], minTools: 1, errBudget: 1 });
     expect(ev.verdict).toBe("PASS");
     expect(ev.why).toContain("clean run");
+  });
+
+  // Regression: the widget renders cards (info_card/status_card/…) that the
+  // connector delivers INSIDE the final stream_end.transcript[], NOT as
+  // top-level frames. The eval must descend into that transcript or it reports a
+  // missing deliverable for a turn that actually produced one (live-observed on
+  // T1: an ioc_enrichment info_card was rendered but the eval saw got=[]).
+  test("cards nested in stream_end.transcript are counted as the deliverable", () => {
+    const endWithTranscript = {
+      type: "stream_end", stop_reason: "awaiting_choice",
+      transcript: [
+        use("run_op", { connector: "fortinet-fortiguard-ioc", op: "ioc_search" }),
+        okResult("run_op", { ok: true, data: [{ "@type": "IOCSearch" }] }),
+        { type: "info_card", id: "ioc-0", variant: "ioc_enrichment", title: "IOC: 1.2.3.4" },
+      ],
+    };
+    // Top-level frames DON'T include the info_card — only the transcript does.
+    const frames = [use("run_op"), okResult("run_op"), text("summary"), endWithTranscript];
+    const ev = evaluate(frames, { expectedCards: ["info_card"], minTools: 1, errBudget: 1 });
+    expect(ev.metrics.gotExpected).toContain("info_card");
+    expect(ev.metrics.missingExpected).toEqual([]);
+    expect(ev.hardFail).toBe(false);
+    expect(ev.metrics.terminalStop).toBe("awaiting_choice");
   });
 });
 

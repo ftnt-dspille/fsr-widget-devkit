@@ -40,6 +40,39 @@ _Last updated: 2026-07-02_
 > §4.6 gap-resume = 0 tool calls, §4.7 block-ip = card only (zero re-hunt), §A build →
 > `awaiting_playbook_offer` → accept → pushed. Next: spine P3/P4. Memory:
 > `hardening_g_a_built`.
+>
+> **2026-07-02 (latest) — spine P3+P4 BUILT offline, UNCOMMITTED:** P3 capability
+> facts (capability guard + `note_result` learning + `forget_connector_availability`
+> cache-bust; framework 632 passed) and the **capability-gap "Re-check & continue"
+> made deterministic** (clears learned facts + availability caches + explicit
+> re-check instruction — closes the user-reported dead-button gap). P4 phase
+> transitions at the persist chokepoint + §A build-terminal eval + re-triage
+> transcript-scan eval. Connector 184 passed (+15 new tests), same 4 pre-existing
+> fails (now fixed — 188 passed, fully green). **SHIPPED + LIVE-VERIFIED same
+> day:** fsr-playbooks **v0.4.15 on PyPI** (framework 7c0a895), connector
+> **0.4.23 live** on all 8 workers (6892f3d). Live drive: servicenow gap card →
+> "Re-check & continue" → live re-probe, zero re-hunt, guard doesn't block the
+> retry. Memory: `hardening_g_a_built`.
+
+> **2026-07-02 (session: §F/§B + matrix run 5 + case_state tag) — COMMITTED offline,
+> NOT shipped:** (a) **§F build-authoring efficiency** (framework `0721e14`):
+> `validate_yaml` returns `corrected_yaml`+`auto_fixes` (source_fixer wired into
+> the tool via new `apply_fixes`); parameters shape error carries examples + the
+> mapping equivalent of a list-of-dicts; **§B** verify_playbook slimmed (no
+> duplicated compile evidence, lean typed_walk = counts, warnings/fixes deduped
+> by (code,message) with count). (b) **Matrix run 5 executed** (`make matrix`,
+> T1): FAIL, but diagnosis says the blocker is a **stale framework gate model**
+> — `tool_models.GetRecordArgs` required module+record_id(str) and bounced
+> iri-only / module+uuid / int-record_id (3 of 4 "errors"); fixed (framework
+> `2ad99de`) + eval false-positive fixed (`ok:true` payloads with nested
+> "status":"error" no longer count as tool errors, matrixDriver.js) + connector
+> Makefile→widgets Makefile MATRIX_ENV abs-path handoff fixed. **Matrix re-run
+> gated on shipping framework fix: tag v0.4.16 → PyPI → pin bump → `make ship`
+> → `make matrix`.** (c) **case_state envelope tag built** (connector `94be9f1`):
+> chat_turn/chat_resume tags carry `{phase, record_key, scenario, searched,
+> enriched, unavailable_connectors}` for a widget status strip (widget-side strip
+> NOT built yet — needs the connector shipped first). Suites: framework 1757,
+> connector 192, matrixEval 15 — all green.
 
 ---
 
