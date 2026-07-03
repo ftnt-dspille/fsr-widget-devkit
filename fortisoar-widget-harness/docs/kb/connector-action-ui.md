@@ -22,7 +22,7 @@ module name. The widget needs to track the result task ID itself if it
 wants to poll for the playbook output — `triggerPlaybookAction` only
 fires the trigger.
 
-**Two trigger endpoints — by trigger TYPE (action-renderer, 2026-06-16e).**
+**Two trigger endpoints — by trigger TYPE (action-renderer).**
 Not every playbook is a record-context "action" trigger. The platform `API`
 constant exposes both endpoints:
 - `API.ACTION_TRIGGER` = `api/triggers/1/action/<route>` — record-context
@@ -395,7 +395,7 @@ Hard invariants it owns (each silently breaks naive automation):
   desktop Chrome UA (`DESKTOP_UA`, single source of truth here — `liveUiDriver`
   re-exports it; don't fork) + `Accept-Language`. This — not SSO — is why the UI
   was historically "un-driveable" on forticloud.
-- **`csadmin` is a LOCAL login, not SSO** — form `#username` + `#login_password`,
+- **The local admin login is a LOCAL login, not SSO** — form `#username` + `#login_password`,
   submit `button[type=submit]`; then ~8s app-shell boot.
 - **Record deep-links are `/modules/<module>/<uuid>`** (ui-router
   `main.modulesDetail`); a bare `/<module>/<uuid>` silently redirects to login.
@@ -461,7 +461,7 @@ It proves the "Show all" branch loads the real global action-trigger list (210 o
 SELECT populates `config.source` + param rows.
 
 **Playbook SELECT must NOT hard-depend on `playbookService` (action-renderer bug
-fixed 2026-06-16).** `onPlaybookPicked` originally did
+fixed).** `onPlaybookPicked` originally did
 `if (!getPlaybookService()) return;` then `playbookService.getTriggerStep(pb)` —
 so in any environment where `playbookService` isn't registered (the harness, and
 notably the *exact* "Show all" path which serves environments without it) picking

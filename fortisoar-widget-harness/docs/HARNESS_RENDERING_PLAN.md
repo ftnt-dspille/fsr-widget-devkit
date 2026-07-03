@@ -1,20 +1,19 @@
 # Harness rendering hardening plan — make rendering deterministic & agent-legible
 
-> **⚠ DONE / superseded — kept for history.** P0/P1/P3/P4 shipped 2026-06-23.
+> **⚠ DONE / superseded — kept for history.** P0/P1/P3/P4 shipped.
 > The **active, agent-facing reference is [`docs/HARNESS_RENDERING.md`](HARNESS_RENDERING.md)**
 > (render contract: lifecycle, `settle()`/`waitForRender()`, render-state, stub policy).
 > Only **P2 (faithful-or-loud stubs)** remains open — see `HARNESS_RENDERING.md` "Next".
 > (Not archived because several source files cite this path in code comments.)
 
-**Status:** P0 + P1 DONE (2026-06-23); **P3 doc + P4 jest self-tests DONE
-(2026-06-23)** — `docs/HARNESS_RENDERING.md` (agent-facing render contract:
+**Status:** P0 + P1 DONE; **P3 doc + P4 jest self-tests DONE** — `docs/HARNESS_RENDERING.md` (agent-facing render contract:
 lifecycle, `settle()`/`waitForRender()`, render-state, safety digest, stub
 policy) + `tests/harnessRender.test.ts` (22 jest pinning the primitives). The
 P4 **e2e** self-tests (render-state phases, `$uibModal` faithfulness,
 empty-state ×N stability, render-error panel) remain — they need the parent
 Makefile + widgets-src. **P2 (faithful-or-loud stubs) is next** (north star #2).
 
-> **P0/P1 shipped 2026-06-23.** `lib/harnessRender.ts` adds
+> **P0/P1 shipped.** `lib/harnessRender.ts` adds
 > `window.__HARNESS_RENDER_STATE` (phase/mountId/lastError) + `window.__harness.settle()`
 > (bounded drain of $http+digest+$timeout) + an ambient **safety digest**
 > (`$interval(noop)`, default-on, `window.__HARNESS_NO_SAFETY_DIGEST` to disable)

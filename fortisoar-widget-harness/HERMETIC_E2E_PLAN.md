@@ -44,7 +44,7 @@ mocked client-side (`executeAction` → `fsrPbMockConnectorService` when a
 `?mock=` scenario is active) and never hit forticloud. This plan does NOT touch
 that — it only closes the *platform* hole.
 
-## Status (2026-06-12)
+## Status
 - **Phase 0 — DONE + validated.** All harness e2e specs import `./_isolated`
   (via `_fixtures.js` → `_isolated`), `_widgetId.js`/`counter.spec.js` use the
   request fixture's per-worker baseURL (relative paths). `fortiaiAgenticAssistant.history`
@@ -62,7 +62,7 @@ that — it only closes the *platform* hole.
   fixture mechanism isn't needed yet — add per the plan if a future spec hits it.
 - **Phase 3 — DONE (moot).** The smoke "live connector" push specs mock the
   connector via `page.route()`, so they're *already* box-independent. The 17
-  failures were never hermetic leaks; they were three real bugs (see 2026-06-13
+  failures were never hermetic leaks; they were three real bugs (see the
   below). The only genuinely-live spec is `createPlaybookLive.spec.js`, excluded
   unless `E2E_LIVE=1`. **No genuinely-live mock specs remain** — the mock tier is
   fully hermetic.
@@ -75,7 +75,7 @@ that — it only closes the *platform* hole.
   `make assets` to re-snapshot Monaco on a box version bump (today the version is
   pinned in `package.json` at 0.47.0 by hand).
 
-## Update 2026-06-13 — the 17 "pre-existing" failures fixed; suite 85/0
+## Update - the 17 "pre-existing" failures fixed; suite 85/0
 
 The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite is
 **85 passed / 0 failed**):

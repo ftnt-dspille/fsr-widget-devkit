@@ -113,7 +113,7 @@ Everything else is an implementation detail the agent should never have to learn
 
 1. ✅ **Default hermetic fixture layer** incl. a real record fixture — *unblocks all
    record-context widgets in the mock tier; biggest single win.* **DONE
-   (2026-06-23).** `server.ts` serves `/api/3/<module>/<id>` (per-widget
+  .** `server.ts` serves `/api/3/<module>/<id>` (per-widget
    `widgetAssets/fixtures/api3/record.json` else a synthesised scaffold) +
    `/api/integration/connectors/` (fixture else empty `{…,data:[]}` envelope) under
    `FSR_HERMETIC`; the page declares the mounting widget via `POST /_fsr/active-widget`
@@ -122,7 +122,7 @@ Everything else is an implementation detail the agent should never have to learn
    action-renderer seeded. 6 jest regressions (`tests/hermeticFixtures.test.ts`),
    171 harness jest green. Doc: `TESTING.md` → "Default fixture layer".
 2. ✅ **Stub policy: faithful-or-loud** + introspect check for no-op stub hits on
-   mount. **DONE (2026-06-23).** Declared-inert stub methods (no-ops the harness
+   mount. **DONE.** Declared-inert stub methods (no-ops the harness
    drives another way — `$uibModalInstance.close`/`dismiss`,
    `localStorageService.clearAll`) are now wrapped with an in-page `inert(label)`
    helper in `harness.module.ts` that records each invocation into
@@ -135,7 +135,7 @@ Everything else is an implementation detail the agent should never have to learn
    `tests/harnessUtils.test.js`; live-verified the DI bootstrap still mounts
    (helloCounter: clean mount, `inertInvocations: {}` — no false positive).
 3. ✅ **Versioning single-source**: bump rewrites tests with source; remove the
-   hand-bump footgun. **DONE (2026-06-23).** Fixed the CLI bump wiring bug —
+   hand-bump footgun. **DONE.** Fixed the CLI bump wiring bug —
    `POST /_fsr/fix-info/:id` now accepts `{bump}` (was silently ignored; only
    `{patch}` worked), computes the new version and calls `syncSourceToInfoJson`
    so source controllers **and** the sibling `tests/` tree rewrite atomically.
@@ -147,7 +147,7 @@ Everything else is an implementation detail the agent should never have to learn
    7 jest regressions in `tests/packager.test.js`.
 4. ✅ **Contract helpers**: a `triggerPlaybook(playbook)` the widgets share so the
    endpoint choice is impossible to get wrong; same for csGrid wiring. **DONE
-   (2026-06-23).** `lib/harnessUtils.ts` now holds the canonical, unit-tested
+  .** `lib/harnessUtils.ts` now holds the canonical, unit-tested
    encoding of both contracts: `selectPlaybookTrigger({triggerType,route,
    noRecordExecution,uuid,API})` → `{url,isManual}` (the KB §19.3 endpoint split —
    action-by-route vs notrigger-by-uuid) and `buildCsGridPaged(rows)` →
@@ -163,7 +163,7 @@ Everything else is an implementation detail the agent should never have to learn
    (`tests/harnessUtils.test.js`, 218 green); detector verified zero false
    positives on action-renderer + jsonToGrid's real controllers.
 5. ✅ **Generator** (`make new-widget`) emitting harness-wired tests. **DONE
-   (2026-06-23).** `scripts/new-widget.ts` is a spec-driven generator (the old
+  .** `scripts/new-widget.ts` is a spec-driven generator (the old
    bash scaffold is now a thin shim over it). It emits three variants from a spec
    — **dashboard**, **record** (View-Panel; reads the open record via
    `FormEntityService`, wired to the NS1 default fixture layer so it's green on
@@ -182,7 +182,7 @@ Everything else is an implementation detail the agent should never have to learn
    (`tests/newWidget.test.js`) including real angular instantiation of each
    variant and a lint-clean integration check.
 6. ✅ **Agent-facing docs**: `HARNESS_RENDERING.md` + this north star, kept short.
-   **DONE (2026-06-23).** `docs/HARNESS_RENDERING.md` documents the render
+   **DONE.** `docs/HARNESS_RENDERING.md` documents the render
    lifecycle state machine, the `settle()`/`waitForRender()` contract, the
    render-state snapshot fields, the safety digest + disable flag, and the
    faithful-or-loud stub policy (cross-refs KB §18 + TESTING.md). Render

@@ -1282,7 +1282,7 @@ $scope.$on('$destroy', () => {
 });
 ```
 
-### 19.3 Direct trigger — pick the endpoint by trigger TYPE (live-verified 2026-06-23)
+### 19.3 Direct trigger — pick the endpoint by trigger TYPE (live-verified)
 
 There are **three** trigger endpoints and they take **different identifiers**.
 Using the wrong one is the classic `404 NotFoundHttpException "Resource Not
