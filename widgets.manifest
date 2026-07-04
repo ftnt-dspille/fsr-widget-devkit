@@ -16,6 +16,7 @@
 fsrSocAssistant     https://gitlab.example.invalid/dspille/fsrPlaybookBuilder-widget.git   feat/action-based-streaming
 widget-jinja-editor https://github.com/ftnt-dspille/widget-jinja-editor.git                                  main
 widget-action-renderer https://github.com/ftnt-dspille/widget-action-renderer.git                            master
+ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git                       main
 
 # Local-only widgets (no remote yet) — add a URL here once they're pushed:
 # c3charts              <url>  master
