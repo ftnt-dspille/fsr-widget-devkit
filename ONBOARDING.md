@@ -13,7 +13,7 @@ but does not contain the other two.
 | Repo | What it is | Where it lives |
 |------|------------|----------------|
 | **Dev Kit** (this repo) | Harness, `Makefile`, `scripts/`, `KNOWLEDGEBASE.md`, lint configs, widget template. Ships `widgets-src/` **empty**. | `fsr_all_widgets/` |
-| **Widget(s)** | One repo per widget (e.g. `fsrSocAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
+| **Widget(s)** | One repo per widget (e.g. `fortiaiAgenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
 | **Connector** | The agentic backend (`fortinet-fsr-playbook-builder` + `fsr_core`) the SOC-assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
 
 The harness (`fortisoar-widget-harness/`) is **part of this repo** — plain files,
@@ -60,8 +60,8 @@ once it's pushed.
 
 ```bash
 make dev                                   # drive widgets by hand on :14400
-make test-unit WIDGET=fsrSocAssistant      # jest (controller logic)
-make test-e2e-widget WIDGET=fsrSocAssistant# Playwright (DOM/template) on a fresh :14401
+make test-unit WIDGET=fortiaiAgenticAssistant      # jest (controller logic)
+make test-e2e-widget WIDGET=fortiaiAgenticAssistant# Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js
 make stop                                  # kill both servers
 ```
@@ -70,11 +70,16 @@ Always run tests **through the Makefile** — it manages the two never-overlappi
 ports (dev 14400, test 14401) so a test run never races your dev server. See
 `CONTRIBUTING.md` for the full widget-dev discipline (KB-first, ship.sh, etc.).
 
+**Want to run the connector + LLM locally** (a local OpenAI-compatible LLM gateway, a FortiSOAR box
+for SOAR data only) so you can iterate on connector/widget/prompt changes
+without redeploying or burning credits? See **[LOCAL_DEV.md](LOCAL_DEV.md)** —
+the fast local-dev loop.
+
 To package + push a widget to the lab box:
 
 ```bash
 cd fortisoar-widget-harness
-scripts/ship.sh fsrSocAssistant --bump patch
+scripts/ship.sh fortiaiAgenticAssistant --bump patch
 ```
 
 ## Compatibility matrix
@@ -84,7 +89,7 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `fsrSocAssistant` ("FSR SOC Assistant") | 1.2.1 | `fortinet-fsr-playbook-builder` 0.3.121 | 2.8.0 | SOC copilot: investigate → hunt → triage → build |
+| `fortiaiAgenticAssistant` ("FSR SOC Assistant") | 1.2.1 | `fortinet-fsr-playbook-builder` 0.3.121 | 2.8.0 | SOC copilot: investigate → hunt → triage → build |
 | `widget-jinja-editor` | — | none | n/a | standalone Monaco/Jinja editor |
 | `c3charts` | — | none (registry-driven) | n/a | chart builder |
 | `widget-action-renderer` | — | none | n/a | playbook action renderer |

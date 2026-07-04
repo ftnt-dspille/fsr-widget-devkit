@@ -1,5 +1,5 @@
 "use strict";
-// Resolve the installed fsrSocAssistant widget id from the running harness,
+// Resolve the installed fortiaiAgenticAssistant widget id from the running harness,
 // so e2e specs survive version bumps instead of hard-coding e.g. -1.0.0.
 // Usage in a spec:
 //   const { resolveWidgetId, DEFAULT_ID } = require('./_widgetId');
@@ -14,13 +14,13 @@ import { APIRequestContext } from "@playwright/test";
 // pinning worker 1's port. Under per-worker servers a hardcoded origin would
 // query the wrong worker's harness.
 const HARNESS = "http://localhost:14401";
-const DEFAULT_ID = "fsrSocAssistant-1.0.29";
+const DEFAULT_ID = "fortiaiAgenticAssistant-1.0.29";
 
 export async function resolveWidgetId(
   request: APIRequestContext,
   name?: string
 ): Promise<string> {
-  const widgetName = name || "fsrSocAssistant";
+  const widgetName = name || "fortiaiAgenticAssistant";
   try {
     const resp = await request.get("/_fsr/widgets");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- response json is dynamic

@@ -9,9 +9,18 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Local-dev loop (scripts/local-connector-sidecar.py): real Frank + box creds
+localdev.env
+.venv-localdev/
+
 # Live-matrix scenario rows: real record UUIDs, box-specific. Template ships
 # as tests/live/scenarios.local.example.json.
 tests/live/scenarios.local.json
+
+# Live-matrix capture artifacts: full per-scenario timelines (input messages +
+# every tool call's full input/output/error + raw frames). Box-specific,
+# regenerated each run — never committed.
+tests/live/_artifacts/
 
 # Last UI-selected SOAR target (basename of the chosen .env). Per-machine state.
 .harness-active-env

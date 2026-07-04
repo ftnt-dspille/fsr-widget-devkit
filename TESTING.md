@@ -103,7 +103,7 @@ One pipeline, one command. This is the consolidated path — every step is a
 Makefile target so the build/test/deploy story can't drift between sessions.
 
 ```
-make ship-verify WIDGET=fsrSocAssistant [BUMP=patch]
+make ship-verify WIDGET=fortiaiAgenticAssistant [BUMP=patch]
 ```
 
 runs, in order, failing fast:
@@ -184,7 +184,7 @@ The **live sweep** (`E2E_LIVE=1`, serial, `FSR_HERMETIC=0`) is the only tier tha
 reaches the real box. Refresh the local platform snapshot with `make assets` when
 the box's FortiSOAR version bumps.
 
-### The live sweep (`fsrSocAssistant.liveSweep.spec.js`)
+### The live sweep (`fortiaiAgenticAssistant.liveSweep.spec.js`)
 
 Drives the widget **through the UI only** against the real
 `connector-fsr-soc-assistant` on the box in `.env`, across the four scenario

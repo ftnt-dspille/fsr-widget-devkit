@@ -130,7 +130,7 @@ getModules(modules: unknown[]): unknown[];
 Anchor signature emitted correctly (proves Phase 3 payoff):
 `executeConnectorAction(connectorName: string, connectorVersion: string, operation: string, configuration: string, params: object, audit?: boolean, auditInfo?: object, agent?: string): Promise<unknown>` — `configuration` required, so passing `null` is a type error under checkJs.
 
-### Phase 3 — Opt-in type-check of widget source (`checkJs`) — the headline win — IN PROGRESS
+### Phase 3 — Opt-in type-check of widget source (`checkJs`) — the headline win — DONE
 - [x] Engine `lib/widgetTypecheck.ts`: parses a controller, **auto-annotates
       injected params** with their `Soar.*` types (JSDoc `@param`, non-destructive,
       back-to-front splice), runs `checkJs` with `strictNullChecks` on but
@@ -142,15 +142,29 @@ Anchor signature emitted correctly (proves Phase 3 payoff):
       no-false-positive guards. Runs in `make test-unit` (jest). 8 cases green.
 - [x] On-demand CLI `scripts/typecheck-widgets.ts` (`pnpm typecheck:widgets [name]`)
       — strict, exits non-zero on any error. **Not yet wired to block** anything.
-- [ ] **Noise-scoping (the gate-blocker):** the residual ~169 diagnostics are now
-      verified to be **100% non-SOAR** — `TS2339` on `Element`/`object`/`never`/
-      `string`/`HTMLOrSVGScriptElement`, `TS2304` on 3rd-party globals, and
-      null-inference (`TS18046/18047/18048`) on untyped locals. **Zero land on a
-      `Soar.*` type** (was the goal of the model-completion pass below). To make
-      the CLI a clean blocking gate: walk each diagnostic to its AST node, keep it
-      ONLY if the expression's type resolves to a `Soar.*` interface (use the
-      TypeChecker). Then wire the scoped CLI into `ship-verify` step 1 (lint),
-      blocking per shipped widget.
+- [x] **Noise-scoping (the gate-blocker) — DONE.** `lib/widgetTypecheck.ts`
+      gained a `soarOnly` option + `scopeDiagnosticsToSoar(checker, diags)`: each
+      diagnostic is walked to its AST node (`nodeAtPosition`, public-API only —
+      `ts.getTouchingToken` is internal) and kept ONLY if the enclosing call's
+      resolved signature, the accessed object, or the expression itself resolves
+      to a declaration inside the `Soar` namespace (i.e. inside
+      `soar-platform.d.ts`). Covers TS2339/2551 (property), TS2554 (arity),
+      TS2345 (arg type — the null-config headline catch). Result over the live
+      corpus: **169 raw → 168 raw noise, 0 Soar-scoped** — every survivor is
+      non-SOAR (`window.monaco` TS2339, `unknown`-local TS18046, local-helper
+      TS2554, `{}`-access TS2339). 7 jest cases in `tests/widgetTypecheck.test.js`
+      (noise dropped + signal kept, both modes). CLI defaults to scoped.
+- [x] **One real signal triaged → model fix, not a widget bug.** The scoped run
+      surfaced exactly one Soar diagnostic: `ViewTemplateService.changeStructure`
+      called with 4 args on `fsocfieldsofinterest`, contenthub declares 3.
+      Ground-truthed against `app.unmin.js`: the real method is
+      `function(e,t,n,i)` (4 params; internal callers pass 3 → 4th optional;
+      `l=i?{…}` → boolean; widget passes `true`). **Doc-lag, not a widget bug.**
+      Closed via the `EXTRA_METHODS` overlay (a 4-param overload, marked
+      `// [overlay]`) in `gen-soar-types.ts` — `pnpm gen-types` regenerates it.
+      Verified: the overload accepts the valid 4-arg call while a wrong arity
+      (5 args, or 1) still fails — no index signature. This is the model-fix
+      pattern for future doc-lag arity finds.
 - [x] **Model gap — DONE (curated overlay in `gen-soar-types.ts`).** The docs
       corpus omits constructors and some real methods. Added `CONSTRUCTABLE`
       (`Entity`/`Query`/`PagedCollection`/`Field` → `new (...args): any`; instance
@@ -163,8 +177,12 @@ Anchor signature emitted correctly (proves Phase 3 payoff):
       type**. Overlay lines marked `// [overlay]` in the `.d.ts`; guarded by
       `tests/genSoarTypes.test.js` ("emitDts curated overlay"). Do NOT use an index
       signature in the overlay (it would suppress the bad-method-name catch).
-- [ ] Triage the residual real signal (a few `TS2554`/`TS2345` — arity + null-config)
-      once noise-scoped; these are the headline catches to keep.
+- [x] Triage of residual real signal — DONE. The noise-scoped run over all 13
+      widgets surfaced exactly **one** Soar diagnostic (`changeStructure` arity,
+      `fsocfieldsofinterest`), triaged above to doc-lag and closed via the overlay.
+      **0 Soar-contract diagnostics remain** across 26 controllers. The headline
+      catches (null-config `TS2345`, bad-method `TS2339/2551`, too-few-args
+      `TS2554`) are proven kept by the jest fixtures.
 
 ### Phase 4 — Port remaining KB gotchas onto the unified engine
 - [ ] AST-accurate where applicable: copyright-header-missing (KB §2/§28.3),
@@ -177,7 +195,12 @@ Anchor signature emitted correctly (proves Phase 3 payoff):
 ### Phase 5 — Wire + harden
 - [ ] Jest cases per rule; false-positive baseline sweep across all ~60 widgets
       (zero-FP gate, as done for the last lint batch).
-- [ ] Hook the type-check tier into `make ship-verify`. *Effort: S–M.*
+- [x] **Hook the type-check tier into `make ship-verify` — DONE.** Step 1/5 now
+      runs the scoped CLI after `widget.js lint`:
+      `WIDGETS_SRC=… node scripts/typecheck-widgets.js $(WIDGET)` — blocks the
+      ship on any Soar-contract violation (verified: planted null-config bug →
+      exit 1; clean widget → exit 0). Static (no server). CLI `--raw` keeps the
+      full 168-diagnostic noise set available for triage.
 
 ---
 

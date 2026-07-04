@@ -33,12 +33,12 @@ async function boot(page) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=happy_path&fastmock=1`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 25000 });
   // Seed authored YAML into build mode so the pane is on screen.
   await page.evaluate(() => {
-    window.__fsrSocAssistant__.seedTriageDraft('playbooks:\n  - name: Test Playbook');
-    window.__fsrSocAssistant__.openDraftInBuild();
+    window.__fortiaiAgenticAssistant__.seedTriageDraft('playbooks:\n  - name: Test Playbook');
+    window.__fortiaiAgenticAssistant__.openDraftInBuild();
   });
 }
 

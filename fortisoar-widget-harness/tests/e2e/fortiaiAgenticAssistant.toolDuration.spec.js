@@ -28,7 +28,7 @@ async function gotoMultiTool(page) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=multi_tool`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 30000 });
   return errors;
 }
@@ -41,7 +41,7 @@ test('completed tools show frozen durations + turn footer rolls up total & slowe
 
   // Wait for the turn to settle (tool chips render their frozen labels).
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.state === 'idle',
+    () => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.state === 'idle',
     null, { timeout: 15000 });
 
   // At least one tool chip shows a duration label; the 47s tool must be present.

@@ -2,7 +2,7 @@
 // LIVE detached-turn probe (contract 2.7.0 / §11) — the path the mock specs
 // never exercise.
 //
-// Every other fsrSocAssistant e2e runs in MOCK mode (`?mock=…`), where a
+// Every other fortiaiAgenticAssistant e2e runs in MOCK mode (`?mock=…`), where a
 // chat_turn returns the full transcript inline and synchronously. The real
 // product bug the analyst hit ("ask to build a playbook → stuck on the typing
 // bubbles forever") lives in the LIVE path: in live mode the widget sends
@@ -178,7 +178,7 @@ async function boot(page) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mode=live`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 25000 });
   // Composer must come ready (connector resolved against our stub). The input
   // is enabled only when viewState==='idle' && connectorReady!==false.

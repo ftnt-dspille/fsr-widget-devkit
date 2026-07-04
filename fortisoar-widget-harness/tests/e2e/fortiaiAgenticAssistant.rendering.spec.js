@@ -134,6 +134,32 @@ test('playbook-editor mount forces build intent and shows playbook quick actions
   expect(errors, 'no errors: ' + errors.join(' | ')).toEqual([]);
 });
 
+// ─── Card attribution: action_card visually ties to its tool_call ──────────
+
+test('action_card with preceding_tool_use_id renders attached to its tool_call', async ({ page }) => {
+  const errors = [];
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', e => errors.push(String(e)));
+  await page.addInitScript((id) => {
+    localStorage.setItem('harness:config:' + id, JSON.stringify({
+      connectorName: 'fortinet-fsr-playbook-builder', defaultIntent: 'build', maxTurns: 10, showUsage: true }));
+    localStorage.setItem('harness.widget', id);
+    localStorage.setItem('harness.ctx', 'dashboard');
+    localStorage.removeItem('fsrPbSession');
+  }, WIDGET_ID);
+  await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=card_attribution&fastmock=1&opener=1`, { waitUntil: 'domcontentloaded' });
+  await waitForWidgetIdle(page, '__fortiaiAgenticAssistant__');
+
+  const toolCall = page.locator('.tool-call.tool-call-has-card');
+  await expect(toolCall).toBeVisible();
+  const card = page.locator('[data-testid="action-card-act-block-1"]');
+  await expect(card).toBeVisible();
+  // The attached card's step sits directly after the tool-call step with the
+  // gap/border removed, rather than reading as an unrelated later box.
+  await expect(card.locator('xpath=ancestor::*[contains(@class,"pb-step-attached")]')).toHaveCount(1);
+  expect(errors, 'no errors: ' + errors.join(' | ')).toEqual([]);
+});
+
 // ─── Info-cards fixture (all card variants) ──────────────────────────────────
 
 test('info_cards fixture renders all card kinds without errors', async ({ page }) => {

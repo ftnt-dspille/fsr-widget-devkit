@@ -84,6 +84,90 @@ _Last updated: 2026-07-02_
 > turn ends `awaiting_approval` with no info_card. Fix next: ingest
 > live-configured connectors into a warmed per-install DB, or tier-gate
 > fallback to live op metadata (see memory `matrix_run1_findings` RUN 6).
+>
+> **2026-07-02 (latest) — run 6 T1 gap DIAGNOSED + FIXED + SHIPPED (0.4.25):**
+> NOT a DB-location bug — the site-packages slim DB is writable + persists. Real
+> root cause: **stale catalog**. `_warmup_needed` only re-warmed when
+> `connectors`/`modules` are *empty*, so after the first partial warmup (12
+> connectors, `op_safety=0` from an older connector version preserved across the
+> `$replace` upgrade) it **always skipped** → the 20 connectors configured since
+> (incl. `fortinet-fortiguard-ioc`) were never ingested. A forced warmup ingests
+> all 32 + `op_safety` (357 rows) in ~7s. Fix: (a) `_warmup_needed` now also
+> re-warms when `op_safety` is empty with `operations>0` (version-skew
+> staleness); (b) `make ship` force-warms after `verify` (operational guarantee).
+> `fortinet-fortiguard-ioc` 1.1.0 has NO `ip_reputation` op (the agent
+> hallucinated it) — its real ops (`ioc_search` etc.) are investigation/safe/
+> tier-2, so discovery surfaces them `requires_approval:false`. **SHIPPED +
+> LIVE-VERIFIED on 8.0:** connector `0.4.25` on all 6 workers (commit `efb545f`,
+> unpushed). `make matrix` T1 now **DEGRADED** (was FAIL): `info_card` delivered,
+> `find_enrichment_actions` returns fortiguard-ioc tier-2, agent runs real
+> `ioc_search` via `run_op` (auto-allowed, no approval card). Suite: connector
+> **195 passed** (run with `FSRPB_DEV=1`; +3 staleness tests in
+> `test_warmup_hooks.py`). Known gap: a connector configured via UI between
+> ships isn't auto-detected — run `make warmup` after adding connectors.
+>
+> **2026-07-02 — emit_action_card gate drift FIXED + SHIPPED (framework v0.4.17 /
+> connector 0.4.26):** the `emit_action_card`/`emit_choice_card` pydantic gate
+> models required `title` (a field neither registered tool accepts) while
+> omitting the real required params — every staged card bounced "title: Field
+> required". Same drift class as GetRecordArgs (run 5). Fix: gate models now
+> mirror the real signatures + a signature-sync guard test keeps them aligned.
+> Released framework **v0.4.17 on PyPI** (tag `v0.4.17`, bundled 2
+> conditional_refetch probe commits), connector pin bumped 0.4.16→0.4.17,
+> shipped 0.4.26. `make matrix` T1: **PASS** (toolErrors 0, info_card delivered).
+> Framework commit `afdfea0` (unpushed past the tag); connector `80b287e`+`0591322`.
+>
+> **2026-07-02 — triage flow FIXED + SHIPPED (connector 0.4.27):** the agent
+> opened triage turns with a full structured "Triage Summary" (indicator/
+> confidence/action table, MITRE, prioritized next-actions) from the raw record
+> BEFORE any lookup — presenting a plan as a conclusion, then a second summary
+> once findings landed. Root cause: the prompt's Quick-action intents section
+> licensed record-only structured answers and the agent over-generalized it to
+> the default opening; no ordering rule existed. Fix: new "Order of operations"
+> section in `system_prompt_triage.md` (lookups before verdict; one summary at
+> the end; one-line plan orientation allowed, structured verdict not) +
+> Quick-action intents marked opt-in. `make matrix` T1: **PASS** — opens with a
+> plan, runs 10 tools, then surfaces the verdict (no premature summary). The 1
+> minor error is the pre-existing whois-rdap-not-configured env gap, handled
+> gracefully (wider enrichment fan-out is better, not a regression). Connector
+> `d26cd35`+`5cda516` (unpushed). Quick-action path not matrix-covered (T1 is
+> default triage). See memory `matrix_run1_findings` RUN 8.
+
+> **2026-07-02 (matrix run 9 — EXPANDED to 7 rows; ONE real defect found):**
+> Wired T2/T3/T4/T7/P1 + a new T11 quick-action row into gitignored
+> `tests/live/scenarios.local.json` (recorded UUIDs). `make matrix`: **T1 PASS,
+> T11 PASS** (opt-in IOC table confirms the 0.4.27 investigate-first/opt-in
+> split); **T3 DEGRADED** (FMG/FAZ `unknown_connector` — env gap, RFC1918
+> acceptance met); **T2/T4/T7 FAIL** are box-159 env / scenario-design limits
+> where the agent behaved correctly (T2: alert's indicator is reserved
+> `203.0.113.66` + `expectedCards:["ioc_card"]` typo — connector emits
+> `info_card` variant `ioc_enrichment`, widget normalizes ioc_card→info_card;
+> T4: no containment connector → agent correctly emits `capability_gap`; T7:
+> "delete alert" isn't a tier-gatable op). **P1 FAIL is the ONE real defect:**
+> on a "save as playbook" ask the agent over-reaches into `find_containment_actions`
+> → `capability_gap` truncates the turn before `emit_playbook_offer` fires (HARD
+> RULE violation). **P1 prompt fix APPLIED (UNCOMMITTED)** in
+> `system_prompt_triage.md` (save-as-playbook → enrichment + offer, no
+> containment hunt). **NEXT (needs user call):** ship the P1 fix + re-run
+> matrix; AND re-scope T2/T4/T7 to box-159 reality (or stand up FMG/FAZ/FortiGate
+> /whois-rdap). Artifacts in `tests/live/_artifacts/`. See memory
+> `matrix_run1_findings` RUN 9.
+>
+> **2026-07-04 — SECOND real defect FIXED + SHIPPED (framework v0.4.18 / connector
+> 0.4.35):** `list_configured_connectors` advertised inactive-config connectors as
+> `Available` (whois-rdap on 159 had a config record but no active config → listed
+> `Available`, then `run_op` rejected it `connector_not_configured` — agent wasted a
+> turn, run 9 P1). Root cause: the listing used pyfsr's `list_configured()` (any
+> config record) while `run_op`'s preflight uses `_configured_rows` (active-only);
+> the two disagreed. Fix (framework `d2ff950`): `list_configured_connectors` now
+> filters through `_configured_rows` (fail-open if unreachable). Also cleans
+> `find_enrichment_actions`/`find_containment_actions`. +3 regression tests. Released
+> **framework v0.4.18 on PyPI** (tag → `publish.yml` → Trusted Publishing). Connector
+> pin 0.4.17→0.4.18, shipped **0.4.35** on all 7 workers (anthropic). Both repos
+> pushed to main (framework `github/main`, connector `origin/main`). Matrix run 10
+> validating the fix in flight. Note: the P1 prompt fix from run 9 was already
+> shipped by the user as connector 0.4.32; this 0.4.35 is the framework-side
+> discovery fix on top.
 
 ---
 
@@ -286,26 +370,12 @@ credits, no sim/mock. **Full how-to + no-cache discipline: `LOCAL_DEV.md`.**
 
 ### Triage & playbook roadmap (strategic vision)
 
-The local loop enables all of this (edit editable source, restart sidecar,
-re-drive, watch the transcript). Verified starting points: the **intent/persona
-system already exists** (`fsr_playbooks/llm/intents.py` — extend, don't rebuild)
-and **FortiSIEM + FortiAnalyzer are in the reference DB** (724 connectors / 6867
-ops; `run_op` already proxies to 159 — the gap is prompt guidance, not data).
-Suggested order:
-1. Local-loop P0 (widget renders + `chat_poll` streams) — can't tune what you
-   can't watch.
-2. **Triage quality** (Track B1-B3): get a turn to close cleanly (`end_turn` +
-   staged card) before adding capability. `system_prompt_triage.md` + TriageDiscipline.
-3. **Hunt/pivot**: prompt guidance to reach for FortiSIEM `event_query` /
-   FortiAnalyzer log-search on an indicator; verify 159 has them healthy; thin
-   wrapper tool if a pattern repeats (NOC FMG wrappers are the precedent).
-4. **Pydantic strict-typing pass**: type config, `chat_turn` params/result, tool
-   dispatch args first (none used yet; pydantic 2.13 in venv). Catches
-   widget/connector/framework shape drift.
-5. **Investigate-to-build chain** (B4/B5): live-drive turn-investigation-into-playbook.
-6. **Playbook-designer persona**: new intent + scoped tools (no containment/
-   run_op; yes playbook CRUD + step inspection) + state-name gating so the widget
-   knows it's on the playbooks page. memory `triage_and_playbook_vision`.
+**Superseded by `widgets-src/fortiaiAgenticAssistant/ROADMAP.md`** (2026-07-03)
+— that file is now the single home for the two-sided (Investigate/Build)
+vision, current-state snapshot, and ordered next-actions. This section stays
+as a pointer; update the roadmap doc, not here, when the plan changes.
+memory `triage_and_playbook_vision` holds the pre-2026-07-03 version of this
+same vision for historical detail.
 
 ## 🟡 Built but uncommitted / unpushed
 

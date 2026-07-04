@@ -227,6 +227,7 @@ declare namespace Soar {
     get(page: string): Promise<unknown>;
     getConditionalVisibilityFilteredData(): void;
     populateConditionalFields(): void;
+    changeStructure(structure: number, currentColumns: unknown[], objectName: string, flag?: boolean): unknown[]; // [overlay] real, undocumented
   }
   /** The websocketService handles the websocket functionality to update the UI and backend with live data */
   interface WebsocketService {

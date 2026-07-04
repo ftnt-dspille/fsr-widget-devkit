@@ -29,7 +29,7 @@ async function gotoWidget(page, theme) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=happy_path`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 15000 });
   return errors;
 }
@@ -59,8 +59,8 @@ test('light theme: root gains theme-light class and renders light', async ({ pag
   await expect(root).toBeVisible();
   await expect(root).toHaveClass(/theme-light/);
   // currentTheme propagated from $rootScope.theme.id
-  const theme = await page.evaluate(() => window.__fsrSocAssistant__ &&
-    window.__fsrSocAssistant__.currentTheme);
+  const theme = await page.evaluate(() => window.__fortiaiAgenticAssistant__ &&
+    window.__fortiaiAgenticAssistant__.currentTheme);
   // Background must read as light (#ffffff base ≈ 255).
   const bg = await root.evaluate(el => getComputedStyle(el).backgroundColor);
   expect(luminance(bg)).toBeGreaterThan(180);
@@ -111,8 +111,8 @@ test('light theme: a populated status card renders with readable accent badges',
   }, { id: WIDGET_ID, entity: INCIDENT_DETAIL });
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=incident_smtp_intrusion&fastmock=1`,
     { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__fsrSocAssistant__ &&
-    window.__fsrSocAssistant__.state === 'idle', null, { timeout: 15000 });
+  await page.waitForFunction(() => window.__fortiaiAgenticAssistant__ &&
+    window.__fortiaiAgenticAssistant__.state === 'idle', null, { timeout: 15000 });
 
   const root = page.locator('[data-testid="fsr-pb-root"]');
   await expect(root).toHaveClass(/theme-light/);

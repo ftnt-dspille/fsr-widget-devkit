@@ -57,10 +57,10 @@ d("live prompt/flow matrix", () => {
   test("every matrix scenario avoids a hard-FAIL verdict", async () => {
     const rows = [];
     for (const sc of scenarios) {
-      let res, evaluation;
+      let res, evaluation, artifactPath;
       try {
-        ({ res, evaluation } = await runScenario(sc));
-        console.log(formatReport(sc, res, evaluation));
+        ({ res, evaluation, artifactPath } = await runScenario(sc));
+        console.log(formatReport(sc, res, evaluation, artifactPath));
       } catch (e) {
         // A drive error (login/drawer/timeout) is a hard failure for that row.
         console.error(`[matrix] ${sc.id}: DRIVE ERROR: ${e && e.message}`);

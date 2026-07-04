@@ -35,8 +35,8 @@ async function gotoWidget(page, scenario) {
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   // Wait for the widget's controller to boot and the test probe to attach.
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ &&
-          typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ &&
+          typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null,
     { timeout: 30000 }
   );
@@ -45,7 +45,7 @@ async function gotoWidget(page, scenario) {
 
 async function waitForState(page, state, timeout = 5000) {
   await page.waitForFunction(
-    (s) => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.state === s,
+    (s) => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.state === s,
     state,
     { timeout }
   );
@@ -104,10 +104,10 @@ test.describe('FSR SOC Assistant — happy path', () => {
   test('widget loads, probe exposed, initial state is idle', async ({ page }) => {
     const errors = await gotoWidget(page);
     const probe = await page.evaluate(() => ({
-      hasProbe: typeof window.__fsrSocAssistant__ === 'object',
-      state: window.__fsrSocAssistant__ && window.__fsrSocAssistant__.state,
-      msgs:  window.__fsrSocAssistant__ && window.__fsrSocAssistant__.messageCount,
-      yaml:  window.__fsrSocAssistant__ && window.__fsrSocAssistant__.currentYaml
+      hasProbe: typeof window.__fortiaiAgenticAssistant__ === 'object',
+      state: window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.state,
+      msgs:  window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.messageCount,
+      yaml:  window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.currentYaml
     }));
     expect(probe.hasProbe).toBe(true);
     expect(probe.state).toBe('idle');
@@ -137,8 +137,8 @@ test.describe('FSR SOC Assistant — happy path', () => {
       const ta  = document.querySelector('[data-testid="chat-input"]');
       const scope = window.angular && window.angular.element(btn).scope();
       return {
-        state: window.__fsrSocAssistant__.state,
-        events: window.__fsrSocAssistant__.events.length,
+        state: window.__fortiaiAgenticAssistant__.state,
+        events: window.__fortiaiAgenticAssistant__.events.length,
         btnDisabled: btn ? btn.disabled : 'no button',
         btnOuter: btn ? btn.outerHTML.slice(0,200) : null,
         taValue: ta ? ta.value : null,
@@ -152,7 +152,7 @@ test.describe('FSR SOC Assistant — happy path', () => {
 
     // First, wait for the click to actually transition state out of idle.
     await page.waitForFunction(
-      () => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.state !== 'idle',
+      () => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.state !== 'idle',
       null, { timeout: 3000 }
     ).catch(() => { /* fall through to dump */ });
 
@@ -160,10 +160,10 @@ test.describe('FSR SOC Assistant — happy path', () => {
     await waitForState(page, 'idle', 5000).catch(() => {});
 
     const after = await page.evaluate(() => ({
-      state: window.__fsrSocAssistant__.state,
-      msgs: window.__fsrSocAssistant__.messageCount,
-      yaml: window.__fsrSocAssistant__.currentYaml,
-      events: window.__fsrSocAssistant__.events.slice()
+      state: window.__fortiaiAgenticAssistant__.state,
+      msgs: window.__fortiaiAgenticAssistant__.messageCount,
+      yaml: window.__fortiaiAgenticAssistant__.currentYaml,
+      events: window.__fortiaiAgenticAssistant__.events.slice()
     }));
 
     if (after.msgs !== 2) {
@@ -192,7 +192,7 @@ test.describe('FSR SOC Assistant — happy path', () => {
     await page.locator('[data-testid="yaml-push"]').click();
     await waitForState(page, 'idle');
 
-    const pushResult = await page.evaluate(() => window.__fsrSocAssistant__.pushResult);
+    const pushResult = await page.evaluate(() => window.__fortiaiAgenticAssistant__.pushResult);
     expect(pushResult).not.toBeNull();
     expect(pushResult.ok).toBe(true);
     expect(pushResult.workflow_iri).toBe('/api/3/workflows/mock-uuid-0001');
@@ -215,7 +215,7 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     await page.locator('[data-testid="yaml-push"]').click();
     await waitForState(page, 'error', 5000);
 
-    const events = await page.evaluate(() => window.__fsrSocAssistant__.events.slice());
+    const events = await page.evaluate(() => window.__fortiaiAgenticAssistant__.events.slice());
     expect(events.some(e => e.type === 'action_call' && e.payload.action === 'push_playbook')).toBe(true);
     const bodyText = await page.locator('[data-testid="fsr-pb-root"]').innerText();
     expect(bodyText).toMatch(/missing required field: connector/);
@@ -234,7 +234,7 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     await page.locator('[data-testid="yaml-push"]').click();
     await waitForState(page, 'idle');
 
-    const pushResult = await page.evaluate(() => window.__fsrSocAssistant__.pushResult);
+    const pushResult = await page.evaluate(() => window.__fortiaiAgenticAssistant__.pushResult);
     expect(pushResult).not.toBeNull();
     expect(pushResult.ok).toBe(false);
     const bodyText = await page.locator('[data-testid="fsr-pb-root"]').innerText();
@@ -288,7 +288,7 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     await page.locator('[data-testid="yaml-push"]').click();
     await waitForState(page, 'error', 5000);
 
-    const events = await page.evaluate(() => window.__fsrSocAssistant__.events.slice());
+    const events = await page.evaluate(() => window.__fortiaiAgenticAssistant__.events.slice());
     expect(events.some(e => e.type === 'action_call' && e.payload.action === 'push_playbook')).toBe(true);
     const bodyText = await page.locator('[data-testid="fsr-pb-root"]').innerText();
     expect(bodyText).toMatch(/unterminated Jinja expression/);
@@ -300,7 +300,7 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     await page.locator('[data-testid="chat-send"]').click();
     await waitForState(page, 'idle', 8000);
 
-    const events = await page.evaluate(() => window.__fsrSocAssistant__.events.slice());
+    const events = await page.evaluate(() => window.__fortiaiAgenticAssistant__.events.slice());
     const turnCalls = events.filter(e => e.type === 'action_call' && e.payload.action === 'chat_turn');
     // Exactly one chat_turn — the loop must not retry past max_turns.
     expect(turnCalls.length).toBe(1);
@@ -335,13 +335,13 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     // Wait for the widget to record that the late result was discarded — this
     // fires once the fixture delay (2000ms) elapses and the result is dropped.
     await page.waitForFunction(
-      () => (window.__fsrSocAssistant__.events || []).some(e => e.type === 'turn_result_discarded'),
+      () => (window.__fortiaiAgenticAssistant__.events || []).some(e => e.type === 'turn_result_discarded'),
       null, { timeout: 5000 }
     );
     const final = await page.evaluate(() => ({
-      state: window.__fsrSocAssistant__.state,
-      msgs: window.__fsrSocAssistant__.messageCount,
-      events: window.__fsrSocAssistant__.events.slice()
+      state: window.__fortiaiAgenticAssistant__.state,
+      msgs: window.__fortiaiAgenticAssistant__.messageCount,
+      events: window.__fortiaiAgenticAssistant__.events.slice()
     }));
     expect(final.state).toBe('idle');
     // user message + system "Stop requested..." message; assistant should NOT have been appended.
@@ -376,7 +376,7 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     expect(bodyText).toMatch(/unverified/i);
 
     // Probe: a structured approval_unverified event was logged.
-    const events = await page.evaluate(() => window.__fsrSocAssistant__.events.slice());
+    const events = await page.evaluate(() => window.__fortiaiAgenticAssistant__.events.slice());
     expect(events.some(e => e.type === 'approval_unverified')).toBe(true);
   });
 
@@ -384,10 +384,10 @@ test.describe('FSR SOC Assistant — error & branch scenarios', () => {
     await gotoWidget(page, 'history_rehydrate');
     // Give the optional chat_history call time to land and render.
     await page.waitForFunction(
-      () => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.messageCount > 0,
+      () => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.messageCount > 0,
       null, { timeout: 5000 }
     );
-    const msgs = await page.evaluate(() => window.__fsrSocAssistant__.messageCount);
+    const msgs = await page.evaluate(() => window.__fortiaiAgenticAssistant__.messageCount);
     expect(msgs).toBeGreaterThan(0);
   });
 });

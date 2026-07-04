@@ -25,7 +25,7 @@ async function gotoNoc(page) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=noc_device_down`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 30000 });
   return errors;
 }
@@ -37,7 +37,7 @@ test('FMG + FAZ tool chips render and the device-down diagnosis card shows the W
   await page.locator('[data-testid="chat-send"]').click();
 
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && window.__fsrSocAssistant__.state === 'idle',
+    () => window.__fortiaiAgenticAssistant__ && window.__fortiaiAgenticAssistant__.state === 'idle',
     null, { timeout: 15000 });
 
   // The NOC toolset surfaced as completed tool chips.

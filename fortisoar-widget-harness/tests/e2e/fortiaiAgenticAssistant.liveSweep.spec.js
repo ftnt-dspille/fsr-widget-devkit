@@ -18,7 +18,7 @@
 //
 // Gated on FSRPB_LIVE_UI=1 (real agent runs on Dylan's OpenAI key + a real,
 // auto-cleaned SOAR mutation in the build test). Run:
-//   FSRPB_LIVE_UI=1 make test-e2e-spec SPEC="tests/e2e/fsrSocAssistant.liveSweep.spec.js"
+//   FSRPB_LIVE_UI=1 make test-e2e-spec SPEC="tests/e2e/fortiaiAgenticAssistant.liveSweep.spec.js"
 // Needs FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD in the harness .env.
 
 const { test, expect } = require('./_isolated');
@@ -129,13 +129,13 @@ async function boot(page, opts) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mode=live${opts.extra || ''}`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 45000 });
 }
 
 async function probe(page) {
   return page.evaluate(() => {
-    const p = window.__fsrSocAssistant__;
+    const p = window.__fortiaiAgenticAssistant__;
     return p ? {
       state: p.state, intent: p.intent, msgCount: p.messageCount,
       yamlLen: (p.currentYaml || '').length, push: p.pushResult || null,
@@ -220,7 +220,7 @@ d('LIVE forticloud UI sweep', () => {
     // triage card sometimes failed to re-seed → dead chat).
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForFunction(
-      () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+      () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
       null, { timeout: 45000 });
     await expect(page.locator('[data-testid="chat-input"]')).toBeEnabled({ timeout: 45000 });
     const afterReopen = await waitIdle(page, 120000, 0);

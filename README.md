@@ -32,8 +32,8 @@ box (those Fortinet platform assets are not redistributed with the kit).
 
 ```bash
 make dev                                          # drive widgets by hand on :14400
-make test-unit WIDGET=fsrSocAssistant             # jest (controller logic)
-make test-e2e-widget WIDGET=fsrSocAssistant       # Playwright (DOM/template) on a fresh :14401
+make test-unit WIDGET=fortiaiAgenticAssistant             # jest (controller logic)
+make test-e2e-widget WIDGET=fortiaiAgenticAssistant       # Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js     # one or more specs
 make stop                                         # kill both servers
 ```
@@ -45,7 +45,7 @@ your dev server. `make help` lists every target.
 To package + push a widget to the lab box:
 
 ```bash
-cd fortisoar-widget-harness && scripts/ship.sh fsrSocAssistant --bump patch
+cd fortisoar-widget-harness && scripts/ship.sh fortiaiAgenticAssistant --bump patch
 ```
 
 To start a new widget:
@@ -61,6 +61,8 @@ scripts/new-widget.sh myWidget "My Widget"        # scaffolds from widgets-src/_
 | **[ONBOARDING.md](ONBOARDING.md)** | The three repos, first-time setup, the compat matrix, where everything lives. **Start here.** |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | The working rules: KB-first, tests-with-every-change, ship via scripts, commit conventions. |
 | **[TESTING.md](TESTING.md)** | How to write/run tests — controller naming the lint enforces, where specs live, the `make assets` requirement, testid conventions. |
+| **[LOCAL_DEV.md](LOCAL_DEV.md)** | Run the connector + LLM on your laptop (a local OpenAI-compatible gateway as the LLM, a box for SOAR data only) for fast iteration without redeploying. The fast loop; TESTING.md is the ship pipeline. |
+| **[SHIP.md](SHIP.md)** | Upload the widget + connector to a FortiSOAR box — `ship.sh`/`make ship-verify` (widget) and `scripts/deploy.sh` (connector), pointed at the same box. The other direction from LOCAL_DEV. |
 | **[KNOWLEDGEBASE.md](KNOWLEDGEBASE.md)** | The comprehensive widget-building reference — lifecycle, drawer/`enableFor`, platform services, packaging, a 60-widget gotcha catalog. **Consult before any widget change; add new gotchas back into it.** |
 | **[fortisoar-widget-harness/README.md](fortisoar-widget-harness/README.md)** | Harness internals, the `widget` CLI, proxy/auth behavior. |
 | **[CLAUDE.md](CLAUDE.md)** | Conventions for working in this repo with Claude Code. |

@@ -42,12 +42,18 @@ const BENIGN_CONSOLE_PATTERNS = [
   // etc.) that we don't proxy in the dev harness. They're irrelevant to
   // widget functionality and DNS-fail in CI environments without internet.
   /ERR_NAME_NOT_RESOLVED/,
+  // The harness mimics the SOAR platform by loading its runtime libs (angular,
+  // moment, d3, lodash, …) from cdnjs — including a dynamic `loadScript` of
+  // lodash (public/index.html). A transient CDN hiccup makes that script's
+  // onerror fire as "failed to load https://cdnjs.cloudflare.com/…"; it's
+  // platform-infra noise (never the widget's own code) and flakes the run.
+  /failed to load https?:\/\/cdnjs\.cloudflare\.com/i,
   // Contract drift tests intentionally load a fixture whose contract_version
   // is a MAJOR bump ahead of the widget's WIDGET_CONTRACT_VERSION. The widget
-  // correctly logs console.error("[fsrSocAssistant] Connector contract …
+  // correctly logs console.error("[fortiaiAgenticAssistant] Connector contract …
   // MAJOR mismatch") — that IS the behavior under test. The tests verify the
   // banner/error-state via DOM assertions, not console output.
-  /\[fsrSocAssistant\].*contract.*mismatch/i,
+  /\[fortiaiAgenticAssistant\].*contract.*mismatch/i,
 ];
 
 function attachConsoleCapture(page, sink) {

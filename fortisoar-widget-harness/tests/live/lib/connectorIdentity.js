@@ -1,5 +1,5 @@
 "use strict";
-// Single source of truth for the connector identity the fsrSocAssistant widget
+// Single source of truth for the connector identity the fortiaiAgenticAssistant widget
 // talks to — DERIVED from the widget's own service so test infra can never drift
 // from what ships. The widget (`fsrPbAgent.service.js`) hardcodes the identity
 // because it must ship self-contained to SOAR; everything in the harness/tests
@@ -12,7 +12,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const WIDGET = process.env.FSRPB_WIDGET || "fsrSocAssistant";
+const WIDGET = process.env.FSRPB_WIDGET || "fortiaiAgenticAssistant";
 const WIDGETS_SRC = process.env.WIDGETS_SRC
   || path.resolve(__dirname, "../../../../widgets-src");
 const SERVICE = path.join(

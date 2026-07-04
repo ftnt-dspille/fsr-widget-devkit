@@ -69,8 +69,106 @@ function annotateInjectedParams(source, serviceTypeMap) {
 // the SOAR service contract, not re-type the whole platform.
 const GLOBALS_DTS = "declare var angular: any; declare var _: any; declare var moment: any; " +
     "declare var $: any; declare var jQuery: any; declare var CyberSponse: any;";
+/* --- Phase 3 noise-scoping -------------------------------------------------
+   checkJs over hand-written AngularJS is noisy: unknown locals (TS18046),
+   3rd-party globals like window.monaco (TS2339 on Window), untyped
+   object-literal access (TS2339 on {}), and local-helper arity (TS2554). We
+   only want diagnostics that pertain to a SOAR platform-service contract. For
+   each diagnostic we walk to its AST node and keep it ONLY if the expression's
+   type — or the enclosing call's resolved signature — resolves to a declaration
+   inside the `Soar` namespace (equivalently, inside soar-platform.d.ts).
+
+   Three diagnostic shapes are covered:
+     • TS2339/TS2551 property-doesn't-exist → the accessed object is a Soar.* svc
+     • TS2554 wrong arity               → the call's resolved signature is Soar.*
+     • TS2345 wrong arg type            → the enclosing call's signature is Soar.*
+   The classic executeConnectorAction(..., null, ...) null-config bug is a
+   TS2345 whose enclosing call resolves to Soar.ConnectorService, so it survives. */
+function findAncestor(node, test) {
+    let n = node;
+    while (n) {
+        if (test(n))
+            return n;
+        n = n.parent;
+    }
+    return undefined;
+}
+// Smallest node whose span contains `pos` (token-accurate, public API only —
+// ts.getTouchingToken is internal). Deepest match along the single containing
+// branch wins.
+function nodeAtPosition(sf, pos) {
+    let best;
+    const visit = (n) => {
+        if (pos < n.getStart(sf) || pos > n.getEnd())
+            return;
+        best = n;
+        ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    return best;
+}
+// True if `decl` lives inside the `Soar` namespace — by namespace name or by
+// source file (every Soar declaration is in the virtual soar-platform.d.ts).
+function isSoarDeclaration(decl) {
+    let n = decl;
+    while (n) {
+        const sf = n.getSourceFile();
+        if (sf && sf.fileName === "soar-platform.d.ts")
+            return true;
+        if (ts.isModuleDeclaration(n) && n.name.text === "Soar")
+            return true;
+        n = n.parent;
+    }
+    return false;
+}
+// True if `type` (or any union/intersection constituent) is a Soar.* interface.
+function isSoarType(type) {
+    const parts = type.isUnionOrIntersection() ? type.types : [type];
+    for (const t of parts) {
+        const sym = t.symbol || t.aliasSymbol;
+        if (sym && sym.declarations && sym.declarations.some(isSoarDeclaration))
+            return true;
+    }
+    return false;
+}
+// The heart of the noise filter: does this diagnostic pertain to a Soar contract?
+function diagnosticResolvesToSoar(checker, d) {
+    if (!d.file || d.start == null)
+        return false;
+    const node = nodeAtPosition(d.file, d.start);
+    if (!node)
+        return false;
+    // 1. Enclosing call — arity (TS2554) + argument-type (TS2345) errors. The
+    //    call's resolved signature points back at the declaring service method;
+    //    failing that, the callee's owner object may itself be a Soar service.
+    const call = findAncestor(node, ts.isCallExpression);
+    if (call) {
+        const sig = checker.getResolvedSignature(call);
+        const decl = sig && sig.getDeclaration();
+        if (decl && isSoarDeclaration(decl))
+            return true;
+        const tgt = call.expression;
+        const owner = ts.isPropertyAccessExpression(tgt) ? tgt.expression : tgt;
+        if (isSoarType(checker.getTypeAtLocation(owner)))
+            return true;
+    }
+    // 2. Property access — property-doesn't-exist (TS2339/TS2551). The object
+    //    being accessed is the Soar service; the bad property hangs off it.
+    const pa = findAncestor(node, ts.isPropertyAccessExpression);
+    if (pa && isSoarType(checker.getTypeAtLocation(pa.expression)))
+        return true;
+    // 3. Fallback — the expression itself is a Soar-typed identifier.
+    if (isSoarType(checker.getTypeAtLocation(node)))
+        return true;
+    return false;
+}
+function scopeDiagnosticsToSoar(checker, diags) {
+    return diags.filter((d) => diagnosticResolvesToSoar(checker, d));
+}
 /* Type-check one widget controller against the SOAR platform types. Returns
-   diagnostics located in the widget file only (lib/dts diagnostics are dropped). */
+   diagnostics located in the widget file only (lib/dts diagnostics are dropped).
+   With `soarOnly`, only diagnostics resolving to a Soar.* contract survive —
+   the noise-scoped set that the ship-verify gate runs on. */
 function typecheckWidget(opts) {
     const fileName = opts.fileName || "widget.js";
     const map = opts.serviceTypeMap || buildServiceTypeMap();
@@ -99,13 +197,25 @@ function typecheckWidget(opts) {
     const origFileExists = host.fileExists.bind(host);
     host.fileExists = (n) => virtual[n] != null || origFileExists(n);
     const program = ts.createProgram(Object.keys(virtual), options, host);
-    return ts.getPreEmitDiagnostics(program)
-        .filter((d) => d.file && d.file.fileName === fileName)
-        .map((d) => ({
+    const checker = program.getTypeChecker();
+    let diags = ts.getPreEmitDiagnostics(program)
+        .filter((d) => d.file && d.file.fileName === fileName);
+    if (opts.soarOnly)
+        diags = scopeDiagnosticsToSoar(checker, diags);
+    return diags.map((d) => ({
         code: d.code,
         message: ts.flattenDiagnosticMessageText(d.messageText, "\n"),
         line: d.file && d.start != null ? d.file.getLineAndCharacterOfPosition(d.start).line + 1 : undefined,
     }));
 }
-const api = { buildServiceTypeMap, annotateInjectedParams, typecheckWidget };
+const api = {
+    buildServiceTypeMap,
+    annotateInjectedParams,
+    typecheckWidget,
+    // Exported for targeted testing of the noise filter itself.
+    isSoarType,
+    isSoarDeclaration,
+    diagnosticResolvesToSoar,
+    scopeDiagnosticsToSoar,
+};
 module.exports = api;

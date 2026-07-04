@@ -26,7 +26,7 @@ async function boot(page) {
     { waitUntil: 'domcontentloaded' }
   );
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 25000 }
   );
 }
@@ -40,7 +40,7 @@ test.describe('A3 triage-draft handoff', () => {
     await boot(page);
 
     // Simulate the agent having drafted YAML while still in a triage session.
-    await page.evaluate(() => window.__fsrSocAssistant__.seedTriageDraft());
+    await page.evaluate(() => window.__fortiaiAgenticAssistant__.seedTriageDraft());
 
     const cta = page.locator('[data-testid="triage-draft-handoff"]');
     const pane = page.locator('[data-testid="yaml-pane"]');
@@ -54,7 +54,7 @@ test.describe('A3 triage-draft handoff', () => {
     await expect(pane).toBeVisible();
     await expect(page.locator('[data-testid="yaml-push"]')).toBeVisible();
     await expect(cta).toHaveCount(0); // CTA gone once we're in build
-    expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('build');
+    expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('build');
 
     expect(errors, 'no console errors: ' + errors.join(' | ')).toEqual([]);
   });
@@ -62,7 +62,7 @@ test.describe('A3 triage-draft handoff', () => {
   test('Copy button shows ✓ Copied feedback; width toggle swaps the split', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await boot(page);
-    await page.evaluate(() => window.__fsrSocAssistant__.seedTriageDraft());
+    await page.evaluate(() => window.__fortiaiAgenticAssistant__.seedTriageDraft());
     await page.locator('[data-testid="open-draft-in-build"]').click();
 
     const copy = page.locator('[data-testid="yaml-copy"]');
@@ -85,7 +85,7 @@ test.describe('A3 triage-draft handoff', () => {
 test.describe('F export .events.json sidecar', () => {
   test('export modal offers a .events.json download that yields valid JSON', async ({ page }) => {
     await boot(page);
-    await page.evaluate(() => window.__fsrSocAssistant__.openExport());
+    await page.evaluate(() => window.__fortiaiAgenticAssistant__.openExport());
 
     const dlBtn = page.locator('[data-testid="export-download-json"]');
     await expect(dlBtn).toBeVisible();

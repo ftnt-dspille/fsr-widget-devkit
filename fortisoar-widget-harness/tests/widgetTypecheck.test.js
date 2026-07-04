@@ -75,3 +75,66 @@ describe("annotateInjectedParams", () => {
     expect(annotateInjectedParams(src, buildServiceTypeMap())).toBe(src);
   });
 });
+
+// Phase 3 noise-scoping (soarOnly). The gate runs scoped: only diagnostics
+// that resolve to a Soar.* contract survive. Noise (3rd-party globals,
+// untyped locals, local-helper arity) is dropped; real SOAR-contract misuse
+// (null config, bad method, wrong arity on a platform service) is kept.
+describe("typecheckWidget — soarOnly noise-scoping", () => {
+  // -- noise that must be dropped when scoped ----------------------------------
+  test("window.<3rd-party> property access is noise (dropped scoped, kept raw)", () => {
+    const src = `function ctrl($scope) { window.monaco.editor.create(); }`;
+    const raw = typecheckWidget({ source: src });
+    expect(raw.some((d) => d.code === 2339 && /monaco/.test(d.message))).toBe(true);
+    const scoped = typecheckWidget({ source: src, soarOnly: true });
+    expect(scoped).toEqual([]);
+  });
+
+  test("catch-clause 'unknown' locals are noise (dropped scoped)", () => {
+    const src = `function ctrl($scope) { try { x(); } catch (e) { return e.stack; } }`;
+    const raw = typecheckWidget({ source: src });
+    expect(raw.some((d) => d.code === 18046 && /'e' is of type 'unknown'/.test(d.message))).toBe(true);
+    expect(typecheckWidget({ source: src, soarOnly: true })).toEqual([]);
+  });
+
+  test("local-helper wrong arity is noise — the helper is not a Soar service (dropped scoped)", () => {
+    const src = `function ctrl($scope) {
+      function helper(a, b) { return a + b; }
+      return helper(1, 2, 3);
+    }`;
+    const raw = typecheckWidget({ source: src });
+    expect(raw.some((d) => d.code === 2554)).toBe(true);
+    expect(typecheckWidget({ source: src, soarOnly: true })).toEqual([]);
+  });
+
+  // -- real SOAR-contract signal that must survive scoped -------------------
+  test("null passed to executeConnectorAction's string config survives scoped (the headline catch)", () => {
+    const src = `function ctrl($scope, connectorService) {
+      connectorService.executeConnectorAction("conn", "1.0.0", "get_x", null, {});
+    }`;
+    const scoped = typecheckWidget({ source: src, soarOnly: true });
+    expect(scoped.map((d) => d.code)).toContain(2345);
+    expect(scoped.some((d) => /not assignable to parameter of type 'string'/.test(d.message))).toBe(true);
+  });
+
+  test("a non-existent method on a platform service survives scoped", () => {
+    const src = `function ctrl($scope, FormEntityService) { FormEntityService.gett(); }`;
+    const scoped = typecheckWidget({ source: src, soarOnly: true });
+    expect(scoped.some((d) => d.code === 2551 || d.code === 2339)).toBe(true);
+  });
+
+  test("too-few args to a platform-service method survives scoped", () => {
+    const src = `function ctrl($scope, appModulesService) { appModulesService.getState(); }`;
+    const scoped = typecheckWidget({ source: src, soarOnly: true });
+    expect(scoped.map((d) => d.code)).toContain(2554);
+  });
+
+  // -- regression: a correct widget is silent in both modes ---------------
+  test("a correct executeConnectorAction call is silent scoped AND raw", () => {
+    const src = `function ctrl($scope, connectorService) {
+      connectorService.executeConnectorAction("conn", "1.0.0", "get_x", "config-id", { ip: "1.2.3.4" });
+    }`;
+    expect(typecheckWidget({ source: src })).toEqual([]);
+    expect(typecheckWidget({ source: src, soarOnly: true })).toEqual([]);
+  });
+});

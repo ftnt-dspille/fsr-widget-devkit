@@ -170,6 +170,15 @@ const EXTRA_METHODS = {
         "delete(...args: unknown[]): any;",
     ],
     FormEntityService: ["submitField(field: unknown): Promise<unknown>;"],
+    // ViewTemplateService — contenthub documents changeStructure with 3 params,
+    // but app.unmin.js defines it as `function(e,t,n,i)` (4). Internal callers
+    // pass 3 (so the 4th is optional); fsocfieldsofinterest passes `true` for it
+    // (`l=i?{sections:[…]}` in the bundle → boolean). Emitted as an overload so a
+    // valid 4-arg call resolves cleanly while a wrong arity (e.g. 5 args, or 1)
+    // still fails — do NOT use an index signature.
+    ViewTemplateService: [
+        "changeStructure(structure: number, currentColumns: unknown[], objectName: string, flag?: boolean): unknown[];",
+    ],
 };
 function emitDts(services) {
     const L = [];

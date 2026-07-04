@@ -3,11 +3,15 @@
    SOAR-contract type error (misused service, null-where-string, wrong arity).
 
    Usage:
-     pnpm typecheck:widgets            # all widgets under widgets-src/
-     pnpm typecheck:widgets <name>     # one widget (folder name)
-   Runs in ship-verify's lint step and on demand. The jest fixtures in
-   tests/widgetTypecheck.test.js prove the checker itself works; this points it at
-   live widget source. See TYPESCRIPT_STATIC_ANALYSIS_PLAN.md Phase 3. */
+     pnpm typecheck:widgets                  # all widgets under widgets-src/ (Soar-scoped)
+     pnpm typecheck:widgets <name>            # one widget (folder name)
+     pnpm typecheck:widgets --raw [name]      # unscoped: show ALL diagnostics (triage)
+   Scoped by default: only diagnostics that resolve to a Soar.* contract survive
+   (the set the ship-verify gate blocks on). --raw shows the full noise set for
+   triage. Exits non-zero on any surviving diagnostic. Runs in ship-verify's lint
+   step and on demand. The jest fixtures in tests/widgetTypecheck.test.js prove the
+   checker + scoper work; this points them at live widget source.
+   See TYPESCRIPT_STATIC_ANALYSIS_PLAN.md Phase 3. */
 
 import fs = require("fs");
 import path = require("path");
@@ -42,7 +46,9 @@ function listWidgets(filter?: string): Array<{ name: string; dir: string }> {
 }
 
 function main(): void {
-  const filter = process.argv[2];
+  const args = process.argv.slice(2);
+  const raw = args.some((a) => a === "--raw" || a === "-r");
+  const filter = args.find((a) => !a.startsWith("-"));
   const widgets = listWidgets(filter);
   if (widgets.length === 0) {
     console.error(filter ? `no widget named '${filter}' found` : "no widgets found under widgets-src/");
@@ -59,7 +65,7 @@ function main(): void {
       checked++;
       let diags;
       try {
-        diags = TC.typecheckWidget({ source: fs.readFileSync(p, "utf8"), fileName: `${w.name}/${file}`, serviceTypeMap: map });
+        diags = TC.typecheckWidget({ source: fs.readFileSync(p, "utf8"), fileName: `${w.name}/${file}`, serviceTypeMap: map, soarOnly: !raw });
       } catch (e) {
         console.error(`✗ ${w.name}/${file}: type-check crashed: ${(e as Error).message}`);
         totalErrors++;
@@ -74,11 +80,12 @@ function main(): void {
   }
 
   console.log(`\n${"─".repeat(50)}`);
+  const mode = raw ? "raw (unscoped)" : "Soar-scoped";
   if (totalErrors === 0) {
-    console.log(`✓ ${checked} controllers across ${widgets.length} widget(s) — no SOAR-contract type errors`);
+    console.log(`✓ ${checked} controllers across ${widgets.length} widget(s) — ${mode}: no SOAR-contract type errors`);
     process.exit(0);
   }
-  console.log(`✗ ${totalErrors} SOAR-contract type error(s) across ${widgets.length} widget(s)`);
+  console.log(`✗ ${totalErrors} ${mode} type error(s) across ${widgets.length} widget(s)`);
   process.exit(1);
 }
 

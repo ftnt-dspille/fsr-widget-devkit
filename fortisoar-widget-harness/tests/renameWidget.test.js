@@ -147,14 +147,14 @@ describe("renameWidget", () => {
 
   test("applies subtitle, description, and releaseNotes when provided", () => {
     makeWidget(tmp, "fsrPlaybookBuilder");
-    renameWidget(tmp, "fsrPlaybookBuilder", "fsrSocAssistant", {
+    renameWidget(tmp, "fsrPlaybookBuilder", "fortiaiAgenticAssistant", {
       title: "FSR SOC Assistant",
       subtitle: "Agentic triage & response",
       description: "Conversational SOC copilot.",
       releaseNotes: "Rebranded; scope broadened.",
     });
     const info = JSON.parse(
-      fs.readFileSync(path.join(tmp, "fsrSocAssistant", "widget", "info.json"), "utf8")
+      fs.readFileSync(path.join(tmp, "fortiaiAgenticAssistant", "widget", "info.json"), "utf8")
     );
     expect(info.subTitle).toBe("Agentic triage & response");
     expect(info.metadata.description).toBe("Conversational SOC copilot.");

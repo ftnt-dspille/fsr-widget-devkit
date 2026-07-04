@@ -10,7 +10,7 @@
 // `waitForFunction(state==='idle')` just burns its full timeout and the
 // failure reads like "the SOAR box is down" rather than "you desynced the
 // controller name". `probeGlobal` is the widget's window probe key
-// (e.g. "__fsrSocAssistant__"); pass the same `state` it exposes.
+// (e.g. "__fortiaiAgenticAssistant__"); pass the same `state` it exposes.
 import { Page } from "@playwright/test";
 
 interface WaitOptions {

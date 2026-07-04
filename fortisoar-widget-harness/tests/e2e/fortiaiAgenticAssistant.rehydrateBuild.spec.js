@@ -30,7 +30,7 @@ async function boot(page) {
     { waitUntil: 'domcontentloaded' }
   );
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 25000 }
   );
 }
@@ -44,13 +44,13 @@ test.describe('refresh rehydrate — build-state reconstruction', () => {
     await boot(page);
 
     // Starts in triage (no build config).
-    expect(await page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('triage');
+    expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('triage');
 
     // Replay a session that authored YAML in one turn and confirmed the save in
     // a later, fence-less turn (the case the old last-transcript-only scan missed).
     await page.evaluate(() => {
       const yaml = 'workflows:\n  - name: Blast Radius\n    steps: []';
-      window.__fsrSocAssistant__.replayTurns([
+      window.__fortiaiAgenticAssistant__.replayTurns([
         { user: 'build a blast radius playbook' },
         { transcript: [{ type: 'text', text: "Here's the YAML:\n```yaml\n" + yaml + "\n```" }] },
         { user: 'create it' },
@@ -59,8 +59,8 @@ test.describe('refresh rehydrate — build-state reconstruction', () => {
     });
 
     // Build mode is restored from the transcript, YAML recovered.
-    await expect.poll(() => page.evaluate(() => window.__fsrSocAssistant__.intent)).toBe('build');
-    expect(await page.evaluate(() => window.__fsrSocAssistant__.currentYaml))
+    await expect.poll(() => page.evaluate(() => window.__fortiaiAgenticAssistant__.intent)).toBe('build');
+    expect(await page.evaluate(() => window.__fortiaiAgenticAssistant__.currentYaml))
       .toContain('Blast Radius');
 
     // The YAML toggle and pane render; the redundant build-from-triage CTA does not.

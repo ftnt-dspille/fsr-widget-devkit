@@ -11,7 +11,7 @@
 // streaming/poll path that was hanging.
 //
 // Gated on FSRPB_LIVE_UI=1 (real agent run + real SOAR mutation). Run:
-//   FSRPB_LIVE_UI=1 make test-e2e-spec SPEC="tests/e2e/fsrSocAssistant.createPlaybookLive.spec.js"
+//   FSRPB_LIVE_UI=1 make test-e2e-spec SPEC="tests/e2e/fortiaiAgenticAssistant.createPlaybookLive.spec.js"
 // Needs FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD in the harness .env.
 
 const { test, expect } = require('./_isolated');
@@ -33,7 +33,7 @@ async function probe(page, pred, timeoutMs, label) {
   let last;
   while (Date.now() < deadline) {
     last = await page.evaluate(() => {
-      const p = window.__fsrSocAssistant__;
+      const p = window.__fortiaiAgenticAssistant__;
       return p ? { state: p.state, yamlLen: (p.currentYaml || '').length, push: p.pushResult || null } : null;
     });
     if (last && pred(last)) return last;
@@ -61,7 +61,7 @@ d('live UI — create a playbook end-to-end (mutating, auto-cleanup)', () => {
     await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mode=live`,
       { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(
-      () => window.__fsrSocAssistant__ && typeof window.__fsrSocAssistant__.state === 'string',
+      () => window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string',
       null, { timeout: 40000 });
     // Composer enabled ⇒ the connector resolved against the live box.
     await expect(page.locator('[data-testid="chat-input"]')).toBeEnabled({ timeout: 40000 });

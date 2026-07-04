@@ -23,8 +23,8 @@ async function gotoWidget(page) {
   await page.goto(`/?widget=${WIDGET_ID}&context=Dashboard&mock=happy_path`,
     { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.__fsrSocAssistant__ &&
-          typeof window.__fsrSocAssistant__.state === 'string',
+    () => window.__fortiaiAgenticAssistant__ &&
+          typeof window.__fortiaiAgenticAssistant__.state === 'string',
     null, { timeout: 30000 });
   return errors;
 }
@@ -47,14 +47,14 @@ test.describe('FSR SOC Assistant — history browser', () => {
     await gotoWidget(page);
 
     // The session this tab is on — inject it so the "current" badge shows.
-    const current = await page.evaluate(() => window.__fsrSocAssistant__.sessionId);
+    const current = await page.evaluate(() => window.__fortiaiAgenticAssistant__.sessionId);
 
     await page.locator('[data-testid="open-history"]').click();
     await expect(page.locator('[data-testid="history-overlay"]')).toBeVisible();
 
     const nowSec = Math.floor(Date.now() / 1000);
     await page.evaluate(([cur, now]) => {
-      window.__fsrSocAssistant__.injectSessions([
+      window.__fortiaiAgenticAssistant__.injectSessions([
         { session_id: cur, title: 'this conversation', entries: 3, last_activity: now, started_at: now },
         { session_id: 'sess-prior-1', title: 'block 1.2.3.4 at the edge', entries: 6, last_activity: now - 86400, started_at: now - 86400 },
         { session_id: 'sess-prior-2', title: 'triage the phishing alert', entries: 2, last_activity: now - 86400 * 10, started_at: now - 86400 * 10 },
@@ -79,7 +79,7 @@ test.describe('FSR SOC Assistant — history browser', () => {
     // Clicking a prior session closes the panel (the reopen path).
     await page.locator('[data-testid="history-item"][data-session="sess-prior-1"]').click();
     await expect(page.locator('[data-testid="history-overlay"]')).toHaveCount(0);
-    const open = await page.evaluate(() => window.__fsrSocAssistant__.historyOpen);
+    const open = await page.evaluate(() => window.__fortiaiAgenticAssistant__.historyOpen);
     expect(open).toBe(false);
   });
 

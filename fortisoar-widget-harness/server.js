@@ -1,4 +1,11 @@
 "use strict";
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 /* Local widget dev server.
    - Auto-discovers widgets in widgets-src/<repo>/widget/  (each must contain info.json)
@@ -2308,6 +2315,74 @@ if (HERMETIC) {
     app.get("/api/integration/connectors/", serveConnectors);
     app.get("/api/integration/connectors", serveConnectors);
 }
+// POST /api/integration/execute/ — run a connector operation. Registered at
+// top level (NOT inside the HERMETIC block above) so it applies in both hermetic
+// and live dev modes. Default (the box): falls through to the catch-all proxy →
+// the deployed connector worker on FSR_BASE_URL. Local-dev loop: set
+// FSR_LOCAL_CONNECTOR=1 + run scripts/local-connector-sidecar.py; the harness
+// forwards the execute body to that localhost sidecar instead, so the connector
+// runs on the laptop (a local OpenAI-compatible LLM gateway; the box only for
+// LOCAL_DEV.md.
+const SIDECAR_URL = process.env.FSRPB_SIDECAR_URL || "http://127.0.0.1:4771/execute";
+const LOCAL_CONNECTOR = /^(1|true|yes|on)$/i.test(process.env.FSR_LOCAL_CONNECTOR || "");
+const executeLocal = async (req, res) => {
+    var _a, e_1, _b, _c;
+    try {
+        // Read the raw request body ourselves (no global express.json() — the box
+        // proxy path needs the raw stream, and we only land here when
+        // FSR_LOCAL_CONNECTOR=1). Forward the bytes verbatim to the sidecar.
+        const chunks = [];
+        try {
+            for (var _d = true, req_1 = __asyncValues(req), req_1_1; req_1_1 = await req_1.next(), _a = req_1_1.done, !_a; _d = true) {
+                _c = req_1_1.value;
+                _d = false;
+                const c = _c;
+                chunks.push(typeof c === "string" ? Buffer.from(c) : c);
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (!_d && !_a && (_b = req_1.return)) await _b.call(req_1);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+        const body = Buffer.concat(chunks).toString("utf8") || "{}";
+        const r = await fetch(SIDECAR_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+        });
+        const text = await r.text();
+        res.status(r.status).type("application/json").send(text);
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`[local-connector] sidecar unreachable (${SIDECAR_URL}): ${msg}`);
+        res.status(502).json({
+            status: 502,
+            data: { ok: false, error: {
+                    code: "sidecar_unreachable",
+                    message: `local connector sidecar not reachable at ${SIDECAR_URL}: ${msg}. ` +
+                        "Start it: FSRPB_DEV=1 .venv-localdev/bin/python scripts/local-connector-sidecar.py",
+                } },
+        });
+    }
+};
+app.post("/api/integration/execute/", (req, res, next) => {
+    if (LOCAL_CONNECTOR) {
+        void executeLocal(req, res);
+        return;
+    }
+    next(); // → box proxy (default; unchanged behavior)
+});
+app.post("/api/integration/execute", (req, res, next) => {
+    if (LOCAL_CONNECTOR) {
+        void executeLocal(req, res);
+        return;
+    }
+    next();
+});
 // Hermetic gate: in hermetic mode nothing reaches the proxy. A request that
 // got this far was NOT served by any local static/stub middleware, so it would
 // have fallen through to forticloud — fail it loudly instead. The 599 status +
