@@ -398,12 +398,12 @@ _2026-07-05 sweep: verified all 5 working repos (fsr_all_widgets, the real
 in-repo `fortisoar-widget-harness`, `widgets-src/fortiaiAgenticAssistant`,
 `fsr-playbook-framework`, `ConnectorsV2/fsr-playbook-builder`) are clean —
 no uncommitted source changes anywhere except stray untracked build
-artifacts (`.bak` images, gitignored scratchpad/fixture dirs). The rows below
-predate that sweep; several (openai-terse-triage, B2 hunt_depth,
-widget-harness-inspect-kit, action-renderer) show no matching uncommitted
-diff or dedicated commit today — likely already folded into a later ship
-under a different commit message, or superseded. Treat rows below as
-**needs re-verification before acting**, not as confirmed-still-pending.
+artifacts (`.bak` images, gitignored scratchpad/fixture dirs). Follow-up audit
+(same day) resolved the 4 flagged rows via git history: openai-terse-triage
+and widget-harness-inspect-kit were confirmed **already shipped** (moved to
+Done below); B2 hunt_depth is **confirmed genuinely still pending** (stuck on
+a stray branch, never merged to main); action-renderer is **partially
+stale** (infra shipped, AR-specific live test never built). See updated rows.
 Note: `~/WebstormProjects/fortisoar-widget-harness` (standalone, remote
 `fsr-widget-devkit`) is an **unrelated separate project** — do not confuse
 with this repo's nested `fortisoar-widget-harness/`._
@@ -411,10 +411,8 @@ with this repo's nested `fortisoar-widget-harness/`._
 | Thread | State | Doc |
 |---|---|---|
 | Widget rename → FortiAI Agentic Assistant + unblocking fixes | Rename + `fsrPbRender.js` `typeof module` guard **committed + pushed** (widget `feat`+`master`/`main` to gitea; connector 0.4.12 bump + triage-rehome to origin/main) + **deployed + live-verified on 8.0** (drawer mounts, one triage turn streamed `done`). Harness Monaco fix + 8.0 login/drawer fixes **uncommitted** (in working tree, deferred to the TS-migration pass). See "8.0 box live verification" in Done. | memory `fsrpb_renamed_to_soc_assistant`, `harness_monaco_toastui_define_conflict`, `deploy_159_fortisoar_8` |
-| OpenAI terse-triage guard | Connector **0.4.10** live-verified, **uncommitted**. Residue: widget empty-opener path not re-tested | memory `openai_terse_triage_shallow` |
-| B2 hunt_depth gate | Gate + 6 tests (141 green) offline, **uncommitted**; live drive parked (run only on gb200) | memory `b2_hunt_depth_offline` |
-| Widget-harness inspect kit | mount+measure primitives built, **uncommitted** | memory `widget_harness_inspect_kit` |
-| action-renderer live-test on the 7.x box | Proven live (fix #3); #1/#2/#4 need Application Editor. **Uncommitted** in harness repo | memory `action_renderer_live_205` |
+| B2 hunt_depth gate | **Confirmed genuinely still pending (2026-07-05 audit).** Commit `1911252` ("hunt-depth breadth floor") exists but only on stray branches `archive/full-history-pre-sanitize` / `fix/trigger-operator-autocorrect` in the connector repo, NOT on `main` — `test_hunt_depth.py` is absent from the current tree. The 26-day-old "live drive parked, gb200-only" memory looks like the work stalled, not shipped. **Next action: decide whether to revive `1911252` onto main + re-test, or drop it** — don't assume it's done. | memory `b2_hunt_depth_offline` |
+| action-renderer live-test on the 7.x box | **Confirmed DONE, not uncommitted (re-audited 2026-07-05 — a first pass missed the file path).** `soarBrowser.js`, `tests/live/lib/viewTemplate.js`, and the AR-specific `widgets-src/widget-action-renderer/tests/e2e/actionRenderer.liveTemplate.spec.js` are all committed+pushed under `5d29ad4`. Remaining is unchanged: fix #3 proven live on 205; #1/#2/#4 still blocked on real Application Editor access (not a commit gap). | memory `action_renderer_live_205` |
 | stop_reason contract fix (framework) | Committed `6c3afa0`, **not pushed, not deployed** (box runs 0.4.7) | memory `session_2026_06_23_handoff` |
 | pyfsr 8.0 `status`-shape fix | `f34d78e` committed, **not pushed** (remote ahead + foreign WIP — user reconciles) | memory `pyfsr_8_0_config_fixes` |
 | Harness full-TS migration | `b38e2a4`+`27b3e6a` green, **not pushed** | memory `session_2026_06_23_handoff` |
@@ -430,6 +428,9 @@ with this repo's nested `fortisoar-widget-harness/`._
 ---
 
 ## ✅ Done / archived
+
+- **OpenAI terse-triage guard — confirmed SHIPPED (audited 2026-07-05, was mistakenly listed as uncommitted).** Hunt-floor + forbidden-pivot + call-once discipline (`TriageDiscipline` in `fsr_playbooks/llm/_loop_helpers.py`) landed on framework `main` via `7c0a895`, live-verified per `f547709`; pushed to `github/main`. No residual uncommitted diff anywhere. memory `openai_terse_triage_shallow`.
+- **Widget-harness inspect kit — confirmed SHIPPED (audited 2026-07-05, was mistakenly listed as uncommitted).** `_widgetHarness.js` mount+measure primitives + `widget-inspect.js` + `widgetHarness.spec.js` + the dropdown-clip fix landed on `main` via `a7e8931`. memory `widget_harness_inspect_kit`.
 
 - **`fortisoar-widget-harness/tests/e2e/harness.spec.js` — all 37 tests green (2026-07-05).** Turned out to be more than the suspected stale `#widget-select` locator: `selectWidget()` picked the widget but never saved a config, so it hit the "no saved configuration yet" prompt instead of mounting — that was the real cause of most of the 35 failures. Fixed by seeding `harness:config:<id>` in localStorage before the select-change reload (same key format `_widgetHarness.js`'s `mountWidget` uses). Also: the one true locator issue (`loads and shows the widget selector`) now asserts the visible `#widget-dd-btn` custom dropdown instead of the intentionally-hidden native `#widget-select`; the config-count assertion in "Cancel closes the modal" compares before/after instead of a literal 0; allowlisted the sandboxed HTML-preview iframe's expected "Blocked script execution ... sandboxed" console message in `_fixtures.js` (proof the sandbox works, not a bug). Committed+pushed `c669fe4`.
 
