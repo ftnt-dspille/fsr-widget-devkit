@@ -246,7 +246,7 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 
 | Thread | Next action | Blocker | Doc |
 |---|---|---|---|
-| **Auto-approve safe / read-only actions** | Make the approval gate policy-configurable so SAFE actions can be set to run automatically instead of always staging an approval card. Today the dispatch tier gate (memory `agent_mutating_op_approval_gate`) already auto-executes tier 1/2 **safe reads** (`get_record`, `search_module_records`, reading a playbook) and only stages tier ≥3 (management/containment/remediation). The ask: (1) an explicit, surfaced policy/config for "auto-run read-only tools" (default on) so it's a first-class setting, not an implicit tier side-effect; (2) the deferred **"allow once / always-allow per tool"** mechanism (per `agent_mutating_op_approval_gate` residual). Ensure read-only playbook inspection (the new build-mode tools — explain/find-issues) never prompts. Verify tier assignment for any new playbook-read tools = safe (1/2). | none — design + wire | memory `agent_mutating_op_approval_gate`; `fsr_core/llm/tools.py::_tier_for_run_op` |
+| **Auto-approve safe / read-only actions** | **Mostly DONE.** (1) explicit policy is already built: `FSR_AUTO_APPROVE_READONLY` env var + `_readonly_auto_approve()`/`_approval_floor()` in `fsr_playbooks/llm/tools.py` (default on, tier 1–2 auto-run, tier ≥3 gated) — memory `readonly_auto_approve_flag`. (2) **"allow once / always-allow per tool" BUILT 2026-07-05** (offline, committed, not pushed): `grant_tool_approval()`/`_consume_grant()`/`clear_session_grants()` in framework `tools.py` (commit `4356e2b`), `dispatch()` takes an optional `session_id` and checks/consumes a per-(session,tool,op_key) grant before staging the approval envelope (audited `auto_allow_grant`); connector `_resume_action_card_execute` threads an optional `grant: "once"\|"always"` resume param + `session_id` into dispatch (commit `413a1c3`). In-memory only, backward compatible (no session_id/grant = unchanged behavior). Framework 655 passed/2 skipped, connector 77 passed, 10 new grant tests. Playbook-read tools (`analyze_playbook` tier 0, `verify_playbook`/`verify_enhancement`/`diagnose_yaml_against_pb_execution` tier 1) confirmed already safe/never-prompt. **Remaining:** widget UI still needs "Approve / Approve & always allow" buttons on the action card (today only the connector-side plumbing accepts `grant`); live verify; push both repos. | widget UI wiring + live verify | memory `agent_mutating_op_approval_gate`, `readonly_auto_approve_flag`; `fsr_playbooks/llm/tools.py::dispatch`, `_consume_grant` |
 | **Local dev loop — prove full functionality** | P0/P2 DONE. **P1 DONE 2026-07-05** (harness was proxying to `.env.box`=205; flipped to `.env.159` via `POST /_fsr/soar-envs`, confirmed a real `/api/3/alerts` fetch from 159). **P3 triage-quality: re-checked, no longer reproduces** — a real triage turn against a live 159 alert ran 13 well-directed tool calls (record → connector discovery → enrichment/containment → IOC lookups on both IPs + host) and closed clean (`end_turn` + a real `ioc_enrichment` info_card); the old `max_tool_turns` complaint looks fixed by since-shipped prompt work (0.4.27 "investigate first, summarize once", etc.). **Real bug found + fixed along the way:** `_shared._live_client()` memoises the FSR session for the process lifetime with no re-auth on token expiry — a sidecar idle since 2026-07-01 failed every `get_record` call `http_401` (15 tool calls, every arg permutation, never succeeded) even though the record existed; fixed via `_invalidate_live_client()` (framework `295b2fc`) + a `_get_with_reauth()` retry wired into `get_record`'s two request sites (connector `7e6ac6c`). Other `client.session.get/post` call sites in `tools_triage.py` (search_module_records, tags, etc.) have the same latent bug — follow-up, not yet fixed. Remaining: P3 run the full PROMPT_FLOW_TEST_PLAN matrix locally. | none known | `LOCAL_DEV.md`; memory `local_dev_loop_next_steps`, `sidecar_fsr_soc_triage_import_fix` |
 | **Triage & playbook strategic vision** | Make the agent genuinely helpful: hunt/pivot via FortiSIEM/FAZ (already in ref DB — gap is prompt guidance, not data); turn-investigation-into-playbook (Track B4/B5 — **playbook-designer persona now partially built, see below**); pydantic strict-typing pass (connector's `chat_turn`/`chat_poll`/`chat_resume`/`chat_history` boundary + tool-arg models already done, commit `777bf58`); py3.12 modernization. See roadmap section below. | tune-able once local loop P0 lands | memory `triage_and_playbook_vision` |
 | **Prompt + flow test matrix (triage & playbook creation)** | Author the live prompt/flow test plan, then execute it against the 8.0 box (proven render + live triage path). See section below + `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new) | none ��� 8.0 live path proven; needs the plan authored + a run window | this file; memory `deploy_159_fortisoar_8` |
@@ -313,11 +313,10 @@ scenarios.local.json with the T2/T4/T7/T9/P1 rows.**
 - `manual_input` stage handling (framework 0.4.10 hoist).
 - Rehydrate-build (resume a saved draft).
 
-**Harness gate (do this first, once):** commit the 3 uncommitted 8.0 harness
-fixes (`soarBrowser.js` login, `liveUiDriver.js` drawer-icon-by-title, Monaco
-`define.amd`) — they're required for *any* live 8.0 Playwright run to work, and
-are currently only in the working tree. Land them in the deferred TS-migration
-pass (or a scoped commit) before driving the matrix.
+**Harness gate — DONE (verified 2026-07-05):** the 3 8.0 harness fixes
+(`soarBrowser.js` login, `liveUiDriver.js` drawer-icon-by-title, Monaco
+`define.amd`) are committed + pushed (`5d29ad4`, `live-matrix-infra`), not just
+working-tree. Clear to drive the matrix.
 
 **Env notes:** 8.0 box has 25k+ real alerts (soc-simulator `create_simulated_alert`
 available for clean known records); FortiGate lab config is down (env, not a bug
@@ -394,6 +393,20 @@ memory `triage_and_playbook_vision` holds the pre-2026-07-03 version of this
 same vision for historical detail.
 
 ## 🟡 Built but uncommitted / unpushed
+
+_2026-07-05 sweep: verified all 5 working repos (fsr_all_widgets, the real
+in-repo `fortisoar-widget-harness`, `widgets-src/fortiaiAgenticAssistant`,
+`fsr-playbook-framework`, `ConnectorsV2/fsr-playbook-builder`) are clean —
+no uncommitted source changes anywhere except stray untracked build
+artifacts (`.bak` images, gitignored scratchpad/fixture dirs). The rows below
+predate that sweep; several (openai-terse-triage, B2 hunt_depth,
+widget-harness-inspect-kit, action-renderer) show no matching uncommitted
+diff or dedicated commit today — likely already folded into a later ship
+under a different commit message, or superseded. Treat rows below as
+**needs re-verification before acting**, not as confirmed-still-pending.
+Note: `~/WebstormProjects/fortisoar-widget-harness` (standalone, remote
+`fsr-widget-devkit`) is an **unrelated separate project** — do not confuse
+with this repo's nested `fortisoar-widget-harness/`._
 
 | Thread | State | Doc |
 |---|---|---|
