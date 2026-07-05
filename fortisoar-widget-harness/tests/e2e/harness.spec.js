@@ -156,6 +156,20 @@ async function selectWidget(page) {
   const { widgets } = await resp.json();
   const jinja = widgets.find((w) => w.name === "jinjaEditorWidget");
   if (!jinja) throw new Error("jinjaEditorWidget not found in /_fsr/widgets");
+  // Seed a saved config BEFORE the select-change reload so the fresh load
+  // mounts the widget directly instead of showing the "no saved configuration
+  // yet" prompt (see _widgetHarness.js mountWidget — same key format,
+  // `harness:config:<id>`). Mirrors editJinjaEditorWidget122DevCtrl's own
+  // defaults (edit.controller.js) so it's a realistic saved config, not a bare stub.
+  await page.evaluate(
+    ([id, cfg]) => localStorage.setItem(`harness:config:${id}`, JSON.stringify(cfg)),
+    [jinja.id, {
+      title: "Jinja Editor",
+      defaultTemplate: "",
+      jsonSourceField: "sourcedata",
+      templateSourceField: "",
+    }]
+  );
   // #widget-select is now display:none — the harness drives a custom dropdown
   // off the hidden native select as source of truth (see index.html ~L592).
   // Playwright's selectOption requires a visible control, so set the value and
@@ -204,7 +218,13 @@ async function setTemplate(page, text = "Hello World") {
 test.describe("harness page", () => {
   test("loads and shows the widget selector", async ({ page }) => {
     await setupPage(page);
-    await expect(page.locator("#widget-select")).toBeVisible({ timeout: 10000 });
+    // The native #widget-select is display:none by design — a custom
+    // button+menu dropdown (#widget-dd-btn) is the visible control that
+    // mirrors it (see index.html ~L611 + "Custom widget dropdown" comment
+    // near syncWidgetDD). Assert the visible control, not the hidden source
+    // of truth.
+    await expect(page.locator("#widget-dd-btn")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("#widget-select")).toBeHidden();
   });
 
   test("lists jinjaEditorWidget in the widget dropdown", async ({ page }) => {
@@ -693,16 +713,19 @@ test.describe("edit modal", () => {
     await setupPage(page);
     await selectWidget(page);
     await waitForWidgetReady(page);
+    const countConfigKeys = () =>
+      page.evaluate(
+        () => Object.keys(localStorage).filter((k) => k.startsWith("harness:config:")).length
+      );
+    // selectWidget() seeds one config key so the widget mounts directly; capture
+    // that baseline so this test asserts Cancel writes no NEW key, not that
+    // none exists at all.
+    const before = await countConfigKeys();
     await page.locator("#edit-config").click();
     await expect(page.locator("#edit-modal-backdrop.open")).toBeVisible({ timeout: 5000 });
     await page.locator("#edit-modal-cancel").click();
     await expect(page.locator("#edit-modal-backdrop.open")).toBeHidden();
-    // No config key written.
-    const stored = await page.evaluate(() => {
-      const keys = Object.keys(localStorage).filter((k) => k.startsWith("harness:config:"));
-      return keys.length;
-    });
-    expect(stored).toBe(0);
+    expect(await countConfigKeys()).toBe(before);
   });
 
   test("Save persists $scope.config to localStorage and re-mounts the widget", async ({ page }) => {

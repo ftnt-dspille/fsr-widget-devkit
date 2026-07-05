@@ -54,6 +54,11 @@ const BENIGN_CONSOLE_PATTERNS = [
   // MAJOR mismatch") — that IS the behavior under test. The tests verify the
   // banner/error-state via DOM assertions, not console output.
   /\[fortiaiAgenticAssistant\].*contract.*mismatch/i,
+  // The jinja-editor's HTML output preview renders into a `sandbox=""` iframe
+  // (no allow-scripts) precisely so any <script> in rendered output can't
+  // execute. Chrome logs that block as a console error — it's the sandbox
+  // doing its job, not a bug. See harness.spec.js "HTML output ... sandboxed iframe".
+  /Blocked script execution in '(about:blank|about:srcdoc)' because the document's frame is sandboxed/i,
 ];
 
 function attachConsoleCapture(page, sink) {
