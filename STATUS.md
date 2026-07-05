@@ -5,7 +5,24 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-02_
+_Last updated: 2026-07-05_
+
+> **2026-07-05 — commit/push sweep + new public repo:** (a) pushed the
+> `triage-firewall-noc-investigation` branch (connector 0.4.37, already
+> committed, just unpushed) to origin/fndn. (b) `fsr_all_widgets` main repo:
+> committed the `fsrSocAssistant`→`fortiaiAgenticAssistant` e2e-fixture rename,
+> local-dev sidecar scripts, and matrix-live-infra plumbing; pushed to
+> `live-matrix-infra`. (c) `widgets-src/fortiaiAgenticAssistant` (separate repo):
+> pushed the pending commit (card attribution + S1–S6/R7 security hardening +
+> playbook-editor tailoring, `d2741b0`) to `origin/master`. (d)
+> `fsr-playbook-framework` confirmed already clean/pushed — the stale
+> `b2_hunt_depth_offline`/`noc_fortimanager_tools_plan` memories (24–26 days
+> old) no longer reflect uncommitted state; treat those two memories as
+> historical only. (e) **New: `ztpAutomationGraph` widget promoted to its own
+> public repo** — `https://github.com/ftnt-dspille/widget-ztp-automation-graph`,
+> scaffolded to match `widget-action-renderer` (package.json, packager
+   scripts, version-triggered `.github/workflows/release.yml`, README), added
+   to `widgets.manifest`. See memory `ztpautomation-graph-widget`.
 
 > **2026-07-02 ship + live-verify DONE:** widget `fortiaiAgenticAssistant-1.2.8`
 > + connector `0.4.13` (both version-bumped to dodge FortiSOAR same-version
@@ -236,7 +253,6 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 | **Chat Intelligence — Track B** | Live drive vs forticloud + re-capture 2 stale goldens, then start Track B | Phase 0 done offline; needs live | memory `chat_intelligence_plan` |
 | **Introspection Phase 2** | Build live-fidelity rig | not started | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
 | **Playbook-editor tailoring — verify on real box** | Widget now hard-forces build intent + shows playbook-authoring quick actions when mounted on `main.playbookDetail` (hermetic e2e proven). NOT yet confirmed against a real FortiSOAR box via Chrome — need to open the actual playbook designer, drop the widget in via the drawer, and confirm it mounts + shows the right intent/chips there (vs the harness's synthetic `$state` stub). | none — just needs a live Chrome pass | memory `playbook_editor_tailoring` |
-| **`fortisoar-widget-harness/tests/e2e/harness.spec.js` — 35 stale failures** | Whole file asserts `#widget-select` (native `<select>`) is visible; `index.html` intentionally set it `display:none` in favor of a custom dropdown a while back (comment at ~line 599), so the assertions are just out of date, not a real regression. Confirmed unrelated to this session's `$state`-stub change (other widgets' e2e all green). Needs a pass updating the locators to the custom dropdown. | none — mechanical locator fix | this file |
 
 ### Prompt + flow test matrix (triage & playbook creation)
 
@@ -389,7 +405,7 @@ same vision for historical detail.
 | stop_reason contract fix (framework) | Committed `6c3afa0`, **not pushed, not deployed** (box runs 0.4.7) | memory `session_2026_06_23_handoff` |
 | pyfsr 8.0 `status`-shape fix | `f34d78e` committed, **not pushed** (remote ahead + foreign WIP — user reconciles) | memory `pyfsr_8_0_config_fixes` |
 | Harness full-TS migration | `b38e2a4`+`27b3e6a` green, **not pushed** | memory `session_2026_06_23_handoff` |
-| **Session 2026-07-02: sidecar fix + build-toggle removal + playbook-editor tailoring + harness `$state` stub** | All hermetic e2e/unit green (widget + harness). **Uncommitted, both repos:** fsr_all_widgets (`harness.module.ts/js`, `lib/harnessUtils.ts/js`, `public/index.html`, `scripts/local-connector-sidecar.py`, `tests/harnessUtils.test.js`, e2e specs `fortiaiAgenticAssistant.{rendering,incident}.spec.js`) + the separate `widgets-src/fortiaiAgenticAssistant` git repo (`widget/info.json`, `widget/view.controller.js`, `widget/view.html`). NOT yet verified against a real box (see "Playbook-editor tailoring — verify on real box" above). | memory `sidecar_fsr_soc_triage_import_fix`, `playbook_editor_tailoring`, `harness_state_stub` |
+| ~~Session 2026-07-02: sidecar fix + build-toggle removal + playbook-editor tailoring + harness `$state` stub~~ | **COMMITTED + PUSHED 2026-07-05**, both repos (fsr_all_widgets → `live-matrix-infra`; `widgets-src/fortiaiAgenticAssistant` → `origin/master` `d2741b0`). Still NOT yet verified against a real box (see "Playbook-editor tailoring — verify on real box" above). | memory `sidecar_fsr_soc_triage_import_fix`, `playbook_editor_tailoring`, `harness_state_stub` |
 
 ## 🟢 In progress (multi-phase)
 
@@ -401,6 +417,8 @@ same vision for historical detail.
 ---
 
 ## ✅ Done / archived
+
+- **`fortisoar-widget-harness/tests/e2e/harness.spec.js` — all 37 tests green (2026-07-05).** Turned out to be more than the suspected stale `#widget-select` locator: `selectWidget()` picked the widget but never saved a config, so it hit the "no saved configuration yet" prompt instead of mounting — that was the real cause of most of the 35 failures. Fixed by seeding `harness:config:<id>` in localStorage before the select-change reload (same key format `_widgetHarness.js`'s `mountWidget` uses). Also: the one true locator issue (`loads and shows the widget selector`) now asserts the visible `#widget-dd-btn` custom dropdown instead of the intentionally-hidden native `#widget-select`; the config-count assertion in "Cancel closes the modal" compares before/after instead of a literal 0; allowlisted the sandboxed HTML-preview iframe's expected "Blocked script execution ... sandboxed" console message in `_fixtures.js` (proof the sandbox works, not a bug). Committed+pushed `c669fe4`.
 
 - **TS static analysis Phase 3 (checkJs gate) — DONE.** AST noise-scoper in `lib/widgetTypecheck.ts` (`soarOnly`) keeps only diagnostics resolving to a `Soar.*` contract (TS2339/2551/2554/2345); 169 raw → 168 raw noise, **0 Soar-scoped** across 26 controllers. One real signal triaged to doc-lag (`ViewTemplateService.changeStructure` 4-param; bundle-verified) and closed via the `EXTRA_METHODS` overlay. CLI scoped by default (`--raw` for triage); **wired into `make ship-verify` step 1/5** — blocks the ship on a Soar-contract violation (planted null-config → exit 1). 7 jest cases. (`fortisoar-widget-harness/TYPESCRIPT_STATIC_ANALYSIS_PLAN.md`)
 - **Hermetic mock-e2e tier** — `FSR_HERMETIC` gate + local Monaco + boot stubs. (`fortisoar-widget-harness/HERMETIC_E2E_PLAN.md`)
