@@ -20,16 +20,16 @@ doc is the narrower "just get it onto the box" reference.
 
 Both shippers read box creds from a `.env` (pyfsr `EnvConfig` on the connector
 side; the harness `FSR_ENV_FILE` on the widget side). Point them at the same box
-so a widget+connector pair deploys consistently. For the 8.0 standard (159):
+so a widget+connector pair deploys consistently. For the 8.0 standard:
 
 ```sh
 # A single env file with: FSR_BASE_URL, FSR_PORT, FSR_USERNAME, FSR_PASSWORD, FSR_VERIFY_SSL
 # The harness already has .env.159 (gitignored) — reuse it for both sides.
-export FSR_BASE_URL=https://10.99.249.159:13000
+export FSR_BASE_URL=https://fortisoar.example.com:13000
 export FSR_PORT=13000
 export FSR_USERNAME=csadmin
-export FSR_PASSWORD='<your-159-password>'
-export FSR_VERIFY_SSL=false   # 159 is self-signed
+export FSR_PASSWORD='<your-password>'
+export FSR_VERIFY_SSL=false   # self-signed
 ```
 
 The harness's `.env.159` already has these; source it for the connector side too.

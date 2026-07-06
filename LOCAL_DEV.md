@@ -31,7 +31,7 @@ everything else                             → harness proxy → 159 (or box-of
 - **Other connectors' ops** the agent invokes during triage — `run_op(connector=
   "fortisiem", operation="event_query", …)`, IP-enrichment (VirusTotal/Shodan/…),
   firewall block — are **auto-proxied to the box**: `run_op` → `probes._env` →
-  pyfsr → `POST /api/integration/execute/` on `FSR_BASE_URL` (159). No extra
+  pyfsr → `POST /api/integration/execute/` on `FSR_BASE_URL` (the 8.0 box). No extra
   proxy code; just the box config.
 - **Record fetches** (`GET /api/3/<module>/<id>`) go through the harness proxy
   to the box (real records; 159 has 25k+ alerts).
@@ -59,7 +59,7 @@ bash scripts/setup-localdev-venv.sh
 
 # 2. Create your localdev.env (gitignored) from the example + real creds.
 #    Fill OPENAI_* from your LLM gateway (base URL, a chat model it serves,
-#    your key) and FSR_* for the 159 box (csadmin). See
+#    your key) and FSR_* for the FortiSOAR box (csadmin). See
 #    scripts/localdev.env.example for the keys.
 cp scripts/localdev.env.example scripts/localdev.env
 $EDITOR scripts/localdev.env
@@ -150,7 +150,7 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   sidecar's `localdev.env` is missing `FSR_BASE_URL` / creds, or the box is
   unreachable. (`probes/_env.py` `is_live()` needs base_url + (api_key OR
   username+password).)
-- **`ReadTimeoutError` to 10.99.249.159** — the box was slow on a `run_op`
+- **`ReadTimeoutError` to the FortiSOAR box** — the box was slow on a `run_op`
   (8s timeout). A real-but-slow-box issue; the agent retries / degrades. Raise
   `FSR_TIMEOUT` in `localdev.env` if it's flaky.
 - **`502 sidecar_unreachable`** — the sidecar isn't running (Terminal 1), or
