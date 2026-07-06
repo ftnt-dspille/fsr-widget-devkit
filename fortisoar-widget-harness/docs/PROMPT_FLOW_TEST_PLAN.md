@@ -65,7 +65,7 @@ IPS blocks headless; 8.0 login is the local admin form, no SSO). Three options:
   `session.sendChat(text)` → assert on `session.polls`/`turns` + transcript cards.
   Pattern proven on an earlier live pass.
 - **Spec**: `FSRPB_LIVE_UI=1 FSR_ENV_FILE=.env.<box> make test-e2e-spec
-  SPEC="tests/e2e/fortiaiAgenticAssistant.liveSweep.spec.js"`. Note: the canned
+  SPEC="../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.liveSweep.spec.js"`. Note: the canned
   `liveSweep.spec.js` is bound to the forticloud wendy.smith C2 scenario — adapt
   or write a 8.0-box variant rather than forcing the forticloud golden onto 8.0.
 

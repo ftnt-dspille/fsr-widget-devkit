@@ -202,7 +202,7 @@ config-driven render options.
     `test-ar-jtg-flow-live`, `test-ar-connector-live`.
   - Hermetic output matrix: raw, table styles ×5, sticky, auto+explicit alignment,
     custom columns, empty message, sandboxed-iframe jinja (11 assertions).
-    `tests/e2e/actionRenderer.outputRender.spec.js` + `applyOutput()` seam.
+    `widgets-src/widget-action-renderer/tests/e2e/actionRenderer.outputRender.spec.js` + `applyOutput()` seam.
 - **json-to-grid — filter matrix complete.** boolean/enum/date (pre-existing) +
   **number, string, column sort** (new). All 10 e2e green.
 - **Harness fixes** (both unblocked the above): app-shell path now probes
