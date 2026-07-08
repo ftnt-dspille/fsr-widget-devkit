@@ -97,7 +97,12 @@ fi
 # `( exec node ... ) &` makes the subshell BECOME node, so $! is node's exact
 # PID (no off-by-one from an intermediate shell/nohup).
 say "starting fresh harness → $LOG_FILE"
+# Pass FSR_ENV_FILE through so the server treats this as an EXPLICIT target and
+# never lets a stale `.harness-active-env` (UI pick) override it — even when the
+# chosen host equals the default `.env`'s host (the value-diff heuristic is blind
+# to that case; the explicit file name is not).
 ( cd "$HARNESS_DIR" && exec env PORT="$PORT" WIDGETS_SRC="$WIDGETS_SRC" \
+    FSR_ENV_FILE="$FSR_ENV_FILE" \
     node server.js ) >"$LOG_FILE" 2>&1 &
 SRV_PID=$!
 echo "$SRV_PID" >"$PID_FILE"
@@ -136,6 +141,21 @@ if grep -qiE "EHOSTUNREACH|ECONNREFUSED|EADDRINUSE" "$LOG_FILE"; then
   echo "----- harness log (tail) -----"; tail -n 20 "$LOG_FILE" || true
   die "harness log shows a connection/bind error — do not push"
 fi
+
+# ---- 4b. ASSERT the running server actually targets EXPECTED_HOST -----------
+# ship.sh's port hygiene proves WHICH server answers; it does NOT prove which
+# BOX that server proxies to. A stale `.harness-active-env` (a UI pick) could
+# point the freshly-launched server at a different appliance, so a push would
+# report success while landing on the wrong box. Ask the server what it resolved
+# (/_fsr/info → proxyHost) and abort on any mismatch with the target we sourced.
+ACTUAL_HOST="$(curl -sf "http://localhost:$PORT/_fsr/info" \
+  | sed -n 's/.*"proxyHost":"\([^"]*\)".*/\1/p' | sed -E 's#:[0-9]+$##')"
+if [ -z "$ACTUAL_HOST" ]; then
+  warn "could not read harness target from /_fsr/info — proceeding, but verify the box"
+elif [ "$ACTUAL_HOST" != "$EXPECTED_HOST" ]; then
+  die "TARGET MISMATCH: you asked for '$EXPECTED_HOST' but the harness is pointed at '$ACTUAL_HOST' (likely a stale .harness-active-env). Refusing to push. Fix: set FSR_ENV_FILE to the intended target, or delete $HARNESS_DIR/.harness-active-env."
+fi
+ok "target confirmed: harness → $ACTUAL_HOST (matches requested $EXPECTED_HOST)"
 
 if [ "$FORCE_RESTART" = 1 ]; then
   ok "harness (re)started on :$PORT → $EXPECTED_HOST. PID $SRV_PID. Log: $LOG_FILE"

@@ -309,19 +309,39 @@ const FALLBACK_TTL_MS = 50 * 60 * 1000;
 // default, so only a non-default persisted choice needs re-applying. A stale
 // pointer (file deleted/renamed) silently falls back to the default.
 //
-// EXCEPTION: an explicit FSR_BASE_URL on the real environment (e.g. `ship.sh`
-// sourcing `.env.159` and exporting it) is a deliberate one-shot target and
-// MUST win over the persisted UI pick — otherwise a push silently lands on the
-// last box the UI was pointed at instead of the one the operator asked for.
+// EXPLICIT INTENT ALWAYS WINS over the persisted UI pick. Two explicit signals:
+//   1. FSR_ENV_FILE set in the environment (ship.sh / a CLI/background launch
+//      names the target file). This is the ROBUST signal — it holds even when
+//      the chosen host equals the default `.env`'s host.
+//   2. isExplicitHostOverride(): a real exported FSR_BASE_URL that DIFFERS from
+//      the `.env` file value.
+// Why #1 matters: the value-diff heuristic in #2 CANNOT tell "operator set
+// FSR_BASE_URL=<default host>" from "dotenv copied the default in" — they look
+// identical. So a ship that explicitly targets the same host as `.env` used to
+// be misread as "not explicit", and a stale `.harness-active-env` (a DIFFERENT
+// box) silently won. That shipped-to-the-wrong-box footgun is exactly what this
+// guards. Precedence: explicit env > persisted UI pick > default `.env`.
 (function restoreActiveSoarEnv() {
+  const explicitFile = (process.env.FSR_ENV_FILE || "").trim();
+  const source = explicitFile
+    ? `explicit FSR_ENV_FILE=${explicitFile}`
+    : isExplicitHostOverride()
+      ? "explicit FSR_BASE_URL override"
+      : null;
   try {
-    if (isExplicitHostOverride()) {
-      console.log(`[soar-env] explicit FSR_BASE_URL override present (${HOST}); ignoring persisted UI target`);
+    if (source) {
+      console.log(`[soar-env] TARGET = ${HOST}  (source: ${source}; ignoring any persisted UI target)`);
       return;
     }
-    if (!fs.existsSync(ACTIVE_ENV_STATE_FILE)) return;
-    const want = fs.readFileSync(ACTIVE_ENV_STATE_FILE, "utf8").trim();
-    if (want && want !== ".env") applySoarEnvFile(want);
+    if (fs.existsSync(ACTIVE_ENV_STATE_FILE)) {
+      const want = fs.readFileSync(ACTIVE_ENV_STATE_FILE, "utf8").trim();
+      if (want && want !== ".env") {
+        applySoarEnvFile(want);
+        console.log(`[soar-env] TARGET = ${HOST}  (source: persisted UI pick ${want})`);
+        return;
+      }
+    }
+    console.log(`[soar-env] TARGET = ${HOST}  (source: default .env)`);
   } catch (e: unknown) {
     console.warn(`[soar-env] could not restore persisted target: ${e instanceof Error ? e.message : String(e)}`);
   }
@@ -376,6 +396,10 @@ interface UpstreamRequestOpts {
 // short enough that a dead box fails the route fast instead of hanging it.
 const UPSTREAM_TIMEOUT_MS = Number(process.env.FSR_UPSTREAM_TIMEOUT_MS) || 8000;
 
+// How long to wait after a publish before confirming it STUCK (the delayed
+// async rollback lands within a few seconds). Tunable for slow appliances.
+const SETTLE_CONFIRM_MS = Number(process.env.FSR_SETTLE_CONFIRM_MS) || 6000;
+
 interface UpstreamResponse {
   status: number;
   body: string;
@@ -384,6 +408,10 @@ interface UpstreamResponse {
 function upstreamRequest(opts: UpstreamRequestOpts): Promise<UpstreamResponse> {
   return new Promise((resolve, reject) => {
     const url = new URL(HOST.replace(/\/$/, "") + opts.pathAndQuery);
+    if (process.env.FSR_WIRELOG && opts.method !== "GET") {
+      console.log(`[WIRE] ${opts.method} ${url.origin}${url.pathname}${url.search}` +
+        (opts.body ? `\n[WIRE-BODY] ${opts.body.slice(0, 4000)}` : ""));
+    }
     const mod = url.protocol === "https:" ? https : http;
     const req = mod.request(
       {
@@ -463,6 +491,11 @@ function upstreamMultipart(opts: UpstreamMultipartOpts): Promise<UpstreamMultipa
     const body = Buffer.concat(chunks);
 
     const url = new URL(HOST.replace(/\/$/, "") + opts.pathAndQuery);
+    if (process.env.FSR_WIRELOG) {
+      console.log(`[WIRE] POST ${url.origin}${url.pathname}${url.search}` +
+        `\n[WIRE-BODY] multipart boundary=${boundary}, fields=${JSON.stringify(Object.keys(opts.fields || {}))}, ` +
+        `file=${opts.file ? `name="${opts.file.name}" filename="${opts.file.filename}" type=${opts.file.contentType} bytes=${opts.file.content.length}` : "none"}, total=${body.length}B`);
+    }
     const mod = url.protocol === "https:" ? https : http;
     const req = mod.request(
       {
@@ -1726,6 +1759,9 @@ app.post("/_fsr/package/:id", express.json(), async (req: express.Request, res: 
 app.post("/_fsr/install/:id", express.json(), async (req: express.Request, res: express.Response) => {
   const w = widgetsById.get(req.params.id);
   if (!w) return res.status(404).json({ error: "unknown widget id" });
+  // The box this install will actually hit — echoed in every response so a
+  // wrong-target ship is obvious at the call site, not diagnosed after the fact.
+  const targetHost = (() => { try { return new URL(HOST || "").host; } catch { return HOST || "(unset)"; } })();
 
   const body = (req.body || {}) as Record<string, unknown>;
   // Lint runs AFTER the version sync below, same reasoning as /_fsr/package.
@@ -1774,10 +1810,34 @@ app.post("/_fsr/install/:id", express.json(), async (req: express.Request, res: 
     console.log(`install: packaged ${pkg.archiveName} (${pkg.size} bytes)`);
 
     const token = await ensureToken();
+
+    // Re-read the widget record from the box by name — a widget-type publish
+    // does NOT create a solutionpack entry (the pack list stays empty even on a
+    // fully-published widget), so the WIDGET RECORD's version+draft is the
+    // authoritative deploy signal, not the solutionpack.
+    const widgetName = String(readCurrentInfo(w).info.name || "");
+    async function widgetRecordByName(name: string): Promise<{ version: string; draft: boolean } | null> {
+      const r = await upstreamRequest({
+        method: "GET",
+        pathAndQuery: "/api/3/widgets?$limit=500",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (r.status < 200 || r.status >= 300) return null;
+      try {
+        const m = (JSON.parse(r.body)["hydra:member"] || []) as Array<Record<string, unknown>>;
+        const rec = m.find((x) => x.name === name);
+        return rec ? { version: String(rec.version || ""), draft: rec.draft === true } : null;
+      } catch { return null; }
+    }
+
+    // Match the Content Hub UI EXACTLY: the tgz goes up as the ONLY multipart
+    // field (`file`); `$type`/`$replace` live in the QUERY STRING only. Our old
+    // code also duplicated them as form fields, which the box mishandles.
+    // (Captured from the working UI upload: POST solutionpacks/install
+    // ?$type=widget&$replace=true with a single `file` part, no other fields.)
     const uploadRes = await upstreamMultipart({
       pathAndQuery: "/api/3/solutionpacks/install?$type=widget&$replace=true",
       headers: { Authorization: `Bearer ${token}` },
-      fields: { $type: "widget", $replace: "true" },
       file: {
         name: "file",
         filename: pkg.archiveName,
@@ -1807,94 +1867,201 @@ app.post("/_fsr/install/:id", express.json(), async (req: express.Request, res: 
         .status(502)
         .json({ error: "upload response missing uuid", response: uploaded });
     }
-    console.log(`install: uploaded widget uuid=${uuid}, now publishing…`);
-
-    // Publish via PUT. SOAR needs a beat to finish processing the tgz
-    // before it accepts the draft->published transition, so retry a few
-    // times. A 2xx ALONE is NOT proof of publish: PUTting `draft:true`
-    // returns 200 but leaves the widget a draft (it stays out of pickers and
-    // the Dev-strip publish pipeline never runs), which forces a manual
-    // publish in the UI. So we publish for real (`draft:false`) AND validate
-    // the response body shows `draft === false` before declaring success.
+    // A widget-type `solutionpacks/install?$type=widget&$replace=true` uploads
+    // the tgz into DEVELOPMENT (the "Create" tab): the record appears at the new
+    // version with `installed:false` and NO assets extracted to
+    // /widgets/installed/. That is only step 1. The Content Hub UI then requires
+    // a manual PUBLISH from the dev/code-editor which promotes it — and THAT is
+    // what makes the deploy stick. `import_jobs` stays empty for widgets (that's
+    // the solution-pack path), so there is no job to poll.
+    //
+    // The publish is a `PUT /api/3/widgets/<uuid>` whose body MUST be the box's
+    // DEVELOPMENT record (fetched below) + a set of flags. Both the body source
+    // and the flags are the exact shape the UI's `publishWidget()` sends —
+    // reverse-engineered from the box bundle (app.min.*.js) and verified live by
+    // driving the Content-Hub UI:
+    //   publishWidget() reads `g.widgetData` (loaded via developmentWidgets(id) =
+    //   GET /api/3/widgets/development/<uuid>) and sends
+    //   `draft = !publishSettings.publishDiscard`. The publish popup's ONLY action
+    //   button (`btn-publish`) sets `publishDiscard = false`, so a real "Publish"
+    //   ALWAYS sends `draft:false` (go live). There is NO "publish but keep as
+    //   draft" path — Cancel just aborts.
+    // Flags: `draft:false`, `installed:true`, `enablePublish:false`,
+    // `replace:true`, `replaceVersions:[]`, a `publishedDate` epoch, and `@id`.
+    //
+    // Why draft MUST be false: `draft:true` publishes the widget but leaves it a
+    // DRAFT — the record persists at the new version, but it is not "live" the way
+    // "Publish" makes it, so a bump can look deployed while behaving as unpublished.
+    // The prior harness sent `draft:true` (on a misreading that publish keeps a
+    // draft); `draft:false` is what the UI's Publish actually does. `replace:true`
+    // matches "replace existing version" and cleanly supersedes the installed copy.
+    // (An even earlier recipe also wrongly sent `enablePublish:true` + a subset,
+    // NOT the dev-record, body.)
+    //
+    // NOTE on the historical "reverts to old version seconds later" report: in
+    // this session that reproduced ONLY as an artifact of shipping to the wrong
+    // box (a stale target — now guarded by targetHost + ship.sh's assert). On a
+    // correctly-targeted box, publishes stuck across every flag combination
+    // tested. The SETTLE-CONFIRM below stays as cheap defensive insurance in case
+    // a real reconciler-revert exists on some box/state we didn't hit.
     const freshInfo = readCurrentInfo(w).info;
+    const newVersion = String(freshInfo.version || version);
+    console.log(`install: uploaded ${widgetName}@${newVersion} to development (uuid=${uuid}), waiting to stage…`);
+
+    // Wait for the dev upload to register at the new version before publishing.
+    let staged: { version: string; draft: boolean } | null = null;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      staged = await widgetRecordByName(widgetName);
+      if (staged && staged.version === newVersion) break;
+    }
+    if (!staged || staged.version !== newVersion) {
+      return res.status(502).json({
+        error: `widget uploaded to development but never staged at ${newVersion} (last seen ${staged ? `${staged.version}(draft=${staged.draft})` : "absent"}). Check the SOAR UI (Content Hub → Create).`,
+        uuid,
+        version: newVersion,
+        target: targetHost,
+      });
+    }
+
+    // Publish body MUST be the box's DEVELOPMENT record — the exact object the
+    // UI's publishWidget() publishes (it reads `g.widgetData`, loaded from
+    // `developmentWidgets(id)` = GET /api/3/widgets/development/<uuid>), NOT the
+    // local info.json. Spreading local info.json was the residual rollback cause:
+    // same flags, but the box reverted seconds later. Live-verified: dev-record
+    // body sticks; info.json body reverts. Fetch it, strip `tree`, add flags.
+    let devManifest: Record<string, unknown> = {};
+    {
+      const dr = await upstreamRequest({
+        method: "GET",
+        pathAndQuery: `/api/3/widgets/development/${uuid}`,
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (dr.status >= 200 && dr.status < 300) {
+        try {
+          const dj = JSON.parse(dr.body) as Record<string, unknown>;
+          const member = ((dj["hydra:member"] as unknown[]) || [])[0] as Record<string, unknown> | undefined;
+          devManifest = member || dj;
+        } catch { /* fall through to freshInfo below */ }
+      }
+      if (!devManifest || !devManifest["@id"]) {
+        // Fallback: box dev record unreadable — use local info.json (worse, may
+        // revert) rather than fail the publish outright.
+        console.warn(`install: dev record for ${uuid} unreadable; falling back to local info.json (publish may not stick)`);
+        devManifest = freshInfo as unknown as Record<string, unknown>;
+      }
+    }
     const publishPayload: Record<string, unknown> = {
-      name: freshInfo.name,
-      title: freshInfo.title,
-      subTitle: freshInfo.subTitle,
-      version: freshInfo.version,
-      published_date: freshInfo.published_date,
-      releaseNotes: freshInfo.releaseNotes,
-      metadata: freshInfo.metadata,
+      ...devManifest,
       "@id": `/api/3/widgets/${uuid}`,
       draft: false,
       installed: true,
-      enablePublish: true,
+      enablePublish: false,
       replace: true,
       replaceVersions: [],
       publishedDate: Math.floor(Date.now() / 1000),
     };
-    const publishBody = JSON.stringify(publishPayload);
-
-    // widgetIsPublished (module-level, tested) decides whether the PUT actually
-    // took effect: `draft === false` → published, `draft === true` →
-    // still-draft, null → inconclusive (keep retrying / confirm via GET).
-    let publishRes: UpstreamResponse | null = null;
-    let lastErr: string | null = null;
-    let confirmedPublished = false;
-    const maxAttempts = 10;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 1000));
-      publishRes = await upstreamRequest({
-        method: "PUT",
-        pathAndQuery: `/api/3/widgets/${uuid}`,
-        body: publishBody,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      if (publishRes.status < 200 || publishRes.status >= 300) {
-        lastErr = `HTTP ${publishRes.status}: ${publishRes.body.slice(0, 300)}`;
-        console.warn(`install: publish attempt ${attempt + 1} failed: ${lastErr}`);
-        continue;
-      }
-      // 2xx — but did it actually publish? Validate the response body.
-      const ok = widgetIsPublished(publishRes.body);
-      if (ok === true) {
-        confirmedPublished = true;
-        break;
-      }
-      // 2xx but still a draft (or inconclusive) — confirm with a GET before
-      // burning another PUT, since SOAR may lag the state change.
-      const check = await upstreamRequest({
-        method: "GET",
-        pathAndQuery: `/api/3/widgets/${uuid}`,
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      if (check.status >= 200 && check.status < 300 && widgetIsPublished(check.body) === true) {
-        confirmedPublished = true;
-        break;
-      }
-      lastErr = `widget still draft after PUT (HTTP ${publishRes.status})`;
-      console.warn(`install: publish attempt ${attempt + 1}: ${lastErr}`);
-    }
-    if (!confirmedPublished) {
-      // The tgz IS uploaded (the widget exists), but it never flipped to
-      // published. Report it explicitly so the caller knows the widget is a
-      // draft and won't silently treat a 2xx as success.
+    delete publishPayload.tree; // file store, not part of the PUT
+    console.log(`install: publishing ${widgetName}@${newVersion} from development (PUT /api/3/widgets/${uuid})…`);
+    const publishRes = await upstreamRequest({
+      method: "PUT",
+      pathAndQuery: `/api/3/widgets/${uuid}`,
+      body: JSON.stringify(publishPayload),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (publishRes.status < 200 || publishRes.status >= 300) {
       return res.status(502).json({
-        error: `widget uploaded but NOT published after ${maxAttempts} attempts: ${lastErr}. The widget is installed as a DRAFT — publish it manually from the SOAR UI or re-run.`,
+        error: `publish PUT failed: HTTP ${publishRes.status}: ${publishRes.body.slice(0, 400)}`,
         uuid,
-        draft: true,
+        version: newVersion,
+        target: targetHost,
       });
     }
-    console.log(`install: published ${freshInfo.name}-${freshInfo.version}`);
+
+    // The publish extracts assets async; give the box a beat before verifying.
+    let published: { version: string; draft: boolean } | null = null;
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      published = await widgetRecordByName(widgetName);
+      if (published && published.version === newVersion) break;
+    }
+    console.log(
+      `install: published ${widgetName}; record=${published ? `${published.version}(draft=${published.draft})` : "absent"}`,
+    );
+
+    // Publish is NOT proof the asset FILES landed under
+    // /widgets/installed/<name>-<ver>/. Verify the real controller file is
+    // served (not the SPA index.html fallthrough).
+    const assetPath =
+      `/widgets/installed/${freshInfo.name}-${freshInfo.version}/view.controller.js`;
+    const assetRes = await upstreamRequest({
+      method: "GET",
+      pathAndQuery: assetPath,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const assetBody = assetRes.body || "";
+    const isSpaFallback = /ng-app="cybersponse"|<!DOCTYPE html>/i.test(assetBody);
+    const looksLikeController =
+      assetBody.includes(".controller(") || assetBody.includes("angular");
+    if (assetRes.status < 200 || assetRes.status >= 300 || isSpaFallback || !looksLikeController) {
+      return res.status(502).json({
+        error:
+          `publish reported success but asset files did NOT extract: ` +
+          `GET ${assetPath} returned ${isSpaFallback ? "the SPA index.html fallback" : `HTTP ${assetRes.status}`}. ` +
+          `The widget record is at ${freshInfo.version} but the box is still serving the previous version's files.`,
+        uuid,
+        version: freshInfo.version,
+        target: targetHost,
+        assetLanded: false,
+      });
+    }
+    // SETTLE-CONFIRM (defensive): the verify above runs immediately after publish.
+    // If any box/state DOES exhibit a delayed reconciler-revert (the historical
+    // "reverts seconds later" report — not reproduced here once the target box was
+    // correct), it would land a few seconds later and be missed. Cheap insurance:
+    // re-read after a beat and confirm the new version is STILL the live, installed,
+    // real-asset one. A revert here is a hard failure, not a reported success.
+    await new Promise((r) => setTimeout(r, SETTLE_CONFIRM_MS));
+    const settleRec = await widgetRecordByName(widgetName);
+    const settleAsset = await upstreamRequest({
+      method: "GET",
+      pathAndQuery: assetPath,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const settleSpa = /ng-app="cybersponse"|<!DOCTYPE html>/i.test(settleAsset.body || "");
+    const settleOk =
+      !!settleRec && settleRec.version === newVersion && settleRec.draft === false &&
+      settleAsset.status >= 200 && settleAsset.status < 300 && !settleSpa;
+    if (!settleOk) {
+      console.warn(`install: ROLLBACK detected for ${widgetName}@${newVersion} — settled to ${settleRec ? `${settleRec.version}(draft=${settleRec.draft})` : "absent"}, asset=${settleSpa ? "SPA-fallback" : settleAsset.status}`);
+      return res.status(502).json({
+        error:
+          `publish did NOT stick: after ${SETTLE_CONFIRM_MS}ms the box reverted ` +
+          `${widgetName} to ${settleRec ? `${settleRec.version} (draft=${settleRec.draft})` : "absent"} ` +
+          `and is serving ${settleSpa ? "the SPA fallback" : `HTTP ${settleAsset.status}`} for ${newVersion}. ` +
+          `This is the delayed-rollback class of bug (check the publish flags / target box).`,
+        uuid,
+        version: newVersion,
+        target: targetHost,
+        settledTo: settleRec ? settleRec.version : null,
+        rolledBack: true,
+      });
+    }
+    console.log(`install: staged ${freshInfo.name}-${freshInfo.version} on ${targetHost} (assets verified + settle-confirmed live)`);
     res.json({
       ok: true,
       uuid: uuid,
       name: freshInfo.name,
       version: freshInfo.version,
-      published: true,
+      target: targetHost, // which box this actually landed on — never guess from your own env
+      // We publish for real (draft:false); the widget goes live and stays put.
+      published: settleRec ? settleRec.draft === false : true,
+      draft: settleRec ? settleRec.draft : false,
+      assetLanded: true,
+      settleConfirmed: true,
       archive: pkg.archiveName,
       size: pkg.size,
     });
