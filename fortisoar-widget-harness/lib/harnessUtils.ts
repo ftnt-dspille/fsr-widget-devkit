@@ -712,6 +712,30 @@ function lintWidget(opts?: LintOpts): LintResult {
     }
   }
 
+  // Config round-trip footgun: the edit modal receives the SAVED widget config
+  // as an INJECTED `config` dependency, NOT via $scope inheritance. An
+  // edit.controller that binds config (edit.html has ng-model="config.X") but
+  // does not inject `config` shows stale defaults every time it reopens and
+  // closes the modal with a fresh object — the user's saved choices never
+  // persist. This is silent: it lints clean otherwise, unit tests pass, and it
+  // only surfaces on the box as "my setting didn't save". Require the inject.
+  if (files["edit.controller.js"] && files["edit.html"]) {
+    const bindsConfig = /ng-model\s*=\s*["'][^"']*\bconfig\./.test(files["edit.html"] || "");
+    const editDeps = extractInjectedDependencies(files["edit.controller.js"] || "");
+    if (bindsConfig && !editDeps.includes("config")) {
+      errors.push({
+        code: "edit-config-inject",
+        file: "edit.controller.js",
+        message:
+          `edit.html binds widget config (ng-model="config.…") but edit.controller.js does not inject ` +
+          `\`config\`. The host passes the SAVED config in as the injected \`config\` dependency — not on ` +
+          `$scope — so without it the editor shows stale defaults every time it reopens and closes the ` +
+          `modal with a fresh object, silently discarding the user's saved choices. Inject \`config\` and ` +
+          `bind it: \`$scope.config = angular.extend({<defaults>}, config || {})\`.`,
+      });
+    }
+  }
+
   // Absolute host URLs in controllers → work in the harness, break / CORS-fail
   // on the box. Calls must be proxy-relative.
   for (const f of ["view.controller.js", "edit.controller.js"]) {

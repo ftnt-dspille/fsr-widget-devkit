@@ -388,6 +388,17 @@ Chart widgets commonly branch their header CSS on `page === 'dashboard'` (see `r
 })();
 ```
 
+> **⚠️ Gotcha — the edit modal MUST inject `config`; `$scope.config` is not it.**
+> The host passes the *saved* widget config into the edit modal as the **injected
+> `config` dependency**, not via `$scope` inheritance. If the edit controller reads
+> `$scope.config` (or `$scope.config = $scope.config || {}`) instead of injecting
+> `config`, the bug is **silent**: the modal shows stale defaults every time it
+> reopens, and `close($scope.config)` returns a fresh object — so the user's saved
+> choices never round-trip ("I changed the setting, saved, and it reverted").
+> Always: inject `config` → `$scope.config = angular.extend({}, defaults, config || {})`
+> → `close($scope.config)`. The harness lint rule **`edit-config-inject`** fails the
+> ship if `edit.html` binds `config.*` but `edit.controller.js` doesn't inject `config`.
+
 ### 5.3 Injectables you will almost always want
 
 Group | Typical for | Injectables

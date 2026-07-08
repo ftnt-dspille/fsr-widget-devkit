@@ -282,6 +282,25 @@ describe("lintWidget", () => {
     expect(r.errors).toEqual([]);
   });
 
+  test("edit.html binds config but edit.controller doesn't inject config -> edit-config-inject error", () => {
+    const files = Object.assign({}, baseFiles, {
+      "edit.html": `<form><input data-ng-model="config.orientation" /></form>`,
+      // controller injects only $scope — the footgun
+      "edit.controller.js": `function editFoo112DevCtrl($scope){ $scope.config = $scope.config || {}; } editFoo112DevCtrl.$inject=["$scope"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
+    });
+    const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
+    expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(true);
+  });
+
+  test("edit.controller that injects config is clean", () => {
+    const files = Object.assign({}, baseFiles, {
+      "edit.html": `<form><input data-ng-model="config.orientation" /></form>`,
+      "edit.controller.js": `function editFoo112DevCtrl($scope, $uibModalInstance, config){ $scope.config = angular.extend({}, {}, config || {}); } editFoo112DevCtrl.$inject=["$scope","$uibModalInstance","config"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
+    });
+    const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
+    expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(false);
+  });
+
   test("missing required file is an error", () => {
     const files = Object.assign({}, baseFiles); delete files["edit.html"];
     const r = lintWidget({ info: baseInfo, files });
