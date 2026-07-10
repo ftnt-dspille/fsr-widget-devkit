@@ -378,8 +378,8 @@ credits, no sim/mock. **Full how-to + no-cache discipline: `LOCAL_DEV.md`.**
   "could not create after 6 attempts: None" instead of the honest
   `push_no_record` diagnosis one branch below; fixed by tracking
   `call_succeeded` explicitly. (3) **the actual root cause**, initially
-  misdiagnosed as an RBAC/team-ownership gap (it was NOT — csadmin has create
-  rights, confirmed): `push_playbook`/`render_jinja`/`dry_run_playbook`
+  misdiagnosed as an RBAC/team-ownership gap (it was NOT — the admin user has
+  create rights, confirmed): `push_playbook`/`render_jinja`/`dry_run_playbook`
   imported `integrations.crudhub.make_request` directly, which IS importable
   off-platform (the connectors SDK dev package ships it) but is a **stub that
   unconditionally `return None`** — meant to be shadowed by the real
