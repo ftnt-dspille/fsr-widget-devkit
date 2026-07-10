@@ -185,12 +185,29 @@ Anchor signature emitted correctly (proves Phase 3 payoff):
       `TS2554`) are proven kept by the jest fixtures.
 
 ### Phase 4 — Port remaining KB gotchas onto the unified engine
-- [ ] AST-accurate where applicable: copyright-header-missing (KB §2/§28.3),
-      drawer-needs-`standalone`/`enableFor` state matching (KB §18),
-      websocket-`$destroy`-cleanup, edit-modal contract
-      (`$uibModalInstance`/`save`/`cancel`), unscoped CSS, `cs-*` `data-` prefix.
+- [x] **Most rules already live in `scripts/lint-angular.ts`** (audited 2026-07-10):
+      `drawer-needs-standalone` (+ `view-views-typo` for the `enableFor` typo),
+      `websocket-no-destroy-cleanup`, edit-modal contract trio
+      (`edit-modal-instance-missing`/`edit-save-missing`/`edit-cancel-missing`),
+      `unscoped-generic-css`, `cs-directive-needs-data-prefix`, `missing-inject`,
+      `ng-controller-unregistered`, `config-defaults-missing`,
+      `config-access-before-defaults`, `uibModal-in-view-controller`, plus the
+      info.json set (`version-not-semver`, `published-date-iso`,
+      `subtitle-capitalization`, `metadata-pages-empty`).
+- [x] **`copyright-header-missing` (KB §25.8) — ADDED 2026-07-10** (`checkCopyrightHeader`).
+      Runs on every shippable `.js`/`.css`/`.html`; recognises the
+      `Copyright start … Copyright end` block in the first 15 lines (so a stray
+      "Copyright" deeper in a vendored file can't mask a missing header).
+      **Warning, not error** — it blocks Content Hub submission, not runtime, and
+      dev widgets legitimately ship without it (surfaces 20 real gaps across the
+      tree; `ship-verify` stays green). Also made `ROOT` honour `WIDGETS_SRC`
+      (same override the parent Makefile passes) so the linter is fixture-testable.
+      Jest: `tests/lintAngular.test.js` (4 cases, drives the CLI over a temp
+      `WIDGETS_SRC` fixture). Full harness suite 321 green; full sweep = 0 errors.
 - [ ] **Drop `connector-null-configid`** — Phase 3's type system covers it.
-- [ ] Templates stay regex/parse5 (HTML isn't TS). *Effort: M.*
+- [ ] Remaining backlog (§6): `drawer`/`enableFor` *state-match* (beyond the typo),
+      `config-defaults-missing` AST-accuracy pass. Templates stay regex/parse5
+      (HTML isn't TS). *Effort: S remaining.*
 
 ### Phase 5 — Wire + harden
 - [ ] Jest cases per rule; false-positive baseline sweep across all ~60 widgets

@@ -15,7 +15,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Severity: 'error' fails the script (exit 1). 'warning' is printed but exit 0.
 const fs = require("fs");
 const path = require("path");
-const ROOT = path.resolve(__dirname, '..', '..', 'widgets-src');
+// Honour WIDGETS_SRC (the same override the parent Makefile passes) so the
+// linter can be pointed at a fixture tree for tests; falls back to the sibling
+// widgets-src checkout for normal CLI use.
+const ROOT = process.env.WIDGETS_SRC
+    ? path.resolve(process.env.WIDGETS_SRC)
+    : path.resolve(__dirname, '..', '..', 'widgets-src');
 const scope = process.argv[2] || null;
 const violations = [];
 function record(sev, file, line, rule, msg) {
@@ -352,6 +357,27 @@ function checkWidgetHeightStickyComposer(file, lines) {
             'below the viewport whenever the host adds chrome that pushes the widget past 100vh.');
     }
 }
+// Every shippable `.js`/`.css`/`.html` must carry the MIT copyright block
+// (KB §25.8 / §28.3). The Content Hub submission linter rejects any file that
+// lacks it, so a widget that mounts fine in the harness still fails
+// certification. Recognised by the `Copyright start` … `Copyright end` markers
+// in the file head (the KB block, and every certified widget, opens with them).
+// Warning, not error: it blocks Content Hub submission, not runtime, and dev
+// widgets (fortiaiAgenticAssistant et al.) legitimately ship without it.
+function checkCopyrightHeader(file, lines) {
+    // Header lives at the top; scan the first 15 lines so a stray "Copyright"
+    // deeper in the file (e.g. a vendored snippet) can't mask a missing header.
+    const head = lines.slice(0, 15).join('\n');
+    if (/Copyright start/i.test(head) && /Copyright end/i.test(head))
+        return;
+    record('warning', file, 1, 'copyright-header-missing', 'File has no MIT copyright header. Content Hub rejects submissions whose ' +
+        '.js/.css/.html files lack the block. Add at the top (KB §25.8):\n' +
+        '    /* Copyright start\n' +
+        '       MIT License\n' +
+        '       Copyright (c) YYYY Fortinet Inc\n' +
+        '       Copyright end */\n' +
+        '(HTML uses `<!-- Copyright start … Copyright end -->`.)');
+}
 // ─── Driver ───────────────────────────────────────────────────────────────
 function lintWidget(widgetDir) {
     let widgetRoot = path.join(widgetDir, 'widget');
@@ -375,6 +401,7 @@ function lintWidget(widgetDir) {
         checkDataPrefixOnCsDirectives(f, lines);
         checkUnscopedGenericSelectors(f, lines);
         checkWidgetHeightStickyComposer(f, lines);
+        checkCopyrightHeader(f, lines);
     });
     // Standalone widgetAssets/css/*.css files also need the unscoped-class check.
     const cssFiles = (() => {
@@ -387,12 +414,14 @@ function lintWidget(widgetDir) {
     cssFiles.forEach((f) => {
         const lines = readLines(f) || [];
         checkUnscopedGenericSelectors(f, lines);
+        checkCopyrightHeader(f, lines);
     });
     ctlFiles.concat(assetJs).forEach((f) => {
         const lines = readLines(f) || [];
         checkInjectArray(f, lines);
         checkWebsocketCleanup(f, lines);
         checkConnectorConfigId(f, lines);
+        checkCopyrightHeader(f, lines);
         if (f.endsWith('view.controller.js')) {
             checkConfigDefaultsBeforeAccess(f, lines);
             checkUibModalInView(f, lines);

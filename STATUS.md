@@ -434,7 +434,7 @@ with this repo's nested `fortisoar-widget-harness/`._
 
 | Thread | Where | Doc |
 |---|---|---|
-| **TypeScript** | Test infra + scripts + harness `lib/` converted (✅). ~33 jest specs still `.js` (deliberate). Widget *source* stays JS (AngularJS). **Phase 3 (checkJs gate) DONE** — noise-scoped + wired into `ship-verify` step 1. Active front = Phase 4 (port KB gotchas onto the unified engine) + the last Phase-2 bundle-arity cross-check, **not** more file conversion. | `TYPESCRIPT_STATIC_ANALYSIS_PLAN.md` |
+| **TypeScript** | Test infra + scripts + harness `lib/` converted (✅). ~33 jest specs still `.js` (deliberate). Widget *source* stays JS (AngularJS). **Phase 3 (checkJs gate) DONE** — noise-scoped + wired into `ship-verify` step 1. **Phase 4 (KB-gotcha rules) mostly DONE (2026-07-10):** audit found most rules already in `lint-angular.ts`; added `copyright-header-missing` (KB §25.8, warning-sev, 20 real gaps surfaced) + made `ROOT` honour `WIDGETS_SRC` for fixture testing + first jest coverage for the linter (`tests/lintAngular.test.js`, 4 cases). Remaining: `drawer`/`enableFor` state-match + config-defaults AST-accuracy (Effort S). Active front also has the last Phase-2 bundle-arity cross-check, **not** more file conversion. | `TYPESCRIPT_STATIC_ANALYSIS_PLAN.md` |
 | NOC FortiManager+FortiAnalyzer tools | Connector live on the 7.x box (0.4.7), committed not pushed | memory `noc_fortimanager_tools_plan` |
 
 ---
