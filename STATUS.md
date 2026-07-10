@@ -7,6 +7,15 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-10_
 
+> **2026-07-10 — box connectivity confirmed:** all three lab boxes (159/8.0,
+> 168, 205) reachable; box 159 authenticates + serves authenticated reads via the
+> harness client (`tests/live/lib/soarClient.js` `makeClient()`, loads `.env.159`)
+> — 44 widgets, 67k alerts. So the box-dependent threads below (**Introspection
+> Phase 2**, **live prompt/flow matrix run**, **playbook-editor live verify**) are
+> unblocked network-wise; they just need a run window. Gotcha captured (raw curl to
+> `/auth/authenticate` 405s on a header quirk — auth via `makeClient()`/pyfsr, not
+> curl): memory `deploy_159_fortisoar_8`.
+>
 > **2026-07-10 — harness housekeeping:** (a) Introspection backlog #4 confirmed
 > DONE (`module is not defined` render noise eliminated via `harnessUtils.js`
 > IIFE wrap, `758cbaa`) — verified by a full `make introspect` sweep: errorCount
