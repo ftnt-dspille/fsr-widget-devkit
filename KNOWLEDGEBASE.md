@@ -577,6 +577,27 @@ $scope.save   = () => $uibModalInstance.close(config || {});
 
 ## 7. View template (`view.html`) patterns
 
+### 7.0 In-widget detail modal (self-contained overlay — not `$uibModal`)
+
+For a "click element → popup with details + an action button" flow, prefer a
+**widget-scoped CSS overlay** over the platform's `$uibModal`/dialog service:
+absolutely-positioned inside the widget root (`position: relative` on the root,
+`.modal-backdrop { position: absolute; inset: 0; z-index: N }`), toggled by an
+`ng-if="selected"` on a `$scope` field the click handler sets. Why: it stays
+self-contained (no platform-service dependency, survives the sandboxed panel),
+and it can't wedge the host on a blocking dialog (see the alert/dialog caveat).
+Stop backdrop clicks from closing when the click is inside the card with
+`data-ng-click="$event.stopPropagation()"`. An "Open" button then deep-links the
+record (`$window.open("/modules/view-panel/<module>/<id>", "_blank")`), honoring
+a `config.openInNewTab` toggle. Reference impl: `ztpAutomationGraph` view
+(`onNodeTap` → `selectedStep` → modal markup; node tap shows step status/error/
+run-group before navigating). **E2e note:** if the trigger is a `<canvas>`
+(Cytoscape etc.) there's no DOM node to click — expose the instance
+(`$window.__ztpCy = cy`) and emit the event (`cy.nodes()[0].emit('tap')`); and
+stub `window.open` in an init script to capture the URL instead of navigating a
+real popup, or the hermetic tier flags the platform route as an un-snapshotted
+leak.
+
 ### 7.1 Asset paths
 
 Reference your own assets with the `<name>-<version>` prefix — this is what the platform serves them under:
@@ -2558,6 +2579,59 @@ function cancelPoll() { if (pollTimer) { $window.clearTimeout(pollTimer); pollTi
 In jest, mock `$window.setTimeout`/`clearTimeout` (delegate to the globals) and
 call `$scope.$destroy()` at the end of the success test to cancel the open timer
 (otherwise jest hangs on an open handle).
+
+### 32.4.1 Inline-SVG node icons squash on zoom — give the SVG intrinsic width/height
+A cytoscape node `background-image` set to an inline `data:image/svg+xml` glyph
+with only a `viewBox="0 0 24 24"` and **no `width`/`height` attributes** has no
+intrinsic size. Browsers rasterize such an SVG at the CSS default replaced-element
+size of **300×150** (a 2:1 aspect). `background-fit: contain` masks it at rest,
+but as you zoom in cytoscape redraws the raster and the 2:1 intrinsic ratio bleeds
+through — the glyph gets horizontally **squashed** (observed in `ztpAutomationGraph`).
+Fix: add explicit square `width="24" height="24"` (matching the viewBox) to each
+SVG root so the intrinsic aspect is locked 1:1:
+```js
+svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">…</svg>')
+```
+
+### 32.4.2 cytoscape `.animation()` has NO loop/alternate — chain on the completion promise
+`ele.animation({ style, duration, alternate: true, loop: true })` looks like it
+pulses, but **cytoscape silently ignores `alternate`/`loop`** — the animation runs
+ONCE (e.g. border-width 5→10) and freezes at the end frame. Symptom: a "blinking
+current step" ring that grows once and never breathes (hit in `ztpAutomationGraph`).
+Drive a real loop by chaining grow→shrink on each animation's completion promise,
+with a stop flag so re-render / `$destroy` can halt it:
+```js
+var stopped = false, anims = [];
+function pulse(n) {
+  function step(w, next) {
+    if (stopped) return;
+    var a = n.animation({ style: { "border-width": w }, duration: 700, easing: "ease-in-out-sine" });
+    anims.push(a);
+    a.play().promise("complete").then(function () { if (!stopped) next(); });
+  }
+  var grow = function () { step(12, shrink); }, shrink = function () { step(5, grow); };
+  grow();
+}
+// stop: stopped = true; anims.forEach(a => a.stop()); anims = [];
+```
+
+### 32.4.3 In-place poll re-render must update classes AND repaint mapped colors
+An in-place graph refresh (poll on the SAME topology, updating node status without
+re-layout so pan/zoom is preserved) has two traps, both hit in `ztpAutomationGraph`
+where a live run's ring color + "current" highlight stayed frozen at the first
+render (all "Added") while the queueStatus grid advanced:
+1. **Update the class list, not just `data`.** Status lives in BOTH `node.data`
+   (e.g. `border-color: data(color)`) AND the class string (`status-running`,
+   `current`, mode). `node.data(nd.data)` alone leaves classes frozen — the pulse
+   and any class-keyed style stick to whichever node was current at first render.
+   Re-apply: `node.classes(nd.classes)` (replaces the whole set).
+2. **A mapped style may not re-run on a whole-object `.data()` swap.** Replacing a
+   node's entire data object doesn't reliably re-evaluate a `data(color)` mapper on
+   the live cytoscape build, so the ring keeps its old color. Force it with a
+   direct per-element **bypass**, applied AFTER `cy.style().json(...)` so the sheet
+   reset can't clear it: `node.style("border-color", nd.data.color)`.
+Also note: `deviceArtifact` (used to pick the run group) is read ONCE at init — a
+poll reuses it, so it can't chase a brand-new run group without a re-read.
 
 ### 32.5 CSS isn't auto-loaded — inline it
 The harness auto-injects `widgetAssets/**/*.js` only, **not `.css`**. A
