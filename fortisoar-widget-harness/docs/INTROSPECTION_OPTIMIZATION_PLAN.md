@@ -1,6 +1,6 @@
 # Harness widget-rendering: introspection-first optimization plan
 
-**Status:** in progress — Phase 1 rig DONE incl. stub-hit counters; **backlog #1 (lazy Monaco/editors), #2 (font dedup), #3 (editor.main.css) all shipped 2026-06-22**; **backlog #4 (`module is not defined` noise) DONE — see below**; **Phase 5 (`make introspect` + `introspect-gate` regression gate) DONE**; **Phase 2 (real-SOAR fidelity baseline) — rig BUILT + first live diff on 8.0 (2026-07-12); drawer-widget rig-mount is the open follow-up (see Phase 2 below)**
+**Status:** in progress — Phase 1 rig DONE incl. stub-hit counters; **backlog #1 (lazy Monaco/editors), #2 (font dedup), #3 (editor.main.css) all shipped 2026-06-22**; **backlog #4 (`module is not defined` noise) DONE — see below**; **Phase 5 (`make introspect` + `introspect-gate` regression gate) DONE**; **Phase 2 (real-SOAR fidelity baseline) — rig BUILT + first live diff on 8.0 (2026-07-12); drawer-widget rig-mount DONE via `introspection-profiles.json` → stub-vs-real service map now works; DOM/style diffing is the remaining piece (see Phase 2 below)**
 **Created:** 2026-06-22
 **Goal:** Find and fix where the harness renders widgets suboptimally, driven by *live introspection* of the running harness — not assumptions that the current behavior is optimal.
 
@@ -87,25 +87,34 @@ noise (SOAR loads its whole ~250-resource shell around any widget).
    noise (2 generic 404s + a `customPicklistMessage-1.1.0` CSS MIME error — a
    *different* widget), so the rig attributes errors by widget path and reports
    ours vs shell separately.
-2. **RIG-BASELINE GAP (the real Phase-2 finding):** the standard Phase-1
-   introspect rig renders `fortiaiAgenticAssistant` as **`no-mount`** (its minimal
-   `{module:"alerts"}` config hits the config-prompt gate) — drawer/standalone
-   widgets need a drawer + entity context the rig doesn't supply. So for exactly
-   the widgets deployed as drawers, the harness has **no true mounted baseline**,
-   which means the **stub-vs-real service map is unavailable** (it needs a mounted
-   harness render's `runtime.stubHits`). Follow-up: teach the harness rig to mount
-   drawer/standalone widgets (seed drawer context + an entity) so their baseline
-   is a real render, not the gate — then the stub-vs-real comparison becomes
-   possible. Until then the fidelity diff for drawer widgets is limited to
-   mount/error/asset parity.
+2. **RIG-BASELINE GAP — FOUND then CLOSED (2026-07-12).** The standard Phase-1
+   rig first rendered `fortiaiAgenticAssistant` as **`no-mount`** (its minimal
+   `{module:"alerts"}` config hit the config-prompt gate) — drawer/standalone
+   widgets need their real config + a `context=…` URL + a widget-specific mount
+   probe, none of which the generic path supplies. **Fix:** `introspect.ts` now
+   reads a harness-side **`introspection-profiles.json`** registry (keyed by
+   widget id): `config` (seeded to `harness:config:<id>`), `ctx`, `urlParams`
+   (appended to `/?widget=<id>&…`), and `mountProbe` (a JS expression
+   `waitForFunction` polls; whether it *resolves* is the mount signal — no
+   `eval`). Widgets with no entry keep the generic path unchanged. With a profile
+   the widget mounts (56→128 resources, `no-mount`→`mounted`) and its
+   `runtime.stubHits` populate — so the **stub-vs-real service map now works**:
+   the harness stubs `$exceptionHandler, localStorageService, $state, toaster,
+   $translate, config, $uibModal` for this widget; all are real platform services
+   on the box. Profiles are harness-internal (deliberately NOT in the widget's
+   shipped `info.json`).
 3. Widget's own assets load from `/widgets/installed/<id>-<version>/` on the box
    (version-verified against the deployed build).
 
-**Remaining for Phase 2:** (a) rig-mount drawer widgets for a real harness
-baseline (unblocks stub-vs-real); (b) DOM/applied-style diffing (currently
-mount + error + asset parity only); (c) extend `LIVE_WIDGETS` as more widgets are
-deployed to a box; (d) optional `introspect-soar-gate` once a clean baseline
-exists.
+**Remaining for Phase 2:** (a) DOM/applied-style diffing (currently
+mount + error + asset + stub-vs-real parity); (b) extend `LIVE_WIDGETS` +
+`introspection-profiles.json` as more widgets are deployed to a box; (c) optional
+`introspect-soar-gate` once a clean baseline exists. **Rig fragility noted:**
+`make introspect` boots a non-hermetic server that proxies to the box, so when the
+box proxy hangs the *tail* widgets of a sweep can time out at ~31s (uniform
+no-mount for the last N) — an environmental flake, not a widget regression;
+re-run against a healthy dev server to distinguish. (`funnelChart`,
+`fsocFieldsOfInterest` are genuine PRE-EXISTING no-mounts, independent of this.)
 
 ### Phase 3 — Triage findings into a backlog 🟡 PARTIAL (backlog produced from Phase 1 run; see Findings above)
 Score each finding by **impact × confidence × fidelity-risk**. Already on the board:

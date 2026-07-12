@@ -43,6 +43,7 @@ const MOUNT_TIMEOUT_MS = Number(process.env.INTROSPECT_MOUNT_TIMEOUT_MS || 20000
 const SETTLE_MS = Number(process.env.INTROSPECT_SETTLE_MS || 1500);
 const REPORT_DIR = path.resolve(__dirname, "..", "introspection-reports");
 const BASELINE_DIR = path.resolve(__dirname, "..", "introspection-baseline");
+const PROFILES_PATH = path.resolve(__dirname, "..", "introspection-profiles.json");
 
 interface PublicWidget {
   id: string;
@@ -50,6 +51,29 @@ interface PublicWidget {
   title?: string;
   caps?: WidgetCapabilities;
 }
+
+/** Per-widget mount override (introspection-profiles.json). Lets drawer/
+ *  standalone widgets — which the generic {module:"alerts"} config can't mount —
+ *  produce a REAL mounted render (config + context + URL params + a mount probe)
+ *  so their stub-hit map and correctness signals are measured, not gated. */
+interface IntrospectProfile {
+  config?: Record<string, unknown>;
+  ctx?: string;
+  urlParams?: string;
+  mountProbe?: string;
+}
+
+function loadProfiles(): Record<string, IntrospectProfile> {
+  try {
+    const raw = JSON.parse(fs.readFileSync(PROFILES_PATH, "utf8")) as Record<string, unknown>;
+    const out: Record<string, IntrospectProfile> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (k !== "_doc" && v && typeof v === "object") out[k] = v as IntrospectProfile;
+    }
+    return out;
+  } catch (_) { return {}; }
+}
+const PROFILES = loadProfiles();
 
 // Each bundle names the cap that legitimizes it: if the widget declares that
 // capability, eager bytes are expected; otherwise they're a lazy-load leak.
@@ -88,15 +112,21 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
   //    supplies module/title/wid defaults, so a minimal saved config is enough
   //    to reach a real mounted render (a widget that still throws inside its
   //    controller is a genuine finding, not a rig artifact).
-  await page.addInitScript((id: string) => {
+  const profile = PROFILES[widget.id];
+  await page.addInitScript((args: { id: string; config: string; ctx: string | null }) => {
     try {
-      window.localStorage.setItem("harness.widget", id);
-      const cfgKey = `harness:config:${id}`;
-      if (!window.localStorage.getItem(cfgKey)) {
-        window.localStorage.setItem(cfgKey, JSON.stringify({ module: "alerts" }));
-      }
+      window.localStorage.setItem("harness.widget", args.id);
+      const cfgKey = `harness:config:${args.id}`;
+      // A profile config replaces the generic default (drawer/standalone widgets
+      // need their real config to mount); otherwise fall back to {module:"alerts"}.
+      window.localStorage.setItem(cfgKey, args.config);
+      if (args.ctx) window.localStorage.setItem("harness.ctx", args.ctx);
     } catch (_) {}
-  }, widget.id);
+  }, {
+    id: widget.id,
+    config: JSON.stringify(profile?.config || { module: "alerts" }),
+    ctx: profile?.ctx || null,
+  });
 
   const consoleErrors: string[] = [];
   let warningCount = 0;
@@ -108,27 +138,42 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
   page.on("pageerror", (e) => consoleErrors.push(`[pageerror] ${e.message}`.slice(0, 240)));
 
   const t0 = Date.now();
-  // domcontentloaded only — never networkidle (SSE channel stays open).
-  await page.goto(`${HARNESS_URL}/`, { waitUntil: "domcontentloaded", timeout: MOUNT_TIMEOUT_MS }).catch(() => {});
+  // domcontentloaded only — never networkidle (SSE channel stays open). A profile
+  // can add URL params (e.g. context=Dashboard&mock=…&opener=1) needed to mount.
+  const url = profile?.urlParams
+    ? `${HARNESS_URL}/?widget=${encodeURIComponent(widget.id)}&${profile.urlParams}`
+    : `${HARNESS_URL}/`;
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: MOUNT_TIMEOUT_MS }).catch(() => {});
   // Mount sentinel: the widget bootstraps into #widget-host. Settle until the
   // host either renders an Angular subtree (mounted) or the harness's
-  // "configure to preview" gate (config-prompt) — both are terminal states.
+  // "configure to preview" gate (config-prompt). A profile's mountProbe wins —
+  // drawer widgets signal readiness via their own probe, not a big DOM subtree.
+  // We use whether Playwright's waitForFunction(probe) RESOLVED as the mount
+  // signal (probeMounted) rather than re-evaluating the probe ourselves — no eval.
+  let probeMounted = false;
   try {
-    await page.waitForFunction(() => {
-      const host = document.getElementById("widget-host");
-      if (!host) return false;
-      if (host.querySelector(".harness-config-prompt")) return true;
-      return !!host.querySelector(".ng-scope") && host.innerHTML.length > 200;
-    }, { timeout: MOUNT_TIMEOUT_MS });
-  } catch (_) { /* capture anyway */ }
+    if (profile?.mountProbe) {
+      await page.waitForFunction(profile.mountProbe, { timeout: MOUNT_TIMEOUT_MS });
+      probeMounted = true;
+    } else {
+      await page.waitForFunction(() => {
+        const host = document.getElementById("widget-host");
+        if (!host) return false;
+        if (host.querySelector(".harness-config-prompt")) return true;
+        return !!host.querySelector(".ng-scope") && host.innerHTML.length > 200;
+      }, { timeout: MOUNT_TIMEOUT_MS });
+    }
+  } catch (_) { /* timed out — capture state anyway below */ }
   await page.waitForTimeout(SETTLE_MS);
-  const mountState: NonNullable<RenderReport["mountState"]> = await page.evaluate(() => {
-    const host = document.getElementById("widget-host");
-    if (!host) return "no-mount";
-    if (host.querySelector(".harness-config-prompt")) return "config-prompt";
-    if (host.querySelector(".ng-scope") && host.innerHTML.length > 200) return "mounted";
-    return "no-mount";
-  });
+  const mountState: NonNullable<RenderReport["mountState"]> = probeMounted
+    ? "mounted"
+    : await page.evaluate(() => {
+      const host = document.getElementById("widget-host");
+      if (!host) return "no-mount";
+      if (host.querySelector(".harness-config-prompt")) return "config-prompt";
+      if (host.querySelector(".ng-scope") && host.innerHTML.length > 200) return "mounted";
+      return "no-mount";
+    });
   const mounted = mountState === "mounted";
   const wallMs = Date.now() - t0;
 

@@ -7,6 +7,18 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-10_
 
+> **2026-07-12 (later) — drawer-widget rig-mount DONE, stub-vs-real map works:**
+> `introspect.ts` now reads `introspection-profiles.json` (harness-side, keyed by
+> widget id: config + ctx + urlParams + mountProbe) so drawer/standalone widgets
+> mount for real instead of hitting the config-prompt gate. `fortiaiAgenticAssistant`
+> now mounts in-harness (56→128 resources) and its `runtime.stubHits` populate →
+> the fidelity diff reports the exact stubs the harness fakes that are real on the
+> box: `$exceptionHandler, localStorageService, $state, toaster, $translate,
+> config, $uibModal`. Validated my seeding change is harmless (counter/myWidget
+> mount unchanged); the hermetic-sweep tail failures were the non-hermetic
+> introspect server's box-proxy hanging on the last widgets (env flake, not a
+> regression); `funnelChart`/`fsocFieldsOfInterest` are pre-existing no-mounts.
+>
 > **2026-07-12 — Introspection Phase 2 rig built + first live fidelity diff:**
 > `scripts/introspectSoar.ts` (+ `make introspect-soar ENV=.env.<box>
 > [ARGS='--offline']`) renders a deployed widget on a live box via the record
@@ -284,7 +296,7 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 | **Triage & playbook strategic vision** | Make the agent genuinely helpful: hunt/pivot via FortiSIEM/FAZ (already in ref DB — gap is prompt guidance, not data); turn-investigation-into-playbook (Track B4/B5 — **playbook-designer persona now partially built, see below**); pydantic strict-typing pass (connector's `chat_turn`/`chat_poll`/`chat_resume`/`chat_history` boundary + tool-arg models already done, commit `777bf58`); py3.12 modernization. See roadmap section below. | tune-able once local loop P0 lands | memory `triage_and_playbook_vision` |
 | **Prompt + flow test matrix (triage & playbook creation)** | Author the live prompt/flow test plan, then execute it against the 8.0 box (proven render + live triage path). See section below + `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new) | none ��� 8.0 live path proven; needs the plan authored + a run window | this file; memory `deploy_159_fortisoar_8` |
 | **Chat Intelligence — Track B** | Live drive vs forticloud + re-capture 2 stale goldens, then start Track B | Phase 0 done offline; needs live | memory `chat_intelligence_plan` |
-| **Introspection Phase 2** | Live-fidelity rig (real-SOAR baseline diff vs harness) | **rig BUILT + first live diff on 8.0 (2026-07-12)** — `scripts/introspectSoar.ts` + `make introspect-soar`; renders deployed widget on box via drawer, diffs vs harness report. Key finding: the Phase-1 rig can't mount drawer/standalone widgets (config-prompt gate), so those have no true harness baseline → stub-vs-real map needs a rig-mount follow-up. Widget itself renders clean live. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
+| **Introspection Phase 2** | Live-fidelity rig (real-SOAR baseline diff vs harness) | **rig BUILT + live diff on 8.0 + drawer-mount DONE (2026-07-12)** — `scripts/introspectSoar.ts` + `make introspect-soar` render the deployed widget on the box and diff vs the harness report; `introspection-profiles.json` teaches the Phase-1 rig to mount drawer/standalone widgets (config + context + mount probe), so fortiai now mounts in-harness and the **stub-vs-real service map works** (harness fakes $state/$uibModal/toaster/$translate/localStorageService/$exceptionHandler/config; all real on box). Widget renders clean live. Remaining: DOM/applied-style diffing. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
 | ~~Introspection backlog #4 (`module is not defined` render noise)~~ | **DONE + verified 2026-07-10** — `harnessUtils.js` IIFE-wrapped when browser-served (`758cbaa`); `make introspect` sweep = errorCount 0 across all 15 widgets. Baselines refreshed, 3 orphan reports removed. Only Phase 2 remains open in the introspection plan. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
 | **Playbook-editor tailoring — verify on real box** | Widget now hard-forces build intent + shows playbook-authoring quick actions when mounted on `main.playbookDetail` (hermetic e2e proven). NOT yet confirmed against a real FortiSOAR box via Chrome — need to open the actual playbook designer, drop the widget in via the drawer, and confirm it mounts + shows the right intent/chips there (vs the harness's synthetic `$state` stub). | none — just needs a live Chrome pass | memory `playbook_editor_tailoring` |
 
