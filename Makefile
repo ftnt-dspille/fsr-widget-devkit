@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -162,6 +162,10 @@ introspect: ## Hermetic widget-render introspection (builds baseline reports; in
 introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors).
 	@echo "▶ Checking regressions against baseline…"
 	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js
+
+introspect-soar: ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. Source the box env first (e.g. `set -a; . .env.159; set +a`). ENV=.env.159 to point it; ARGS='--offline' to re-diff without driving the box.
+	@echo "▶ Rendering deployed widget(s) live + diffing vs harness baseline…"
+	@cd $(HARNESS) && set -a; [ -n "$(ENV)" ] && . ./$(ENV); set +a; pnpm node scripts/introspectSoar.js $(ARGS)
 
 clean: ## Remove harness node_modules + test artifacts
 	rm -rf $(HARNESS)/node_modules $(HARNESS)/test-results test-results

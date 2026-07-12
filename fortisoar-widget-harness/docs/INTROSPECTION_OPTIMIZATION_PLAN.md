@@ -1,6 +1,6 @@
 # Harness widget-rendering: introspection-first optimization plan
 
-**Status:** in progress — Phase 1 rig DONE incl. stub-hit counters; **backlog #1 (lazy Monaco/editors), #2 (font dedup), #3 (editor.main.css) all shipped 2026-06-22**; **backlog #4 (`module is not defined` noise) DONE — see below**; **Phase 5 (`make introspect` + `introspect-gate` regression gate) DONE**; Phase 2 (real-SOAR fidelity baseline) pending
+**Status:** in progress — Phase 1 rig DONE incl. stub-hit counters; **backlog #1 (lazy Monaco/editors), #2 (font dedup), #3 (editor.main.css) all shipped 2026-06-22**; **backlog #4 (`module is not defined` noise) DONE — see below**; **Phase 5 (`make introspect` + `introspect-gate` regression gate) DONE**; **Phase 2 (real-SOAR fidelity baseline) — rig BUILT + first live diff on 8.0 (2026-07-12); drawer-widget rig-mount is the open follow-up (see Phase 2 below)**
 **Created:** 2026-06-22
 **Goal:** Find and fix where the harness renders widgets suboptimally, driven by *live introspection* of the running harness — not assumptions that the current behavior is optimal.
 
@@ -67,8 +67,45 @@ A typed Playwright tool (`scripts/introspect.ts`) that boots a given widget and 
 - **Correctness signals:** console errors/warnings, `$sce`/binding fallbacks, unresolved providers — from existing `window.__harness.dump()`.
 - Runs headless over **all discovered widgets**, emits JSON + diff vs saved baseline. Must **not** wait on `networkidle` (use a mount sentinel).
 
-### Phase 2 — Real-SOAR fidelity baseline (don't assume the harness is "right") ⬜ PENDING
+### Phase 2 — Real-SOAR fidelity baseline (don't assume the harness is "right") 🟡 RIG BUILT + FIRST DIFF (2026-07-12)
 Use `lib/soarBrowser.ts` to render the same widgets in the **real** FortiSOAR box and capture the same report. SOAR is ground truth; the harness's job is to match its render. Output a **fidelity diff**: DOM, applied styles, services resolved real-vs-stubbed, digest behavior. Tells us which stubs are faithful and which paper over real behavior.
+
+**Built:** `scripts/introspectSoar.ts` (+ `make introspect-soar ENV=.env.<box> [ARGS='--offline'|<widgetId>]`).
+It renders a **deployed** widget on the live box via the record drawer (WAF-safe
+headed Chrome, reusing `soarBrowser.login`/`launchContext`), captures a
+`source:"soar"` `RenderReport` (resources, DOM/mount, load-time console/pageerror),
+and diffs it against the newest harness report → a `FidelityDiff` written to
+`introspection-reports/{soar,fidelity}/<id>.json`. `--offline` re-diffs the last
+saved SOAR report without driving the box (use after refreshing the harness
+baseline). Scope is honest: only drawer-rendered **deployed** widgets today
+(that's what's reachable on the box); whole-shell resource diffing is excluded as
+noise (SOAR loads its whole ~250-resource shell around any widget).
+
+**First run — `fortiaiAgenticAssistant` on 8.0 (box 159), findings:**
+1. **The widget renders clean live.** Composer mounts; zero console errors
+   attributable to the widget's own path. The 3 errors captured are whole-shell
+   noise (2 generic 404s + a `customPicklistMessage-1.1.0` CSS MIME error — a
+   *different* widget), so the rig attributes errors by widget path and reports
+   ours vs shell separately.
+2. **RIG-BASELINE GAP (the real Phase-2 finding):** the standard Phase-1
+   introspect rig renders `fortiaiAgenticAssistant` as **`no-mount`** (its minimal
+   `{module:"alerts"}` config hits the config-prompt gate) — drawer/standalone
+   widgets need a drawer + entity context the rig doesn't supply. So for exactly
+   the widgets deployed as drawers, the harness has **no true mounted baseline**,
+   which means the **stub-vs-real service map is unavailable** (it needs a mounted
+   harness render's `runtime.stubHits`). Follow-up: teach the harness rig to mount
+   drawer/standalone widgets (seed drawer context + an entity) so their baseline
+   is a real render, not the gate — then the stub-vs-real comparison becomes
+   possible. Until then the fidelity diff for drawer widgets is limited to
+   mount/error/asset parity.
+3. Widget's own assets load from `/widgets/installed/<id>-<version>/` on the box
+   (version-verified against the deployed build).
+
+**Remaining for Phase 2:** (a) rig-mount drawer widgets for a real harness
+baseline (unblocks stub-vs-real); (b) DOM/applied-style diffing (currently
+mount + error + asset parity only); (c) extend `LIVE_WIDGETS` as more widgets are
+deployed to a box; (d) optional `introspect-soar-gate` once a clean baseline
+exists.
 
 ### Phase 3 — Triage findings into a backlog 🟡 PARTIAL (backlog produced from Phase 1 run; see Findings above)
 Score each finding by **impact × confidence × fidelity-risk**. Already on the board:

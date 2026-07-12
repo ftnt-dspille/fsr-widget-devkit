@@ -7,6 +7,20 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-10_
 
+> **2026-07-12 — Introspection Phase 2 rig built + first live fidelity diff:**
+> `scripts/introspectSoar.ts` (+ `make introspect-soar ENV=.env.<box>
+> [ARGS='--offline']`) renders a deployed widget on a live box via the record
+> drawer (WAF-safe headed Chrome), captures a `source:"soar"` RenderReport, and
+> diffs it against the harness baseline → `FidelityDiff`. First run
+> (`fortiaiAgenticAssistant` on 159/8.0): widget renders **clean** (0 errors
+> attributable to it; the 3 captured are shell/other-widget noise). **Key finding:**
+> the Phase-1 introspect rig renders drawer/standalone widgets as `no-mount` (config
+> gate) — so they have no true harness baseline, and the stub-vs-real service map
+> needs a rig-mount follow-up. Details in the introspection plan Phase 2 section.
+> **Side note:** a stray tsc clobber of `tests/live/lib/soarClient.js` (a broken
+> `.ts` sibling not in the build) was caught + restored; the rig now `require()`s
+> that .js at runtime to keep it out of tsc's program.
+>
 > **2026-07-10 — box connectivity confirmed:** all three lab boxes (159/8.0,
 > 168, 205) reachable; box 159 authenticates + serves authenticated reads via the
 > harness client (`tests/live/lib/soarClient.js` `makeClient()`, loads `.env.159`)
@@ -270,7 +284,7 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 | **Triage & playbook strategic vision** | Make the agent genuinely helpful: hunt/pivot via FortiSIEM/FAZ (already in ref DB — gap is prompt guidance, not data); turn-investigation-into-playbook (Track B4/B5 — **playbook-designer persona now partially built, see below**); pydantic strict-typing pass (connector's `chat_turn`/`chat_poll`/`chat_resume`/`chat_history` boundary + tool-arg models already done, commit `777bf58`); py3.12 modernization. See roadmap section below. | tune-able once local loop P0 lands | memory `triage_and_playbook_vision` |
 | **Prompt + flow test matrix (triage & playbook creation)** | Author the live prompt/flow test plan, then execute it against the 8.0 box (proven render + live triage path). See section below + `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new) | none ��� 8.0 live path proven; needs the plan authored + a run window | this file; memory `deploy_159_fortisoar_8` |
 | **Chat Intelligence — Track B** | Live drive vs forticloud + re-capture 2 stale goldens, then start Track B | Phase 0 done offline; needs live | memory `chat_intelligence_plan` |
-| **Introspection Phase 2** | Build live-fidelity rig (real-SOAR baseline diff vs harness) | not started | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
+| **Introspection Phase 2** | Live-fidelity rig (real-SOAR baseline diff vs harness) | **rig BUILT + first live diff on 8.0 (2026-07-12)** — `scripts/introspectSoar.ts` + `make introspect-soar`; renders deployed widget on box via drawer, diffs vs harness report. Key finding: the Phase-1 rig can't mount drawer/standalone widgets (config-prompt gate), so those have no true harness baseline → stub-vs-real map needs a rig-mount follow-up. Widget itself renders clean live. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
 | ~~Introspection backlog #4 (`module is not defined` render noise)~~ | **DONE + verified 2026-07-10** — `harnessUtils.js` IIFE-wrapped when browser-served (`758cbaa`); `make introspect` sweep = errorCount 0 across all 15 widgets. Baselines refreshed, 3 orphan reports removed. Only Phase 2 remains open in the introspection plan. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
 | **Playbook-editor tailoring — verify on real box** | Widget now hard-forces build intent + shows playbook-authoring quick actions when mounted on `main.playbookDetail` (hermetic e2e proven). NOT yet confirmed against a real FortiSOAR box via Chrome — need to open the actual playbook designer, drop the widget in via the drawer, and confirm it mounts + shows the right intent/chips there (vs the harness's synthetic `$state` stub). | none — just needs a live Chrome pass | memory `playbook_editor_tailoring` |
 
