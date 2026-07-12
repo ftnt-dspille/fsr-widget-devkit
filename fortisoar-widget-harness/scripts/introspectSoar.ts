@@ -30,12 +30,14 @@ import fs = require("fs");
 import path = require("path");
 import soarBrowser = require("../lib/soarBrowser");
 import soarEnv = require("../lib/soarEnv");
+import domCapture = require("../lib/domCapture");
 import {
   RenderReport,
   ResourceEntry,
   RenderCorrectness,
   BootTimeline,
   FidelityDiff,
+  DomCapture,
 } from "../lib/types";
 
 const REPORT_DIR = path.resolve(__dirname, "..", "introspection-reports");
@@ -57,9 +59,13 @@ interface LiveWidget {
   title: string;
   module: string;
   mode: "drawer";
+  /** CSS selector for the widget's own root element (same selector the harness
+   *  profile's `domRoot` uses). When set + resolvable, the SOAR report carries a
+   *  DomCapture that `fidelity()` diffs against the harness report's `dom`. */
+  domRoot?: string;
 }
 const LIVE_WIDGETS: LiveWidget[] = [
-  { id: "fortiaiAgenticAssistant", title: "FortiAI Agentic Assistant", module: "alerts", mode: "drawer" },
+  { id: "fortiaiAgenticAssistant", title: "FortiAI Agentic Assistant", module: "alerts", mode: "drawer", domRoot: "[data-testid=fsr-pb-root]" },
 ];
 
 function classifyResource(name: string, initiatorType: string): ResourceEntry["type"] {
@@ -165,6 +171,15 @@ async function introspectSoar(lw: LiveWidget): Promise<RenderReport> {
     sceFallbacks: 0,
   };
 
+  // Phase 2 DOM/style capture from the live box (same shape as the harness rig
+  // emits) so fidelity() can diff harness↔SOAR subtree + applied styles. Same
+  // selector the harness profile's domRoot uses — the widget's own template root
+  // is present in both #widget-host and the SOAR drawer. Returns undefined when
+  // the widget didn't mount on the box; fidelity() treats that explicitly.
+  const dom: DomCapture | undefined = lw.domRoot
+    ? await domCapture.captureDom(page, lw.domRoot)
+    : undefined;
+
   await browser.close().catch(() => {});
 
   const totalBytes = resources.reduce((s, r) => s + r.size, 0);
@@ -179,6 +194,7 @@ async function introspectSoar(lw: LiveWidget): Promise<RenderReport> {
     correctness,
     mounted,
     mountState,
+    ...(dom ? { dom } : {}),
   };
 }
 
@@ -251,7 +267,17 @@ function fidelity(harness: RenderReport | null, soar: RenderReport): FidelityDif
   notes.push(`resource profile — harness: ${harness.resourceCount} res / ${kb(harness.totalBytes)}; ` +
     `soar: ${soar.resourceCount} res / ${kb(soar.totalBytes)} (full shell, expected heavier)`);
 
-  return { widgetId: soar.widgetId, domMismatch: harness.mounted !== soar.mounted, styleMismatches, stubbedInHarness, notes };
+  // DOM + applied-style fidelity diff (Phase 2). Pure comparison of the two
+  // reports' `dom` captures — surfaces where the harness render diverges from
+  // the live box structurally (skeleton/tag hash) or in applied styles. When
+  // either side has no `dom` (rig didn't mount / widget didn't mount on box /
+  // profile has no domRoot) the summary returns an explicit N/A note and no
+  // mismatch, so a weak baseline never reads as a divergence.
+  const domSummary = domCapture.summarizeDomDiff(harness.dom, soar.dom);
+  styleMismatches.push(...domSummary.styleMismatches);
+  notes.push("DOM/style:", ...domSummary.notes);
+
+  return { widgetId: soar.widgetId, domMismatch: domSummary.domMismatch, styleMismatches, stubbedInHarness, notes };
 }
 
 function kb(b: number): string { return (b / 1024 / 1024).toFixed(2) + " MB"; }

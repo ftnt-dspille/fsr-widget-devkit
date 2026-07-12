@@ -28,6 +28,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const fs = require("fs");
 const path = require("path");
 const HarnessUtils = require("../lib/harnessUtils");
+const domCapture = require("../lib/domCapture");
 const test_1 = require("@playwright/test");
 const HARNESS_URL = process.env.HARNESS_URL || "http://localhost:4401";
 const MOUNT_TIMEOUT_MS = Number(process.env.INTROSPECT_MOUNT_TIMEOUT_MS || 20000);
@@ -88,7 +89,13 @@ async function introspectWidget(browser, widget) {
     //    supplies module/title/wid defaults, so a minimal saved config is enough
     //    to reach a real mounted render (a widget that still throws inside its
     //    controller is a genuine finding, not a rig artifact).
-    const profile = PROFILES[widget.id];
+    // Profile lookup: _fsr/widgets returns a VERSIONED id (e.g.
+    // "fortiaiAgenticAssistant-1.2.13") but profile keys are the UNVERSIONED widget
+    // name (e.g. "fortiaiAgenticAssistant"). Try the versioned id first, then fall
+    // back to the name — without this, the profile is silently missed and the rig
+    // falls back to the generic config + generic ng-scope sentinel, which FALSELY
+    // reports "mounted" (the config-prompt itself carries ng-scope + >200 chars).
+    const profile = PROFILES[widget.id] || PROFILES[widget.name];
     await page.addInitScript((args) => {
         try {
             window.localStorage.setItem("harness.widget", args.id);
@@ -161,6 +168,35 @@ async function introspectWidget(browser, widget) {
         });
     const mounted = mountState === "mounted";
     const wallMs = Date.now() - t0;
+    // Phase 2 DOM/style capture: when the profile declares a `domRoot`, snapshot
+    // the widget's own subtree for the harness↔SOAR fidelity diff AND the hermetic
+    // skeleton-hash gate. This also serves as the HONEST mount signal for domRoot
+    // widgets: the controller-global mountProbe above resolves at controller-
+    // instantiation, BEFORE ng-include finishes fetching/compiling the view template
+    // (controller is on the `wrap` element, ng-include is an async child) — so the
+    // probe alone is a false-positive "mounted" when the view is slow/fails to load.
+    // `captureDom` waits for the root to ATTACH (up to MOUNT_TIMEOUT_MS); if the
+    // view rendered, `dom` is present and `mounted` is true. If it never attaches,
+    // `dom` is undefined and (below) `mounted` is corrected to false — the rig no
+    // longer reports a false-positive mount for widgets whose view didn't render.
+    const dom = (profile === null || profile === void 0 ? void 0 : profile.domRoot)
+        ? await domCapture.captureDom(page, profile.domRoot, undefined, MOUNT_TIMEOUT_MS)
+        : undefined;
+    // For domRoot widgets, the view-root attachment IS the mount truth — override
+    // the probe-based mountState so a controller that ran without a rendered view
+    // is honestly reported as no-mount (not a false "mounted").
+    let mountStateFinal = mountState;
+    let mountedFinal = mounted;
+    if (profile === null || profile === void 0 ? void 0 : profile.domRoot) {
+        if (dom) {
+            mountStateFinal = "mounted";
+            mountedFinal = true;
+        }
+        else {
+            mountStateFinal = "no-mount";
+            mountedFinal = false;
+        }
+    }
     const resources = await page.evaluate(() => {
         return performance.getEntriesByType("resource").map((r) => ({
             name: r.name.replace(location.origin, ""),
@@ -227,20 +263,11 @@ async function introspectWidget(browser, widget) {
     };
     await ctx.close();
     const totalBytes = resources.reduce((s, r) => s + r.size, 0);
-    return {
-        widgetId: widget.id,
-        source: "harness",
-        caps: widget.caps,
-        wallMs,
-        totalBytes,
-        resourceCount: resources.length,
-        resources,
+    return Object.assign({ widgetId: widget.id, source: "harness", caps: widget.caps, wallMs,
+        totalBytes, resourceCount: resources.length, resources,
         boot,
         runtime,
-        correctness,
-        mounted,
-        mountState,
-    };
+        correctness, mounted: mountedFinal, mountState: mountStateFinal }, (dom ? { dom } : {}));
 }
 /** Cross-cutting findings derived from one report (the "is this optimal?" lens). */
 function findings(rep) {

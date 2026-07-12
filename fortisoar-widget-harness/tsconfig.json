@@ -22,6 +22,7 @@
     "lib/harnessRender.ts",
     "lib/soarBrowser.ts",
     "lib/liveUiDriver.ts",
+    "lib/domCapture.ts",
     "harness.module.ts",
     "packager.ts",
     "server.ts",

@@ -28,6 +28,7 @@
 import fs = require("fs");
 import path = require("path");
 import HarnessUtils = require("../lib/harnessUtils");
+import domCapture = require("../lib/domCapture");
 import { chromium, Browser } from "@playwright/test";
 import {
   RenderReport,
@@ -36,6 +37,7 @@ import {
   RuntimeStats,
   BootTimeline,
   WidgetCapabilities,
+  DomCapture,
 } from "../lib/types";
 
 const HARNESS_URL = process.env.HARNESS_URL || "http://localhost:4401";
@@ -61,6 +63,10 @@ interface IntrospectProfile {
   ctx?: string;
   urlParams?: string;
   mountProbe?: string;
+  /** CSS selector for the widget's own root element. When set + resolvable after
+   *  mount-settle, the rig captures a DomCapture (Phase 2 fidelity + hermetic
+   *  skeleton-hash gate). Optional — widgets without one skip DOM capture. */
+  domRoot?: string;
 }
 
 function loadProfiles(): Record<string, IntrospectProfile> {
@@ -112,7 +118,13 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
   //    supplies module/title/wid defaults, so a minimal saved config is enough
   //    to reach a real mounted render (a widget that still throws inside its
   //    controller is a genuine finding, not a rig artifact).
-  const profile = PROFILES[widget.id];
+  // Profile lookup: _fsr/widgets returns a VERSIONED id (e.g.
+  // "fortiaiAgenticAssistant-1.2.13") but profile keys are the UNVERSIONED widget
+  // name (e.g. "fortiaiAgenticAssistant"). Try the versioned id first, then fall
+  // back to the name — without this, the profile is silently missed and the rig
+  // falls back to the generic config + generic ng-scope sentinel, which FALSELY
+  // reports "mounted" (the config-prompt itself carries ng-scope + >200 chars).
+  const profile = PROFILES[widget.id] || PROFILES[widget.name];
   await page.addInitScript((args: { id: string; config: string; ctx: string | null }) => {
     try {
       window.localStorage.setItem("harness.widget", args.id);
@@ -176,6 +188,30 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
     });
   const mounted = mountState === "mounted";
   const wallMs = Date.now() - t0;
+
+  // Phase 2 DOM/style capture: when the profile declares a `domRoot`, snapshot
+  // the widget's own subtree for the harness↔SOAR fidelity diff AND the hermetic
+  // skeleton-hash gate. This also serves as the HONEST mount signal for domRoot
+  // widgets: the controller-global mountProbe above resolves at controller-
+  // instantiation, BEFORE ng-include finishes fetching/compiling the view template
+  // (controller is on the `wrap` element, ng-include is an async child) — so the
+  // probe alone is a false-positive "mounted" when the view is slow/fails to load.
+  // `captureDom` waits for the root to ATTACH (up to MOUNT_TIMEOUT_MS); if the
+  // view rendered, `dom` is present and `mounted` is true. If it never attaches,
+  // `dom` is undefined and (below) `mounted` is corrected to false — the rig no
+  // longer reports a false-positive mount for widgets whose view didn't render.
+  const dom: DomCapture | undefined = profile?.domRoot
+    ? await domCapture.captureDom(page, profile.domRoot, undefined, MOUNT_TIMEOUT_MS)
+    : undefined;
+  // For domRoot widgets, the view-root attachment IS the mount truth — override
+  // the probe-based mountState so a controller that ran without a rendered view
+  // is honestly reported as no-mount (not a false "mounted").
+  let mountStateFinal = mountState;
+  let mountedFinal = mounted;
+  if (profile?.domRoot) {
+    if (dom) { mountStateFinal = "mounted"; mountedFinal = true; }
+    else { mountStateFinal = "no-mount"; mountedFinal = false; }
+  }
 
   const resources: ResourceEntry[] = await page.evaluate(() => {
     return (performance.getEntriesByType("resource") as PerformanceResourceTiming[]).map((r) => ({
@@ -256,8 +292,9 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
     boot,
     runtime,
     correctness,
-    mounted,
-    mountState,
+    mounted: mountedFinal,
+    mountState: mountStateFinal,
+    ...(dom ? { dom } : {}),
   };
 }
 

@@ -191,6 +191,48 @@ export interface RenderReport {
    *  gate (many widgets only mount once a config/record is supplied) from a
    *  genuine no-render. "config-prompt" is NOT a widget failure. */
   mountState?: "mounted" | "config-prompt" | "no-mount";
+  /** Structural DOM + applied-style capture of the widget's own root subtree
+   *  (Phase 2 fidelity). Populated only when the widget's introspection profile
+   *  declares a `domRoot` selector AND it resolves at capture time; `undefined`
+   *  otherwise. The harness↔SOAR fidelity diff compares this block; the hermetic
+   *  regression gate pins its `skeletonHash` against the committed baseline. */
+  dom?: DomCapture;
+}
+
+/** One node in a DOM capture — the unit the fidelity diff walks. `classes`
+ *  are the raw runtime classes (incl. AngularJS `ng-*` state classes); the
+ *  normalizer strips `ng-*` before hashing so data-driven state toggles don't
+ *  read as structural divergence. `styles` carries only the whitelisted
+ *  intrinsic properties (see lib/domCapture.ts `STYLE_PROPS`). */
+export interface DomCaptureNode {
+  /** Index path from the root element, e.g. "0/2/1" (root is "0"). Stable
+   *  across harness↔SOAR only when the tag tree matches. */
+  path: string;
+  /** Lowercased tag name. */
+  tag: string;
+  /** Raw class list (AngularJS `ng-*` classes stripped at normalize time). */
+  classes: string[];
+  /** Whitelisted computed-style values: prop → resolved string. */
+  styles: Record<string, string>;
+}
+
+/** Structural + applied-style snapshot of a widget's rendered subtree, used
+ *  by the Phase 2 fidelity diff (harness vs real SOAR) and pinned by the
+ *  hermetic regression gate. */
+export interface DomCapture {
+  /** Selector the capture walked from (e.g. "[data-testid=fsr-pb-root]"). */
+  rootSelector: string;
+  /** Flat list of captured nodes (path is the identity). */
+  nodes: DomCaptureNode[];
+  /** sha256 of the tag + static-classes tree (ng-* stripped). Changes when the
+   *  rendered structure OR a static class changes. */
+  skeletonHash: string;
+  /** sha256 of the tag-only tree. Changes only when the element branches differ
+   *  (e.g. a different ng-if path). Equal across a class-only divergence. */
+  tagHash: string;
+  /** True if the depth (4) or per-node child (32) cap truncated the walk —
+   *  the diff may then be incomplete; surfaced as a note. */
+  capsHit?: boolean;
 }
 
 /** Result of comparing a harness RenderReport against the real-SOAR baseline. */

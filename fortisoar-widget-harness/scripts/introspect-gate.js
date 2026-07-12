@@ -123,6 +123,25 @@ function runGate() {
                 checks.push(`LEAK: ${ed.cap} bytes now present (${reportEditorBytes} B) but widget does NOT declare ${ed.cap} cap`);
             }
         }
+        // Check 6: DOM skeleton-hash (Phase 2 fidelity — catches a widget edit or
+        // harness optimization that changed the rendered DOM). Only applies when the
+        // baseline carries a `dom` capture (the widget's profile declares a domRoot);
+        // widgets without one skip this check with no behavior change. A legit DOM
+        // change (new feature) is a re-baseline event — `make introspect` re-snapshots
+        // — identical to how the payload/boot budgets already work.
+        if (baseline.dom && report.dom) {
+            const baseHash = baseline.dom.skeletonHash || "";
+            const reportHash = report.dom.skeletonHash || "";
+            if (baseHash && reportHash && baseHash !== reportHash) {
+                checks.push(`DOM skeleton changed: ${baseHash.slice(0, 8)} → ${reportHash.slice(0, 8)} ` +
+                    `(re-baseline if this DOM change was intended)`);
+            }
+        }
+        else if (report.dom && !baseline.dom) {
+            // New widget gained a domRoot profile (or a capture that previously didn't
+            // resolve now does) — informational, not a failure; re-baseline to pin it.
+            results.push(`- ${widgetId}: DOM capture new (no baseline.dom yet) — re-baseline to pin skeletonHash`);
+        }
         if (checks.length === 0) {
             results.push(`✓ ${widgetId}: OK`);
         }

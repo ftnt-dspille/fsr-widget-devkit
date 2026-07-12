@@ -1,6 +1,6 @@
 # Harness widget-rendering: introspection-first optimization plan
 
-**Status:** in progress — Phase 1 rig DONE incl. stub-hit counters; **backlog #1 (lazy Monaco/editors), #2 (font dedup), #3 (editor.main.css) all shipped 2026-06-22**; **backlog #4 (`module is not defined` noise) DONE — see below**; **Phase 5 (`make introspect` + `introspect-gate` regression gate) DONE**; **Phase 2 (real-SOAR fidelity baseline) — rig BUILT + first live diff on 8.0 (2026-07-12); drawer-widget rig-mount DONE via `introspection-profiles.json` → stub-vs-real service map now works; DOM/style diffing is the remaining piece (see Phase 2 below)**
+**Status:** in progress — Phase 1 rig DONE incl. stub-hit counters; **backlog #1 (lazy Monaco/editors), #2 (font dedup), #3 (editor.main.css) all shipped 2026-06-22**; **backlog #4 (`module is not defined` noise) DONE — see below**; **Phase 5 (`make introspect` + `introspect-gate` regression gate) DONE**; **Phase 2 (real-SOAR fidelity baseline) — rig BUILT + first live diff on 8.0 (2026-07-12); drawer-widget rig-mount DONE via `introspection-profiles.json` → stub-vs-real service map now works; DOM/style diffing is the remaining piece (see Phase 2 below)** — **UPDATE 2026-07-12: DOM/applied-style diffing DONE.** New `lib/domCapture.ts` captures a widget's own subtree (depth-4 / child-32 cap) + an intrinsic computed-style whitelist; two structural hashes per capture — `skeletonHash` (tag + static classes, ng-* stripped) and `tagHash` (tag only) — distinguish a real branch divergence (tagHash differs, likely mock-vs-real viewState) from a class-level ng-class toggle (tagHash same). `summarizeDomDiff` is the pure entry point `fidelity()` calls. The hermetic gate gained **Check 6 (DOM skeleton-hash vs baseline)** — `make introspect-gate` now fails if a widget edit changes the rendered DOM (re-baseline if intended). **Bug fixed along the way:** the rig looked up `introspection-profiles.json` by the *versioned* widget id (`fortiaiAgenticAssistant-1.2.13`) but profile keys are *unversioned* — so the profile was silently missed and the rig fell back to the generic config + generic `ng-scope` sentinel, which **falsely reported "mounted"** (the config-prompt itself carries `ng-scope` + >200 chars). Fix: `PROFILES[widget.id] || PROFILES[widget.name]`. For domRoot widgets, the mount signal is now the view root actually attaching (`captureDom`'s `waitForSelector(state:"attached")`), not the controller-global probe — a controller that ran without a rendered view is honestly `no-mount`. Verified end-to-end on `fortiaiAgenticAssistant` (16 nodes, stable skeletonHash, Check 6 trips on a class change).
 **Created:** 2026-06-22
 **Goal:** Find and fix where the harness renders widgets suboptimally, driven by *live introspection* of the running harness — not assumptions that the current behavior is optimal.
 
@@ -106,15 +106,19 @@ noise (SOAR loads its whole ~250-resource shell around any widget).
 3. Widget's own assets load from `/widgets/installed/<id>-<version>/` on the box
    (version-verified against the deployed build).
 
-**Remaining for Phase 2:** (a) DOM/applied-style diffing (currently
-mount + error + asset + stub-vs-real parity); (b) extend `LIVE_WIDGETS` +
-`introspection-profiles.json` as more widgets are deployed to a box; (c) optional
-`introspect-soar-gate` once a clean baseline exists. **Rig fragility noted:**
-`make introspect` boots a non-hermetic server that proxies to the box, so when the
-box proxy hangs the *tail* widgets of a sweep can time out at ~31s (uniform
-no-mount for the last N) — an environmental flake, not a widget regression;
-re-run against a healthy dev server to distinguish. (`funnelChart`,
-`fsocFieldsOfInterest` are genuine PRE-EXISTING no-mounts, independent of this.)
+**Remaining for Phase 2:** (a) ~~DOM/applied-style diffing~~ **DONE (2026-07-12)** —
+`lib/domCapture.ts` + `summarizeDomDiff` populate `FidelityDiff.domMismatch` /
+`styleMismatches` for real (two-hash skeleton, intrinsic-style whitelist); the
+hermetic gate pins `dom.skeletonHash` via Check 6. See the status line above for
+the false-positive-mount bug fixed in the same change. (b) extend `LIVE_WIDGETS` +
+`introspection-profiles.json` (`domRoot` key) as more widgets are deployed to a
+box; (c) optional `introspect-soar-gate` once a clean baseline exists. **Rig
+fragility noted:** `make introspect` boots a non-hermetic server that proxies to
+the box, so when the box proxy hangs the *tail* widgets of a sweep can time out
+at ~31s (uniform no-mount for the last N) -- an environmental flake, not a widget
+regression; re-run against a healthy dev server to distinguish.
+(`funnelChart`, `fsocFieldsOfInterest` are genuine PRE-EXISTING no-mounts,
+independent of this.)
 
 ### Phase 3 — Triage findings into a backlog 🟡 PARTIAL (backlog produced from Phase 1 run; see Findings above)
 Score each finding by **impact × confidence × fidelity-risk**. Already on the board:

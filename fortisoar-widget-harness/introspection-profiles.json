@@ -1,5 +1,5 @@
 {
-  "_doc": "Per-widget introspection MOUNT profiles for scripts/introspect.ts. Most widgets mount from a minimal {module:'alerts'} config and a generic DOM sentinel; drawer/standalone widgets (and any that need a specific config, context, or URL params) declare a profile here so the rig produces a REAL mounted render instead of the config-prompt gate. Harness-internal — deliberately NOT in the widget's shipped info.json. Keys: config (seeded to harness:config:<id>), ctx (harness.ctx localStorage), urlParams (appended to /?widget=<id>&...), mountProbe (a JS expression waitForFunction polls; truthy => mounted). All optional; a widget with no entry uses the generic path.",
+  "_doc": "Per-widget introspection MOUNT profiles for scripts/introspect.ts. Most widgets mount from a minimal {module:'alerts'} config and a generic DOM sentinel; drawer/standalone widgets (and any that need a specific config, context, or URL params) declare a profile here so the rig produces a REAL mounted render instead of the config-prompt gate. Harness-internal — deliberately NOT in the widget's shipped info.json. Keys: config (seeded to harness:config:<id>), ctx (harness.ctx localStorage), urlParams (appended to /?widget=<id>&...), mountProbe (a JS expression waitForFunction polls; truthy => mounted), domRoot (a CSS selector for the widget's own root element — when set + resolvable, the rig captures a DomCapture for the Phase 2 fidelity diff / hermetic skeleton-hash gate). All optional; a widget with no entry uses the generic path.",
   "fortiaiAgenticAssistant": {
     "config": {
       "connectorName": "fortinet-fsr-playbook-builder",
@@ -10,6 +10,7 @@
     },
     "ctx": "dashboard",
     "urlParams": "context=Dashboard&mock=capability_gap&fastmock=1&opener=1",
-    "mountProbe": "!!(window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string')"
+    "mountProbe": "!!(window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string')",
+    "domRoot": "[data-testid=fsr-pb-root]"
   }
 }

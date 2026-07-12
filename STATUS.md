@@ -19,6 +19,38 @@ _Last updated: 2026-07-10_
 > introspect server's box-proxy hanging on the last widgets (env flake, not a
 > regression); `funnelChart`/`fsocFieldsOfInterest` are pre-existing no-mounts.
 >
+> **2026-07-12 — Introspection Phase 2 DOM/applied-style diffing DONE:**
+> New `lib/domCapture.ts` (`captureDom` + `normalizeSkeleton` + `summarizeDomDiff`,
+> 17 jest cases) captures a widget's own subtree (depth-4/child-32 cap, ng-* classes
+> stripped) + an intrinsic computed-style whitelist (color/font/display/etc — NOT
+> layout-resolved width/margins/position, which would mismatch between `#widget-host`
+> and the SOAR drawer). Two hashes per capture: `skeletonHash` (tag+static classes)
+> and `tagHash` (tag only) → distinguishes a real branch divergence (tagHash
+> differs, likely mock-vs-real viewState) from a class-level ng-class toggle.
+> `fidelity()` now populates `FidelityDiff.domMismatch`/`styleMismatches` for real
+> (was stubs). Hermetic gate gained **Check 6** (`dom.skeletonHash` vs baseline) —
+> `make introspect-gate` fails on a rendered-DOM change (re-baseline if intended);
+> verified load-bearing (a class flip trips it). **Bug fixed along the way:** the
+> rig looked up `introspection-profiles.json` by the *versioned* widget id but
+> profile keys are *unversioned* → the profile was silently missed → rig fell back
+> to the generic config + generic `ng-scope` sentinel, which **falsely reported
+> "mounted"** (config-prompt carries ng-scope + >200 chars). The widget had
+> *never actually mounted* in prior rig runs. Fix: `PROFILES[widget.id] ||
+> PROFILES[widget.name]`; for domRoot widgets the mount signal is now the view root
+> attaching (`waitForSelector(state:"attached")`), not the controller-global probe.
+> Verified end-to-end on `fortiaiAgenticAssistant` (16 nodes, stable skeletonHash,
+> Check 6 trips on a class change). Baseline `tests/introspect/baseline/
+> fortiaiAgenticAssistant-1.2.13.json` added. **Live SOAR diff DONE** —
+> `make introspect-soar ENV=.env.159 ARGS=fortiaiAgenticAssistant` captured the
+> soar-side `dom` (16 nodes) and produced the first real harness↔SOAR fidelity
+> diff. Result: **tagHash matches** (identical element tree — strong fidelity), but
+> `0/1/0/1` is `div.build-hint` (harness, mock `capability_gap`/`build` config) vs
+> `div.quick-actions` (soar, real alert) — a data-driven branch, surfaced as an
+> *element-identity divergence* (not a style mismatch). Style parity ok on
+> same-identity paths. Refined `summarizeDomDiff` to separate "same element,
+> different CSS" (real fidelity signal) from "different elements at same path"
+> (data branch) so the style-signal isn't muddied (18→19 jest cases, 339 green).
+>
 > **2026-07-12 — Introspection Phase 2 rig built + first live fidelity diff:**
 > `scripts/introspectSoar.ts` (+ `make introspect-soar ENV=.env.<box>
 > [ARGS='--offline']`) renders a deployed widget on a live box via the record
