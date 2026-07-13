@@ -21,6 +21,7 @@ templates-extracted/
 # (scripts/fetch-soar-assets.sh). Only the extractor tooling + docs are tracked.
 fsr_src/app_min/app.unmin.js
 fsr_src/app_min/*.min.js
+fsr_src/app_min/app.beautified.js
 fsr_src/app.min.*.js
 fsr_src/templates.min.*.js
 fsr_src/system_fixtures.json
