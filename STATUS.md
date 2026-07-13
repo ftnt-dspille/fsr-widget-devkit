@@ -5,7 +5,26 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-13 (C2 REWORKED + live-verified on 8.0 — update_playbook now works in place)_
+_Last updated: 2026-07-13 (C2 SHIPPED + live-verified via platform execute on 0.4.46; fixed a C5 stale-wheel import that had downed the live surface)_
+
+> **2026-07-13 — C2 SHIPPED to box (connector 0.4.46) + live-verified through the
+> platform, AND fixed a self-inflicted live-surface regression.** After the C2
+> rework (below), shipping surfaced that `update_playbook` (and `push_playbook`)
+> returned `crudhub_unavailable` via `/api/integration/execute` — the path the
+> widget's save button uses. Added a `crudhub_transport` diag to `health_check`
+> which pinpointed the cause: C5's hard `from fsr_playbooks.llm.intents import
+> TRIAGE_ONLY_TOOLS` in `fsr_soc_triage/registry.py` raised ImportError against the
+> pinned **fsr-playbooks 0.4.19** wheel (the symbol lives in the unshipped ~0.4.20),
+> breaking the WHOLE `fsr_soc_triage` import → the crudhub bridge went unbound →
+> every live op failed. Introduced by shipping 0.4.43 (first build with C5).
+> **Fix (0.4.46): defensive import** — C5 scoping degrades to dormant instead of
+> nuking the surface. Live-verified: `update_playbook` via `connectors.execute`
+> now edits in place (`method="put"`, `live_crudhub_available: true`).
+> Details: [[crudhub_unavailable_via_integration_execute]].
+> **⚠️ FOLLOW-UP (C5 not fully live):** build the framework as **0.4.20** (adds
+> `TRIAGE_ONLY_TOOLS`, commit `f55f396`) + bump the connector `requirements.txt`
+> pin 0.4.19→0.4.20 + re-ship, or build-intent still sees the triage tools C5 means
+> to exclude.
 
 > **2026-07-13 — C2 RESOLVED: `update_playbook` reworked + LIVE-VERIFIED on 8.0
 > (box 159).** Found the real in-place-update mechanism by inspecting the designer's
