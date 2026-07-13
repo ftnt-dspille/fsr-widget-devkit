@@ -5,31 +5,29 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-13 (C1 done; C2 live-confirm: BOTH update paths FAIL on 8.0)_
+_Last updated: 2026-07-13 (C2 REWORKED + live-verified on 8.0 — update_playbook now works in place)_
 
-> **2026-07-13 — C2 live-confirm: BOTH update paths FAIL on FortiSOAR 8.0 (box 159),
-> committed C2 does NOT perform an in-place playbook update.** Ran no-ship pyfsr
-> probes (gitignored `scripts/_c2_*.py`, self-cleaning, box verified clean) against
-> a throwaway playbook on 159. Both committed C2 paths failed:
-> - **Primary `PUT /api/3/workflows/<uuid>` (bare workflow record, uuid aligned) →
->   409 `UniqueConstraintViolationException` on `uuid`** — FortiSOAR treats the body
->   as a create-with-this-uuid, not an in-place update; the uuid collides with the
->   existing record. The C2 docstring's claim that PUT is "what the designer uses"
->   is wrong (it was inferred from a docs.jsonld walk, not observed).
-> - **Fallback `POST /api/3/import_jobs` (`mergeType: merge_replace`) → 201 accepts
->   the ImportJob but it never completes (`status: null, progressPercent: 0` for
->   40s) and the workflow name does NOT change** — uuid preserved, but no edit
->   landed. The "verified upsert" claim doesn't hold for editing one workflow's body
->   in place (may only work for wholesale collection replace).
-> - **Net: C2 as committed is non-functional for modify-in-place.** C2 status
->   changes from DONE → **needs rework**. The widget's `updatePlaybook()` + the op
->   are wired but the modify path lands no edit on 8.0. NEXT: find the real
->   in-place-update mechanism (likely PATCH, or the designer's actual save call —
->   `PUT /api/3/workflows/<uuid>` may need a different body, e.g. omit the uuid
->   field, or use `/api/wf/api/workflows/`). The beautified app JS
->   (`fsr_src/app_min/app.beautified.js`, 3.6M, gitignored) is the source of truth
->   for what the designer's Save actually sends. Box is healthy throughout:
->   connector `0.4.42`, widget `1.2.13`, crudhub ok, anthropic reachable.
+> **2026-07-13 — C2 RESOLVED: `update_playbook` reworked + LIVE-VERIFIED on 8.0
+> (box 159).** Found the real in-place-update mechanism by inspecting the designer's
+> beautified app JS (`app.beautified.js` — canvas Save `ye()` → `Modules` $resource
+> `update` PUT) and confirmed it end-to-end with self-cleaning throwaway probes:
+> - **The designer Save is `PUT /api/3/workflows/<uuid>?$relationships=true&$versions=true`**
+>   with a `preparePlaybookForSave`-shaped body. The **`$relationships=true` query is
+>   load-bearing** — it cascades the PUT into the nested step/route/group records.
+>   The pre-rework bare `PUT` (no query) 409'd because the platform treated the body's
+>   steps as create attempts (`UniqueConstraintViolationException` on a step uuid).
+> - **Fix (connector `operations.py`):** inline the query into the URL (the on-platform
+>   crudhub PUT bridge ignores a params dict), add `_prepare_workflow_for_save`
+>   (strip `versions`, flatten `stepType`→IRI, stamp `lastModifyDate`). import_jobs
+>   `merge_replace` fallback kept as a safety net.
+> - **Live-verified on 8.0:** both a GET-modify-PUT round-trip AND a fresh-compiled
+>   body (aligned wf uuid) 200 → replace steps in place, cascade to nested records,
+>   preserve the workflow uuid. End-to-end through the REAL `operations.update_playbook`
+>   via the crudhub bridge: `method="put"`, edit landed. Details:
+>   [[fortisoar_workflow_update_endpoint]]. Unit tests updated (8/8), full connector
+>   suite green (290 passed / 21 skipped). Committed (branch
+>   `dynamic-tool-surface-connector`); **NOT yet shipped to the box** (needs the
+>   `release_notes.md` WIP call before a build-path ship — see live-test note below).
 > - **Unaffected by this finding:** C4 + Track B remain testable NOW on the deployed
 >   stack (1.2.13 ships the editor tailoring + always-allow checkbox). C1/C5 are
 >   unaffected (prompt/tool-slicing, no playbook mutation). C3 (debug UI) is
