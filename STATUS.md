@@ -5,7 +5,23 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-13 (C2 SHIPPED + live-verified via platform execute on 0.4.46; fixed a C5 stale-wheel import that had downed the live surface)_
+_Last updated: 2026-07-13 (C2 + C5 fully live on 0.4.47; framework 0.4.22 released to PyPI; release-process guardrails built)_
+
+> **2026-07-13 — C5 fully live + release process standardized (connector 0.4.47).**
+> Released framework **fsr-playbooks 0.4.22 to PyPI** the standard way
+> (`make release VERSION=0.4.22` → GitHub Release → OIDC publish CI), bumped the
+> connector pin 0.4.19→0.4.22, shipped. Live-verified on-box:
+> `health_check.c5_build_scoping = {symbol_present: true, triage_only_count: 19}`
+> (register_triage_tools extended the set) → **C5 build-slice tool scoping ACTIVE**,
+> and `update_playbook` via platform execute still `method="put"`.
+> **New guardrails (so the 0.4.43-class skew can't recur):** framework
+> `make release` (guarded: on-main/clean/version>PyPI/tag-new/tests, then tag+push
+> +gh release — fixes the tag-without-release drift that stranded v0.4.21); connector
+> `build.sh` runs `preflight_framework.py` (static AST check that the pinned wheel
+> defines every symbol the connector imports — fails the BUILD on skew), hard-errors
+> on an un-fetchable pin, and uses a pip-capable interpreter (the uv venv has no pip,
+> which had silently skipped bundling the wheel). Process doc:
+> [[fsr_framework_release_process]].
 
 > **2026-07-13 — C2 SHIPPED to box (connector 0.4.46) + live-verified through the
 > platform, AND fixed a self-inflicted live-surface regression.** After the C2
