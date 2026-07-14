@@ -134,6 +134,20 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   Makefile / `scripts/ship.sh`).
 - **Config flip** (LLM gateway↔box, `simulation_mode`): restart the sidecar — the
   `probes._env` bridge rebinds on restart.
+- **Reference catalog (warmup / instance switch)**: the connector auto-rewarms
+  the reference DB when it was warmed from a *different* SOAR than `FSR_BASE_URL`
+  (identity gate `_warmup_instance_mismatch`, alongside the emptiness gate), and
+  re-stamps it to the target so the compiler's `instance_mismatch` warning
+  clears. **But the framework's MCP layer captures the catalog path + connection
+  once at import** (`fsr_playbooks/mcp_server/_shared.py` `DB_PATH =
+  default_db_path()`), so a rewarm that happens *after* the sidecar already
+  compiled once is invisible in-process → **restart the sidecar** after a warmup
+  or an `FSR_BASE_URL` switch. (On-box this never bites: the lifecycle-hook
+  warmup fires at worker start, before any compile.) The DB lives at
+  `~/PycharmProjects/fsr-playbook-framework/data/fsr_reference.db`
+  (`REPO_PROBED_DB`, preferred over the packaged slim DB); it is gitignored, so a
+  local rewarm never shows up as a diff. Check the stamp with:
+  `sqlite3 …/data/fsr_reference.db "SELECT value FROM _catalog_meta WHERE key='base_url';"`
 - **Run a check before trusting a change**:
   `.venv-localdev/bin/python -c "import fsr_playbooks, pyfsr, openai; print('ok')"`
   + `make test-unit WIDGET=fortiaiAgenticAssistant`.
