@@ -300,13 +300,23 @@ same chat_turn/chat_resume flow).
    e2e `personaFraming.spec.js` (fixture `persona_ztpf_author.json`); full widget
    unit suite 608 green + SOC e2e 21 green (no regression); lint+typecheck clean.
    Gotcha captured in `docs/kb/drawer-widgets.md`.
-   - **FOLLOW-UP (connector repo):** add a `resolve_persona` action to
-     connector-fsr-soc-assistant that returns `{found, label, ui}` (reusing the
-     existing server-side `load_profile`, incl. `bind_modules`). The widget's
-     direct Key Store read covers the primary path with analyst creds; the
-     connector action is the fallback for in-browser `/api/3` 403 boxes and for
-     `bind_modules` personas. Widget degrades gracefully to triage default when
-     the action is absent, so it ships independently.
+   - **Connector `resolve_persona` action — DONE (2026-07-14), committed
+     `39cec27` on `dynamic-tool-surface-connector` (NOT yet shipped).** `Profile`
+     gains optional `label`/`ui` (parsed from `jSONValue`); `resolve_persona(config,
+     {module})` reuses `_resolve_profile` and returns `{found, module, label, ui}`,
+     fail-open to `{found:false}`. Registered + declared in info.json. Tests:
+     fsr_soc_triage 150 green, root tests 219 green. No version bump — reship with
+     the next `make ship` so the deployed 0.4.49 gains the op.
+   - **Persona `ui` provisioning — ready.** Offline idempotent upsert script
+     `scripts/_upsert_ztpf_persona.py` (gitignored) authors/updates the
+     `fsr_assistant_profile:ztpf_templates` Key Store record WITH the `ui` block
+     (greeting/deck/placeholder + tool allowlist + `may_write`). Run it against the
+     box (source its env first; `--dry-run` to preview) before the joint live test.
+   - **JOINT LIVE TEST (needs a box window):** reship the connector (gains
+     `resolve_persona`) + reship the widget, run `_upsert_ztpf_persona.py` on the
+     box, then mount the drawer on a `ztpf_templates` record and confirm the
+     authoring framing (greeting "Authoring …", persona deck, template placeholder,
+     no SOC deck/handoff) renders live.
 
 Local-only artifacts: `fsr-playbook-framework/.env.ztpf-8.0` + harness `.env.206`
 (box 206 creds), scratchpad `ztpf_templates_persona.json`, `chat_params.json`,

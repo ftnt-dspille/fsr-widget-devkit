@@ -40,10 +40,15 @@ _Last updated: 2026-07-14 (Module-scoped personas: Phases 0–3 connector-side L
 > `persona.resolve.service.test.js`, `persona.framing.controller.test.js`, e2e
 > `personaFraming.spec.js` (+fixture `persona_ztpf_author.json`); 608 unit + 21
 > SOC e2e green, lint+typecheck clean. Gotcha in `docs/kb/drawer-widgets.md`.
-> **FOLLOW-UP (connector repo):** add the `resolve_persona` action (returns
-> {found, label, ui} via existing `load_profile` + `bind_modules`) — the widget
-> ships without it (degrades to triage default; direct Key Store read covers the
-> primary path with analyst creds).
+> **Connector `resolve_persona` action — DONE + COMMITTED** (`39cec27` on
+> `dynamic-tool-surface-connector`, NOT shipped): `Profile` gains `label`/`ui`,
+> new op returns `{found, label, ui}` (reuses `_resolve_profile`/`bind_modules`),
+> fail-open; fsr_soc_triage 150 + root 219 green. **Persona `ui` provisioning
+> ready:** gitignored `scripts/_upsert_ztpf_persona.py` idempotently upserts the
+> `fsr_assistant_profile:ztpf_templates` record WITH the `ui` block. **Remaining:
+> a joint live test** — reship connector + widget, run the upsert on the box, then
+> mount the drawer on a `ztpf_templates` record and confirm authoring framing
+> live. Deferred until a box window (both halves built + tested offline).
 
 > **2026-07-13 — C5 fully live + release process standardized (connector 0.4.47).**
 > Released framework **fsr-playbooks 0.4.22 to PyPI** the standard way
