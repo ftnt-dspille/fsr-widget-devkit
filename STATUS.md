@@ -5,7 +5,45 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-13 (C2 + C5 fully live on 0.4.47; framework 0.4.22 released to PyPI; release-process guardrails built)_
+_Last updated: 2026-07-14 (Module-scoped personas: Phases 0–3 connector-side LIVE on 8.0 box 206 via connector 0.4.49; Phase 4 persona-aware widget framing BUILT + tested + committed; one LLM-egress gap remains)_
+
+> **2026-07-14 — Module-scoped assistant personas (Key Store–defined): Phases 1–3
+> built + connector-side LIVE-validated on 8.0.** Plan:
+> `docs/plans/module-scoped-assistant-personas.md`; memory
+> `custom_module_agentic_assistant_plan`. A per-module persona (own system prompt +
+> tool subset + write scope) defined by ONE Key Store record
+> (`fsr_assistant_profile:<module>`) — no connector edit to add one. **Phase 1**
+> (persona selection: `profiles.py` + `_resolve_profile`/`_tools_for_turn`/
+> `_resolve_system_prompt(profile=)` seams + `session_module` resume) and **Phase 2**
+> (`tools_records.py` `create_record`/`update_record`, tier-3 approval-carded,
+> `may_write`-gated via a per-turn ContextVar) DONE; suites green (builder 214,
+> fsr_soc_triage 148, connector/tests 86). **Phase 0** (§2 Key Store round-trip) and
+> **Phase 3** (persona authored + `load_profile` + gate + create/update vs real
+> `ztpf_templates`) LIVE-PASSED. **Connector v0.4.49 DEPLOYED + healthy on box 206**
+> (has the ztpf_* modules). Deploy hurdle solved: 8.0 pip lockdown → offline wheel
+> install + pip.conf PyPI extra-index, then `make ship BUMP=none` recycle.
+> **OPEN gap:** the full agentic turn (→ create_record approval card) needs an LLM
+> endpoint 206 can reach (its Frank gateway is unreachable; 206 CAN reach
+> api.anthropic.com / api.openai.com) — supply an ANTHROPIC/OpenAI key.
+> **Code UNCOMMITTED** on connector branch `dynamic-tool-surface-connector`.
+> Resume checklist in the plan doc.
+> **Phase 4 — persona-aware widget framing: DONE + COMMITTED (widget repo,
+> `fortiaiAgenticAssistant` commit 68ab4e4).** The drawer drops SOC-triage
+> framing over a persona module: `fsrPbAgentService.resolvePersona(cfg, module)`
+> (direct `/api/3/keys?key=fsr_assistant_profile:<module>` read → connector
+> `resolve_persona` fallback on 403/miss → null=triage default) feeds a
+> `$scope.personaUi` signal kept SEPARATE from `uiIntent` (wire-bound as `intent`;
+> a 3rd value would misroute to build tools). Persona's optional `jSONValue.ui`
+> {label, greeting, placeholder, quickActions, footer} reframes the greeting card
+> + composer placeholder + quick-action deck; SOC deck + "Build playbook" handoff
+> suppressed; no-`ui` persona → neutral "Working on …". Tests:
+> `persona.resolve.service.test.js`, `persona.framing.controller.test.js`, e2e
+> `personaFraming.spec.js` (+fixture `persona_ztpf_author.json`); 608 unit + 21
+> SOC e2e green, lint+typecheck clean. Gotcha in `docs/kb/drawer-widgets.md`.
+> **FOLLOW-UP (connector repo):** add the `resolve_persona` action (returns
+> {found, label, ui} via existing `load_profile` + `bind_modules`) — the widget
+> ships without it (degrades to triage default; direct Key Store read covers the
+> primary path with analyst creds).
 
 > **2026-07-13 — C5 fully live + release process standardized (connector 0.4.47).**
 > Released framework **fsr-playbooks 0.4.22 to PyPI** the standard way

@@ -389,6 +389,32 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
     `normalizeBlocks` kind — the render-pipeline fixture validator's `BLOCK_KINDS`
     set was missing it.
 
+- **A `$scope` field that both selects a UI mode AND is sent on the wire cannot
+  safely take a third value — keep persona/mode *framing* signals separate from
+  the payload-bound `intent`.** `fortiaiAgenticAssistant`'s `uiIntent` doubles as
+  the layout selector (`triage`/`build`) and the chat_turn `intent` field, which
+  the connector's `_resolve_intent` only understands as `triage|build` (anything
+  else falls through to `build` → the wrong toolset). So making the drawer
+  **persona-aware** (a module with a Key Store `fsr_assistant_profile:<module>`
+  persona should drop SOC-triage framing — greeting, "Investigate this case"
+  deck, "Build playbook" handoff, "Paste the FortiSOC summary" placeholder) must
+  NOT introduce a `uiIntent === 'author'`. Instead a *separate* `$scope.personaUi`
+  signal drives the framing helpers (`_entityHeadline`, `composerPlaceholder`,
+  `showPersonaQuickActions`, and a `personaUi`-guard on `showQuickActions` /
+  `canBuildFromTriage`), leaving `uiIntent` at `triage` on the wire — the
+  connector already narrows tools by `entity.module` server-side regardless of
+  intent. Resolution is `fsrPbAgentService.resolvePersona(cfg, module)`: a direct
+  `/api/3/keys?key=fsr_assistant_profile:<module>` read first, falling back to the
+  connector's `resolve_persona` action when the in-browser read 403s (the known
+  `/api/3` gate) or misses a `bind_modules` persona; any failure ⇒ null =
+  triage default, byte-unchanged. Persona resolution is chained BEFORE the seed
+  in the init flow (`_personaReady`) and re-run when the module changes
+  (`_reseedForCurrentEntity`) so the greeting card never flashes SOC voice then
+  re-labels. An `ui` block is optional — a persona record with none still gets a
+  neutral "Working on …" framing (best-effort). See
+  `persona.resolve.service.test.js`, `persona.framing.controller.test.js`,
+  `personaFraming.spec.js`, and fixture `persona_ztpf_author.json`.
+
 - **The entity summary (seed) card silently fails to render under three race/IO
   conditions — over a *real* record the analyst sees the entity-aware hero
   ("Triaging incident…") but NO summary card and a dead chat.** The seed is
