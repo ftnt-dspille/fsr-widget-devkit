@@ -721,8 +721,16 @@ function lintWidget(opts?: LintOpts): LintResult {
   // only surfaces on the box as "my setting didn't save". Require the inject.
   if (files["edit.controller.js"] && files["edit.html"]) {
     const bindsConfig = /ng-model\s*=\s*["'][^"']*\bconfig\./.test(files["edit.html"] || "");
-    const editDeps = extractInjectedDependencies(files["edit.controller.js"] || "");
-    if (bindsConfig && !editDeps.includes("config")) {
+    const editSrc = files["edit.controller.js"] || "";
+    const editDeps = extractInjectedDependencies(editSrc);
+    // A dual-mode edit controller (works both as a $uibModal AND as an ng-include
+    // overlay) cannot list `config` in its static $inject array: the `config`
+    // provider only exists under $uibModal, so a static inject throws
+    // `unknownProvider` in overlay mode. Such controllers pull the saved config
+    // dynamically via `$injector.get('config')` instead — which satisfies the
+    // persist requirement just as well. Treat that as an equivalent inject.
+    const dynamicConfigGet = /\$injector\s*\.\s*get\s*\(\s*["']config["']\s*\)/.test(editSrc);
+    if (bindsConfig && !editDeps.includes("config") && !dynamicConfigGet) {
       errors.push({
         code: "edit-config-inject",
         file: "edit.controller.js",

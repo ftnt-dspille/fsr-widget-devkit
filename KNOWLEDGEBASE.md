@@ -71,6 +71,7 @@ Comprehensive reference for building FortiSOAR 7.x widgets. Derived from:
 A FortiSOAR widget is a **registered AngularJS controller + HTML template pair** that the platform instantiates inside a configurable slot. There are two lifecycles:
 
 - **Edit-time** (`edit.html` + `edit.controller.js`): opened as a `$uibModal` when a user adds/edits the widget on a dashboard, Report, Listing, View Panel, etc. Collects a `config` object and closes with `$uibModalInstance.close($scope.config)`.
+  - **Dual-mode edit controllers** (widget also renders its settings as an inline ng-include overlay, not only a `$uibModal`) must NOT list `config` in the static `$inject` array — the `config` local only exists under `$uibModal`, so a static inject throws `unknownProvider` in overlay mode. Pull the saved config dynamically instead: `try { var c = $injector.get('config'); if (c) $scope.config = c; } catch(e){}`. The harness `edit-config-inject` lint recognizes this `$injector.get('config')` form as satisfying the persist requirement (`lib/harnessUtils.ts`); a controller that binds `ng-model="config.…"` but neither statically injects nor dynamically-gets `config` is still (correctly) blocked.
 - **Run-time** (`view.html` + `view.controller.js`): rendered in-place on the host page. Receives `config` via injection and has access to the host's `$state`, `$rootScope`, the parent form (`FormEntityService`), the WebSocket, and all platform services.
 
 You are working inside the host module:
