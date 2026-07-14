@@ -4,7 +4,7 @@
 // pass/fail signal for the eval logic the live matrix run depends on.
 "use strict";
 
-const { evaluate, isErr, digestFrames } = require("./live/lib/matrixDriver");
+const { evaluate, isErr, digestFrames, canonCard } = require("./live/lib/matrixDriver");
 
 // Synthetic frame builders.
 const use = (name, input = {}) => ({ type: "tool_use", name, input });
@@ -146,6 +146,49 @@ describe("evaluate() verdict ladder", () => {
     expect(ev.metrics.missingExpected).toEqual([]);
     expect(ev.hardFail).toBe(false);
     expect(ev.metrics.terminalStop).toBe("awaiting_choice");
+  });
+});
+
+describe("card-type normalization (ioc_card ≡ info_card)", () => {
+  // The widget renders status_card/info_card/ioc_card through one path
+  // (fsrPbRender.js) and the connector normalizes IOC consolidation to an
+  // info_card — so the acceptance gate must treat ioc_card and info_card as one
+  // deliverable, or it FAILs a genuinely-correct run over a frame-name coincidence.
+  test("canonCard folds ioc_card → info_card, leaves others untouched", () => {
+    expect(canonCard("ioc_card")).toBe("info_card");
+    expect(canonCard("info_card")).toBe("info_card");
+    expect(canonCard("action_card")).toBe("action_card");
+    expect(canonCard("status_card")).toBe("status_card"); // NOT folded — health card
+  });
+
+  test("emitted ioc_card satisfies an info_card expectation", () => {
+    const frames = [
+      use("get_record"), okResult("get_record"),
+      use("search_module_records"), okResult("search_module_records"),
+      text("Consolidated."), card("ioc_card"), end(),
+    ];
+    const ev = evaluate(frames, { expectedCards: ["info_card"], minTools: 2, errBudget: 1 });
+    expect(ev.hardFail).toBe(false);
+    expect(ev.metrics.missingExpected).toEqual([]);
+    expect(ev.metrics.gotExpected).toEqual(["info_card"]);
+  });
+
+  test("emitted info_card satisfies an ioc_card expectation (reverse direction)", () => {
+    const frames = [
+      use("run_op"), okResult("run_op"),
+      use("run_op"), okResult("run_op"),
+      card("info_card"), end(),
+    ];
+    const ev = evaluate(frames, { expectedCards: ["ioc_card"], minTools: 2, errBudget: 1 });
+    expect(ev.hardFail).toBe(false);
+    expect(ev.metrics.gotExpected).toEqual(["ioc_card"]);
+  });
+
+  test("status_card does NOT satisfy an info_card expectation", () => {
+    const frames = [use("run_op"), okResult("run_op"), card("status_card"), end()];
+    const ev = evaluate(frames, { expectedCards: ["info_card"], minTools: 1, errBudget: 1 });
+    expect(ev.verdict).toBe("FAIL");
+    expect(ev.metrics.missingExpected).toEqual(["info_card"]);
   });
 });
 

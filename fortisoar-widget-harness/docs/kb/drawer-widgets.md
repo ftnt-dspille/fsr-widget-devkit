@@ -433,6 +433,20 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   Covered by `fortiaiAgenticAssistant.incident.spec.js` ("seeds the record summary, runs
   intel hops, …", `&opener=1`).
 
+- **`info_card`, `ioc_card`, and `status_card` are ONE render family — don't
+  gate acceptance on which name the connector emitted.** `fsrPbRender.js`
+  renders all three through the same `normalizeInfoCard` path
+  (`ev.type === 'status_card' || 'info_card' || 'ioc_card'`), and the connector
+  normalizes an IOC-consolidation deliverable to an `info_card`
+  (variant `ioc_enrichment`) — so an enrichment/hunt turn may surface as either
+  frame name interchangeably. The live-matrix eval (`tests/live/lib/matrixDriver.js`)
+  therefore canonicalizes `ioc_card → info_card` (`CARD_ALIAS`) before the
+  expected-card match, so a scenario expecting `info_card` isn't FAILed by a
+  correct run that emitted `ioc_card` (and vice versa). `status_card` is
+  deliberately NOT folded in — it's a connector-health card, a distinct
+  deliverable. Any new consumer that matches card frame types literally has the
+  same latent bug: match the render family, not the frame name.
+
 ### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
 
 Two platform behaviors bite any live-UI Playwright drive against a FortiSOAR 8.0

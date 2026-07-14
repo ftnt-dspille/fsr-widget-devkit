@@ -31,6 +31,22 @@ const ERR_RX = /\b(error|unavailable|not available|unknown_operation|no matches|
 
 function payloadOf(f) { return f.content ?? f.result ?? f.output ?? f.message ?? ""; }
 
+// Card-type equivalence for the expected-card gate. The widget renders
+// `status_card`, `info_card`, and `ioc_card` through the SAME path
+// (fsrPbRender.js §render: `status_card | info_card | ioc_card` →
+// normalizeInfoCard), and the connector normalizes an IOC-consolidation
+// deliverable to an `info_card` (variant `ioc_enrichment`). So for acceptance
+// they are ONE deliverable — an emitted `ioc_card` satisfies an `info_card`
+// expectation and vice versa. Canonicalize both the expected list and the
+// observed frame types through this map before matching, so the harness gates on
+// real contract behavior, not on which of two interchangeable frame names the
+// connector happened to emit. (`status_card` is deliberately NOT folded in — it
+// is a connector-health deliverable, semantically distinct from an info/ioc
+// finding, so a scenario that wants an info deliverable must not pass on a bare
+// status card.)
+const CARD_ALIAS = { ioc_card: "info_card" };
+function canonCard(t) { return CARD_ALIAS[t] || t; }
+
 function isErr(f) {
   if (f.type === "error") return true;
   const p = payloadOf(f);
@@ -119,8 +135,11 @@ function evaluate(allFrames, opts = {}) {
 
   const toolCalls = counts["tool_use"] || 0;
   const errCount = toolErrors.length;
-  const gotExpected = expectedCards.filter((t) => (counts[t] || 0) > 0);
-  const missingExpected = expectedCards.filter((t) => !(counts[t] > 0));
+  // Canonicalize emitted card types through the alias map so an `ioc_card`
+  // satisfies an `info_card` expectation (and vice versa) — see CARD_ALIAS.
+  const emitted = new Set(Object.keys(counts).filter((t) => counts[t] > 0).map(canonCard));
+  const gotExpected = expectedCards.filter((t) => emitted.has(canonCard(t)));
+  const missingExpected = expectedCards.filter((t) => !emitted.has(canonCard(t)));
   const correct = expectedCards.length === 0 ? null : missingExpected.length === 0;
 
   // Distinct error signatures — repeated identical errors point at ONE root cause.
@@ -332,4 +351,4 @@ function formatReport(scenario, res, evaluation, artifactPath) {
   return lines.join("\n");
 }
 
-module.exports = { ERR_RX, payloadOf, isErr, canonicalFrames, digestFrames, evaluate, buildTimeline, scrubSecrets, writeArtifact, captureScenario, runScenario, formatReport };
+module.exports = { ERR_RX, CARD_ALIAS, canonCard, payloadOf, isErr, canonicalFrames, digestFrames, evaluate, buildTimeline, scrubSecrets, writeArtifact, captureScenario, runScenario, formatReport };
