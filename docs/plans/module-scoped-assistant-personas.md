@@ -536,9 +536,18 @@ never eyeball it. When the analyst asks to change the template, edit `script` an
    (commit `b4b4e03`): the committed tool used only the offline renderer (no `do`
    extension, no FSR/Ansible filters) and false-flagged valid production templates —
    see §7c.3 note below. `resolve_persona(ztpf_templates)` returns the new allowlist
-   + authoring `ui`. Remaining (optional, not blocking): drive the full LLM turn +
-   in-widget approval card for an `update_record` body edit (needs an agentic turn;
-   the tool + persona + approval path are each already proven separately).
+   + authoring `ui`.
+   **FULL AGENTIC TURN ALSO LIVE-PASSED (2026-07-14, gpt-4o via `fsrpb-live`):**
+   (a) grounded on the real template, "test render this" → the LLM called
+   `test_template` (tier 1) → `render_via:"live"`, rendered the real config, then
+   summarized it. (b) "fix the Looopback typo, test-render, then save" → the LLM ran
+   `get_record` → `test_template` on the DRAFTED corrected script (tested BEFORE
+   saving, exactly the intended workflow, clean) → `update_record` (tier 3) →
+   `stop=approval_required` with a fully-formed `approval_request` (approval_id,
+   tool=update_record, tier 3, preview.args carrying the corrected script). Left
+   unapproved → the real record is byte-unchanged (typo still present, zero residue).
+   The complete persona spine — resolve → narrow tools → test → approval-gated write —
+   is proven live end-to-end.
 
 ## 8. Definition of done (v1 = Phases 0–3)
 Mounting the assistant on a module with a `fsr_assistant_profile:<module>` Key Store
