@@ -484,16 +484,34 @@ Prompt gains: "You author and validate ztpf_templates. To check a template, CALL
 never eyeball it. When the analyst asks to change the template, edit `script` and CALL
 `update_record`; the tier-3 approval card is where they confirm."
 
-### 7c.6 Build order (when implemented)
+### 7c.6 Build order
 
-1. Add `test_template` MCP tool (Option A) + pydantic args + `register_*` at tier 1
-   + arg-validation entry; unit-test lint-hit, undefined-var, clean-render cases.
-2. Update `scripts/_upsert_ztpf_persona.py` prompt + `tools.allow` + `ui.quickActions`
-   (§7c.5); update widget fixture `persona_ztpf_author.json` to match.
-3. Fix the `_resolve_profile` transient-None caching bug (§7 open item) in the same
-   pass — don't cache negatives on transport errors.
-4. Live-verify on box 206: mount a real `ztpf_templates` record, run Test render on a
-   template with a deliberate undefined var → error surfaced; fix + Edit the body →
+1. ✅ **DONE** — `test_template` MCP tool (Option A) in
+   `fsr_soc_triage/tools_ztpf.py` + `TestTemplateArgs` (pydantic, `extra="forbid"`)
+   + `registry.register_ztpf_tools()` at tier 1 + arg-validation entry. It reads the
+   record (uuid) or an inline script, lints via `check_jinja`, renders via
+   `_local_render` (StrictUndefined), returns `{ok, findings, rendered, render_error,
+   has_errors, note}`. Persona-allowlist-only: added to `TRIAGE_ONLY_TOOLS` (excl.
+   build) + `operations._BUILD_ONLY_TOOLS` (excl. triage), mirroring the record
+   tools. Tests `test_tools_ztpf.py` (14): clean render, undefined-var → render_error,
+   syntax-error → severity=error finding, unknown-filter → warning, uuid path pulls
+   `script`+`exampleJinjaVars` (incl. JSON-string form), context override, registration.
+   Connector commit `5dab9e8` (branch `dynamic-tool-surface-connector`, UNPUSHED).
+2. ✅ **DONE** — persona reframed (§7c.5): `scripts/_upsert_ztpf_persona.py` prompt +
+   `tools.allow` (now includes `test_template`) + `ui.quickActions` (Explain / Test
+   render / Check the Jinja / Edit the template); widget fixture
+   `persona_ztpf_author.json` + `personaFraming` e2e updated. Widget commit `aef8ef1`;
+   e2e + 611 unit green. (`_upsert_ztpf_persona.py` is gitignored — local box tool.)
+3. ✅ **DONE** — `_resolve_profile` transient-None cache bug fixed:
+   `profiles.resolve_profile_status()` returns `(profile, definitive)`; a non-200 or
+   transport error ⇒ `definitive=False` and `operations._resolve_profile` no longer
+   caches it, so a worker caught mid-recycle recovers the persona on a later turn.
+   `load_profile` kept as a thin wrapper. Tests `test_profiles.py` (+6). Same commit.
+4. ⏳ **PENDING (box-gated)** — live-verify on box 206: re-author the persona
+   (`_upsert_ztpf_persona.py`), reship the connector **code-only** (`install_to_fsr.py
+   --tarball`, NOT `make ship` — preserves the hand-set `fsrpb-live` OpenAI default,
+   see owner memory) + widget; mount a real `ztpf_templates` record, run Test render on
+   a template with a deliberate undefined var → error surfaced; Edit the body →
    approval card → update persists.
 
 ## 8. Definition of done (v1 = Phases 0–3)
