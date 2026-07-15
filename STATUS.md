@@ -7,6 +7,30 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-14 (Module-scoped ZTPF authoring persona: v1 COMPLETE — built, full agentic turn LIVE-PASSED on 8.0 box 206, merged to default branches + pushed to origin)_
 
+> **✅ 2026-07-15 — Widget SHIPPED (1.2.17) to GA/159 + 168; GA demo-readiness
+> VERIFIED end-to-end.** `fortiaiAgenticAssistant 1.2.17` (C3 Diagnose & fix)
+> deployed to BOTH boxes via `ship.sh` per-box `FSR_ENV_FILE` (same version, `.env`
+> never mutated). **Built-in FortiAI demo readiness (native `/api/ai/*`, 8.0-only):**
+> - **GA/159 (`.env.fsr-ga` = 10.99.249.159:13000): READY.** FortiAI enabled,
+>   provider "Fortinet FortiAI", reasoning profiles Low/High, **5 MCP servers
+>   registered** (FortiSIEM, SOC Framework, Utility Tools, FortiSOAR Playbook
+>   Management, FortiSOAR Module Management), native MCP gateway usable
+>   (`client.mcp` soc=9 tools, modules=query_records). **A real AI investigation ran
+>   end-to-end** on the newest alert ("S3 Exfil …") → 9-phase pipeline
+>   (normalization→verdict→next_action), verdict **Malicious**, findings attributed
+>   to source agents (threat_intelligence). Connector 0.4.48 healthy, anthropic
+>   reachable.
+> - **168 (10.99.250.168): native FortiAI ABSENT** — `/api/ai/*` routes 404 (older
+>   build predating the 8.0 FortiAI/MCP gateway). Only the connector-backed widget
+>   chat works there; the AI-investigation + MCP-integration demo must run on GA.
+> - **pyfsr surface bug found:** `records("alerts").first()` returns a typed `Alert`
+>   that the `/api/ai/triage/alert` POST can't JSON-serialize (the
+>   `trigger_ai_investigation.py` example's own pattern fails); pass a plain `dict()`.
+>   Worth a small pyfsr fix. MCP setup surface: `client.ai.register_and_verify` /
+>   `list_mcp_servers` / `delete_mcp_server`; DeepWiki public no-auth server
+>   (`https://mcp.deepwiki.com/mcp`) is a ready zero-cred "add an external MCP server"
+>   demo beat (`pyfsr examples/register_and_call_public_mcp_server.py`).
+
 > **✅ 2026-07-15 — C3 "Diagnose & fix" (value-level render patches) BUILT + green,
 > box-independent, unshipped/uncommitted.** Completes the C3 apply-patch story: the
 > existing "Check & fix" handles the compiler's mechanical whole-YAML `corrected_yaml`
