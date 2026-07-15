@@ -488,6 +488,41 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   deliverable. Any new consumer that matches card frame types literally has the
   same latent bug: match the render family, not the frame name.
 
+- **A widget-driven tool surface reaches framework MCP tools through
+  `call_mcp_tool`, NOT the agent tool registry — and the two registries are
+  different.** The C3 debug/authoring surfaces (per-step Verify, debug session,
+  "Diagnose & fix") call framework tools directly (`fsrPbAgentService` →
+  `_executeReal('call_mcp_tool', {tool, args})`) instead of going through the
+  chat loop. The catch: `analyze_playbook`, `suggest_fix_for_diagnostic`,
+  `step_test`, `start_debug_session`, … are `@mcp.tool()`-decorated but are
+  **not** in the framework's `SAFE_TOOLS`/`TOOL_TIERS` (`fsr_playbooks/llm/tools.py`),
+  so the *agent* can't call them — they're advertised to no LLM. They're only
+  reachable because the connector's `call_mcp_tool` builds its registry
+  (`operations._get_mcp_registry`) from a fixed set of tool-module suffixes
+  (`tools_triage/discovery/execution/emit`, plus `fsr_soc_triage.tools_ztpf`) **and**
+  a fallback that harvests every tool registered on the shared FastMCP
+  `_tool_manager._tools`. So to expose a NEW framework tool to a widget panel you
+  need neither a SAFE_TOOLS entry nor a tier — just ensure its module is imported
+  (the `@mcp.tool()` decorator registers it on the shared `mcp`) so the fallback
+  picks it up; then call it by name via `call_mcp_tool`. This is why the
+  Diagnose & fix panel needed **zero** framework/connector ship — `analyze_playbook`
+  + `suggest_fix_for_diagnostic` were already registered and callable. Conversely,
+  a tier-3 WRITE (create_record/update_record) is deliberately kept OUT of
+  `call_mcp_tool` (it bypasses the approval-card machinery) and stays agent-only.
+
+- **Value-level patches apply client-side only when the `before` literal is
+  unique.** `suggest_fix_for_diagnostic` returns `{step_id, location, before,
+  after, …}` — a value-level edit, not whole-YAML like `validate_yaml`'s
+  `corrected_yaml`. The Diagnose & fix panel one-click-applies a patch by a plain
+  `String.replace(before, after)` on the YAML pane, which is only safe when
+  `before` occurs **exactly once** (`applyValuePatch` re-checks uniqueness at
+  apply time, since an earlier apply in the same batch can shift counts). Ambiguous
+  or non-literal fixes are shown read-only with a "Send to chat" escape hatch that
+  seeds the composer so the agent applies them with full structural context. The
+  self-apply must suppress the `currentYaml` `$watch` teardown (a guard flag) so
+  the panel survives to apply the batch's remaining proposals; an *external* edit
+  still drops the batch (the `before` literals may no longer match).
+
 ### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
 
 Two platform behaviors bite any live-UI Playwright drive against a FortiSOAR 8.0
