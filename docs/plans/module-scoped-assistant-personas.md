@@ -367,6 +367,18 @@ designing that, do the **domain analysis first**:
    one in (find it in `fsr_playbooks` — the framework the connector already
    depends on). `render_jinja` is already a connector op; build on it.
 
+> **LIVE FINDING (2026-07-14) — offline rendering is NOT sufficient for real ztpf
+> templates; use the live FSR jinja-editor.** Real `ztpf_templates` scripts use the
+> `{% do %}` extension, `{% break/continue %}` (loopcontrols), FSR/Ansible-only
+> filters (`regex_replace`, `ipaddr`, `b64encode`), AND reference the grounding
+> `record`. So: (a) the syntax lint must enable `jinja2.ext.do` + `loopcontrols` or
+> it false-flags valid templates; (b) rendering must go through FSR's own
+> jinja-editor (`/api/wf/api/jinja-editor/` via the crudhub loopback — what
+> `render_jinja` uses) to resolve runtime filters; the offline StrictUndefined env
+> is a dev/off-box fallback only (reports an `offline_gap` for filters it can't
+> resolve). `test_template` seeds the fetched record as `record` in the context.
+> This was caught by the box-206 live test and fixed in connector `b4b4e03`.
+
 Deliverable of that next session: a short capability spec for the ztpf authoring
 persona grounded in the real module/data model, with Jinja render+lint+test as the
 spine — THEN persona prompt + tool allowlist to match. **DONE — see §7c below.**
@@ -511,12 +523,22 @@ never eyeball it. When the analyst asks to change the template, edit `script` an
    transport error ⇒ `definitive=False` and `operations._resolve_profile` no longer
    caches it, so a worker caught mid-recycle recovers the persona on a later turn.
    `load_profile` kept as a thin wrapper. Tests `test_profiles.py` (+6). Same commit.
-4. ⏳ **PENDING (box-gated)** — live-verify on box 206: re-author the persona
-   (`_upsert_ztpf_persona.py`), reship the connector **code-only** (`install_to_fsr.py
-   --tarball`, NOT `make ship` — preserves the hand-set `fsrpb-live` OpenAI default,
-   see owner memory) + widget; mount a real `ztpf_templates` record, run Test render on
-   a template with a deliberate undefined var → error surfaced; Edit the body →
-   approval card → update persists.
+4. ✅ **DONE — LIVE-VERIFIED on box 206 (2026-07-14), connector 0.4.50 code-only.**
+   Re-authored the persona (`_upsert_ztpf_persona.py`; test_template now in
+   `tools.allow`, readback OK), reshipped the connector **code-only**
+   (`install_to_fsr.py --tarball`, NOT `make ship` — preserved the `fsrpb-live`
+   OpenAI default), all 10 workers on 0.4.50. Drove `test_template` in-worker via
+   `call_mcp_tool` against the two real `ztpf_templates` records (which use
+   `{% do %}`, `regex_replace`, `ipaddr`): both render to valid FortiGate config via
+   `render_via: "live"` (record.device.name → "FG1" from the seeded record), zero
+   false findings; a deliberate syntax error is caught in both lint and the live
+   editor; a clean template renders. **This live test exposed + fixed a real defect**
+   (commit `b4b4e03`): the committed tool used only the offline renderer (no `do`
+   extension, no FSR/Ansible filters) and false-flagged valid production templates —
+   see §7c.3 note below. `resolve_persona(ztpf_templates)` returns the new allowlist
+   + authoring `ui`. Remaining (optional, not blocking): drive the full LLM turn +
+   in-widget approval card for an `update_record` body edit (needs an agentic turn;
+   the tool + persona + approval path are each already proven separately).
 
 ## 8. Definition of done (v1 = Phases 0–3)
 Mounting the assistant on a module with a `fsr_assistant_profile:<module>` Key Store
