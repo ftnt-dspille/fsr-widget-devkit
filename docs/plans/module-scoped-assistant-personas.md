@@ -369,7 +369,132 @@ designing that, do the **domain analysis first**:
 
 Deliverable of that next session: a short capability spec for the ztpf authoring
 persona grounded in the real module/data model, with Jinja render+lint+test as the
-spine — THEN persona prompt + tool allowlist to match. (Not started — analysis first.)
+spine — THEN persona prompt + tool allowlist to match. **DONE — see §7c below.**
+
+## 7c. Capability spec — ZTPF authoring persona (domain analysis complete, 2026-07-14)
+
+Analysis finished. This section is the spec §7b asked for: (a) the domain model of
+`ztpf_templates` and its authoring chain, (b) the exact `fsr_playbooks` render/lint
+surface to reuse, (c) the capability set an agent should expose, and (d) the persona
+prompt + tool allowlist rewrite. Implementation is scoped but **not yet built**.
+
+### 7c.1 Domain model — what a ztpf_template *is*
+
+`ztpf_templates` fields (live 8.0 schema, box 206):
+
+| field | type | role in authoring |
+|---|---|---|
+| `name` | text | template identity |
+| `description` | text | human summary |
+| `script` | textarea | **the Jinja body** — the config the template generates. References `data.*` (metadata/device inputs) and `input.*` (declared parameters). Uses the full Ansible filter superset. |
+| `inputParameters` | textarea | newline-separated parameter names the script consumes via `input.*` |
+| `exampleJinjaVars` | object (JSON) | **sample render context** — the vars to feed `script` when testing. This is the ground-truth test fixture already living on the record. |
+| `outputType` | picklist IRI | output classification (e.g. Text = `/api/3/picklists/d859d6fd-cef6-431a-b4f6-fbcd90c9a654`) |
+
+**Key insight for the spine:** the record already carries its own test fixture
+(`exampleJinjaVars`) and its own template body (`script`). So "render + lint + test"
+needs **no external input** — the agent reads the record, renders `script` against
+`exampleJinjaVars`, and lints `script`. That is the high-value loop §7b wanted, and
+it's fully self-contained per record.
+
+### 7c.2 Authoring chain (step → action → flow)
+
+Spine: `ztpf_templates → ztpf_automation_actions → ztpf_automation_profile_steps →
+ztpf_automation_profiles`; runtime: `ztpf_devices → ztpf_managers →
+ztpf_device_automation_steps` (a step carries `triggerKey`, `queueStatus`,
+`stepNumber`, `ztpfRunGroups` — see `ztpAutomationGraph` fixture). A template is the
+config-generation unit; an **action** wires one or more templates into an executable
+step; **profiles** order steps. **Decision: v1 persona scopes to `ztpf_templates`
+only** (author + validate + test the template body). Action-creation stays OUT of v1
+— it needs write access to `ztpf_automation_actions`/`_profile_steps` and a firm grasp
+of the step wiring contract, which is a separate follow-up once template authoring is
+proven. Record this as the deliberate v1 boundary.
+
+### 7c.3 Reuse surface in `fsr_playbooks` (do NOT reinvent)
+
+All three spine capabilities already exist in the framework the connector depends on:
+
+- **Lint** — `fsr_playbooks.compiler.jinja_checks.check_jinja(value, *, step_id, path)`
+  → findings list (`jinja_syntax_error`/error via the real parser, zero false
+  positives; `unknown_jinja_filter`/warning with difflib "did you mean"). Known-filter
+  set = jinja builtins ∪ 81 FSR ∪ 162 Ansible + 85 tests (`_data/jinja_filters.json`),
+  so it will NOT false-flag Ansible filters used in ztpf scripts. `to_compile_errors()`
+  normalizes findings.
+- **Render (offline, deterministic, no box)** —
+  `fsr_playbooks.compiler.skill_verify._local_render(template, context)` — StrictUndefined
+  → `{"output": …}` / `{"error": …}`. Catches undefined-var references, the most common
+  authoring bug. Underscore-private but signature-compatible with `render_jinja`.
+- **Render (live, full FSR filter set)** — already a connector op `render_jinja`
+  (`operations.py:4344`, delegates to `/api/wf/api/jinja-editor/`, returns
+  `{ok, output}`). Use for filters that need the platform runtime (`| yaql`, custom
+  FSR filters). `validate_yaml` op also exists for generated-YAML output types.
+
+Layering: lint (static, always) → offline render against `exampleJinjaVars`
+(fast, deterministic, catches undefined vars) → optional live `render_jinja` (only
+when the template uses runtime-only filters). Start with lint + offline render.
+
+### 7c.4 Capabilities the agent should expose (tool allowlist)
+
+Today `render_jinja` is a **connector op** reached via `run_op` (tier 1), NOT an MCP
+agent tool; `check_jinja`/`_local_render` are exposed **nowhere**. Two build options:
+
+**Option A (recommended) — one new tier-1 MCP tool `test_template`** in
+`fsr_soc_triage/tools_records.py` (or a new `tools_ztpf.py`), registered like the
+triage tools (`registry.register_*`, `confirm_mode="auto"`, pydantic args
+`extra="forbid"`). It takes `{module, uuid}` OR `{script, context}`, and internally:
+1. `check_jinja(script, step_id="ztpf_template", path="script")` → lint findings,
+2. `_local_render(script, context)` → rendered output or undefined-var error,
+3. returns `{ok, findings:[…], rendered:…|null, render_error:…|null}`.
+When given `{module, uuid}` it `get_record`s first and pulls `script` +
+`exampleJinjaVars` off the record itself. Read-only ⇒ tier 1, no approval card.
+This is the clean "render+lint+test" primitive the persona's prompt drives.
+
+**Option B (no connector code) — allowlist existing tools:** add `run_op` +
+`find_jinja_filter`/`get_filter_examples` to the persona's `tools.allow` and let the
+prompt tell the agent to call `run_op(render_jinja, …)`. Works with zero new code but
+gives the agent a raw op (weaker guardrails, no combined lint+render, exposes all of
+`run_op`). Use only if we must ship without a connector bump.
+
+**Write path stays as built:** `update_record` (tier 3, approval-carded, `may_write:
+["ztpf_templates"]`) is the mechanism for writing an agent-edited `script` back — the
+valuable write §7b named. No change needed; it already exists and is gated.
+
+Recommended v1 `tools.allow`:
+`["get_record", "search_module_records", "test_template", "update_record", "create_record"]`
+(drop `create_record` if v1 is edit-only). `may_write: ["ztpf_templates"]`.
+
+### 7c.5 Persona prompt + quick-action rewrite (replaces the field-CRUD framing)
+
+The current persona (`scripts/_upsert_ztpf_persona.py` + widget fixture
+`persona_ztpf_author.json`) is the field-CRUD framing §7b rejected — its quick-actions
+are "Add a field". Rewrite the `ui.quickActions` + prompt around the render/lint/test
+loop:
+
+- **Explain** — "Explain what this template provisions and which inputs it consumes."
+  (reads `script` + `inputParameters`).
+- **Test render** — "Render this template against its example vars and show the output
+  + any errors." (drives `test_template`).
+- **Lint / find issues** — "Check this template's Jinja for syntax errors and unknown
+  filters." (drives `test_template`'s lint findings).
+- **Edit the body** — "Apply this change to the template and save it." (drives
+  `update_record` on `script` → approval card).
+
+Prompt gains: "You author and validate ztpf_templates. To check a template, CALL
+`test_template` (it renders `script` against `exampleJinjaVars` and lints the Jinja) —
+never eyeball it. When the analyst asks to change the template, edit `script` and CALL
+`update_record`; the tier-3 approval card is where they confirm."
+
+### 7c.6 Build order (when implemented)
+
+1. Add `test_template` MCP tool (Option A) + pydantic args + `register_*` at tier 1
+   + arg-validation entry; unit-test lint-hit, undefined-var, clean-render cases.
+2. Update `scripts/_upsert_ztpf_persona.py` prompt + `tools.allow` + `ui.quickActions`
+   (§7c.5); update widget fixture `persona_ztpf_author.json` to match.
+3. Fix the `_resolve_profile` transient-None caching bug (§7 open item) in the same
+   pass — don't cache negatives on transport errors.
+4. Live-verify on box 206: mount a real `ztpf_templates` record, run Test render on a
+   template with a deliberate undefined var → error surfaced; fix + Edit the body →
+   approval card → update persists.
 
 ## 8. Definition of done (v1 = Phases 0–3)
 Mounting the assistant on a module with a `fsr_assistant_profile:<module>` Key Store
