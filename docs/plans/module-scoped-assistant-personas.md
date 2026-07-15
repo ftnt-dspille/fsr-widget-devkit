@@ -336,6 +336,41 @@ Local-only artifacts: `fsr-playbook-framework/.env.ztpf-8.0` + harness `.env.206
 (box 206 creds), scratchpad `ztpf_templates_persona.json`, `chat_params.json`,
 `phase0_keystore_spike.py`.
 
+## 7b. Next direction — make the ZTPF authoring persona actually useful (user, 2026-07-14)
+
+The framing + resolution + a generic `create_record`/`update_record` approval flow
+are proven, but **trivial metadata field-CRUD is NOT the real-world value** — don't
+build the persona around "add a field". The write that *is* valuable is
+**updating an existing template's body** — e.g. writing an agent-generated/edited
+**Jinja template** back into the record's script field (`update_record` targeting the
+template body), or creating a new template from one. So `update_record`/`create_record`
+stay in scope, but pointed at the **template content**, not incidental fields. Before
+designing that, do the **domain analysis first**:
+
+1. **Map the `ztpf_templates` module and its relationships** — the module's own
+   fields/data structure (script/Jinja body, input parameters, output type, linked
+   metadata sources) AND its relationships to the other ztpf_* modules
+   (`ztpf_devices`, `ztpf_automation_actions`/steps, metadata sources, etc.) and
+   their data. Understand what a template *is* and what it depends on before
+   deciding what an agent should help with. **Also map the step → action → flow
+   model** — how an automation *action* is built from *steps* and how templates
+   feed into that chain — because **creating actions** (not just templates) may be
+   a valuable persona capability, but only makes sense once that whole flow is
+   understood. Don't scope action-creation until the domain map is done.
+2. **From that, find where an agent genuinely assists** authoring: **creating,
+   validating, and TESTING** templates — not field CRUD. Likely high-value:
+   - **Render the template's Jinja** against real/sample input + surface the
+     rendered output, and **suggest/explain errors found** in the template.
+   - Validation/lint of the Jinja + the generated config.
+3. **Reuse the heavy Jinja linting already in the `fsr_playbooks` library** — it
+   should apply to ztpf template Jinja. Don't reinvent a linter; wire the existing
+   one in (find it in `fsr_playbooks` — the framework the connector already
+   depends on). `render_jinja` is already a connector op; build on it.
+
+Deliverable of that next session: a short capability spec for the ztpf authoring
+persona grounded in the real module/data model, with Jinja render+lint+test as the
+spine — THEN persona prompt + tool allowlist to match. (Not started — analysis first.)
+
 ## 8. Definition of done (v1 = Phases 0–3)
 Mounting the assistant on a module with a `fsr_assistant_profile:<module>` Key Store
 entry: the drawer uses that prompt, exposes only the allowlisted tools, and can
