@@ -312,11 +312,25 @@ same chat_turn/chat_resume flow).
      `fsr_assistant_profile:ztpf_templates` Key Store record WITH the `ui` block
      (greeting/deck/placeholder + tool allowlist + `may_write`). Run it against the
      box (source its env first; `--dry-run` to preview) before the joint live test.
-   - **JOINT LIVE TEST (needs a box window):** reship the connector (gains
-     `resolve_persona`) + reship the widget, run `_upsert_ztpf_persona.py` on the
-     box, then mount the drawer on a `ztpf_templates` record and confirm the
-     authoring framing (greeting "Authoring …", persona deck, template placeholder,
-     no SOC deck/handoff) renders live.
+   - **✅ JOINT LIVE TEST PASSED — box 206 (2026-07-14).** Connector **0.4.50**
+     code-only install (`install_to_fsr.py --tarball`, NO `--with-config`) so the
+     hand-set `fsrpb-live` default (public OpenAI) survived — the default `make
+     ship`/`deploy.sh` would have re-provisioned `fsrpb-frank` as default (Frank
+     unreachable from 206). 10/10 workers on 0.4.50; `resolve_persona` 14/14
+     `found:true`+`ui`. Widget reshipped **1.2.16**. Drawer over a real
+     `ztpf_templates` record rendered authoring framing live (greeting, ZTPF
+     TEMPLATE AUTHOR deck, template placeholder, no SOC deck/handoff); "Explain
+     this template" ran a real authoring turn.
+   - **Render bug found+fixed (widget `7f10799`):** nested/loose ordered lists
+     renumbered `1,2,1,2` — `renderMarkdown` had no nesting and a blank line
+     restarted the `<ol>`. New `_mdParseList` is indentation- + loose-list-aware.
+     Verified fixed live.
+   - **FOLLOW-UP (connector robustness, open):** `_resolve_profile` (operations.py)
+     caches `None` on a *transient* Key Store read, not just a true miss — so a
+     worker caught mid-recycle serves `found:false` and drops the persona's
+     prompt/tools for turns it handles, until the next recycle (saw one poisoned
+     worker; a clean recycle fixed it). Harden: don't cache negatives on transport
+     errors (distinguish "no record" from "read failed"), or add a short negative TTL.
 
 Local-only artifacts: `fsr-playbook-framework/.env.ztpf-8.0` + harness `.env.206`
 (box 206 creds), scratchpad `ztpf_templates_persona.json`, `chat_params.json`,

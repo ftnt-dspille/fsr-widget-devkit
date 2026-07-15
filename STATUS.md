@@ -45,10 +45,25 @@ _Last updated: 2026-07-14 (Module-scoped personas: Phases 0–3 connector-side L
 > new op returns `{found, label, ui}` (reuses `_resolve_profile`/`bind_modules`),
 > fail-open; fsr_soc_triage 150 + root 219 green. **Persona `ui` provisioning
 > ready:** gitignored `scripts/_upsert_ztpf_persona.py` idempotently upserts the
-> `fsr_assistant_profile:ztpf_templates` record WITH the `ui` block. **Remaining:
-> a joint live test** — reship connector + widget, run the upsert on the box, then
-> mount the drawer on a `ztpf_templates` record and confirm authoring framing
-> live. Deferred until a box window (both halves built + tested offline).
+> `fsr_assistant_profile:ztpf_templates` record WITH the `ui` block.
+> **✅ JOINT LIVE TEST PASSED on box 206 (2026-07-14).** Connector **0.4.50**
+> code-only installed (configs preserved — `fsrpb-live` still default, no Frank
+> clobber; 10/10 workers on 0.4.50); `resolve_persona(ztpf_templates)` → 14/14
+> `found:true` with the `ui` block. Widget reshipped (**1.2.16**). Mounted the
+> drawer on a real `ztpf_templates` record → authoring framing renders live:
+> greeting "Authoring ztpf_template: …", the "ZTPF TEMPLATE AUTHOR" deck
+> (Explain/Add a field/Check issues), template placeholder, no SOC deck/handoff.
+> The "Explain this template" quick-action ran a real authoring turn.
+> **Render bug found+fixed along the way (widget `7f10799`):** nested/loose
+> ordered lists renumbered `1,2,1,2` — `renderMarkdown` had no nesting and let a
+> blank line restart the `<ol>`; new `_mdParseList` is indentation- and
+> loose-list-aware (611 unit green), verified fixed live.
+> **FOLLOW-UP (connector robustness):** `_resolve_profile` caches `None` on a
+> *transient* Key Store read (not just a true miss), so a worker caught
+> mid-recycle can serve `found:false` (and drop the persona's prompt/tools for
+> turns it handles) until the next recycle — saw exactly one poisoned worker
+> before a clean recycle fixed it. Harden: don't cache negatives on transport
+> errors, or add a short TTL.
 
 > **2026-07-13 — C5 fully live + release process standardized (connector 0.4.47).**
 > Released framework **fsr-playbooks 0.4.22 to PyPI** the standard way

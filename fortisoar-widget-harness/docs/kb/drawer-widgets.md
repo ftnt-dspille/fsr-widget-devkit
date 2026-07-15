@@ -415,6 +415,21 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   `persona.resolve.service.test.js`, `persona.framing.controller.test.js`,
   `personaFraming.spec.js`, and fixture `persona_ztpf_author.json`.
 
+- **The hand-rolled `renderMarkdown` mishandles nested + loose ordered lists —
+  they renumber `1,2,1,2` instead of `1,2,3`.** The list block used to gather
+  only *consecutive* list-marker lines into one `<ol>`/`<ul>`, decide ordered-vs-
+  unordered from the FIRST line, and let the browser number `<li>`s via CSS. Two
+  failure modes compound on a normal LLM answer like `1. **Step**:\n   - detail`
+  with blank lines between steps: (a) the indented `-` sub-bullet matches the
+  marker regex, so it's swept into the step's `<ol>` as a sibling `<li>` (no
+  nesting) and (b) the blank line between steps ends the run, starting a fresh
+  `<ol>` back at 1 — net `1,2,1,2,1,2`. Fix (`view.controller.js` `_mdParseList`):
+  parse the list block indentation-aware (a strictly-more-indented item opens a
+  nested list under the current item) and loose-list-aware (a blank line followed
+  by another item at ≥ the base indent keeps ONE list, so numbering stays
+  continuous); fold a wrapped continuation line into its item. Tests in
+  `markdown.render.test.js` (loose stays one `<ol>`; nested nests; wrapped joins).
+
 - **The entity summary (seed) card silently fails to render under three race/IO
   conditions — over a *real* record the analyst sees the entity-aware hero
   ("Triaging incident…") but NO summary card and a dead chat.** The seed is
