@@ -1,15 +1,18 @@
 # Plan: Module-scoped assistant personas (Key Store–defined)
 
-**Status:** Phases 1 + 2 DONE (all tests green). **Phases 0 + 3 connector-side
-LIVE-PASSED on 8.0**, and **connector v0.4.49 DEPLOYED + healthy on box 206**
-(ztpf modules present; persona authored + resolving live). ONE gap left: the full
-agentic turn (→ create_record approval card) needs an LLM endpoint 206 can reach —
-its default Frank gateway is unreachable; 206 CAN reach api.anthropic.com /
-api.openai.com, so it needs an ANTHROPIC_API_KEY (or real OpenAI key). Code is
-UNCOMMITTED. See "Progress" + "Resume checklist" below.
-**Owner memory:** `custom_module_agentic_assistant_plan` (auto-memory) — box-specific
-domain facts (the `ztpf_*` modules, live schema) live there; this doc is the
-implementation plan and is box-detail-free.
+**Status: ✅ v1 COMPLETE — built, full agentic turn LIVE-PASSED on 8.0 box 206,
+merged to default branches + pushed to origin (2026-07-14).** Phases 0–4 done; the
+ZTPF authoring spine (`test_template` render+lint+test — §7c) is live-verified via
+both `call_mcp_tool` and a full gpt-4o agentic turn (`test_template` → tier-3
+`update_record` approval card, write suspended). Connector 0.4.50 on 206 (code-only
+install, `fsrpb-live` OpenAI default preserved). Suites green: fsr_soc_triage 172,
+widget 611 + e2e. See §7c (capability spec + live findings) and the Progress log.
+**What's NEXT** (not started): action-creation persona for
+`ztpf_automation_actions`/`_profile_steps` (deferred §7c.2 — domain map first);
+optionally extend the persona to sibling ztpf_* modules via `bind_modules`.
+**Owner memory:** `custom_module_agentic_assistant_plan` +
+`ztpf_authoring_persona_next_direction` (auto-memory) — box-specific domain facts
+live there; this doc is the implementation plan and is box-detail-free.
 
 ## 1. Goal & maintenance model
 

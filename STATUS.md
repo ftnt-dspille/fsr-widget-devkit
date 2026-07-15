@@ -5,65 +5,49 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-14 (Module-scoped personas: Phases 0–3 connector-side LIVE on 8.0 box 206 via connector 0.4.49; Phase 4 persona-aware widget framing BUILT + tested + committed; one LLM-egress gap remains)_
+_Last updated: 2026-07-14 (Module-scoped ZTPF authoring persona: v1 COMPLETE — built, full agentic turn LIVE-PASSED on 8.0 box 206, merged to default branches + pushed to origin)_
 
-> **2026-07-14 — Module-scoped assistant personas (Key Store–defined): Phases 1–3
-> built + connector-side LIVE-validated on 8.0.** Plan:
-> `docs/plans/module-scoped-assistant-personas.md`; memory
-> `custom_module_agentic_assistant_plan`. A per-module persona (own system prompt +
-> tool subset + write scope) defined by ONE Key Store record
-> (`fsr_assistant_profile:<module>`) — no connector edit to add one. **Phase 1**
-> (persona selection: `profiles.py` + `_resolve_profile`/`_tools_for_turn`/
-> `_resolve_system_prompt(profile=)` seams + `session_module` resume) and **Phase 2**
-> (`tools_records.py` `create_record`/`update_record`, tier-3 approval-carded,
-> `may_write`-gated via a per-turn ContextVar) DONE; suites green (builder 214,
-> fsr_soc_triage 148, connector/tests 86). **Phase 0** (§2 Key Store round-trip) and
-> **Phase 3** (persona authored + `load_profile` + gate + create/update vs real
-> `ztpf_templates`) LIVE-PASSED. **Connector v0.4.49 DEPLOYED + healthy on box 206**
-> (has the ztpf_* modules). Deploy hurdle solved: 8.0 pip lockdown → offline wheel
-> install + pip.conf PyPI extra-index, then `make ship BUMP=none` recycle.
-> **OPEN gap:** the full agentic turn (→ create_record approval card) needs an LLM
-> endpoint 206 can reach (its Frank gateway is unreachable; 206 CAN reach
-> api.anthropic.com / api.openai.com) — supply an ANTHROPIC/OpenAI key.
-> **Code UNCOMMITTED** on connector branch `dynamic-tool-surface-connector`.
-> Resume checklist in the plan doc.
-> **Phase 4 — persona-aware widget framing: DONE + COMMITTED (widget repo,
-> `fortiaiAgenticAssistant` commit 68ab4e4).** The drawer drops SOC-triage
-> framing over a persona module: `fsrPbAgentService.resolvePersona(cfg, module)`
-> (direct `/api/3/keys?key=fsr_assistant_profile:<module>` read → connector
-> `resolve_persona` fallback on 403/miss → null=triage default) feeds a
-> `$scope.personaUi` signal kept SEPARATE from `uiIntent` (wire-bound as `intent`;
-> a 3rd value would misroute to build tools). Persona's optional `jSONValue.ui`
-> {label, greeting, placeholder, quickActions, footer} reframes the greeting card
-> + composer placeholder + quick-action deck; SOC deck + "Build playbook" handoff
-> suppressed; no-`ui` persona → neutral "Working on …". Tests:
-> `persona.resolve.service.test.js`, `persona.framing.controller.test.js`, e2e
-> `personaFraming.spec.js` (+fixture `persona_ztpf_author.json`); 608 unit + 21
-> SOC e2e green, lint+typecheck clean. Gotcha in `docs/kb/drawer-widgets.md`.
-> **Connector `resolve_persona` action — DONE + COMMITTED** (`39cec27` on
-> `dynamic-tool-surface-connector`, NOT shipped): `Profile` gains `label`/`ui`,
-> new op returns `{found, label, ui}` (reuses `_resolve_profile`/`bind_modules`),
-> fail-open; fsr_soc_triage 150 + root 219 green. **Persona `ui` provisioning
-> ready:** gitignored `scripts/_upsert_ztpf_persona.py` idempotently upserts the
-> `fsr_assistant_profile:ztpf_templates` record WITH the `ui` block.
-> **✅ JOINT LIVE TEST PASSED on box 206 (2026-07-14).** Connector **0.4.50**
-> code-only installed (configs preserved — `fsrpb-live` still default, no Frank
-> clobber; 10/10 workers on 0.4.50); `resolve_persona(ztpf_templates)` → 14/14
-> `found:true` with the `ui` block. Widget reshipped (**1.2.16**). Mounted the
-> drawer on a real `ztpf_templates` record → authoring framing renders live:
-> greeting "Authoring ztpf_template: …", the "ZTPF TEMPLATE AUTHOR" deck
-> (Explain/Add a field/Check issues), template placeholder, no SOC deck/handoff.
-> The "Explain this template" quick-action ran a real authoring turn.
-> **Render bug found+fixed along the way (widget `7f10799`):** nested/loose
-> ordered lists renumbered `1,2,1,2` — `renderMarkdown` had no nesting and let a
-> blank line restart the `<ol>`; new `_mdParseList` is indentation- and
-> loose-list-aware (611 unit green), verified fixed live.
-> **FOLLOW-UP (connector robustness):** `_resolve_profile` caches `None` on a
-> *transient* Key Store read (not just a true miss), so a worker caught
-> mid-recycle can serve `found:false` (and drop the persona's prompt/tools for
-> turns it handles) until the next recycle — saw exactly one poisoned worker
-> before a clean recycle fixed it. Harden: don't cache negatives on transport
-> errors, or add a short TTL.
+> **✅ 2026-07-14 — Module-scoped assistant personas + ZTPF authoring: v1 COMPLETE,
+> LIVE-VERIFIED, MERGED + PUSHED.** Plan:
+> `docs/plans/module-scoped-assistant-personas.md` (§7c = the authoring capability
+> spec + live findings); memory `custom_module_agentic_assistant_plan` +
+> `ztpf_authoring_persona_next_direction`. A per-module persona (own system prompt +
+> tool subset + write scope) is defined by ONE Key Store record
+> (`fsr_assistant_profile:<module>`) — no connector edit to add one. Phases 0–4 all
+> DONE + live-passed on box 206 (has the ztpf_* modules; connector 0.4.50). What's
+> shipped end-to-end:
+> - **Persona resolution + tool narrowing + record writes** (`profiles.py`,
+>   `_resolve_profile`/`_tools_for_turn`, `tools_records.py` tier-3 approval-carded
+>   `create_record`/`update_record` `may_write`-gated) and **widget framing**
+>   (`resolvePersona` → `personaUi` → greeting/placeholder/quick-action deck).
+> - **`test_template` tool** (`tools_ztpf.py`) — the authoring spine: reads a
+>   `ztpf_templates` record (its own `script` + `exampleJinjaVars` fixture), lints
+>   the Jinja (`do`-extension-aware syntax + unknown-filter warnings), and RENDERS
+>   through FSR's live jinja-editor on-box (`render_via:"live"` — resolves `do`,
+>   `regex_replace`, `ipaddr`, and the seeded `record`). Read-only tier-1,
+>   persona-allowlist-only, also callable via `call_mcp_tool`.
+> - **Transient-None cache bug FIXED** (`resolve_profile_status` → `(profile,
+>   definitive)`; only definitive results cached).
+> - **FULL AGENTIC TURN LIVE-PASSED** (gpt-4o via `fsrpb-live`): "test render this"
+>   → LLM calls `test_template` → live-rendered config; "fix the typo + save" →
+>   `get_record` → `test_template` on the drafted script → `update_record` (tier 3)
+>   → `stop=approval_required` with a formed approval card; left unapproved, real
+>   record byte-unchanged.
+> - Suites green: connector fsr_soc_triage **172**, widget **611 unit + e2e**.
+> - **MERGED + PUSHED to origin** (2026-07-14): connector→`main` (gitlab) @ b4b4e03,
+>   widget→`master` (gitlab) @ aef8ef1, dev-kit→`main` (GitHub) @ ca31056. (The
+>   `fndn` remotes on connector+widget were intentionally NOT pushed.)
+>
+> **Key Store:** only `fsr_assistant_profile:ztpf_templates` exists/needed (on 206);
+> modules without a record fall back to default triage/build (unchanged). Extending
+> to sibling ztpf_* modules is future scope (see NEXT below).
+>
+> **NEXT (open, when picked up):** (1) **action-creation persona** — the
+> step→action→flow write model for `ztpf_automation_actions`/`_profile_steps`
+> (deliberately deferred §7c.2; needs the domain map before scoping a write tool).
+> (2) Optionally extend the authoring persona to sibling ztpf_* modules via
+> `bind_modules` or a new Key Store record. (3) Cleanup: box 159 still has an inert
+> spike key `fsr_assistant_profile:__phase0_spike__` (remove via Key Store UI).
 
 > **2026-07-13 — C5 fully live + release process standardized (connector 0.4.47).**
 > Released framework **fsr-playbooks 0.4.22 to PyPI** the standard way
