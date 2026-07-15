@@ -491,7 +491,11 @@ never eyeball it. When the analyst asks to change the template, edit `script` an
    + `registry.register_ztpf_tools()` at tier 1 + arg-validation entry. It reads the
    record (uuid) or an inline script, lints via `check_jinja`, renders via
    `_local_render` (StrictUndefined), returns `{ok, findings, rendered, render_error,
-   has_errors, note}`. Persona-allowlist-only: added to `TRIAGE_ONLY_TOOLS` (excl.
+   offline_gap, has_errors, note}`. **Offline-filter gap handled:** `_local_render`
+   only has jinja2 builtins, so a valid FSR/Ansible runtime filter (b64encode, ipaddr,
+   …) throws `No filter named X`; when X is in the linter's known set it's reported as
+   an `offline_gap` (render on box via live `render_jinja`), NOT a false render_error /
+   has_errors. Persona-allowlist-only: added to `TRIAGE_ONLY_TOOLS` (excl.
    build) + `operations._BUILD_ONLY_TOOLS` (excl. triage), mirroring the record
    tools. Tests `test_tools_ztpf.py` (14): clean render, undefined-var → render_error,
    syntax-error → severity=error finding, unknown-filter → warning, uuid path pulls
