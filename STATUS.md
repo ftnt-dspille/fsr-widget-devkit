@@ -508,8 +508,21 @@ plumbing, not that every prompt/flow behaves. This matrix is the backlog of
 the whole matrix through the deployed widget and prints per-scenario digests +
 a summary table (`tests/live/matrix.live.test.js` + `tests/live/lib/matrixDriver.js`;
 eval engine unit-tested offline in `tests/matrixEval.test.js`). Scenario rows
-(box-specific record UUIDs) go in the gitignored `tests/live/scenarios.local.json`
-(template: `scenarios.local.example.json`). Only hard-FAIL verdicts red the run.
+(box-specific record UUIDs) are now **per box** — `MATRIX_ENV=.env.206` auto-selects
+the gitignored `tests/live/scenarios.local.206.json` (159's UUIDs don't exist on
+206), template `scenarios.local.example.json`. **Gating is per-row (`gate`), not
+global** — `soft` (default; hard-FAIL only, the original contract), `strict`
+(DEGRADED or any red flag blocks too), `xfail` (documents an open bug; **reports,
+never blocks**). Blocking on a clean `xfail` was removed after live evidence: rows
+are LLM turns, so a defect is only visible when the model exercises it (one prompt
+tripped D2 on 3 of 4 runs against an unchanged connector) — "clean" would have
+announced a live bug as fixed. `forbidRedFlags[]` and **drive errors** block on
+every gate, so an xfail row still guards already-fixed bugs (P6b guards D1) and
+never launders a row that never ran. Rows are additionally graded by the
+`exportGrader` red-flag rules — the same rules `make grade-export` runs offline.
+`make test-matrix-gate` runs the gating rows only; it is deliberately NOT in
+`ship-verify` (each row is a headed box turn). See PROMPT_FLOW_TEST_PLAN.md
+"Gating".
 **Current state (2026-07-02): the probes/crudhub bridge BLOCKER is RESOLVED.**
 Root cause was NOT a code bug — the box's connector *workers were stale in
 memory* (they only recycle on a version-bumped publish; dropping 0.4.13 on disk

@@ -182,12 +182,17 @@ function evaluate(allFrames, opts = {}) {
 // on a real record, send the prompt, and collect full chat_poll frame payloads
 // until the turn converges. Requires FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD
 // (WAF-safe driving — headed + desktop UA — is owned by lib/liveUiDriver).
-async function captureScenario({ module = "alerts", recordUuid, prompt, timeoutMs = 120000 }) {
+// `mountPath` drives the widget from a NON-record surface (dashboard, playbook
+// designer). The drawer is persistent, so WHERE it is mounted changes the
+// entity context the connector sees — the D1-class bug (a stale `keys` entity
+// poisoning an authored playbook) is only reachable from a non-alert mount, so
+// the matrix has to be able to express one.
+async function captureScenario({ module = "alerts", recordUuid, mountPath, visitFirst, prompt, timeoutMs = 120000 }) {
   // Lazy require: keeps the pure eval half loadable in offline jest without
   // pulling in Playwright/the browser stack.
   const { openWidgetDrawer } = require("../../../lib/liveUiDriver");
 
-  const session = await openWidgetDrawer({ module, recordUuid });
+  const session = await openWidgetDrawer({ module, recordUuid, mountPath, visitFirst });
   const page = session.page;
 
   // Tap the live connector traffic for the FULL timeline: chat_poll responses
@@ -218,8 +223,18 @@ async function captureScenario({ module = "alerts", recordUuid, prompt, timeoutM
     for (const f of (data.frames || [])) allFrames.push(f);
   });
 
-  const res = await session.sendChat(prompt, { timeoutMs });
-  await session.close();
+  // try/finally, NOT a bare close: when sendChat throws (e.g. the drawer never
+  // opened, so there is no composer) an unguarded `await session.close()` below
+  // is never reached and the browser LEAKS. Jest then finishes the run but the
+  // process never exits ("Jest did not exit one second after the test run has
+  // completed"), so a completed 3-minute run looks like an infinite hang and
+  // gets killed — hiding the real per-row failure that caused it.
+  let res;
+  try {
+    res = await session.sendChat(prompt, { timeoutMs });
+  } finally {
+    await session.close().catch(() => {});
+  }
   return { frames: allFrames, res, requests };
 }
 
@@ -296,7 +311,9 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
     const artifact = scrubSecrets({
       manifest: {
         id: scenario.id, kind: scenario.kind, record: scenario.recordUuid,
+        mountPath: scenario.mountPath, gate: scenario.gate || "soft",
         prompt: scenario.prompt, verdict: evaluation.verdict, why: evaluation.why,
+        redFlags: evaluation.redFlags || [],
         frameCounts: d.counts, toolCalls: (d.tools || []).length,
         toolErrors: (d.toolErrors || []).length, terminalStop: d.terminalStop,
         done: res.done, streamedTurn: res.sawStreamingTurn,
@@ -318,8 +335,120 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
 async function runScenario(scenario) {
   const { frames, res, requests } = await captureScenario(scenario);
   const evaluation = evaluate(frames, scenario);
+  // Red-flag the live capture through the SAME rules that grade offline
+  // `.events.json` exports, so a known-bad flow signature caught once offline
+  // gates the live matrix forever after. Lazy require: module cycle (see
+  // exportGrader.digestLive).
+  const { gradeLive } = require("./exportGrader");
+  const report = gradeLive(frames, requests);
+  evaluation.redFlags = report.redFlags;
+  if (report.verdict === "FAIL" && !evaluation.hardFail) {
+    // A red flag can hard-fail a row the frame metrics call clean: the derailed
+    // build turn emitted a playbook_offer with 0 tool errors — it looked like a
+    // PASS while authoring a playbook that POSTs to an invented endpoint.
+    evaluation.verdict = "FAIL (red flag)";
+    evaluation.hardFail = true;
+    evaluation.why = report.redFlags.map((f) => f.code).join(", ") + " — " +
+      (report.redFlags[0] ? report.redFlags[0].detail : "");
+  }
   const artifactPath = writeArtifact(scenario, res, evaluation, frames, requests);
   return { frames, res, requests, evaluation, artifactPath };
+}
+
+// ─── Gate ladder ─────────────────────────────────────────────────────────────
+//
+// Per-row gating, because the matrix has to hold two kinds of row at once:
+// rows that must stay clean, and rows that document an OPEN bug. A suite that
+// goes perma-red on a known bug gets ignored, and one that only blocks on
+// hard-FAIL (the original contract) ships DEGRADED regressions silently.
+//
+//   soft   (default) — only a hard-FAIL blocks. The legacy contract.
+//   strict           — hard-FAIL, DEGRADED, or ANY red flag blocks. For rows
+//                      that are known-good and must stay that way.
+//   xfail            — the row is EXPECTED to red-flag (an open, tracked bug).
+//                      NEVER blocks: it reports XFAIL (expected) when the bug
+//                      shows, and XPASS (promote?) when it doesn't. A clean run
+//                      is NOT proof of a fix — these are LLM turns, so the model
+//                      may simply not have exercised the defect (observed live:
+//                      the same prompt tripped the triage toolset on 3 of 4 runs
+//                      against an unchanged, still-broken connector). Promotion
+//                      is a human call on repeated evidence.
+//                      `expectRedFlags[]` names the codes that count as "still
+//                      broken"; ANY one of them firing is enough (LLM turns are
+//                      nondeterministic — demanding all of them would flake).
+//                      Prefer a DETERMINISTIC code: key on the defect (a
+//                      triage-only tool being callable in build) rather than a
+//                      symptom that only sometimes appears (that tool's guard
+//                      happening to trip).
+//
+// `forbidRedFlags[]` overrides EVERY gate: those codes block the run even on an
+// xfail row. That is what keeps an xfail honest — a row parked for an open bug
+// (D2) must still hard-block if an ALREADY-FIXED bug (D1's leaked mount module,
+// fixed in 1.2.21) regresses on the same turn. Without it, parking a row for one
+// bug would silently stop guarding every other bug that row can see.
+//
+// Pure — unit-tested in tests/matrixEval.test.js, no browser required.
+const GATES = ["soft", "strict", "xfail"];
+
+function gateRow(row) {
+  const gate = row.gate || "soft";
+  const ev = row.evaluation || {};
+  const flags = (ev.redFlags || []).map((f) => f.code);
+  const expected = row.expectRedFlags || [];
+
+  // A DRIVE error (login/mount/drawer/timeout) means the row never ran at all —
+  // it is infrastructure, never an "expected bug". It must block on EVERY gate,
+  // xfail included: an xfail that swallowed it would report "XPASS (promote?)"
+  // for a scenario that never sent a prompt, which is how a broken dashboard
+  // mount masqueraded as a passing row.
+  if (ev.driveError) {
+    return { blocks: true, gateVerdict: "BLOCK (drive error)",
+      why: `${ev.verdict}: ${ev.why} — the row never ran; fix the harness/mount, not the prompt` };
+  }
+
+  const forbidden = (row.forbidRedFlags || []).filter((c) => flags.indexOf(c) >= 0);
+  if (forbidden.length) {
+    return { blocks: true, gateVerdict: "BLOCK (regression)",
+      why: `forbidden red flag(s) fired: ${forbidden.join(",")} — a previously FIXED defect has regressed` };
+  }
+
+  if (gate === "xfail") {
+    const stillBroken = expected.length
+      ? expected.some((c) => flags.indexOf(c) >= 0)
+      : (flags.length > 0 || ev.hardFail);
+    if (stillBroken) {
+      return { blocks: false, gateVerdict: "XFAIL (expected)",
+        why: `known-bad: ${flags.join(",") || ev.verdict} — tracked, not a gate failure` };
+    }
+    // A clean xfail does NOT block, and deliberately so.
+    //
+    // Every matrix row is an LLM turn, so a defect is only observable when the
+    // model happens to EXERCISE it. Across four live 206 runs of this exact
+    // prompt, P6b called the triage toolset three times and not at all the
+    // fourth — same connector, same open bug. "Clean" and "the model didn't try"
+    // are indistinguishable from a single run, so blocking here would red the
+    // suite on model nondeterminism and, worse, the message would claim a live
+    // bug was fixed when it wasn't. Report it loudly instead and let a human
+    // promote the row on evidence (repeated clean runs, or a deterministic
+    // connector-side assertion on the build toolset — which is where a
+    // "tool X must not be exposed for intent Y" gate actually belongs).
+    return { blocks: false, gateVerdict: "XPASS (promote?)",
+      why: `expected red flag(s) [${expected.join(",")}] did NOT fire this run. That is NOT proof ` +
+           `of a fix — the model may simply not have exercised the defect (LLM turns are ` +
+           `stochastic). Promote to gate:"strict" only after repeated clean runs or a ` +
+           `deterministic connector-side check.` };
+  }
+
+  if (gate === "strict") {
+    if (ev.hardFail) return { blocks: true, gateVerdict: "BLOCK", why: ev.verdict + " — " + ev.why };
+    if (flags.length) return { blocks: true, gateVerdict: "BLOCK", why: `red flag(s): ${flags.join(",")}` };
+    if (ev.verdict === "DEGRADED") return { blocks: true, gateVerdict: "BLOCK", why: ev.why };
+    return { blocks: false, gateVerdict: "OK", why: ev.verdict };
+  }
+
+  // soft
+  if (ev.hardFail) return { blocks: true, gateVerdict: "BLOCK", why: ev.verdict + " — " + ev.why };
+  return { blocks: false, gateVerdict: "OK", why: ev.verdict };
 }
 
 // Render the same transcript digest + evaluation block the ad-hoc driver
@@ -345,10 +474,14 @@ function formatReport(scenario, res, evaluation, artifactPath) {
   lines.push("\n================ EVALUATION ================");
   lines.push("verdict: " + verdict);
   lines.push("why: " + why);
+  const flags = evaluation.redFlags || [];
+  lines.push(`red flags (${flags.length}): ` + (flags.length
+    ? "\n  " + flags.map((f) => `✗ ${f.code}: ${f.detail}`).join("\n  ")
+    : "(none)"));
   lines.push(`metrics: toolErrors=${metrics.errCount} (budget ${metrics.errBudget}) distinctCauses=${metrics.distinctCauses} toolCalls=${metrics.toolCalls} (min ${metrics.minTools}) expected=[${metrics.expected.join(",")}] got=[${metrics.gotExpected.join(",")}] terminal=${metrics.terminalStop}`);
   if (sigs.length) lines.push("distinct error signatures:\n  " + sigs.join("\n  "));
   lines.push("==================================================\n");
   return lines.join("\n");
 }
 
-module.exports = { ERR_RX, CARD_ALIAS, canonCard, payloadOf, isErr, canonicalFrames, digestFrames, evaluate, buildTimeline, scrubSecrets, writeArtifact, captureScenario, runScenario, formatReport };
+module.exports = { ERR_RX, CARD_ALIAS, canonCard, payloadOf, isErr, canonicalFrames, digestFrames, evaluate, buildTimeline, scrubSecrets, writeArtifact, captureScenario, runScenario, formatReport, gateRow, GATES };

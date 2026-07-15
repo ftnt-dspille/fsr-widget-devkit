@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -113,16 +113,35 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 
 MATRIX_ENV ?= .env.159
 # MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
-# (the connector-repo Makefile passes one).
+# (the connector-repo Makefile passes one). Boxes: .env.159 (8.0 triage),
+# .env.206 (ZTPF + the build/authoring flows — where the P6 rows belong).
 MATRIX_ENV_PATH := $(if $(filter /%,$(MATRIX_ENV)),$(MATRIX_ENV),$(abspath $(HARNESS)/$(MATRIX_ENV)))
-test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P5) vs the deployed widget. HEADED (WAF blocks headless). Scenarios: tests/live/scenarios.local.json (gitignored). MATRIX_ENV=<envfile> to override creds file.
+# Scenario rows carry real record UUIDs, so they are BOX-SPECIFIC and must track
+# MATRIX_ENV — otherwise a 206 run drives 159's records. `.env.206` →
+# scenarios.local.206.json when present, else the plain scenarios.local.json.
+# MATRIX_SCENARIOS=<path> overrides. All are gitignored; the template is
+# scenarios.local.example.json.
+MATRIX_BOX := $(patsubst .env.%,%,$(notdir $(MATRIX_ENV)))
+MATRIX_SCENARIOS ?= $(if $(wildcard $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.json))
+# MATRIX_GATE filters rows by their `gate` field (see matrixDriver.gateRow).
+# Unset = every runnable row.
+test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only.
 	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
-	@if [ ! -f $(HARNESS)/tests/live/scenarios.local.json ]; then \
-	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(HARNESS)/tests/live/scenarios.local.json — copy tests/live/scenarios.local.example.json and fill in real record UUIDs (box-specific, gitignored)"; \
+	@if [ ! -f "$(MATRIX_SCENARIOS)" ]; then \
+	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(MATRIX_SCENARIOS) — copy tests/live/scenarios.local.example.json and fill in real record UUIDs for box '$(MATRIX_BOX)' (box-specific, gitignored)"; \
 	else \
+	  echo "▶ matrix: env=$(MATRIX_ENV) scenarios=$(notdir $(MATRIX_SCENARIOS)) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>)"; \
 	  cd $(HARNESS) && set -a && . "$(MATRIX_ENV_PATH)" && set +a && \
-	  FSRPB_LIVE=1 FSRPB_HEADED=1 pnpm test:live tests/live/matrix.live.test.js; \
+	  FSRPB_LIVE=1 FSRPB_HEADED=1 MATRIX_GATE="$(MATRIX_GATE)" MATRIX_SCENARIOS="$(MATRIX_SCENARIOS)" \
+	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
+
+test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify — each row is a headed box turn (~2–4 min). MATRIX_ENV=.env.206 for build flows.
+	@$(MAKE) test-matrix-live MATRIX_GATE=strict,xfail MATRIX_ENV=$(MATRIX_ENV)
+
+grade-export: ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
+	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
+	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
 test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true

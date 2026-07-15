@@ -415,6 +415,29 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   `persona.resolve.service.test.js`, `persona.framing.controller.test.js`,
   `personaFraming.spec.js`, and fixture `persona_ztpf_author.json`.
 
+- **EVERY SOC-voiced label the drawer can show while a persona is active must go
+  through a persona-aware helper — the empty-hero and the build-hint were the
+  easily-missed ones.** The deck / handoff / placeholder are gated off or
+  overridden under a persona, but `heroHeading`/`heroSub` (the `empty-hero` card,
+  shown when `!messages.length`, e.g. `seedFromEntity:false`) and the build-hint
+  sub were hardcoded SOC copy ("Triaging …", "containment actions — block,
+  isolate, disable", "paste a FortiSOC summary") that leaked over a non-SOC
+  record. Fix: `heroHeading` routes through `_entityHeadline` (greeting → neutral
+  "Working on …" → SOC "Triaging …"); `heroSub` and `buildHintSub` follow the
+  same three-tier pattern as `composerPlaceholder` (persona override →
+  neutral persona line → SOC default), reading `ui.subtitle` / `ui.buildHint`.
+- **The persona `ui` object is WHITELISTED in `fsrPbAgent.service.js`
+  `_personaFromUi` — a field the controller reads but the shaper doesn't copy is
+  silently dropped, so its override never fires.** `pullLabel`/`pullHint` were
+  read by `pageDetailsLabel`/`pageDetailsTitle` but missing from the whitelist,
+  so a Key Store persona could never actually override the pull-context button
+  (the controller unit test only passed because it injects `resolvePersona`
+  directly, bypassing the shaper). When you add a new `ui.*` field, add it in
+  THREE places: `_personaFromUi`'s return, the connector-flattened signal check
+  in `_personaFromConnector`, and the consuming controller helper. Full field set:
+  `label, greeting, subtitle, placeholder, pullLabel, pullHint, buildHint,
+  quickActions, footer` (`footer` is defined but not yet consumed).
+
 - **The hand-rolled `renderMarkdown` mishandles nested + loose ordered lists —
   they renumber `1,2,1,2` instead of `1,2,3`.** The list block used to gather
   only *consecutive* list-marker lines into one `<ol>`/`<ul>`, decide ordered-vs-
@@ -542,5 +565,49 @@ box behind FortiGuard inline IPS (learned driving box 159; fixes in
   A blind `.sub-block` click-loop opens the wrong drawer and the composer never
   mounts. Target `img.logo-sm[title="<widget title>"]` first, fall back to the
   loop.
+
+### 18.8 Mounting a drawer on a NON-record surface (live, 8.0)
+
+Verified against a live 8.0 box. The drawer is **persistent across navigation**,
+so *where* it was opened decides the entity context the backend sees — which is
+what makes these paths test-relevant, not cosmetic.
+
+- **The drawer icon is in the DOM on EVERY page — but hidden where `enableFor`
+  doesn't match.** This is §18.4's `drawerVisibility` toggle seen from the test
+  side: `csDrawerWidgetGroup` flips visibility on `$stateChangeSuccess` when
+  `$state.current.name` isn't in `metadata.view.enableFor` — it does **not**
+  remove the icon. So `img.logo-sm[title="…"]` is present for every installed
+  drawer widget on every route, and on a non-`enableFor` route it is simply
+  **not visible** (`boundingBox()` → `null`, `isVisible()` → false).
+  A real click times out and the composer never mounts, which surfaces as a
+  generic "composer not found" and reads like a widget bug — when the widget is
+  simply **not available on that route**. Waiting longer or click-looping can
+  never fix it. `fortiaiAgenticAssistant`'s states are
+  `["main.modules.list", "viewPanel.modulesDetail", "main.playbookDetail"]` —
+  i.e. module list, record detail, playbook designer. **There is no dashboard
+  mount.**
+  - **Corollary — don't hand-verify a mount with devtools `element.click()`.**
+    A synthetic DOM click *does* fire on the hidden icon and the drawer *does*
+    open, so the mount looks fine by hand and fails under Playwright. Only a real
+    click (or an `isVisible()` check) tells the truth. This cost a full debug
+    cycle: the dashboard "worked" in devtools and failed every automated run.
+- **The drawer renders on `/not-found` too.** A wrong mount path still shows the
+  drawer icons, still opens a composer, and the chat turn still runs — just with
+  **no entity context**. A broken mount therefore reads as a *passing* test. The
+  SPA rewrites a bad route to `/not-found`, so assert on `location.pathname`
+  after navigating and fail loudly (`lib/liveUiDriver.ts` `goto()` throws).
+- **A bare `/dashboard` 404s** — the dashboard requires its uuid:
+  `/dashboard?module=<dashboard-uuid>`. (Moot for this widget per `enableFor`
+  above, but true of the route.)
+- **Playbook designer** is `/playbooks/<workflow-collection-uuid>`, not
+  `/playbooks`.
+- **Record deep-links** stay `/modules/<module>/<uuid>`; the SPA rewrites them to
+  `/modules/view-panel/<module>/<uuid>?previousState=…`. Both the original and
+  rewritten form work, so match on the module+uuid, not the whole path.
+- **Seeding a stale entity on purpose:** open the drawer on record A, then
+  navigate to surface B — the drawer carries A's entity into B. That is the
+  repro shape for the D1-class bug (a `keys` record's module leaking into a
+  playbook authored in the designer) and is what `openWidgetDrawer`'s
+  `visitFirst` option exists for.
 
 ---

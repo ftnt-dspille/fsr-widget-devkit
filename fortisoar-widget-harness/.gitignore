@@ -14,8 +14,11 @@ localdev.env
 .venv-localdev/
 
 # Live-matrix scenario rows: real record UUIDs, box-specific. Template ships
-# as tests/live/scenarios.local.example.json.
-tests/live/scenarios.local.json
+# as tests/live/scenarios.local.example.json. The glob covers the per-box files
+# (scenarios.local.206.json, …) that MATRIX_ENV selects — they carry real UUIDs
+# and must never be tracked. The negation keeps the placeholder template.
+tests/live/scenarios.local*.json
+!tests/live/scenarios.local.example.json
 
 # Live-matrix capture artifacts: full per-scenario timelines (input messages +
 # every tool call's full input/output/error + raw frames). Box-specific,

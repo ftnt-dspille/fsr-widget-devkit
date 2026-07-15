@@ -51,17 +51,24 @@ function captureChatFeed(page) {
     return { polls, turns };
 }
 /**
- * Full flow: launch → login → open record → open the SOC Assistant drawer.
+ * Full flow: launch → login → navigate → open the SOC Assistant drawer.
  * Returns a session handle with sendChat/screenshot/close.
  *
- * opts: { module='alerts', recordUuid (required), headless=true, env }
+ * opts: { module='alerts', recordUuid | mountPath (one required), visitFirst,
+ *         headless=true, env }
  */
 async function openWidgetDrawer(opts = {}) {
     const soarEnvResult = soarEnv.resolveSoarEnv(opts.env);
-    if (!opts.recordUuid)
-        throw new Error("openWidgetDrawer: recordUuid is required");
+    if (!opts.recordUuid && !opts.mountPath) {
+        throw new Error("openWidgetDrawer: one of recordUuid or mountPath is required");
+    }
     const mod = opts.module || "alerts";
     const base = soarBrowser.baseUrl(soarEnvResult);
+    // Record deep-links MUST be /modules/<module>/<uuid> (ui-router
+    // main.modulesDetail) — a bare /alerts/<uuid> silently redirects to the
+    // dashboard. A caller-supplied mountPath is used verbatim.
+    const target = opts.mountPath || `/modules/${mod}/${opts.recordUuid}`;
+    const url = (p) => (/^https?:\/\//.test(p) ? p : `${base}${p.startsWith("/") ? "" : "/"}${p}`);
     // WAF boxes (FortiGuard inline IPS) fingerprint headless Chromium and serve a
     // login page whose "Sign In" button never enables. FSRPB_HEADED=1 forces a
     // real headed browser for live UI runs against such boxes.
@@ -70,31 +77,86 @@ async function openWidgetDrawer(opts = {}) {
     const page = await context.newPage();
     const feed = captureChatFeed(page);
     await soarBrowser.login(page, base, soarEnvResult);
-    await page.goto(`${base}/modules/${mod}/${opts.recordUuid}`, {
-        waitUntil: "domcontentloaded", timeout: 60000,
-    });
-    await page.waitForTimeout(10000); // record + widgets render
-    // Open the drawer. 8.0 renders multiple drawer icons (native "AI Assistant",
-    // "Playbook Developer Assistant", plus ours) as `img.logo-sm[title=...]`, so a
-    // blind .sub-block click-loop opens the wrong one. Target our widget's icon by
-    // its title first; fall back to the click-loop for older layouts.
-    const widgetTitle = opts.widgetTitle || process.env.FSRPB_WIDGET_TITLE || "FortiAI Agentic Assistant";
-    const titledIcon = await page.$(`img.logo-sm[title="${widgetTitle}"]`);
-    if (titledIcon) {
-        await titledIcon.click().catch(() => { });
-        await page.waitForTimeout(3000);
-    }
-    if (!(await page.$(COMPOSER))) {
-        const blocks = await page.$$(".sub-block");
-        for (const blk of blocks) {
-            await blk.click().catch(() => { });
-            await page.waitForTimeout(2500);
-            if (await page.$(COMPOSER))
-                break;
+    const goto = async (p) => {
+        await page.goto(url(p), { waitUntil: "domcontentloaded", timeout: 60000 });
+        await page.waitForTimeout(10000); // record/page + widgets render
+        // FortiSOAR renders the right-edge drawer icons on its /not-found page too,
+        // so a bad path (a bare `/dashboard` without ?module=<uuid>, a stale record
+        // uuid) still opens a composer and the turn "works" — with no entity
+        // context. That silently turns a broken mount into a green scenario. Fail
+        // loudly instead: the SPA rewrites the URL to /not-found on a bad route.
+        if (/\/not-found/.test(new URL(page.url()).pathname)) {
+            throw new Error(`openWidgetDrawer: "${p}" resolved to /not-found on this box — the drawer would still ` +
+                `mount (with no entity), so this is failed loudly rather than passing silently. ` +
+                `Check the path against the box: a dashboard needs ?module=<uuid>, the playbook ` +
+                `designer is /playbooks/<collection-uuid>, records are /modules/<module>/<uuid>.`);
         }
+    };
+    /**
+     * Open the drawer if it isn't already. 8.0 renders multiple drawer icons
+     * (native "AI Assistant", "Playbook Developer Assistant", plus ours) as
+     * `img.logo-sm[title=...]`, so a blind .sub-block click-loop opens the wrong
+     * one. Target our widget's icon by its title first; fall back to the
+     * click-loop for older layouts. Idempotent — safe to call after a nav.
+     */
+    const widgetTitle = opts.widgetTitle || process.env.FSRPB_WIDGET_TITLE || "FortiAI Agentic Assistant";
+    const openDrawer = async () => {
+        if (await page.$(COMPOSER))
+            return true;
+        const titledIcon = await page.$(`img.logo-sm[title="${widgetTitle}"]`);
+        // The icon is in the DOM on EVERY page, but FortiSOAR hides it where the
+        // widget's `metadata.view.enableFor` states don't match the current route
+        // (a dashboard is not an enableFor state for a modules/playbook drawer).
+        // Present-but-hidden is therefore "not available here", not "slow to mount"
+        // — waiting or click-looping can never fix it. Say so, because the symptom
+        // otherwise surfaces as a generic "composer not found" and reads like a
+        // widget bug. NB: a DOM `element.click()` in devtools DOES fire on the
+        // hidden icon and appears to work, which makes this doubly misleading — only
+        // a real (Playwright) click reveals it.
+        if (titledIcon && !(await titledIcon.isVisible())) {
+            throw new Error(`openWidgetDrawer: the "${widgetTitle}" drawer icon exists but is HIDDEN on this route ` +
+                `(${new URL(page.url()).pathname}) — the widget's metadata.view.enableFor does not cover ` +
+                `this state, so the drawer cannot be opened here. Mount on an enableFor surface instead ` +
+                `(module list / record detail / playbook designer).`);
+        }
+        if (titledIcon) {
+            await titledIcon.click().catch(() => { });
+            // WAIT FOR THE CONDITION, not a fixed guess. A hard `waitForTimeout(3000)`
+            // then "if no composer, try the .sub-block loop" is actively harmful: on a
+            // slower surface (a dashboard takes ~6s vs a record's ~3s) the composer
+            // simply hasn't mounted yet, and the fallback loop then clicks the OTHER
+            // drawer icons — opening the native AI Assistant or toggling ours shut —
+            // so a drawer that was opening correctly ends as "composer not found".
+            // That is exactly how the P6a dashboard row failed while the same mount
+            // worked by hand.
+            try {
+                await page.waitForSelector(COMPOSER, { timeout: 25000 });
+                return true;
+            }
+            catch (_) { /* fall through only if the titled icon truly didn't work */ }
+        }
+        // Legacy layouts (no titled icon): blind click-loop is the only option.
+        if (!titledIcon && !(await page.$(COMPOSER))) {
+            const blocks = await page.$$(".sub-block");
+            for (const blk of blocks) {
+                await blk.click().catch(() => { });
+                await page.waitForTimeout(2500);
+                if (await page.$(COMPOSER))
+                    break;
+            }
+        }
+        return !!(await page.$(COMPOSER));
+    };
+    // `visitFirst` seeds the persistent drawer with ANOTHER page's entity context
+    // before landing on the real target — the only way to drive a stale-entity
+    // (D1-class) scenario, where the drawer must carry page A's entity into
+    // page B.
+    if (opts.visitFirst) {
+        await goto(opts.visitFirst);
+        await openDrawer();
     }
-    await page.waitForTimeout(2000);
-    const composerOpen = !!(await page.$(COMPOSER));
+    await goto(target);
+    const composerOpen = await openDrawer();
     return {
         page, browser, context, base, polls: feed.polls, turns: feed.turns, composerOpen,
         /**

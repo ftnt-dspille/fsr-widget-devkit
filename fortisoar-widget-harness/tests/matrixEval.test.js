@@ -203,3 +203,136 @@ describe("digestFrames", () => {
     expect(d.terminalStop).toBe("end_turn");
   });
 });
+
+// ─── Gate ladder ─────────────────────────────────────────────────────────────
+//
+// The matrix must hold two kinds of row at once: rows that must stay clean
+// (strict) and rows that document an OPEN bug (xfail). A suite that goes
+// perma-red on a known bug gets ignored; one that only blocks on hard-FAIL
+// ships DEGRADED regressions silently. These pin that contract.
+// See docs/plans/live-chat-eval-and-build-flow-fixes.md Phase 4.
+describe("gateRow — per-row gating", () => {
+  const { gateRow } = require("./live/lib/matrixDriver");
+  const ev = (verdict, { hardFail = false, flags = [] } = {}) => ({
+    verdict, hardFail, why: verdict, redFlags: flags.map((code) => ({ code, detail: code })),
+  });
+
+  describe("soft (default, the legacy contract)", () => {
+    test("only a hard-FAIL blocks", () => {
+      expect(gateRow({ evaluation: ev("FAIL", { hardFail: true }) }).blocks).toBe(true);
+    });
+    test("DEGRADED ships", () => {
+      expect(gateRow({ evaluation: ev("DEGRADED") }).blocks).toBe(false);
+    });
+    test("a red flag alone does not block a soft row", () => {
+      expect(gateRow({ evaluation: ev("PASS", { flags: ["trace_tool_no_trace"] }) }).blocks).toBe(false);
+    });
+    test("an absent gate field defaults to soft", () => {
+      expect(gateRow({ evaluation: ev("DEGRADED") }).gateVerdict).toBe("OK");
+    });
+  });
+
+  describe("strict", () => {
+    test("PASS is OK", () => {
+      expect(gateRow({ gate: "strict", evaluation: ev("PASS") }).blocks).toBe(false);
+    });
+    test("DEGRADED blocks", () => {
+      expect(gateRow({ gate: "strict", evaluation: ev("DEGRADED") }).blocks).toBe(true);
+    });
+    test("a red flag blocks even when the frame metrics look clean", () => {
+      const g = gateRow({ gate: "strict", evaluation: ev("PASS", { flags: ["hallucinated_http_endpoint"] }) });
+      expect(g.blocks).toBe(true);
+      expect(g.why).toMatch(/hallucinated_http_endpoint/);
+    });
+  });
+
+  describe("xfail — documents an open bug without going perma-red", () => {
+    const row = { gate: "xfail", expectRedFlags: ["triage_guard_in_build", "trace_tool_no_trace"] };
+
+    test("still-broken (an expected flag fired) does NOT block", () => {
+      const g = gateRow({ ...row, evaluation: ev("FAIL", { hardFail: true, flags: ["triage_guard_in_build"] }) });
+      expect(g.blocks).toBe(false);
+      expect(g.gateVerdict).toBe("XFAIL (expected)");
+    });
+
+    test("ANY one expected flag suffices — a partial fix does not flake the run", () => {
+      // LLM turns are nondeterministic; requiring ALL expected codes every run
+      // would red the suite on noise rather than on a real change.
+      const g = gateRow({ ...row, evaluation: ev("FAIL", { hardFail: true, flags: ["trace_tool_no_trace"] }) });
+      expect(g.blocks).toBe(false);
+    });
+
+    test("a CLEAN run REPORTS but does NOT block — clean != fixed", () => {
+      // Learned live: every row is an LLM turn, so a defect is only observable
+      // when the model exercises it. The same prompt tripped the triage toolset
+      // on 3 of 4 runs against an unchanged, still-broken connector — so
+      // blocking on a clean run would both flake AND assert a live bug was
+      // fixed when it wasn't. Report, don't block.
+      const g = gateRow({ ...row, evaluation: ev("PASS") });
+      expect(g.blocks).toBe(false);
+      expect(g.gateVerdict).toBe("XPASS (promote?)");
+      expect(g.why).toMatch(/NOT proof/);
+    });
+
+    test("with no expectRedFlags, any flag or hard-fail counts as still-broken", () => {
+      expect(gateRow({ gate: "xfail", evaluation: ev("FAIL", { hardFail: true }) }).blocks).toBe(false);
+      expect(gateRow({ gate: "xfail", evaluation: ev("PASS") }).blocks).toBe(false);
+    });
+  });
+
+  describe("forbidRedFlags — keeps an xfail row honest", () => {
+    test("a forbidden flag blocks even on an xfail row parked for another bug", () => {
+      // P6b is parked for the open D2 connector bug, but D1 (the leaked mount
+      // module) is FIXED — if it regresses on the same turn, the row must red.
+      const g = gateRow({
+        gate: "xfail",
+        expectRedFlags: ["triage_guard_in_build"],
+        forbidRedFlags: ["mount_module_leaked_into_start"],
+        evaluation: ev("FAIL", { hardFail: true, flags: ["triage_guard_in_build", "mount_module_leaked_into_start"] }),
+      });
+      expect(g.blocks).toBe(true);
+      expect(g.gateVerdict).toBe("BLOCK (regression)");
+      expect(g.why).toMatch(/regressed/);
+    });
+
+    test("no forbidden flag → the xfail row behaves normally", () => {
+      const g = gateRow({
+        gate: "xfail",
+        expectRedFlags: ["triage_guard_in_build"],
+        forbidRedFlags: ["mount_module_leaked_into_start"],
+        evaluation: ev("FAIL", { hardFail: true, flags: ["triage_guard_in_build"] }),
+      });
+      expect(g.blocks).toBe(false);
+    });
+  });
+});
+
+describe("gateRow — a drive error blocks on EVERY gate", () => {
+  const { gateRow } = require("./live/lib/matrixDriver");
+  // A drive error (login/mount/drawer/timeout) means the row never sent a
+  // prompt. It is infrastructure, never an expected bug — so no gate, not even
+  // xfail, may swallow it. Observed live: a broken dashboard mount produced
+  // "composer not found" and the xfail row reported "XPASS (promote?)", i.e. it
+  // claimed a bug looked fixed for a scenario that never ran.
+  const driveErr = {
+    verdict: "FAIL (drive error)", why: "composer not found — drawer did not open",
+    hardFail: true, driveError: true, redFlags: [],
+  };
+
+  test("xfail does NOT swallow a drive error", () => {
+    const g = gateRow({ gate: "xfail", expectRedFlags: ["triage_tool_in_build"], evaluation: driveErr });
+    expect(g.blocks).toBe(true);
+    expect(g.gateVerdict).toBe("BLOCK (drive error)");
+    expect(g.why).toMatch(/never ran/);
+  });
+
+  test("strict and soft block it too", () => {
+    expect(gateRow({ gate: "strict", evaluation: driveErr }).blocks).toBe(true);
+    expect(gateRow({ gate: "soft", evaluation: driveErr }).blocks).toBe(true);
+  });
+
+  test("a drive error outranks forbidRedFlags (report the real cause)", () => {
+    const g = gateRow({ gate: "xfail", forbidRedFlags: ["mount_module_leaked_into_start"], evaluation: driveErr });
+    expect(g.gateVerdict).toBe("BLOCK (drive error)");
+  });
+});

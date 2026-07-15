@@ -106,6 +106,80 @@ the named card type(s) in its transcript; **terminal** = turn reaches
 | P4 | `manual_input` stage | a playbook with a manual_input step | stage hoists + renders input prompt correctly | framework 0.4.10 manual_input hoist |
 | P5 | Rehydrate build | resume a saved draft | draft rehydrates; build resumes without re-prompting | `rehydrateBuild` spec pattern |
 
+### Build / authoring flows (from-scratch, `intent:build`)
+
+P1–P5 all build *from an investigation trace*. P6 covers the other half — authoring
+from nothing — which is where the real failure happened
+(`docs/plans/live-chat-eval-and-build-flow-fixes.md`). The **mount** is the variable,
+because the mount is what broke it: the drawer is persistent, so where it was opened
+decides the entity context the connector sees.
+
+| # | Flow | Input / scenario | Acceptance | Notes |
+|---|---|---|---|---|
+| P6a | From-scratch build, no record context | mount on `/dashboard?module=<uuid>` (`mountPath`), "create a new playbook to block an ip and create an alert" | no triage/containment guard in a build turn; no `build_playbook_from_trace` without a trace; "create an alert" authored as a native `create_record` step on `alerts`, not a connector hunt or an invented HTTP POST | `gate:"xfail"` until the D2 connector fixes land |
+| P6b | From-scratch build, stale record context | `visitFirst` a Key Store key → drawer captures `module:keys` → navigate to `/playbooks/<collection-uuid>`, same prompt | as P6a, **plus** the mounted module must NOT reach the authored playbook (`forbidRedFlags:["mount_module_leaked_into_start"]`) | the **D1 regression guard** — D1 was fixed in widget 1.2.21; this is the row that keeps it fixed |
+
+**Mount paths are box-specific and easy to get wrong** — and a wrong one is worse
+than a hard error, because FortiSOAR renders the drawer icons on its `/not-found`
+page too: the composer opens, the turn runs, and the row passes with **no entity
+context**. `liveUiDriver.goto()` therefore throws on `/not-found`. Verified shapes
+(8.0): dashboard `/dashboard?module=<uuid>` (a bare `/dashboard` 404s), designer
+`/playbooks/<collection-uuid>`, record `/modules/<module>/<uuid>`. See
+`docs/kb/drawer-widgets.md` §18.8.
+
+**Scenario rows are per-box.** Real record UUIDs only exist on their own box, so
+`MATRIX_ENV=.env.206` auto-selects `tests/live/scenarios.local.206.json`
+(gitignored), falling back to `scenarios.local.json`. Box 159 holds the triage
+T-rows; box 206 holds the P6 build rows. `MATRIX_SCENARIOS=<path>` overrides.
+
+## Gating (what reds the run)
+
+Per row, via `gate` (`tests/live/lib/matrixDriver.js` → `gateRow`, unit-tested in
+`tests/matrixEval.test.js`). The matrix has to hold known-good rows and rows that
+document an open bug at the same time — a suite that goes perma-red on a known bug
+gets ignored, and one that only blocks on hard-FAIL ships DEGRADED regressions silently.
+
+| gate | blocks on |
+|---|---|
+| `soft` (default) | hard-FAIL only — the original contract |
+| `strict` | hard-FAIL, DEGRADED, or any red flag. For known-good rows that must stay clean (T1/T3/T7). |
+| `xfail` | **nothing** — the row documents an open bug. It reports `XFAIL (expected)` when the bug shows and `XPASS (promote?)` when it doesn't. `expectRedFlags[]` names the codes that count as still-broken (ANY one suffices). |
+
+**Why `xfail` never blocks on a clean run.** It used to, on the theory that clean
+⇒ fixed ⇒ promote. Every row is an LLM turn, so a defect is only observable when
+the model happens to *exercise* it: across four live 206 runs of one prompt against
+an unchanged, still-broken connector, P6b tripped the triage toolset three times
+and not at all the fourth. "Clean" and "the model didn't try" are indistinguishable
+from a single run, so blocking there both flakes and — far worse — announces that a
+live bug is fixed when it isn't. Promotion is a human call on repeated evidence.
+
+**Corollary: key `expectRedFlags` on a DETERMINISTIC code.** Grade the defect, not
+a symptom. `triage_guard_in_build` (the hunt-floor guard happening to trip) fires
+only sometimes; `triage_tool_in_build` (a triage-only tool being callable in a build
+turn at all) fires whenever the model touches it. The former produced a false
+"promote".
+
+Two things override every gate, xfail included:
+- `forbidRedFlags[]` — how a row parked for one open bug still hard-blocks if an
+  already-fixed bug regresses on the same turn (P6b guards D1).
+- **drive errors** — login/mount/drawer/timeout means the row never sent a prompt.
+  Infrastructure is never an "expected bug"; an xfail that swallowed it reported
+  `XPASS (promote?)` for a scenario that never ran.
+
+**What does NOT belong here:** "tool X must not be exposed for intent Y" is a
+property of the connector's tool registration. Asserting it through a stochastic
+LLM turn is inherently probabilistic — put that gate connector-side, deterministically.
+
+Every row is **also** graded by the `exportGrader` red-flag rules — the same rules
+that grade a downloaded `.events.json` export (`make grade-export`). One rule set,
+both halves of the loop: a signature caught once offline gates the live matrix
+forever after. A red flag can hard-fail a row the frame metrics call clean (the
+derailed build turn emitted its offer with 0 tool errors while authoring a playbook
+that POSTs to an invented endpoint).
+
+Run: `make test-matrix-live` (all rows) / `make test-matrix-gate` (gating rows only).
+Deliberately **not** wired into `ship-verify` — each row is a headed box turn (~2–4 min).
+
 ## Env constraints
 
 - **8.0 box**: FortiSOAR 8.0, local admin login (no SSO), 25k+ real
