@@ -168,38 +168,31 @@ async function openWidgetDrawer(opts = {}) {
             if (!composer)
                 throw new Error("composer not found — drawer did not open");
             const before = feed.polls.length;
-            const want = text.trim();
-            // Current composer text — works for both a <textarea>/<input> (`value`)
-            // and a contenteditable div (`textContent`).
-            const composerText = async () => (await composer.evaluate((el) => ("value" in el ? el.value : el.textContent) || "")).trim();
             await composer.click();
             await composer.type(text, { delay: 15 });
             // Close the no-turn flake at its source: pressing Enter the instant typing
             // finishes can beat Angular's ng-model debounce, so the send handler reads
             // an empty model and no-ops — the composer keeps the text and no chat_turn
             // fires. Dispatch an explicit input event and let the model settle before
-            // submitting.
+            // submitting. (Enter is the widget's send trigger; do NOT click a
+            // `.composer button` — that matches the "Case context" button too and
+            // would inject context instead of sending.)
             await composer.evaluate((el) => el.dispatchEvent(new Event("input", { bubbles: true })));
             await page.waitForTimeout(250);
-            // Prefer an enabled send button (a click doesn't depend on the keydown
-            // debounce at all); fall back to Enter for layouts without one.
-            const sendBtn = await page.$("#custom-modal .composer button:not([disabled]), .composer button:not([disabled])");
-            if (sendBtn)
-                await sendBtn.click().catch(() => { });
-            else
-                await page.keyboard.press("Enter");
-            // Confirm the submit registered: a turn starts, or the composer clears.
-            // If neither happens within the verify window (and the box still holds our
-            // text), the send silently no-op'd — report submitConfirmed=false so the
-            // matrix treats it as a drive error rather than a bad agent verdict.
+            await page.keyboard.press("Enter");
+            // Confirm the submit registered by watching for the turn to actually
+            // start (a chat_turn/chat_poll request appears in the feed). This is the
+            // unambiguous signal: if no poll fires within the verify window, the send
+            // silently no-op'd (the ng-model debounce race) — report
+            // submitConfirmed=false so the matrix treats it as a drive error rather
+            // than a bad agent verdict. (A "composer cleared" heuristic is unreliable:
+            // the widget can inject case-context text into the box, so "text changed"
+            // is not proof the turn was sent.)
             let submitConfirmed = false;
-            const verifyDeadline = Date.now() + 6000;
+            const verifyDeadline = Date.now() + 8000;
             while (Date.now() < verifyDeadline) {
                 await page.waitForTimeout(500);
-                const turnStarted = feed.polls
-                    .slice(before)
-                    .some((p) => p.turn != null || p.frames > 0);
-                if (turnStarted || (await composerText()) !== want) {
+                if (feed.polls.slice(before).some((p) => p.turn != null || p.frames > 0)) {
                     submitConfirmed = true;
                     break;
                 }
