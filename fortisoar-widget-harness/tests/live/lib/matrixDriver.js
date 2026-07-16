@@ -47,6 +47,28 @@ function payloadOf(f) { return f.content ?? f.result ?? f.output ?? f.message ??
 const CARD_ALIAS = { ioc_card: "info_card" };
 function canonCard(t) { return CARD_ALIAS[t] || t; }
 
+// ── Resolving a tool_result's tool NAME ──────────────────────────────────────
+//
+// LIVE tool_result frames carry ONLY {type, tool_use_id, content, duration_ms} —
+// there is NO `.tool` field; the name lives on the matching tool_use frame's
+// `id`. Code that read `f.tool` therefore got "" on every real run: the matrix's
+// tool trace and every tool-ERROR row rendered with a blank name ("✗  {json}"),
+// so you could not tell WHICH tool failed — the single most useful fact in the
+// report. It went unnoticed because the offline suite's synthetic frames set
+// `.tool` directly, encoding a shape the wire never produces. buildTimeline()
+// always joined by id and was correct, which is why artifacts looked fine while
+// the digest did not. Always resolve through here.
+function toolNameIndex(frames) {
+  const byId = {};
+  for (const f of (frames || [])) {
+    if (f && f.type === "tool_use" && f.id) byId[f.id] = f.name || f.tool || "";
+  }
+  return byId;
+}
+function toolNameOf(f, byId) {
+  return f.tool || (byId || {})[f.tool_use_id] || "";
+}
+
 function isErr(f) {
   if (f.type === "error") return true;
   const p = payloadOf(f);
@@ -95,6 +117,7 @@ function digestFrames(rawFrames) {
   const tools = [];
   const toolErrors = [];
   const lastUseByTool = {};
+  const nameById = toolNameIndex(allFrames);
   let text = "";
   let terminalStop = null;
   for (const f of allFrames) {
@@ -107,7 +130,7 @@ function digestFrames(rawFrames) {
       tools.push("→ " + nm + "(" + JSON.stringify(f.input || f.params || {}).slice(0, 160) + ")");
     }
     if (t === "tool_result") {
-      const nm = f.tool || "";
+      const nm = toolNameOf(f, nameById);
       tools.push("  ⤷ result " + nm + ": " + JSON.stringify(payloadOf(f)).slice(0, 200));
       if (isErr(f)) toolErrors.push({ tool: nm, args: lastUseByTool[nm], payload: JSON.stringify(payloadOf(f)).slice(0, 300) });
     }
@@ -116,6 +139,35 @@ function digestFrames(rawFrames) {
     if (t === "stream_end") terminalStop = f.stop_reason || f.reason || terminalStop;
   }
   return { order, counts, tools, toolErrors, text, terminalStop };
+}
+
+// ── ENV-SKIP: the box lacks the capability the row asks for ──────────────────
+//
+// The live sweep distinguishes "widget bug" from "backend down" via
+// [[SWEEP-ENV-SKIP]]; the matrix had no equivalent, so a box with no response
+// connector configured hard-FAILed T4 forever — a perma-red for a non-defect,
+// which TESTING.md's invariants forbid.
+//
+// DELIBERATELY NARROW. A capability_gap card is NOT by itself an env signal: on
+// a hunt/enrichment row it is the SYMPTOM OF A REAL BUG (observed on GA — T2
+// self-assigned a containment check and emitted a containment capability_gap
+// instead of consolidating its IOCs, exactly the drift its scenario note warns
+// about). Excusing every capability_gap would have masked that. So this fires
+// ONLY when containment was the ASK (kind: "containment") and the connector
+// actually reported zero containment actions — i.e. the agent could not have
+// produced an action_card no matter how well it behaved.
+function envSkippedContainment(rawFrames, opts, emitted) {
+  if (opts.kind !== "containment") return false;
+  if (!emitted.has("capability_gap")) return false;
+  const frames = canonicalFrames(rawFrames);
+  const nameById = toolNameIndex(frames);
+  return frames.some((f) => {
+    if (f.type !== "tool_result") return false;
+    if (!/find_containment_actions/.test(toolNameOf(f, nameById))) return false;
+    const p = payloadOf(f);
+    return p && typeof p === "object" && p.ok === true
+      && Array.isArray(p.actions) && p.actions.length === 0;
+  });
 }
 
 // Pure evaluation: minimal tool ERRORS OR self-correction. When errors DO
@@ -145,8 +197,30 @@ function evaluate(allFrames, opts = {}) {
   // Distinct error signatures — repeated identical errors point at ONE root cause.
   const sigs = [...new Set(toolErrors.map((e) => (e.payload.match(/"(error|message|suggestion)":"[^"]{0,60}/) || [e.payload.slice(0, 60)])[0]))];
 
-  let verdict, why;
-  if (toolCalls < minTools) {
+  let verdict, why, driveError = false;
+  if (!(allFrames || []).length) {
+    // NOTHING was captured — no frames, so the turn never streamed. This is NOT
+    // an agent verdict: with zero frames the minTools branch below would call it
+    // "an LLM summarizer that narrated the seed context instead of
+    // investigating", a confident story about behaviour that never happened.
+    // Observed live on GA: T2 came back with 0 frames AND 0 chat_turn requests —
+    // the prompt never reached the connector — and the report blamed the agent's
+    // investigative discipline. Zero frames means the HARNESS failed to drive the
+    // turn; flag it as a drive error so it blocks on every gate and points at the
+    // right thing.
+    verdict = "FAIL (no turn captured)";
+    why = "no chat_poll frames at all — the turn never streamed (check the artifact: " +
+      "streamedTurn/done false and no chat_turn request means the composer accepted the " +
+      "prompt but nothing reached the connector). A drive/capture failure, not agent behaviour.";
+    driveError = true;
+  } else if (envSkippedContainment(allFrames, opts, emitted)) {
+    // The BOX has no containment capability — not a widget/prompt defect.
+    verdict = "ENV-SKIP (no containment capability)";
+    why = "find_containment_actions returned 0 actions and the agent correctly emitted a " +
+      "capability_gap instead of inventing an action_card — this box has no response connector " +
+      "configured, so the action_card expectation cannot be met here. Mirrors the live sweep's " +
+      "[[SWEEP-ENV-SKIP]]: the backend is missing a capability, the widget is fine.";
+  } else if (toolCalls < minTools) {
     verdict = "FAIL (no-investigation)";
     why = `ran ${toolCalls} tool call(s), needs >=${minTools} — this is an LLM summarizer, not an investigator; the agent narrated the seed context instead of pulling records / enriching / searching`;
   } else if (correct === false) {
@@ -168,6 +242,9 @@ function evaluate(allFrames, opts = {}) {
     verdict,
     why,
     hardFail: verdict.startsWith("FAIL"),
+    // Blocks on EVERY gate (see gateRow): a row that never ran can't be an
+    // "expected" failure for any gate to tolerate.
+    driveError,
     sigs,
     metrics: {
       toolCalls, minTools, errCount, errBudget,

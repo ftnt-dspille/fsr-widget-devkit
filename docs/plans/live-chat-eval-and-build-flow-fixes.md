@@ -13,6 +13,59 @@ summary: >
 
 # Live-chat eval loop + build-flow fixes
 
+## ⏭️ Open follow-ups (RESUME HERE after a context clear) — 2026-07-16
+
+Phases 1/0/2/4 are DONE and committed (`598d319`) + live-verified on 206 and GA.
+What remains, in priority order:
+
+**A. UNCOMMITTED harness fixes — commit first (4 files, all green: 400 unit tests,
+typecheck, lint, build).** These landed AFTER `598d319` while running GA:
+- `tests/live/lib/matrixDriver.js` — (1) tool-name resolution via tool_use_id
+  index (live `tool_result` has no `.tool`, so every live error printed blank);
+  (2) `ENV-SKIP (no containment capability)` verdict (narrow: containment ask +
+  0 configured actions only); (3) empty-capture → `FAIL (no turn captured)` +
+  `driveError` instead of falsely blaming the agent; (4) `driveError` blocks on
+  every gate in `gateRow`; (5) xfail now REPORTS (`XPASS (promote?)`), never
+  blocks on a clean run.
+- `tests/matrixEval.test.js` — tests for all of the above (wire-shaped frames,
+  ENV-SKIP narrowness, empty-capture, gate ladder, drive-error blocking).
+- `tests/live/scenarios.local.example.json` — T3/T7 reverted strict→soft with
+  reason; xfail keyed on deterministic `triage_tool_in_build`.
+- this plan doc.
+  Suggested commit: `harness: live-matrix ENV-SKIP + drive-error + tool-name
+  attribution; xfail reports not blocks`.
+
+**B. 🔴 PRODUCT — T2 hunt-vs-containment drift (connector, Phase 3).** REAL,
+reproducible 3/3 on GA: a clean hunt (13 tools, 0 errors) then self-assigns
+containment → emits a containment `capability_gap` instead of the consolidated
+`info_card`. Fix in `system_prompt_triage.md`; **bundle with D2** — both are
+triage-toolset scoping. Deterministic connector-side assertion: build toolset
+must exclude `TRIAGE_ONLY_TOOLS` (see recommendation under Phase 4 below).
+
+**C. 🔴 PRODUCT — D2 (connector, Phase 3), live-confirmed + re-framed.** Not "the
+guard fires in build": the triage/containment toolset is REACHABLE in
+`intent:build` at all (matches the C5 `TRIAGE_ONLY_TOOLS` gap — framework wheel
+needs 0.4.20, NOT active on 206). Fix + assert connector-side. P6a/P6b stay
+`xfail`; promote only on repeated clean runs, never off one.
+
+**D. 🟠 INFRA (not widget) — GA box.** Surfaced by the matrix, need owner action,
+NOT code fixes here: (1) `mcp_soc__*` bridge → HTTP 401 on GA ("Failed to trigger
+playbook. Reason 401") — enrichment degrades; check the bridge credential path on
+`.env.fsr-ga` = 159:13000. (2) `faz_*`/`fmg_*` → `unknown_connector` +
+FortiAnalyzer connector not configured → T3/T7 DEGRADED. See
+[[fsr_mcp_bridge_deploy]].
+
+**E. 🟡 HARNESS — no-turn flake (~1 row in 14).** Composer accepts the prompt but
+no `chat_turn` fires → 0 frames. Now loud (`FAIL (no turn captured)`) instead of a
+false agent verdict. Root cause open. Deliberately NOT auto-retried (a retry
+risks double-sending a merely-slow turn). Investigate the composer submit path in
+`lib/liveUiDriver.ts` `sendChat` (Enter keypress vs a send button / debounce).
+
+**F. 🟡 GATING — promote on box-local evidence only.** GA: T1 + P1 clean 3/3 →
+safe to gate `strict` on GA. Do NOT inherit gate levels across boxes (the
+T3/T7-strict mistake). Whoever owns the GA scenario file (`scenarios.local.json`,
+gitignored) should set T1/P1 strict there after their own repeated-clean runs.
+
 ## Origin
 Live chat on box 206 (playbooks page), `intent:build`, connector 0.4.51, widget
 1.2.19. Prompt: "create a new playbook to block an ip and create an alert".
@@ -224,6 +277,78 @@ and asserting it through a stochastic LLM turn will always be probabilistic. Add
 (deterministic, instant). The matrix's real strength is grading what the model
 DID do (`triage_tool_in_build`, `native_action_as_wrong_step_type`) and guarding
 D1 via `forbidRedFlags`, where the entity is set by the widget, not the model.
+
+## GA run (`MATRIX_ENV=.env.fsr-ga`, 2026-07-15) — T-rows
+
+GA = `159:13000` (same host as `.env.159`, different port; **shares records**, so
+`scenarios.local.json`'s UUIDs resolve there). Widget **1.2.21** deployed (the
+memory saying 1.2.17 is stale). 5/7 pass; 2 findings + 3 harness bugs it exposed.
+
+**Findings (product):**
+- **T2 — hunt-vs-containment drift is NOT holding.** The agent ran a full hunt and
+  wrote a strong analysis, then *self-assigned a containment check* and emitted a
+  containment `capability_gap` instead of the consolidated `info_card` — exactly
+  what T2's scenario note warns against (`system_prompt_triage.md` hunt-vs-
+  containment fix). Real defect, caught by the existing card gate, no new rule
+  needed.
+- **MCP bridge auth is failing on GA: `mcp_soc__get_indicators` /
+  `mcp_soc__get_asset` / `mcp_soc__enrich_indicator` → HTTP 401** ("Failed to
+  trigger playbook. Reason 401"). Enrichment silently degrades. The bridge is
+  linked to GA (see [[fsr_mcp_bridge_deploy]]) but the credential path is broken.
+- **FAZ/FMG NOC tools error on GA**: `faz_search_device_events`,
+  `faz_event_summary`, `fmg_get_device_status`, `fmg_get_policy_package_status`
+  → `unknown_connector`. Drove T7 to DEGRADED (5 errors).
+- **T4 is env, not a bug**: no response connector configured
+  (`find_containment_actions` → 0 actions; `fortigate-firewall get_devices_list`
+  → `unknown_operation`), so the agent correctly emitted a capability_gap rather
+  than inventing an action_card. Now **ENV-SKIP**, not FAIL.
+
+**Harness bugs the GA run exposed (all fixed + tested):**
+1. **Tool-error attribution was blank on EVERY live run.** Live `tool_result`
+   frames carry only `{tool_use_id, content}` — no `.tool`; `digestFrames` read
+   `f.tool` and got `""`, so every error printed as "✗  {json}" with no tool
+   name. Survived because the offline suite's synthetic frames set `.tool`,
+   encoding a shape the wire never produces. Now resolved via a tool_use_id →
+   name index; tests use the real wire shape.
+2. **An empty capture was blamed on the agent.** T2 once returned 0 frames AND 0
+   chat_turn requests (the prompt never reached the connector), and the eval
+   reported "FAIL (no-investigation) — an LLM summarizer that narrated the seed
+   context" — a confident accusation about a turn that never ran. Zero frames is
+   now `FAIL (no turn captured)` + `driveError` (blocks every gate).
+   **KNOWN FLAKE, open:** why the composer accepts the prompt but no `chat_turn`
+   fires (~1 row in 14 observed). Deliberately NOT auto-retried — a retry risks
+   double-sending a turn that was merely slow.
+3. **ENV-SKIP had to be narrow.** T2 and T4 BOTH end in a `capability_gap` card,
+   but only T4's is the box's fault. A naive "capability_gap ⇒ env" rule would
+   have masked T2's real defect, so ENV-SKIP fires only when containment was the
+   ASK (`kind:"containment"`) and the connector reported zero actions.
+
+**Three-run aggregate (the only honest way to read a stochastic suite):**
+
+| row | r1 | r2 | r3 | read |
+|---|---|---|---|---|
+| T1 | PASS | PASS(minor) | PASS | consistently clean → safe to gate `strict` |
+| T2 | FAIL (drift) | FAIL (no turn — harness flake) | FAIL (drift, 0 errors) | **3/3 FAIL — real defect** |
+| T3 | PASS | PASS | DEGRADED (4 err) | varies on env tool errors |
+| T4 | FAIL→ENV-SKIP | ENV-SKIP | ENV-SKIP | env, correct behaviour |
+| T7 | PASS(minor) | DEGRADED (5 err) | PASS(minor) | varies on env tool errors |
+| P1 | PASS(minor) | PASS | PASS | consistently clean → safe to gate `strict` |
+| T11 | PASS(minor) | PASS(minor) | PASS(minor) | stable |
+
+**T2 is REPRODUCIBLE (3/3), and run 3 is the cleanest proof:** a fully successful
+hunt — 13 tools, **0 errors**, found related alerts, enriched them — then
+`find_containment_actions` → `emit_capability_gap_card("ip_containment")`, closing
+with *"I need to fix the IP containment gap so we can actually block the C2."* It
+was asked to hunt and consolidate, never to contain. Not an env problem: nothing
+errored. This is the `system_prompt_triage.md` hunt-vs-containment fix not holding.
+
+**Gating recommendation, revised BY this data:** T1 + P1 are clean 3/3 → gate
+`strict`. **Do NOT gate T3/T7 strict on GA** — each went DEGRADED in 1 of 3 runs
+purely from env tool errors (`faz_*`/`fmg_*` `unknown_connector`), so strict would
+flake on a box limitation. This directly contradicts the earlier
+"T3/T7 → strict" note, which was extrapolated from 8.0/159 evidence and never
+observed on GA — the reason gates must follow box-local observation, not
+inference.
 
 ## Grader red-flag codes (extend as new failure classes surface)
 `triage_guard_in_build`, `trace_tool_no_trace`, `crud_searched_as_connector_op`,

@@ -336,3 +336,146 @@ describe("gateRow — a drive error blocks on EVERY gate", () => {
     expect(g.gateVerdict).toBe("BLOCK (drive error)");
   });
 });
+
+// ─── ENV-SKIP: box lacks the capability vs the agent misbehaving ─────────────
+//
+// Both shapes below end in a capability_gap card, but only ONE is the box's
+// fault. Observed live on GA: T4 (containment ask, zero containment actions
+// configured) correctly emitted capability_gap and must NOT red the suite; T2
+// (hunt ask) ALSO emitted a containment capability_gap — but that was the agent
+// self-assigning containment instead of consolidating its IOCs, a real defect.
+// Excusing every capability_gap would mask T2. These pin that line.
+describe("evaluate() — ENV-SKIP is narrow by design", () => {
+  const noContainment = () => ({
+    type: "tool_result", tool: "find_containment_actions",
+    content: { ok: true, target_type: "ip", actions: [], count: 0, probed: true },
+  });
+
+  test("containment ask + zero configured actions → ENV-SKIP, not FAIL", () => {
+    const frames = [
+      use("get_record"), okResult("get_record"),
+      use("find_containment_actions"), noContainment(),
+      card("capability_gap"), end(),
+    ];
+    const ev = evaluate(frames, { kind: "containment", expectedCards: ["action_card"], minTools: 1, errBudget: 1 });
+    expect(ev.verdict).toBe("ENV-SKIP (no containment capability)");
+    expect(ev.hardFail).toBe(false);
+  });
+
+  test("HUNT ask that drifts to a containment capability_gap still FAILs (the GA T2 defect)", () => {
+    // The agent hunted, then self-assigned containment and emitted a gap card
+    // instead of the consolidated info_card. Box capability is irrelevant here —
+    // it was never asked to contain.
+    const frames = [
+      use("get_record"), okResult("get_record"),
+      use("run_op"), okResult("run_op", { ok: true, data: [{ ioc: "203.0.113.66" }] }),
+      use("find_containment_actions"), noContainment(),
+      card("capability_gap"), end(),
+    ];
+    const ev = evaluate(frames, { kind: "triage", expectedCards: ["info_card"], minTools: 2, errBudget: 1 });
+    expect(ev.verdict).toBe("FAIL");
+    expect(ev.hardFail).toBe(true);
+    expect(ev.metrics.missingExpected).toEqual(["info_card"]);
+  });
+
+  test("containment ask WITH actions available → no ENV-SKIP; a missing card is a real FAIL", () => {
+    const frames = [
+      use("find_containment_actions"),
+      { type: "tool_result", tool: "find_containment_actions",
+        content: { ok: true, actions: [{ connector: "fortigate-firewall", op: "block_ip" }], count: 1 } },
+      card("capability_gap"), end(),
+    ];
+    const ev = evaluate(frames, { kind: "containment", expectedCards: ["action_card"], minTools: 1, errBudget: 1 });
+    expect(ev.verdict).toBe("FAIL");
+    expect(ev.hardFail).toBe(true);
+  });
+
+  test("containment ask with no capability_gap card emitted → not an ENV-SKIP", () => {
+    const frames = [use("find_containment_actions"), noContainment(), end()];
+    const ev = evaluate(frames, { kind: "containment", expectedCards: ["action_card"], minTools: 1, errBudget: 1 });
+    expect(ev.hardFail).toBe(true);
+  });
+});
+
+// ─── Wire-shaped frames (the shape the box ACTUALLY sends) ───────────────────
+//
+// Every synthetic frame above sets tool_result.tool — but a LIVE tool_result is
+// {type, tool_use_id, content} with NO .tool; the name lives on the matching
+// tool_use.id. Reading f.tool therefore yielded "" on every real run, so the
+// tool trace and every tool-ERROR row printed a blank name ("✗  {json}") and you
+// could not tell which tool failed. The offline suite missed it for months by
+// encoding a shape the wire never produces. These use the REAL shape.
+describe("digestFrames — resolves tool names from tool_use_id (live wire shape)", () => {
+  const wireUse = (id, name, input = {}) => ({ type: "tool_use", id, name, input, tier: 1 });
+  const wireResult = (id, content) => ({ type: "tool_result", tool_use_id: id, content, duration_ms: 12 });
+
+  test("a live tool_result gets its name from the matching tool_use", () => {
+    const d = digestFrames([
+      wireUse("toolu_1", "get_record", { iri: "/api/3/alerts/x" }),
+      wireResult("toolu_1", { ok: true }),
+      end(),
+    ]);
+    expect(d.tools.join("\n")).toContain("⤷ result get_record:");
+  });
+
+  test("a live tool ERROR is attributed to its tool, not blank", () => {
+    const d = digestFrames([
+      wireUse("toolu_1", "build_playbook_from_trace", {}),
+      wireResult("toolu_1", { ok: false, code: "empty_trace" }),
+      end(),
+    ]);
+    expect(d.toolErrors).toHaveLength(1);
+    expect(d.toolErrors[0].tool).toBe("build_playbook_from_trace"); // was "" before
+  });
+
+  test("interleaved concurrent calls attribute to the right tool", () => {
+    // Two tools in flight; results can come back out of order.
+    const d = digestFrames([
+      wireUse("a", "find_operation", { q: "block" }),
+      wireUse("b", "find_connector", { q: "fortigate" }),
+      wireResult("b", { matches: [{ name: "fortigate-firewall" }] }),
+      wireResult("a", { ok: false, error: "unknown_operation" }),
+      end(),
+    ]);
+    expect(d.toolErrors.map((e) => e.tool)).toEqual(["find_operation"]);
+  });
+
+  test("an explicit .tool still wins (legacy/synthetic frames keep working)", () => {
+    const d = digestFrames([use("run_op"), errResult("run_op", { ok: false }), end()]);
+    expect(d.toolErrors[0].tool).toBe("run_op");
+  });
+});
+
+// ─── Zero frames is a DRIVE failure, not an agent verdict ────────────────────
+//
+// Observed live on GA: T2 returned 0 chat_poll frames AND 0 chat_turn requests —
+// the prompt never reached the connector. The eval nonetheless reported
+// "FAIL (no-investigation) — this is an LLM summarizer, not an investigator; the
+// agent narrated the seed context", inventing a specific behavioural accusation
+// about a turn that never ran. "No tools among real frames" and "no frames at
+// all" are different facts and must not share a verdict.
+describe("evaluate() — an empty capture is not blamed on the agent", () => {
+  test("zero frames → FAIL (no turn captured) + driveError, NOT no-investigation", () => {
+    const ev = evaluate([], { kind: "triage", expectedCards: ["info_card"], minTools: 2, errBudget: 1 });
+    expect(ev.verdict).toBe("FAIL (no turn captured)");
+    expect(ev.driveError).toBe(true);
+    expect(ev.why).not.toMatch(/summarizer|narrated/);
+  });
+
+  test("a genuine 0-tool turn (frames present) still reports no-investigation", () => {
+    // The agent really did answer from seed context — that IS an agent defect.
+    const ev = evaluate([text("Looks like a C2 beacon."), card("info_card"), end()],
+      { kind: "triage", expectedCards: ["info_card"], minTools: 2, errBudget: 1 });
+    expect(ev.verdict).toBe("FAIL (no-investigation)");
+    expect(ev.driveError).toBe(false);
+    expect(ev.why).toMatch(/summarizer/);
+  });
+
+  test("an empty capture blocks on every gate, including xfail", () => {
+    const { gateRow } = require("./live/lib/matrixDriver");
+    const evaluation = evaluate([], { kind: "build", minTools: 1 });
+    const g = gateRow({ gate: "xfail", expectRedFlags: ["triage_tool_in_build"], evaluation });
+    expect(g.blocks).toBe(true);
+    expect(g.gateVerdict).toBe("BLOCK (drive error)");
+  });
+});
