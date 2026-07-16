@@ -15,6 +15,41 @@ summary: >
 
 ## ⏭️ Open follow-ups (RESUME HERE after a context clear) — 2026-07-16
 
+### T2 ROOT CAUSE (2026-07-16, from full-transcript eval) — imperative guards force it, NOT tool pollution
+
+Read all three `_artifacts/T2r{1,2,3}.json` end-to-end. The mechanism is
+identical across runs and is a **prompt imbalance**, not tool-output pollution:
+
+1. The hunt SUCCEEDS — searches alerts/incidents on the C2 IP + host, finds a
+   10+ host botnet blast radius, and writes a full consolidated summary
+   (indicator table, attack chain, MITRE) **as plain text**. That prose IS the
+   info_card content.
+2. Because the finding is critical, the model reasonably *glances* at
+   containment: it calls `find_containment_actions`.
+3. The imperative containment machinery at `system_prompt_triage.md` **lines
+   100–132** then HIJACKS the ending: "you MUST", "`find_containment_actions` is
+   never the last thing you do", "pass it straight into
+   `emit_capability_gap_card`", "Never dead-end the analyst". The instant the
+   model touches containment, the prompt COMPELS a `capability_gap` close — which
+   replaces the hunt deliverable.
+
+Evidence: all 3 runs called `find_containment_actions`, NONE called
+`emit_info_card`/`emit_ioc_card`, all 3 ended on `emit_capability_gap_card`.
+
+**Imbalance:** containment path = loud imperative scaffolding; hunt-deliverable
+path (emit an info_card consolidating findings) = weakly specified. The earlier
+steps-6/7 edit ("only contain if asked") loses to the heavier block at 100–132.
+
+**Balanced fix direction (do NOT add another guard — the user's call):** scope the
+`find_containment_actions → capability_gap` machinery to when containment is the
+intent; make "consolidate the hunt into an `emit_info_card`/`emit_ioc_card`" the
+strong DEFAULT close for a hunt ask; allow the agent to NOTE a containment gap
+inside the info_card's next-actions WITHOUT that promoting to a capability_gap
+card that hijacks the deliverable. This is a rebalancing of existing rules, best
+done in a dedicated "evaluate the whole chat / guard balance" session (user's
+framing). Confound remains: GA `mcp_soc__` 401 degrades enrichment; fix that too
+so T2 grades cleanly.
+
 ### Session update (2026-07-16, THIRD pass) — live-verified on GA; T2 STILL FAILS
 
 Shipped connector **0.4.54** to GA (all 5 workers recycled, warmup ok, fixed
