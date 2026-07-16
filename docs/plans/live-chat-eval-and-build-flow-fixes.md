@@ -15,7 +15,40 @@ summary: >
 
 ## ⏭️ Open follow-ups (RESUME HERE after a context clear) — 2026-07-16
 
-### Session update (2026-07-16, second pass) — A/B/C/E code-landed
+### Session update (2026-07-16, THIRD pass) — live-verified on GA; T2 STILL FAILS
+
+Shipped connector **0.4.54** to GA (all 5 workers recycled, warmup ok, fixed
+prompt confirmed on-box) and live-verified everything:
+
+- **E — VERIFIED** (4× clean live drives on GA). The first drive *caught a bug my
+  own send-button change introduced* (the `.composer button` selector matched the
+  **Case context** button → injected context, never sent); corrected to
+  Enter+ng-model-settle, re-verified 4×. Committed `dd1463c`.
+- **D2 — VERIFIED ALREADY ACTIVE on GA.** Ran the build-slice scoping check
+  directly on the 159 worker: build slice = 34 tools, 22 in `TRIAGE_ONLY_TOOLS`,
+  **nothing leaked**, hunt tools present in triage slice. The resume block's "not
+  active" was 206-specific (206 pins 0.4.19; GA runs 0.4.23). No ship needed for D2.
+- **T2 — STILL FAILS 3/3 on GA even with the prompt fix live.** All three runs
+  completed a 10–13-tool hunt then **self-assigned IP containment** and closed on
+  a *containment* `capability_gap` (`capgap_ip_containment` / `capgap_block_c2` /
+  `capgap_c2_block`), never emitting the expected `info_card`. The prompt-only fix
+  (steps 6–7 + lines 41–50) is **insufficient**. Artifacts: `_artifacts/T2r{1,2,3}.json`.
+  - **Confound:** every run also hit the **GA `mcp_soc__` enrichment 401** (issue
+    D — `mcp_soc__get_indicators` / `enrich_indicator` → 401; fortiguard op
+    rejected). Enrichment failing means the agent has little to consolidate, which
+    *feeds* the drift toward containment. T2 cannot be cleanly graded on GA until
+    the `mcp_soc__` bridge 401 is fixed.
+  - **Durable fix (open, needs a decision):** per the plan's own recommendation
+    and [[eval_llm_turns_are_stochastic]] ("determinism-requiring gates belong
+    outside the LLM turn"), T2 wants a **deterministic connector-side
+    containment-drift guard** in triage: classify the ask (hunt/consolidate vs
+    explicit containment) and, on a hunt ask, refuse/steer an
+    `emit_capability_gap_card` whose `missing` is containment (guard_redirect),
+    OR withhold `find_containment_actions`/`emit_capability_gap_card` from a
+    pure-hunt turn. This is a connector design change (tradeoff: a hunt can
+    legitimately surface a containment need) + another GA ship + re-verify.
+
+
 
 - **A. DONE + committed** (`98ef332`, fsr_all_widgets): the 4 uncommitted harness
   fixes. 47/47 matrixEval green.
