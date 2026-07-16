@@ -546,6 +546,25 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   the panel survives to apply the batch's remaining proposals; an *external* edit
   still drops the batch (the `before` literals may no longer match).
 
+- **Chat history shows the current viewer, not the real author/time.** The
+  connector runs under the FortiSOAR **service account**, so it cannot derive who
+  is chatting. If the widget doesn't send the acting user, `chat_history` replays
+  each user turn as just `{user: "<text>"}` — and the widget then fills the author
+  with `$scope.initiator` (the *current* viewer) and the timestamp with
+  `Date.now()`. So reopening a chat someone else started shows *you*, *now*. Fix
+  spans both sides: the widget stamps `actor: {name, iri}` (the current SOAR user
+  from `usersService.getCurrentUser`) onto every user-originated call in
+  `_withMode`; the connector persists it per user turn (`append_transcript_user`
+  `author=`) and once per session (`set_session_initiator`, first-writer-wins),
+  and returns `author` + the original `created_at` as `ts` (epoch **seconds** —
+  the widget ×1000 for its ms message clock) on `chat_history` turns, plus a
+  session `initiator`. On replay `_appendUserMessage(text, {author, ts})` renders
+  the stored values; live sends still default to the current user + now. The
+  change is **additive/back-compatible** — an old connector omits the fields and
+  the widget falls back — so **don't** bump the contract version for it (that
+  would false-trigger the minor-drift banner on older connectors). Existing chats
+  can't be back-filled for author (never stored); timestamps can (already stored).
+
 ### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
 
 Two platform behaviors bite any live-UI Playwright drive against a FortiSOAR 8.0
