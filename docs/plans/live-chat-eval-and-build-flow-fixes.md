@@ -15,6 +15,36 @@ summary: >
 
 ## ⏭️ Open follow-ups (RESUME HERE after a context clear) — 2026-07-16
 
+### Session update (2026-07-16, second pass) — A/B/C/E code-landed
+
+- **A. DONE + committed** (`98ef332`, fsr_all_widgets): the 4 uncommitted harness
+  fixes. 47/47 matrixEval green.
+- **B/C. Code DONE + committed** (`ab3621d`, connector branch
+  `fix/persona-negative-cache`): T2 drift fixed in `system_prompt_triage.md`
+  (hunt-loop steps 6–7 now gate containment on an *explicit ask* — the conflict
+  with lines 41–50 that drove the self-assign is gone); D2 has a **deterministic
+  connector-side guard** `tests/test_intent_tool_scoping.py` (build slice excludes
+  `TRIAGE_ONLY_TOOLS` + every registered hunt tool after `register_triage_tools()`;
+  2 pass, full suite 261 pass ex. the pre-broken `test_warmup_instance_rewarm`).
+  ⏳ **Still needs a box window:** (1) T2 is a prompt fix → live re-verify on GA
+  (LLM stochastic, a clean run ≠ proof — grade the defect over ≥3 runs); (2) D2
+  becomes *active* on-box only once the framework wheel ≥0.4.20 is deployed to
+  206 (the guard catches regressions in CI regardless). Commit is UNPUSHED.
+- **E. DONE + committed** (`cacf12c`, fsr_all_widgets): fixed the no-turn flake at
+  its source — `sendChat` now dispatches an `input` event + settles 250 ms so
+  Angular's ng-model captures the text before submit, and prefers an enabled send
+  button over a blind `Enter`. Added `SendChatResult.submitConfirmed` (turn
+  started OR composer cleared within 6 s); matrixDriver treats
+  `submitConfirmed===false` as a deterministic drive error even if a stray frame
+  leaked. Honored the "NOT auto-retried" directive (can't confirm from here that
+  this widget clears the composer on send, the premise a safe resubmit needs).
+  49/49 matrixEval green; typecheck + eslint clean; `.js` rebuilt via `pnpm build`.
+
+**Remaining: D (GA infra, needs owner) + F (gating, box-local) + the two B/C
+live re-verifies above — all need a box window, no more code here.**
+
+### Original priority list (below) — items A/B/C/E now addressed above
+
 Phases 1/0/2/4 are DONE and committed (`598d319`) + live-verified on 206 and GA.
 What remains, in priority order:
 
