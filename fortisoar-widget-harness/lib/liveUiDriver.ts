@@ -131,6 +131,16 @@ interface SendChatResult {
   sawStreamingTurn: boolean;
   maxFrames: number;
   done: boolean;
+  /**
+   * Did the submit demonstrably register? True when a turn started OR the
+   * composer cleared within the submit-verify window. False means the send
+   * silently no-op'd (the ng-model debounce race behind the ~1-in-14 "no turn
+   * captured" flake) — the caller should treat the row as a drive error, not a
+   * bad agent verdict. Deliberately NOT auto-retried here: a resubmit could
+   * double-send a turn that was merely slow, so surfacing the false is the
+   * contract and the matrix layer fails the row loudly.
+   */
+  submitConfirmed: boolean;
 }
 
 interface OpenWidgetDrawerOpts {
@@ -290,9 +300,51 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
       const composer = await page.$(COMPOSER);
       if (!composer) throw new Error("composer not found — drawer did not open");
       const before = feed.polls.length;
+      const want = text.trim();
+
+      // Current composer text — works for both a <textarea>/<input> (`value`)
+      // and a contenteditable div (`textContent`).
+      const composerText = async (): Promise<string> =>
+        (await composer.evaluate(
+          (el: HTMLElement & { value?: string }) =>
+            ("value" in el ? el.value : el.textContent) || "",
+        )).trim();
+
       await composer.click();
       await composer.type(text, { delay: 15 });
-      await page.keyboard.press("Enter");
+      // Close the no-turn flake at its source: pressing Enter the instant typing
+      // finishes can beat Angular's ng-model debounce, so the send handler reads
+      // an empty model and no-ops — the composer keeps the text and no chat_turn
+      // fires. Dispatch an explicit input event and let the model settle before
+      // submitting.
+      await composer.evaluate((el: HTMLElement) =>
+        el.dispatchEvent(new Event("input", { bubbles: true })));
+      await page.waitForTimeout(250);
+
+      // Prefer an enabled send button (a click doesn't depend on the keydown
+      // debounce at all); fall back to Enter for layouts without one.
+      const sendBtn = await page.$(
+        "#custom-modal .composer button:not([disabled]), .composer button:not([disabled])",
+      );
+      if (sendBtn) await sendBtn.click().catch(() => {});
+      else await page.keyboard.press("Enter");
+
+      // Confirm the submit registered: a turn starts, or the composer clears.
+      // If neither happens within the verify window (and the box still holds our
+      // text), the send silently no-op'd — report submitConfirmed=false so the
+      // matrix treats it as a drive error rather than a bad agent verdict.
+      let submitConfirmed = false;
+      const verifyDeadline = Date.now() + 6000;
+      while (Date.now() < verifyDeadline) {
+        await page.waitForTimeout(500);
+        const turnStarted = feed.polls
+          .slice(before)
+          .some((p) => p.turn != null || p.frames > 0);
+        if (turnStarted || (await composerText()) !== want) {
+          submitConfirmed = true;
+          break;
+        }
+      }
 
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
@@ -307,6 +359,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
         sawStreamingTurn: streaming.length > 0,    // the fix's acceptance signal
         maxFrames: Math.max(0, ...mine.map((p) => p.frames)),
         done: !!(mine[mine.length - 1] && mine[mine.length - 1].done),
+        submitConfirmed: submitConfirmed || streaming.length > 0,
       };
     },
 

@@ -198,7 +198,19 @@ function evaluate(allFrames, opts = {}) {
   const sigs = [...new Set(toolErrors.map((e) => (e.payload.match(/"(error|message|suggestion)":"[^"]{0,60}/) || [e.payload.slice(0, 60)])[0]))];
 
   let verdict, why, driveError = false;
-  if (!(allFrames || []).length) {
+  if (opts.submitConfirmed === false) {
+    // The live driver typed the prompt but the submit never registered (the
+    // composer kept the text and no turn started within the verify window) —
+    // the ~1-in-14 ng-model debounce no-turn flake. Even if a stray frame from
+    // an earlier turn leaked into the capture, THIS turn never ran, so this is a
+    // drive/capture failure, not agent behaviour. Caught deterministically here
+    // (via SendChatResult.submitConfirmed) rather than inferred from 0 frames.
+    verdict = "FAIL (no turn captured)";
+    why = "sendChat reported submitConfirmed=false — the composer accepted the prompt but the " +
+      "submit did not register (ng-model debounce race); the turn never streamed. A drive/capture " +
+      "failure, not agent behaviour. Re-run the row.";
+    driveError = true;
+  } else if (!(allFrames || []).length) {
     // NOTHING was captured — no frames, so the turn never streamed. This is NOT
     // an agent verdict: with zero frames the minTools branch below would call it
     // "an LLM summarizer that narrated the seed context instead of
@@ -411,7 +423,7 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
 // recordUuid, prompt, expectedCards[], minTools, errBudget, timeoutMs }.
 async function runScenario(scenario) {
   const { frames, res, requests } = await captureScenario(scenario);
-  const evaluation = evaluate(frames, scenario);
+  const evaluation = evaluate(frames, { ...scenario, submitConfirmed: res.submitConfirmed });
   // Red-flag the live capture through the SAME rules that grade offline
   // `.events.json` exports, so a known-bad flow signature caught once offline
   // gates the live matrix forever after. Lazy require: module cycle (see

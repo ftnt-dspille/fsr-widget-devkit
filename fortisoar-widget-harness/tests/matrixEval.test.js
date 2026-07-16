@@ -478,4 +478,23 @@ describe("evaluate() — an empty capture is not blamed on the agent", () => {
     expect(g.blocks).toBe(true);
     expect(g.gateVerdict).toBe("BLOCK (drive error)");
   });
+
+  test("submitConfirmed=false → drive error even when a stray frame leaked in", () => {
+    // A frame from an earlier turn is present, so the zero-frames guard would
+    // miss it — but the submit never registered, so THIS turn never ran.
+    const ev = evaluate([text("stale frame from a prior turn")],
+      { kind: "triage", expectedCards: ["info_card"], minTools: 2, errBudget: 1,
+        submitConfirmed: false });
+    expect(ev.verdict).toBe("FAIL (no turn captured)");
+    expect(ev.driveError).toBe(true);
+    expect(ev.why).toMatch(/submitConfirmed/);
+  });
+
+  test("submitConfirmed=true (or omitted) does not force a drive error", () => {
+    const ev = evaluate([text("Looks like a C2 beacon."), card("info_card"), end()],
+      { kind: "triage", expectedCards: ["info_card"], minTools: 2, errBudget: 1,
+        submitConfirmed: true });
+    expect(ev.verdict).toBe("FAIL (no-investigation)");   // graded on merits, not drive
+    expect(ev.driveError).toBe(false);
+  });
 });
