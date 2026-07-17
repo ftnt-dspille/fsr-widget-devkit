@@ -5,7 +5,84 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-14 (Module-scoped ZTPF authoring persona: v1 COMPLETE — built, full agentic turn LIVE-PASSED on 8.0 box 206, merged to default branches + pushed to origin)_
+_Last updated: 2026-07-16 (C2 update_playbook ACTUALLY fixed — the write turns on `@id`, not `$relationships`; + every AI edit now snapshots first, fail-closed. Both LIVE-VERIFIED on 206 as connector 0.4.68)_
+
+> **🔴→✅ 2026-07-16 — C2 was NEVER fixed, and now is. Plus: AI edits were unrecoverable.**
+> Plan: `docs/plans/build-persona-validation-plan.md`; memory
+> `update_playbook_write_path_at_identity`. Connector **0.4.68** on 206, pushed.
+> - **The 2026-07-13 "C2 RESOLVED / LIVE-VERIFIED" entry below (and its commit
+>   `8597807`) is FALSE.** On 206 the PUT 409'd on *every* attempt and the edit never
+>   landed. The earlier entry at the bottom of the Three-pillar row — "both update
+>   paths fail … the committed claims are unverified-and-wrong" — was **right all
+>   along**; the later "resolved" entry overwrote a correct diagnosis with a wrong one.
+> - **Real root cause (live-diagnosed, not inferred):** FortiSOAR decides
+>   **create-vs-update on `@id`**, not `uuid`. The compiler emits `uuid` and no `@id`,
+>   and its uuids are *deterministic* — so they collide EXACTLY with the live records
+>   and the `$relationships=true` cascade tried to INSERT over them
+>   (`UniqueConstraintViolationException … fields (uuid)`). `$relationships=true` was
+>   never the missing piece; the identity was. The old entry's GET-modify-PUT probe
+>   passed only because a GET's steps already carry `@id` — that never generalised to
+>   the compiled body the op actually sends.
+> - **Fix:** read the live workflow → graft its `@id`s onto the compiled body → PUT.
+>   New steps stay `@id`-less and are created; live steps absent from the body are
+>   dropped by the cascade.
+> - **`import_jobs merge_replace` fallback DELETED, not fixed.** It wasn't the
+>   designer's mechanism (re-importing the WHOLE collection to change one step), and
+>   live it returned `ok=True` while applying nothing — turning every PUT failure into
+>   a **phantom success**. It existed only because the PUT was broken. `update_failed`
+>   is now honest and carries the restore point.
+> - **🔴 Separately: `create_version` appeared NOWHERE in the connector.** Shipped AI
+>   edits had **no rollback point** — and the `$relationships` cascade that makes the
+>   write work is exactly what makes it destructive (it replaces nested step/route/group
+>   records). `update_playbook` now snapshots into the playbook's **Versions tab**
+>   before touching it, **fail-closed** (no restore point ⇒ no edit). Prunes only its
+>   own `ai-pre-edit` snapshots at FortiSOAR's 20-cap; never a human's.
+> - **LIVE-VERIFIED on 206 (0.4.68)**, full loop: `method=put`, snapshot holds the
+>   user's *pre-edit* work, the edit lands, restore reverts it. Probe:
+>   `scripts/_p1_snapshot_live_confirm.py` (gitignored per `scripts/_*` convention).
+> - **Lesson, recorded because it cost real time:** a commit message and a docstring
+>   both claimed "live-verified on 8.0" for 3 releases while the feature never worked,
+>   and every unit test was green throughout. **A commit message is not evidence; only
+>   the box is.** This is precisely the gap the behavioural eval bar exists to close.
+
+> **✅ 2026-07-16 — Lookup-tool hardening + persona-gated `run_playbook` (from live 206 session review).** Reviewed real agent sessions on 206; found three systemic lookup failures + a missing playbook-exec capability. Memory: `soc_triage_lookup_hardening_and_run_playbook`.
+> - **#1 clean error envelope** (`_live_crudhub.py`): recovers the real HTTP status behind a loopback error instead of collapsing to a synthetic `599`, and strips the internal `https://localhost` host. A 404 now surfaces as clean `not_found` across every tool (was a raw `http_599` blob + URL leak). **LIVE-VERIFIED on 206** (fabricated uuid → clean not_found).
+> - **#4 field-filter search** (`search_module_records`): `filters={field:value}` arg AND a `field:value` written into `q` route to a real equality filter instead of full-text `$search` that silently returned zero for existing records (9 observed false negatives, e.g. `datakey:interface_stats`). Empty results carry a hint; `$search` fallback keeps a bad field from regressing. **LIVE-VERIFIED on 206** (`datakey:interface_stats` → total 1, matched_by=filter).
+> - **#2 module suggestion** (reactive, never blocking — the ref catalog isn't authoritative for custom modules): a genuine 404 on a bad module route is enriched with the nearest known module. **LIVE-VERIFIED on 206** (`ztpfRunGroups` → suggestions `["ztpf_run_groups"]`).
+> - **#5 `run_playbook`** (new `tools_playbook.py`, persona-gated): triggers a deployed playbook via pyfsr's typed `client.playbooks.trigger` (crudhub on-box / pyfsr off-box); motivating case = validate a metadata-source script by running "Get Metadata Source Data on Device". **Allowlist is advisory; human approval is the gate** — `run_playbook.auto` → tier 2 (auto-run), `allow` or unlisted → tier 3 approval card → runs on approve (flagged `unlisted`), no persona ⇒ refused. Dynamic tier via framework `set_run_playbook_auto_resolver` hook (getattr-guarded → older pinned wheel degrades to always-tier-3). **Live on 206:** correctly registered agent-only (excluded from the approval-bypassing `call_mcp_tool` path like the record writes; a live test caught + fixed the library dev-path `run_playbook` shadowing that path).
+> - **SHIPPED to box .206** as connector **0.4.63** (`make ship ENV=.env.206`; all 10 workers, warmup ok). Connector imports cleanly against pinned **fsr-playbooks 0.4.26** (getattr guard verified). Tests: connector 319 green; framework tier/dispatch 61 + llm 1201 green (5 pre-existing live-`.env` e2e failures unrelated).
+> - **Commits LOCAL/UNPUSHED:** framework `bf237ab` (resolver hook), connector `0542d6a` (core) + `0.4.63` fix commit. The unrelated `test_persona_resume_persist.py` session-id WIP left untouched.
+> - **✅ (A)+(B) DONE 2026-07-16 — LIVE-PROVEN on 206.** Framework **0.4.27** released to PyPI (resolver hook `bf237ab`; tag+main pushed); connector pin→0.4.27 (preflight OK, 63 symbols) + shipped as **connector 0.4.64→0.4.66** (10 workers, warmup ok, health openai-reachable). Authored Key Store persona `fsr_assistant_profile:ztpf_metadata_sources` (`_upsert_ztpf_metadata_persona.py`; run_playbook.allow=auto=[name,uuid]). Live turn grounded on `ztpf_metadata_sources/ecaab084-…`: model CALLED run_playbook, `stop=end_turn` (no card) ⇒ **tier-2 auto-ran** → real trigger. Connector pin+info.json UNCOMMITTED (deploy.sh doesn't commit).
+> - **🐛 run_playbook trigger-route BUG FOUND+FIXED (0.4.66, live-verified).** First run failed CS-WF-5 `list object has no element 0` — `run_playbook` used pyfsr `trigger` (manual `notrigger` route), which doesn't populate `vars.input.records[0]`. The validation playbook fires from a **record-action** trigger (`cybersponse.action`, route `81d0acd1-…`) needing `trigger_action(route, module, record_uuid)`. Fixed `tools_playbook.py`: `_record_action_trigger()` inspects the definition + routes record-action playbooks via `trigger_action`; `_task_id_of()` handles the `/action/` route's plural `task_ids` + waits. Tests +4 (18). Live: run now advances to **`awaiting`** (was `failed`) → record reached the run; pauses on device/manual-input = graceful `not_finished_awaiting_or_slow` seam (#5b follow-up to fully finish).
+> - **REMAINING:** (C) **#3 prompt guard** (only get_record IRIs from prior results; don't invent UUIDs) + **#6 `list_related_records`** (paginated/projected traversal). (D) **#5b manual-input handling inside chat** (paused-run detection → prompt as chat turn → `resume_playbook`; chat-contract change; `run_playbook` already returns `not_finished_awaiting_or_slow` as the seam).
+
+> **✅ 2026-07-16 — Persona Spine Unification (PL→P6) COMPLETE + LIVE on box 206.**
+> Collapsed the privileged hardcoded `triage`/`build` intent system and the Key
+> Store persona system into ONE resolution spine. Plan (local-only):
+> `fsr-playbook-framework/docs/plans/PERSONA_SPINE_UNIFICATION_PLAN.md`; memory
+> `persona_spine_unification_plan`.
+> - **P3 (connector `5e786b8`):** grounding/preflight/CaseState is now
+>   `ResolvedPersona.capabilities.grounding`, not an `intent=="triage"` branch. A
+>   Key Store persona opts in via `jSONValue.capabilities.grounding` and grounds on
+>   its OWN prompt. P0 goldens byte-exact.
+> - **P4 (framework `2e754d8`, released 0.4.24):** `fsr_playbooks/llm/tool_result.py`
+>   tool-output envelope contract (dict | list[dict]; fail-open, strict under
+>   `FSRPB_STRICT_TOOL_OUTPUT`); `dispatch` validates every tool output; all 56
+>   registered tools conform.
+> - **P5 (connector `8c2bf05`):** `profiles.validate_persona_record()` authoring
+>   lint + `docs/PERSONA_AUTHORING.md`.
+> - **P6 (connector `1136637`):** PLAN.md one-spine section; `TRIAGE_BUILD_AUDIT_PLAN`
+>   marked superseded.
+> - **SHIPPED to box .206** (`.env.ztpf-8.0`) as connector **0.4.56** (`bfe595c`);
+>   framework **0.4.24 on PyPI** (main+tag pushed). On-box `health_check` verified:
+>   `p4_tool_output_contract.present=true` (definitive — module imports in worker)
+>   + `c5_build_scoping.symbol_present=true`. Tests: framework 712, connector root
+>   248, triage 186, PL 5 — all green.
+> - **Connector `main` is LOCAL-only** (box got it via `make ship`, not git origin).
+> - **REMAINING = deferred GA/live only:** (1) T2 containment-drift grade on a
+>   drift-exhibiting model (GLM5 doesn't repro; durable fix = rebalance
+>   `30_what_you_do.md` L100-132), (2) live agentic-turn confirm of a Key Store
+>   grounding persona on 206.
 
 > **✅ 2026-07-15 — Widget SHIPPED (1.2.17) to GA/159 + 168; GA demo-readiness
 > VERIFIED end-to-end.** `fortiaiAgenticAssistant 1.2.17` (C3 Diagnose & fix)
@@ -128,6 +205,13 @@ _Last updated: 2026-07-14 (Module-scoped ZTPF authoring persona: v1 COMPLETE —
 > pin 0.4.19→0.4.20 + re-ship, or build-intent still sees the triage tools C5 means
 > to exclude.
 
+> **⛔ SUPERSEDED — THIS ENTRY IS WRONG. See the 2026-07-16 C2 entry at the top.**
+> The "live-verified" claim below did not hold: on 206 the PUT 409'd every time and
+> the edit never landed. The `$relationships=true` diagnosis is a red herring — the
+> write turns on **`@id`**, which a compiled body lacks. The "fresh-compiled body …
+> 200" bullet is the specific false one; only the GET-modify-PUT probe passed, because
+> a GET's steps already carry `@id`. Kept for history, not for reference.
+>
 > **2026-07-13 — C2 RESOLVED: `update_playbook` reworked + LIVE-VERIFIED on 8.0
 > (box 159).** Found the real in-place-update mechanism by inspecting the designer's
 > beautified app JS (`app.beautified.js` — canvas Save `ye()` → `Modules` $resource
