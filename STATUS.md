@@ -5,9 +5,9 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-16 (C2 update_playbook ACTUALLY fixed — the write turns on `@id`, not `$relationships`; every AI edit now snapshots first, fail-closed; build surface cut to the designer. Connector 0.4.68 LIVE-VERIFIED on 206)_
+_Last updated: 2026-07-17 (awaiting-form CHAT CARD built — the run_playbook/resume_playbook pause now renders as an interactive manual_input card with a GENERIC two-level dynamic_list picker. Connector shipped 0.4.72 to 206, EMIT side live-verified; submit rewired to a no-owners retrieve→pyfsr resume (owner-scoped answer() empties options on-box). Widget jest+e2e green. UNCOMMITTED both repos; clean live submit confirm still OPEN. See memory `soc_triage_lookup_hardening_and_run_playbook`.)_
 
-> **▶ 2026-07-16 — Build-persona validation: P0/P1/P3 done, P2→S2 is next.**
+> **▶ 2026-07-16 (session 2) — Build-persona validation: P2 done, S2 answered it, F1 FIXED (uncommitted).**
 > Plan + **RESUME BLOCK**: `docs/plans/build-persona-validation-plan.md` (read its resume block
 > first — it carries repo-by-repo state, the foreign-WIP list, and the P2 gotchas).
 > - **Goal (unchanged, unmet):** validate that agentic playbook creation actually works and the
@@ -27,14 +27,64 @@ _Last updated: 2026-07-16 (C2 update_playbook ACTUALLY fixed — the write turns
 >   the earned handoff (`openDraftInBuild`) still enters build after a real hunt, WITH a draft in
 >   hand. Widget 695 jest + 107 e2e green (19 tests across 6 specs had to be rewired — they all used
 >   `defaultIntent='build'` to reach the YAML pane).
-> - **🔜 NEXT: P2 (harness) → S2 (modify-an-existing-playbook).** P4 (designer prompt) comes AFTER
->   S2 on purpose: tuning a prompt before you can measure it is tuning blind. Start P2 from the
->   working prototype `fsr-playbook-builder/scripts/_p1_snapshot_live_confirm.py`.
-> - **⚠️ Unpushed:** widget `3b5705b` sits behind 8 pre-existing commits of the user's — pushing
->   mine pushes theirs. Ask first. Foreign WIP left untouched: widget `fsrPbRender.ts`
->   (manual_input dynamic_list), connector `tests/test_persona_resume_persist.py`.
-> - **🔑 The lesson:** every unit test stayed green through a feature that had never worked once.
->   That gap IS the reason this plan exists.
+> - **✅ P2 — the eval harness** (connector `f52af4c`). `scripts/eval_harness.py` +
+>   `eval_fixtures/`; `make eval-selfcheck ENV=<file>` runs the whole S2 shape live on 206 with the
+>   AI taken OUT (deterministic pyfsr edit), so a failure there is a harness bug, not a finding. It
+>   proves its own teardown (alerts AND run records). 19 unit tests pair every oracle with a case it
+>   must REJECT — an oracle that only ever passes is this plan's original bug one level up.
+> - **🔴 S2 — built (`b6c8b1e`), and it answered the question: the assistant is NOT the problem.**
+>   Ungrounded: **0/4** runs, each dead-ending in `analyze_playbook` with nothing to pass it, asking
+>   the analyst to paste in the playbook already on their screen. Handed the YAML (`--ground`, the
+>   only variable changed): it read, verified, and returned a correct one-field edit first try.
+>   Three live blockers, ALL reproducible with **no LLM** (`scripts/_s2_409_probe.py`):
+>   - **F1 — the build tool slice cannot READ a live playbook.** `get_record`/`search_module_records`
+>     scoped out of build by C5; `search_playbooks` = offline corpus; `analyze_playbook` takes
+>     `yaml_text` only. The widget assumed the opposite in a comment ("the connector can also fetch
+>     by iri with its own SOAR tools" — it cannot), and "⊕ Pull in this playbook's steps" fetched
+>     `?$relationships=true` then **dropped the steps** in `_composeEntitySummary`.
+>   - **F2 — `update_playbook` 409s on any playbook it did not itself compile.** `_graft_live_ids`
+>     matches steps **by uuid**, so editing a CLONE collides with the original (probe A 409s; probe C,
+>     identical body vs the fixture itself, `ok=True`). Real bug: duplicate a playbook → AI edit
+>     always fails. P0's live-verify missed it (it built its collection FROM the compiled envelope,
+>     so the uuids matched by construction).
+>   - **F3 — on a designer-built playbook the graft matches nothing** → `ok=True` but
+>     `kept=0 new=2 dropped=2`: every step destroyed and recreated. **This defeats `diff_versions`**
+>     (uuid-keyed), so the plan's own oracle only works against compiler-created fixtures.
+> - **✅ F1 FIXED and live-proven on 206 — but UNCOMMITTED.** New connector op **`decompile_playbook`**
+>   (the READ mirror of `compile_yaml`; the framework's `decompile_to_yaml` existed, it just was not
+>   exposed) + the widget calls it at designer mount → seeds `currentYaml` → carries the YAML on
+>   every build turn as `entity.playbook_yaml`. Same scenario, before → after: 8 failed
+>   `analyze_playbook` calls → a correct edit; **409 → `ok method=put`**; still-ALPHA → **runs and
+>   emits BRAVO**. Two deliberate calls: the read always hits the LIVE connector even in mock mode
+>   (a mocked answer grounds the assistant in a playbook that isn't the one on screen — worse than
+>   no grounding), and the YAML is **never truncated** like the capped record-data section (the
+>   assistant edits that text and Save compiles it back OVER the real record, so a clipped copy
+>   returns as a playbook with the analyst's steps silently deleted — it fails closed instead).
+>   Also corrected `update_playbook`'s info.json description, which still advertised the
+>   `import_jobs` fallback deleted 3 releases ago.
+>   Green: widget **708 jest / 60 suites** + e2e smoke 14/14; connector **291 root** + **227 triage**.
+> - **🔜 NEXT: F3 — graft by step NAME, not uuid** (`operations.py` `_graft_live_ids`). It is the ONLY
+>   thing between S2 and green: the edit is already behaviourally perfect, the diff just reads a
+>   one-field change as a total rewrite. The same fix closes F2 (which is currently only *dodged* —
+>   the decompile carries the clone's real name, so the uuids no longer collide; two playbooks
+>   sharing names would still 409). THEN P4 (designer prompt) — and S2 is now the argument for
+>   keeping it last: the grounded run shows the prompt is not what's broken.
+> - **⚠️ NOTHING of the F1 fix is committed, and it CANNOT be cleanly committed by itself.**
+>   `operations.py` and widget `view.controller.js` each hold the user's in-flight
+>   `manual_input`/`resume_playbook` work interleaved with mine. Mine: connector `operations.py`
+>   (`decompile_playbook`, `_live_collection_envelope`, `_entity_context_block`'s OPEN PLAYBOOK
+>   block), `info.json`, `pydantic_models.py`, `tests/test_operations.py` (+13); widget
+>   `view.controller.js` (`_seedPlaybookYaml`, `_entityPayload`), `fsrPbAgent.service.js`
+>   (`decompilePlaybook`), `tests/playbook.yaml.seed.test.js` (new, 7).
+>   **Not shipped** — the box runs the user's 0.4.72, which has no `decompile_playbook`; a ship would
+>   carry their WIP (incl. whatever currently reds `tests/test_hitl_durability.py`, which passes at
+>   HEAD — so it is theirs, not mine).
+> - **⚠️ Foreign WIP left untouched:** widget `fsrPbRender.ts`/`view.html` (manual_input
+>   dynamic_list), connector `fsr_soc_triage/tools_playbook.py`, `tests/test_persona_resume_persist.py`.
+> - **🔑 The lesson, twice over:** every unit test stayed green through a feature that had never
+>   worked once — and *this* session's first S2 draft reported **0/3 against the assistant** for
+>   failing to call `update_playbook`, which is a WIDGET op in no tool slice that it could never
+>   have called. Grade the thing that can actually act.
 
 > **🔴→✅ 2026-07-16 — C2 was NEVER fixed, and now is. Plus: AI edits were unrecoverable.**
 > Plan: `docs/plans/build-persona-validation-plan.md`; memory

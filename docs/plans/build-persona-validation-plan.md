@@ -7,19 +7,55 @@ prompt file but does not block this work).
 
 ## ▶ RESUME HERE (last touched 2026-07-16, session 2)
 
-**P2 is done and S2 has answered the question — with three live-verified blockers.** The assistant
-is *not* the problem: given the playbook's YAML it edits it correctly on the first try. It cannot
-get the YAML, and the write path breaks on any playbook it didn't itself compile. See
-§"S2 findings" below. **All three are reproducible without an LLM** (`scripts/_s2_409_probe.py`).
+**P2 is done, S2 answered the question, and F1 — the blocker it found — is FIXED and live-proven.**
+The assistant was never the problem: given the playbook's YAML it edits it correctly first try. It
+had no way to *get* the YAML. Evidence in §"S2 findings"; all three findings reproduce with **no
+LLM** (`scripts/_s2_409_probe.py`).
 
-**Next decision is yours (nothing below is started):**
-1. **F1 — give build a read path.** The cheapest is a build-slice tool that returns a live
-   playbook's YAML by IRI. Without it no designer scenario can pass, ever.
-2. **F2/F3 — the graft must match by NAME, not uuid** (`_graft_live_ids`, `operations.py:4606`).
-3. **The diff oracle is defeated by F3** — see below. Fix F3 and it works again.
+### ✅ F1 fixed — the widget now reads the open playbook (UNCOMMITTED)
 
-**P4 (prompt) is still last, and S2 is now the argument for it:** the grounded run shows the prompt
-is not what's broken.
+New connector op **`decompile_playbook`** (the READ mirror of `compile_yaml`; the framework's
+`decompile_to_yaml` already existed and simply was not exposed) + the widget calls it at designer
+mount → seeds `currentYaml` → carries the YAML on every build turn as `entity.playbook_yaml`.
+
+Same scenario on 206, before → after: 8 failed `analyze_playbook` calls → a correct one-field edit;
+**409 → `ok method=put`**; playbook still ALPHA → **runs and emits BRAVO**.
+
+Two deliberate calls, each pinned by a test:
+- the read **always hits the live connector, even in mock mode** — a mocked answer would ground the
+  assistant in a playbook that is not the one on screen, which is worse than no grounding;
+- the YAML is **never truncated** (unlike the capped record-data section). The assistant edits that
+  text and Save compiles the result back *over* the real record, so a clipped copy would return as
+  a playbook with the analyst's steps silently deleted. It fails closed instead.
+
+Green: widget **708 jest / 60 suites** + e2e smoke 14/14; connector **291 root** + **227 triage**.
+
+### 🔜 NEXT: F3 — graft by step NAME, not uuid
+
+`_graft_live_ids` (`operations.py`). **It is the only thing between S2 and green:** the edit is
+already behaviourally correct, but every step gets a new uuid, so the uuid-keyed `diff_versions`
+reads a one-field change as a total rewrite (`changed=[] added=2 removed=2`). The same fix closes
+F2, which today is only *dodged* — the decompile carries the clone's real name, so the compiled
+uuids no longer collide with the original; two playbooks sharing names would still 409.
+
+**Then P4 (prompt), still last** — and S2 is now the argument for that ordering rather than an
+instinct: the grounded run shows the prompt is not what is broken.
+
+### ⚠️ None of the F1 fix is committed, and it cannot be cleanly committed alone
+
+`operations.py` and widget `view.controller.js` each interleave the user's in-flight
+`manual_input`/`resume_playbook` work with mine, so any commit of mine drags theirs in.
+- **Mine (connector):** `operations.py` (`decompile_playbook`, `_live_collection_envelope`, the
+  OPEN PLAYBOOK block in `_entity_context_block`), `info.json` (the new op + corrected the
+  `update_playbook` description, which still advertised the `import_jobs` fallback deleted 3
+  releases ago), `pydantic_models.py`, `tests/test_operations.py` (+13).
+- **Mine (widget):** `view.controller.js` (`_seedPlaybookYaml`, `_entityPayload`),
+  `fsrPbAgent.service.js` (`decompilePlaybook`), `tests/playbook.yaml.seed.test.js` (new, 7).
+- **Not shipped.** The box runs the user's **0.4.72**, which has no `decompile_playbook`; a ship
+  would carry their WIP — including whatever currently reds `tests/test_hitl_durability.py` (it
+  passes at HEAD, so it is theirs, not mine).
+- **Foreign WIP, untouched:** widget `fsrPbRender.ts` / `view.html` (manual_input dynamic_list),
+  connector `fsr_soc_triage/tools_playbook.py`, `tests/test_persona_resume_persist.py`.
 
 ### State by repo
 
@@ -59,8 +95,10 @@ is not what's broken.
 (the YAML a read tool *would* have returned, injected — the only variable changed): it read the
 playbook, verified it, emitted a correct one-field revision and an offer card on the first try.
 
-**F1 — the build persona cannot read the playbook it is editing.** Its whole premise (Decision 1:
-"may assume an open playbook with a real step graph") is unmet by the shipped toolset.
+**F1 — the build persona cannot read the playbook it is editing.** ✅ **FIXED** (see the resume
+block: `decompile_playbook` + widget seeding, live-proven, uncommitted). Its whole premise
+(Decision 1: "may assume an open playbook with a real step graph") was unmet by the shipped
+toolset. Kept in full below because the *shape* of the gap is what the fix has to keep closed:
 - `tools_for_intent("build")` has no tool that reads a live playbook. `get_record` and
   `search_module_records` are excluded from build by **C5's triage-only scoping**
   (`fsr_soc_triage/registry.py:88` adds them to `TRIAGE_ONLY_TOOLS`); `search_playbooks` queries an
