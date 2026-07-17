@@ -1,8 +1,63 @@
 # Build-persona validation plan — "the playbook actually runs"
 
-**Status:** DRAFT — not started. Written 2026-07-16.
 **Sibling plan:** `live-chat-eval-and-build-flow-fixes.md` (triage-side T2/D2 defects; shares the
 prompt file but does not block this work).
+
+---
+
+## ▶ RESUME HERE (last touched 2026-07-16)
+
+**Where the work is: the plumbing is fixed and live-verified; the actual question is unanswered.**
+P0/P1/P3 are done. **Nothing yet tests whether the assistant is any GOOD at building playbooks** —
+that starts at S2, and P2 is the only thing in the way.
+
+### State by repo
+
+| Repo | State |
+|---|---|
+| **connector** (`ConnectorsV2/fsr-playbook-builder`) | 3 commits **PUSHED** (`cd842e7`, `a964ee3`, `156db66`); **shipped to box 206 as 0.4.68**, live-verified. Suite 260 green + triage 215 green. |
+| **fsr_all_widgets** | 1 commit local (`85abea5`, STATUS.md + this plan). Plus this resume edit. **Unpushed.** |
+| **widget** (`widgets-src/fortiaiAgenticAssistant`, its OWN repo — gitignored from the parent via `widgets-src/*/`) | 1 commit local (`3b5705b`, P3). 695 jest + 107 e2e green. **Unpushed — and 8 pre-existing commits of the user's sit ahead of the remote, so pushing mine pushes theirs. ASK FIRST.** |
+
+**Foreign WIP — do not touch/commit:** `widget/widgetAssets/js/fsrPbRender.ts` (the user's
+`manual_input` dynamic_list / manager→device picker work) and, in the connector,
+`connector-fsr-soc-assistant/tests/test_persona_resume_persist.py`.
+
+### Done
+
+- **P0 — the write path.** `update_playbook` had NEVER worked (see §P0 below for the full story).
+  Fixed: graft live `@id`s onto the compiled body. `import_jobs` fallback deleted. Live-verified.
+- **P1 — the snapshot gate.** AI edits had NO rollback point at all. Now snapshots into the
+  Versions tab, fail-closed, live-verified.
+- **P3 — surface cut.** Render step parked behind `config.enableStepVerify` (default off);
+  `config.defaultIntent='build'` retired; `session_id` threaded for snapshot attribution.
+
+### Next, in order
+
+1. **P2 — the eval harness.** `scripts/_p1_snapshot_live_confirm.py` in the connector repo is a
+   WORKING prototype (gitignored per the `scripts/_*` convention — read it before rebuilding).
+   Generalise: fixture deploy (`import_from_yaml(replace=True)`) + `clone()` per test, trigger+wait,
+   marker-record assertion helper, `diff_versions` helper, run cleanup.
+2. **S2 — modify an existing playbook.** First real scenario. Smallest, sharpest oracle, and it
+   exercises everything P0/P1 just fixed. A passing S2 also regression-tests P1 for free.
+3. **P4 — the designer prompt.** Deliberately AFTER S2: writing a better prompt before the harness
+   exists is tuning blind, and this session is a strong argument against that.
+
+### The lesson this session actually taught (read before trusting any doc here)
+
+Three times, an artifact was trusted over a measurement, and three times the box disagreed:
+- a commit message + docstring claimed C2 "live-verified on 8.0" for **3 releases** while it never
+  worked once;
+- the P3 blast radius was estimated **four times** and wrong every time (cheap → 9 specs → 4 specs
+  → 10 tests → 19 tests / 6 specs). The one-command sweep that showed the whole picture took
+  seconds and should have been first;
+- "I expect the suite to come back clean" — it didn't, twice.
+
+**Trust the box and the suite, not the commit message, the docstring, or the estimate.** That gap
+is the entire reason this plan exists: every unit test stayed green through a feature that was
+totally broken.
+
+---
 
 ## Why
 
@@ -18,9 +73,15 @@ the right observable result.** Not "the right tools were called". Not "the run s
 
 ## Decisions taken
 
-1. **The build persona lives in the playbook designer, and only there.** Its prompt may therefore
+1. **The build MOUNT intent is the playbook designer, and only there.** Its prompt may therefore
    *assume* an open playbook with a real step graph, a UUID, and an ask that is about that
    playbook. This is what lets the prompt be specific rather than defensive.
+   **Precision matters here** (a loose version of this claim already had to be corrected in the
+   controller): build is not *unreachable* elsewhere. The earned handoff
+   (`openDraftInBuild` / `buildPlaybookFromTriage`, gated on `hasTriageDraft()`) still flips
+   `uiIntent` to `build` at runtime — that IS the save-as-playbook path. The difference is it
+   arrives **with a drafted playbook in hand**, so build still has something to work on. What was
+   removed is the *mount* that had nothing.
 2. **"Save as playbook" is a triage feature, not a build one.** Triage hunts, `emit_playbook_offer`
    (trace mode) summarises the hunt into draft steps, the user accepts, `push_playbook` creates the
    record. The handoff ends at *creation*; refinement happens later, in the designer.
@@ -109,7 +170,7 @@ only because the PUT was broken. Now `update_failed` is honest and carries the r
 pre-edit work, the edit lands, restore reverts it. Probe: `scripts/_p1_snapshot_live_confirm.py`
 (gitignored per repo convention for `scripts/_*`).
 
-## P1 — ✅ BUILT (uncommitted, unshipped). The snapshot gap was a live defect.
+## P1 — ✅ SHIPPED (0.4.68) + LIVE-VERIFIED. The snapshot gap was a live defect.
 
 Confirmed by grep 2026-07-16: **`create_version` / `workflow_versions` / `restore_version` appear
 nowhere in the connector's source.**
@@ -164,10 +225,33 @@ why S7 is nearly free once S5/S6 exist.
 - ~~**P0** — prove the write path.~~ **DONE** (was already fixed in 0.4.43; status was stale).
 - **P1** — 🔴 snapshot-before-write in `update_playbook`, fail-closed, + unit coverage. Ship first:
   it is a live data-loss risk in released code and does not depend on any eval work.
-- **P2** — harness: fixture deploy/clone/teardown, trigger+wait, marker-record assertion helper,
-  `diff_versions` assertion helper, run cleanup. (pyfsr gaps: no run cleanup, no step-assert
-  helpers — thin wrappers, we build them.)
-- **P3** — flag off `step_test`; retire `config.defaultIntent='build'`.
+- **P2** — 🔜 **NEXT.** Harness: fixture deploy/clone/teardown, trigger+wait, marker-record
+  assertion helper, `diff_versions` assertion helper, run cleanup. (pyfsr gaps: no run cleanup, no
+  step-assert helpers — thin wrappers, we build them.)
+
+  **Start from the working prototype**, don't rebuild from scratch:
+  `ConnectorsV2/fsr-playbook-builder/scripts/_p1_snapshot_live_confirm.py`. It already does
+  seed → act via the DEPLOYED connector → assert behaviour → restore → self-clean, and it encodes
+  every gotcha listed under §"Two traps" plus these, each of which cost a live round-trip:
+    * **Read a snapshot with `get_version()`, never a raw GET** — the server withholds the `json`
+      blob without `$includeData=true`, so a bare GET reads back an EMPTY snapshot and looks
+      exactly like a connector bug. (It isn't.)
+    * **`set_variable` takes a top-level `vars:` mapping, not `arguments:`** — the compiler rejects
+      the latter outright. It compiles to `arguments: {marker: X}`, which is what you read back.
+    * **Hard-delete needs the `$` prefix** (`$hardDelete=true&$showDeleted=true`) or the row
+      soft-deletes into the recycle bin and keeps reserving its name → the next run 409s on the
+      name. Timestamp fixture names anyway.
+    * `time.sleep(3)` after terminal status — a `create_record` commit trails the run.
+    * Trigger runs via **pyfsr directly**, never the agent's `run_playbook` (approval-gated).
+- ~~**P3** — flag off `step_test`; retire `config.defaultIntent='build'`.~~ ✅ **DONE 2026-07-16.**
+  - `step_test`'s Verify panel is behind `config.enableStepVerify`, **default off**. Code and tests
+    stay; the e2e opts in and still passes, which is what makes flipping it back a one-line change.
+  - `config.defaultIntent` is no longer read (kept only so saved configs round-trip); the edit-page
+    picker is gone — it was offering a choice with no effect.
+  - **Blast radius was bigger than estimated, then smaller than feared.** 9 e2e specs set
+    `defaultIntent: 'build'`, but only 4 depended on it — the 4 that click `yaml-push`. They now
+    reach build the way a user does: the earned handoff (`enterBuildWithDraft` helper). The rest
+    reached build via fixtures and never noticed. Widget: 695 jest + smoke e2e green.
 - **P4** — flesh out the designer build prompt against its now-guaranteed context.
 - **P5** — scenarios, in order: S2 (smallest, sharpest oracle) → S1 → S5/S6/S7 → S3 → S4 → S8.
 

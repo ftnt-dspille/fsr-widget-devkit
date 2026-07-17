@@ -5,7 +5,36 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-16 (C2 update_playbook ACTUALLY fixed — the write turns on `@id`, not `$relationships`; + every AI edit now snapshots first, fail-closed. Both LIVE-VERIFIED on 206 as connector 0.4.68)_
+_Last updated: 2026-07-16 (C2 update_playbook ACTUALLY fixed — the write turns on `@id`, not `$relationships`; every AI edit now snapshots first, fail-closed; build surface cut to the designer. Connector 0.4.68 LIVE-VERIFIED on 206)_
+
+> **▶ 2026-07-16 — Build-persona validation: P0/P1/P3 done, P2→S2 is next.**
+> Plan + **RESUME BLOCK**: `docs/plans/build-persona-validation-plan.md` (read its resume block
+> first — it carries repo-by-repo state, the foreign-WIP list, and the P2 gotchas).
+> - **Goal (unchanged, unmet):** validate that agentic playbook creation actually works and the
+>   assistant is genuinely useful. Bar = **the playbook runs and does the asked-for thing**, not
+>   "the right tools were called". 8 scenarios (S1–S8); build persona is the designer's mount
+>   intent; save-as-playbook stays triage's job (the earned handoff).
+> - **✅ P0** — C2 write path fixed for real (see the entry below). Connector **0.4.68**, pushed,
+>   live-verified on 206.
+> - **✅ P1** — every AI edit now snapshots into the playbook's Versions tab first, **fail-closed**.
+>   Live-verified: snapshot holds the user's PRE-edit work, the edit lands, restore reverts it.
+> - **✅ P3 — build surface cut** (widget commit `3b5705b`, **local/unpushed**): render step
+>   (`step_test`) parked behind `config.enableStepVerify` (default OFF — authoring aid, not on the
+>   compile/push path, never called by the build prompt); `config.defaultIntent='build'` **retired**
+>   (it was the one way to reach build with nothing to build against; the edit-page picker is gone —
+>   a control that silently does nothing is its own lie); `session_id` threaded so a restore point
+>   reads `ai-pre-edit <session>`. Build is now the DESIGNER's mount intent — *not* "designer-only":
+>   the earned handoff (`openDraftInBuild`) still enters build after a real hunt, WITH a draft in
+>   hand. Widget 695 jest + 107 e2e green (19 tests across 6 specs had to be rewired — they all used
+>   `defaultIntent='build'` to reach the YAML pane).
+> - **🔜 NEXT: P2 (harness) → S2 (modify-an-existing-playbook).** P4 (designer prompt) comes AFTER
+>   S2 on purpose: tuning a prompt before you can measure it is tuning blind. Start P2 from the
+>   working prototype `fsr-playbook-builder/scripts/_p1_snapshot_live_confirm.py`.
+> - **⚠️ Unpushed:** widget `3b5705b` sits behind 8 pre-existing commits of the user's — pushing
+>   mine pushes theirs. Ask first. Foreign WIP left untouched: widget `fsrPbRender.ts`
+>   (manual_input dynamic_list), connector `tests/test_persona_resume_persist.py`.
+> - **🔑 The lesson:** every unit test stayed green through a feature that had never worked once.
+>   That gap IS the reason this plan exists.
 
 > **🔴→✅ 2026-07-16 — C2 was NEVER fixed, and now is. Plus: AI edits were unrecoverable.**
 > Plan: `docs/plans/build-persona-validation-plan.md`; memory
@@ -54,6 +83,7 @@ _Last updated: 2026-07-16 (C2 update_playbook ACTUALLY fixed — the write turns
 > - **Commits LOCAL/UNPUSHED:** framework `bf237ab` (resolver hook), connector `0542d6a` (core) + `0.4.63` fix commit. The unrelated `test_persona_resume_persist.py` session-id WIP left untouched.
 > - **✅ (A)+(B) DONE 2026-07-16 — LIVE-PROVEN on 206.** Framework **0.4.27** released to PyPI (resolver hook `bf237ab`; tag+main pushed); connector pin→0.4.27 (preflight OK, 63 symbols) + shipped as **connector 0.4.64→0.4.66** (10 workers, warmup ok, health openai-reachable). Authored Key Store persona `fsr_assistant_profile:ztpf_metadata_sources` (`_upsert_ztpf_metadata_persona.py`; run_playbook.allow=auto=[name,uuid]). Live turn grounded on `ztpf_metadata_sources/ecaab084-…`: model CALLED run_playbook, `stop=end_turn` (no card) ⇒ **tier-2 auto-ran** → real trigger. Connector pin+info.json UNCOMMITTED (deploy.sh doesn't commit).
 > - **🐛 run_playbook trigger-route BUG FOUND+FIXED (0.4.66, live-verified).** First run failed CS-WF-5 `list object has no element 0` — `run_playbook` used pyfsr `trigger` (manual `notrigger` route), which doesn't populate `vars.input.records[0]`. The validation playbook fires from a **record-action** trigger (`cybersponse.action`, route `81d0acd1-…`) needing `trigger_action(route, module, record_uuid)`. Fixed `tools_playbook.py`: `_record_action_trigger()` inspects the definition + routes record-action playbooks via `trigger_action`; `_task_id_of()` handles the `/action/` route's plural `task_ids` + waits. Tests +4 (18). Live: run now advances to **`awaiting`** (was `failed`) → record reached the run; pauses on device/manual-input = graceful `not_finished_awaiting_or_slow` seam (#5b follow-up to fully finish).
+> - **✅ #5b resume_playbook DONE + LIVE-VERIFIED (connector 0.4.69).** New persona-gated agent-only `resume_playbook(run, decision)` = thin wrapper over pyfsr `PlaybooksAPI.approval` (approve=primary/reject=first-non-primary/label). Fixed `run_playbook` follow (record-`/action/` task_id doesn't correlate via log_list → follow via `wait_for_run`, surface `awaiting_input` + `run_pk`). Attached pyfsr `ManualInputAPI` as `client.manual_input` so `approval()` works on-box. Live on 206: agentic turn `run_playbook`→`awaiting_input`(pk 2973)→agent `resume_playbook(reject)`→run 2973 `finished`. **✅ 0.4.70: shows + fills the FORM** — `awaiting_input` carries `awaiting.fields` (from `input.schema.inputVariables`) + `options`; `resume_playbook` gained `inputs=` (submits via pyfsr `manual_input.answer`). Live: turn surfaced the real "Choose a Manager and a Device" fields + Ok/Cancel. Tests 29 (suite 226). Open: live-submit a valid device value (green data run); widget chat-card rendering of the form.
 > - **REMAINING:** (C) **#3 prompt guard** (only get_record IRIs from prior results; don't invent UUIDs) + **#6 `list_related_records`** (paginated/projected traversal). (D) **#5b manual-input handling inside chat** (paused-run detection → prompt as chat turn → `resume_playbook`; chat-contract change; `run_playbook` already returns `not_finished_awaiting_or_slow` as the seam).
 
 > **✅ 2026-07-16 — Persona Spine Unification (PL→P6) COMPLETE + LIVE on box 206.**
