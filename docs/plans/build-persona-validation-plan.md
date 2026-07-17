@@ -30,22 +30,78 @@ Two deliberate calls, each pinned by a test:
 
 Green: widget **708 jest / 60 suites** + e2e smoke 14/14; connector **291 root** + **227 triage**.
 
-### 🔜 NEXT: F3 — graft by step NAME, not uuid
+### ✅ F3 fixed — the graft matches by identity, not by uuid (UNCOMMITTED)
 
-`_graft_live_ids` (`operations.py`). **It is the only thing between S2 and green:** the edit is
-already behaviourally correct, but every step gets a new uuid, so the uuid-keyed `diff_versions`
-reads a one-field change as a total rewrite (`changed=[] added=2 removed=2`). The same fix closes
-F2, which today is only *dodged* — the decompile carries the clone's real name, so the compiled
-uuids no longer collide with the original; two playbooks sharing names would still 409.
+`_graft_live_ids` (`operations.py`) now pairs compiled records to live ones on **uuid first, then
+name** (the compiler's own uuid seed — the thing that made the uuids deterministic to begin with).
+Routes have no meaningful name, so they pair on **the two steps they connect**. A paired record
+takes the live **uuid as well as the `@id`**, so the live identity survives the edit — which is the
+half that restores the oracle.
 
-**Then P4 (prompt), still last** — and S2 is now the argument for that ordering rather than an
-instinct: the grounded run shows the prompt is not what is broken.
+Taking the live uuid strands every reference *to* it, so the graft then remaps them:
+route `sourceStep`/`targetStep`, a step's `group`, and the workflow's own **`triggerStep`**. An
+ambiguous name (two live steps sharing one) pairs **nothing** rather than guessing — a wrong graft
+moves the user's edit onto the wrong record silently, which is worse than the create-and-drop it
+falls back to.
+
+**Live-proven on 206** — `scripts/_f3_graft_probe.py`, no LLM, the same three targets `_s2_409_probe`
+used. Case D (designer-built, the persona's whole premise), before → after:
+
+| | before | after |
+|---|---|---|
+| write | `ok=True` | `ok=True method=put` |
+| step records | `kept=0 new=2 dropped=2` (every step destroyed + recreated) | **`kept=2 new=0 dropped=0`** |
+| `diff_versions` | `changed=[] added=2 removed=2` (reads as a total rewrite) | **`changed=1 added=0 removed=0`** — step `Emit`, field `arguments` |
+| the playbook | — | **runs, `status=finished`, emits BRAVO** |
+
+Case C (compiler-created) still updates — the uuid path is an exact identity and the name path must
+not shadow it. **The oracle this plan chose is restored:** `assert_diff_only` can now tell a
+one-field edit from collateral damage on a designer-built playbook.
+
+**The probe runs `update_playbook` LOCALLY, in-process, against the live box** (the local-dev loop
+resolves the .env pyfsr client). Deliberate: the box runs a build without this fix, and shipping one
+to prove a graft change would drag the user's in-flight WIP onto an appliance. Same `operations.py`
+either way; what the box contributes is what no unit test can fake — a real cascade PUT, a real
+constraint, a real step graph read back.
+
+**Two things the box caught that the suite could not**, both worth keeping:
+- **`triggerStep`.** The first cut remapped routes and groups, passed every unit test, and the live
+  PUT was rejected outright: `Foreign key violation on field 'triggerstep_uuid' ... is not a valid
+  entry of type 'workflow_steps'`. It lives on the *parent* record, not alongside the steps, so it
+  is the reference easiest to forget. Now pinned by a unit test.
+- **F2 was mischaracterised.** The fix closes the **uuid** collision, but "duplicate a playbook → AI
+  edit always fails" was not quite the bug. Probe A (the clone) now fails with an honest
+  `(name, collection)` conflict — because that body asks to rename the clone *onto the fixture's
+  name*, which the platform should refuse. And that ask is only reachable by hand: a decompile hands
+  the assistant the **clone's** name, which is case D, which passes. Compiled uuids are seeded from
+  collection+playbook name, so two live records can only collide on uuid if they already collide on
+  `(name, collection)` — which the platform forbids anyway. F2 is closed; its *description* in
+  §"S2 findings" below overstates it.
+
+Green: connector **303 root** + **227 triage**. 9 of the 13 new graft tests go **red** against the
+old uuid-only graft (verified by pinning it back in); the 4 that stay green are the invariance
+guards (uuid-wins-over-name, refuses-to-guess, non-mutating) — they must hold on both.
+
+⚠️ `tests/test_hitl_durability.py::test_manual_input_unreachable_run_degrades_cleanly` is red, and it
+is **not mine** — it fails identically with the old graft pinned back in. It is the user's
+`manual_input` WIP, exactly as this plan predicted.
+
+### 🔜 NEXT: P4 — the designer prompt
+
+The last item, and S2 is the argument for that ordering rather than an instinct: the grounded run
+shows the prompt is not what is broken. F1 gave the persona a read path; F3 makes its writes
+surgical. What is left is whether the prompt asks for the right thing.
 
 ### ⚠️ None of the F1 fix is committed, and it cannot be cleanly committed alone
 
 `operations.py` and widget `view.controller.js` each interleave the user's in-flight
 `manual_input`/`resume_playbook` work with mine, so any commit of mine drags theirs in.
-- **Mine (connector):** `operations.py` (`decompile_playbook`, `_live_collection_envelope`, the
+- **Mine (connector), F3:** `operations.py` (`_graft_live_ids` rewritten + new `_uuid_from_ref` /
+  `_remap_ref` / `_match_live_records` / `_k_uuid` / `_k_name` / `_k_route_ends`),
+  `tests/test_operations.py` (+13). Plus `scripts/_f3_graft_probe.py` (new) — **local-only, never
+  committed**: `.gitignore:31` (`scripts/_[a-z]*.py`) is the repo's convention for probes, the same
+  reason `_s2_409_probe.py` isn't tracked either.
+- **Mine (connector), F1:** `operations.py` (`decompile_playbook`, `_live_collection_envelope`, the
   OPEN PLAYBOOK block in `_entity_context_block`), `info.json` (the new op + corrected the
   `update_playbook` description, which still advertised the `import_jobs` fallback deleted 3
   releases ago), `pydantic_models.py`, `tests/test_operations.py` (+13).
@@ -112,7 +168,15 @@ toolset. Kept in full below because the *shape* of the gap is what the fix has t
   `_composeEntitySummary` (`view.controller.js:3507`) renders only name/severity/status/description
   and drops the step graph. The tooltip promises the one thing it doesn't do.
 
-**F2 — `update_playbook` 409s on any playbook it did not itself compile.** `_graft_live_ids`
+**F2 — `update_playbook` 409s on any playbook it did not itself compile.** ✅ **FIXED** (see the
+resume block) — **and overstated here.** The uuid collision was real and is closed. But "duplicate a
+playbook → fails every time" was not the bug: probe A asks to rename the clone *onto the fixture's
+name*, and post-fix it fails with an honest `(name, collection)` conflict the platform *should*
+raise. That ask is only reachable by hand — a decompile hands the assistant the clone's name, which
+is case D, which passes. Compiled uuids are seeded from collection+playbook name, so two live
+records can only collide on uuid if they already collide on `(name, collection)`, which is forbidden
+anyway. Kept in full below because the *diagnosis method* (a clean no-LLM control) is the reusable
+part. `_graft_live_ids`
 (`operations.py:4606`) matches compiled steps to live steps **by uuid**, so it only grafts when the
 target's step uuids ARE the compiler's deterministic ones. Clean control, no LLM, 2/2 reproducible:
 
@@ -126,23 +190,29 @@ user-facing bug: **duplicate a playbook, ask the assistant to tweak the copy →
 P0's live-verify never saw this because it created its collection *from* the compiled envelope, so
 the uuids matched by construction.
 
-**F3 — on a designer-built playbook the "in-place update" replaces every step.** Probe D: target's
+**F3 — on a designer-built playbook the "in-place update" replaces every step.** ✅ **FIXED and
+live-proven on 206** (`kept=2 new=0 dropped=0`, `diff changed=1 added=0 removed=0`, and the playbook
+runs — see the resume block). Kept in full because the shape of the gap is what the fix must keep
+closed. Probe D: target's
 step uuids random (as the designer makes them), body's names hash to uuids that exist nowhere → the
 graft matches nothing → `ok=True`, edit lands, but `kept=0 new=2 dropped=2`. Every step record is
 destroyed and recreated. `_graft_live_ids`'s docstring ("Compiled uuids are deterministic, so they
 collide EXACTLY with the live ones") is true *only* for a playbook the compiler created — which a
 designer-built playbook, the persona's entire premise, is not.
 
-**F3 defeats this plan's chosen oracle.** `diff_versions` is **uuid-keyed**
+**F3 defeated this plan's chosen oracle** (✅ restored by the fix — `assert_diff_only` now reads a
+one-field edit on a designer-built playbook as exactly that). `diff_versions` is **uuid-keyed**
 (`pyfsr/api/playbooks.py:303`), so a correct one-field AI edit of a designer-built playbook reads as
 `added=N, removed=N` — a total rewrite — and no `assert_diff_only` expectation can distinguish it
 from actual collateral damage. Fixing F3 (graft by name) restores the oracle; until then S2's diff
 check only works against compiler-created fixtures.
 
-**Suggested fix for F2+F3 (one change):** match `_graft_live_ids` by **step name** (the compiler's
-own uuid seed) with uuid as a fallback, and align each compiled step's uuid to its live
-counterpart's the way the workflow uuid is already aligned (`operations.py:4769`). That makes the
-cascade update in place for designer-built and cloned playbooks alike.
+**Suggested fix for F2+F3 (one change):** ✅ **DONE, and the suggestion was two-thirds right.**
+Matching by name with uuid as a *fallback* had the precedence backwards — uuid is an exact identity
+and must win; name is the inference. And "align each compiled step's uuid to its live counterpart's"
+is correct but incomplete: doing it strands every reference *to* that step, so the graft must also
+remap route endpoints, a step's `group`, and the workflow's `triggerStep` — the last of which only
+the box found (the PUT is rejected on a `triggerstep_uuid` foreign key). See the resume block.
 
 ### The lesson this session actually taught (read before trusting any doc here)
 
@@ -157,6 +227,19 @@ Three times, an artifact was trusted over a measurement, and three times the box
 **Trust the box and the suite, not the commit message, the docstring, or the estimate.** That gap
 is the entire reason this plan exists: every unit test stayed green through a feature that was
 totally broken.
+
+**F3 made it four, and this one cuts closer** (2026-07-17): the fix had **13 new unit tests, all
+green, 9 of them provably red against the old code** — and the very first live PUT was rejected on a
+`triggerStep` foreign key the tests never modelled. Tests written from the same mental model as the
+fix inherit its blind spots; they can only check the references you *remembered*. The box does not
+share the model. Two cheap habits carried this session, keep both:
+- **Pin the old implementation back in and re-run the new tests.** A test that passes against the
+  code it was written to catch is testing nothing (the plan's own oracle bug, one level up). Cost:
+  a ~20-line pytest plugin.
+- **The local-dev loop is a live probe without a ship.** `_make_request` resolves the .env pyfsr
+  client, so `operations.py` can be driven in-process against a real box — real cascade, real
+  constraints — without shipping a build or touching someone else's WIP. Reach for it *before*
+  declaring a connector change done.
 
 ---
 

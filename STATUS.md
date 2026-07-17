@@ -7,6 +7,27 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-17 (awaiting-form CHAT CARD built — the run_playbook/resume_playbook pause now renders as an interactive manual_input card with a GENERIC two-level dynamic_list picker. Connector shipped 0.4.72 to 206, EMIT side live-verified; submit rewired to a no-owners retrieve→pyfsr resume (owner-scoped answer() empties options on-box). Widget jest+e2e green. UNCOMMITTED both repos; clean live submit confirm still OPEN. See memory `soc_triage_lookup_hardening_and_run_playbook`.)_
 
+> **▶ 2026-07-17 (session 3) — F3 FIXED + live-proven on 206 (uncommitted). NEXT = P4 (prompt), the last item.**
+> `_graft_live_ids` now pairs compiled↔live records by **uuid first, then name** (routes: by the two
+> steps they connect), and a paired record takes the live **uuid as well as the `@id`** — so the live
+> identity survives the edit. Taking the uuid strands every reference to it, so the graft remaps
+> route `sourceStep`/`targetStep`, a step's `group`, and the workflow's **`triggerStep`**. Ambiguous
+> names pair nothing rather than guess. Live on 206 via `scripts/_f3_graft_probe.py` (no LLM), case D
+> (designer-built — the persona's premise): `kept=0 new=2 dropped=2` → **`kept=2 new=0 dropped=0`**;
+> `diff_versions` `added=2 removed=2` → **`changed=1 added=0 removed=0`** (step `Emit`, field
+> `arguments`); the playbook **runs, `status=finished`, emits BRAVO**. The plan's chosen oracle is
+> restored. Case C (compiler-created) still updates — no regression. Connector **303 root** + **227
+> triage** green; 9 of 13 new graft tests provably RED against the old graft.
+> **The probe runs `update_playbook` LOCALLY in-process against the box** (local-dev loop → .env pyfsr
+> client) — deliberate, so proving a graft change does not ship the user's in-flight WIP to an
+> appliance. **Two things only the box caught:** `triggerStep` (13 green unit tests, then the live PUT
+> rejected on a `triggerstep_uuid` FK — tests inherit the fix's blind spots), and that **F2 was
+> mischaracterised** (the uuid collision is closed; what remains is an honest `(name, collection)`
+> refusal for an ask only reachable by hand). ⚠️ `test_hitl_durability.py::test_manual_input_unreachable_run_degrades_cleanly`
+> is red and is **not mine** — identical failure with the old graft pinned back in (the user's
+> `manual_input` WIP). Still **UNCOMMITTED** and unshippable alone: `operations.py` interleaves my
+> F1+F3 work with the user's manual_input WIP.
+>
 > **▶ 2026-07-16 (session 2) — Build-persona validation: P2 done, S2 answered it, F1 FIXED (uncommitted).**
 > Plan + **RESUME BLOCK**: `docs/plans/build-persona-validation-plan.md` (read its resume block
 > first — it carries repo-by-repo state, the foreign-WIP list, and the P2 gotchas).
