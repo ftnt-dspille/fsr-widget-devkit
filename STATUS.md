@@ -5,7 +5,28 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-17 (awaiting-form CHAT CARD built — the run_playbook/resume_playbook pause now renders as an interactive manual_input card with a GENERIC two-level dynamic_list picker. Connector shipped 0.4.72 to 206, EMIT side live-verified; submit rewired to a no-owners retrieve→pyfsr resume (owner-scoped answer() empties options on-box). Widget jest+e2e green. UNCOMMITTED both repos; clean live submit confirm still OPEN. See memory `soc_triage_lookup_hardening_and_run_playbook`.)_
+_Last updated: 2026-07-17 (session 3c — F1+F3 + manual_input card COMMITTED + PUSHED + SHIPPED to 206 as **0.4.73**; grounded S2 build-persona eval **3/3 GREEN** with a real LLM; SUBMIT clean-green live confirmed. Build-persona bar MET. STILL OPEN: P4 framework prompt uncommitted (reference-DB clobber blocker), widget-side F1 seed committed but unpushed/unshipped. See `docs/plans/build-persona-validation-plan.md` session-3 resume block.)_
+
+> **▶ 2026-07-17 (session 3c) — build-persona validated end-to-end; connector 0.4.73 live on 206.**
+> - **F1** (read path / `decompile_playbook`) + **F3** (graft-by-name write) committed `779ae18`,
+>   **pushed**; **manual_input awaiting-form card** (EMIT + clean-green SUBMIT `respond_manual_input`
+>   no-owners retrieve→resume) committed `56bd5b1`, **pushed**. Both shipped to 206 as **0.4.73**
+>   (10/10 workers recycled, warmup OK).
+> - **Grounded S2 eval 3/3 live on 0.4.73**: every run `update_playbook ok method=put`,
+>   `diff changed=[('Emit','arguments')] added=0 removed=0`, snapshot taken, `status=finished`.
+> - **SUBMIT** live-clean inside the input window (`scratchpad/freshfwd.py`): fresh trigger → pause
+>   → forward `forwarded:True` → run advances to `finished`.
+> - **STILL OPEN (do NOT report as shipped):** P4 framework prompt is written + live-proven but
+>   UNCOMMITTED (blocked by the reference-DB clobber, below); widget-side F1 seed `7743229` committed
+>   but unpushed + unshipped (eval used `--ground` rehearsal, not the widget path on-box).
+
+> **▶ 2026-07-17 (session 3b) — P4 DONE + live-proven; 🔴 I clobbered the framework's reference DB (needs a decision).**
+> **P4** (framework, **UNCOMMITTED**): the designer prompt was promising three things that don't
+> exist, each checked against the real `tools_for_intent("build")` slice, not inferred —
+> (1) *"call `analyze_playbook` on [the IRI]"*, but that tool is `required: ['yaml_text']` with **no
+> IRI param** and nothing in the build slice reads a live playbook: **this is the sentence behind
+> S2's 0/4**; (2) `suggest_fix_for_diagnostic`, exposed to **no intent at all**; (3) "always end with
+> `emit_playbook_offer`", whose accept path **pushes/creates** — so with a playbook open it saves a
 
 > **▶ 2026-07-17 (session 3b) — P4 DONE + live-proven; 🔴 I clobbered the framework's reference DB (needs a decision).**
 > **P4** (framework, **UNCOMMITTED**): the designer prompt was promising three things that don't

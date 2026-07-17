@@ -5,9 +5,38 @@ prompt file but does not block this work).
 
 ---
 
-## ▶ RESUME HERE (last touched 2026-07-16, session 2)
+## ▶ RESUME HERE (last touched 2026-07-17, session 3)
 
-**P2 is done, S2 answered the question, and F1 — the blocker it found — is FIXED and live-proven.**
+**Session 3 — F1+F3 committed, PUSHED, SHIPPED to 206 as 0.4.73, and the grounded S2 eval is
+3/3 GREEN with a real LLM in the loop.** The build-persona bar ("the playbook runs and does the
+asked-for thing") is **met**. The manual_input awaiting-form card (EMIT + clean-green SUBMIT) is
+committed + pushed too. What this session did, precisely:
+- **connector**: `779ae18` (F1 read path + F3 graft-by-name) and `56bd5b1` (manual_input card /
+  `respond_manual_input` no-owners submit) — both **committed + pushed to origin/main**. Shipped
+  via `make ship ENV=.env.206 BUMP=patch` → **0.4.73**, all 10 workers recycled, warmup OK.
+- **grounded S2 eval** (`scripts/eval_s2_modify.py --ground --runs 3`, real LLM on 0.4.73): **3/3**.
+  Every run: `update_playbook ok method=put`, `diff changed=[('Emit','arguments')] added=0 removed=0`,
+  snapshot taken, `ran … status=finished`. F1+F3 are live-proven with the model in the loop, not
+  just by the no-LLM probes.
+- **SUBMIT clean-green live** (`scratchpad/freshfwd.py`): fresh trigger → pause → `respond_manual_input`
+  → `forwarded:True "Awaiting Playbook resumed successfully."` → run advances to `finished`, inside
+  the input-validity window. Closes the last open item on the manual_input thread.
+
+**Still open (NOT done this session — do not report these as shipped):**
+- **P4 (framework prompt) is written + live-proven but UNCOMMITTED** — blocked by the reference-DB
+  clobber below. `fsr_playbooks/agent/system_prompt_build.md` + `test_build_prompt_skeleton.py` are
+  staged in the framework repo; the pre-commit gate refuses them until the DB is restored.
+- **🔴 reference-DB blocker still open** — `<framework>/data/fsr_reference.db` is degraded to box
+  206's slim catalog (21 connectors, not 724). Backup at `/tmp/fsr_reference.db.post-my-warmup.bak`.
+  See §"BLOCKER" below; the real rebuild needs a box that has the full connector set installed.
+- **widget-side F1 seed** (`7743229`, `_seedPlaybookYaml`) is committed but **unpushed + unshipped**
+  — the real widget grounds a build turn via `entity.playbook_yaml`; the eval used `--ground`
+  (in-process decompile rehearsal), so the widget path itself is proven in unit/e2e but not yet on
+  the box. The user's manual_input dynamic_list widget WIP is still uncommitted (foreign — untouched).
+
+---
+
+**Session 2 — P2 is done, S2 answered the question, and F1/F3 are FIXED and live-proven.**
 The assistant was never the problem: given the playbook's YAML it edits it correctly first try. It
 had no way to *get* the YAML. Evidence in §"S2 findings"; all three findings reproduce with **no
 LLM** (`scripts/_s2_409_probe.py`).
@@ -183,11 +212,12 @@ repo DB, so point it at a scratch copy *before* running any connector op locally
 
 ### State by repo
 
-| Repo | State |
+| Repo | State (session 3) |
 |---|---|
-| **connector** (`ConnectorsV2/fsr-playbook-builder`) | 3 commits **PUSHED** (`cd842e7`, `a964ee3`, `156db66`); **shipped to box 206 as 0.4.68**, live-verified. Suite 260 green + triage 215 green. |
-| **fsr_all_widgets** | 1 commit local (`85abea5`, STATUS.md + this plan). Plus this resume edit. **Unpushed.** |
-| **widget** (`widgets-src/fortiaiAgenticAssistant`, its OWN repo — gitignored from the parent via `widgets-src/*/`) | 1 commit local (`3b5705b`, P3). 695 jest + 107 e2e green. **Unpushed — and 8 pre-existing commits of the user's sit ahead of the remote, so pushing mine pushes theirs. ASK FIRST.** |
+| **connector** (`ConnectorsV2/fsr-playbook-builder`) | F1+F3 (`779ae18`) + manual_input card (`56bd5b1`) **committed + PUSHED**. **Shipped to box 206 as 0.4.73**, 10/10 workers recycled. Grounded S2 eval **3/3 live**; SUBMIT live-clean. Suites green. |
+| **fsr_all_widgets** | STATUS.md + this plan updated for session 3. Local. |
+| **widget** (`widgets-src/fortiaiAgenticAssistant`, its OWN repo — gitignored from the parent via `widgets-src/*/`) | F1 seed `7743229` on top of `3b5705b` (P3). **Unpushed + UNSHIPPED** — 8+ of the user's commits sit ahead of the remote, so pushing mine pushes theirs. ASK FIRST. The user's manual_input dynamic_list WIP is uncommitted in this repo (foreign — untouched). |
+| **framework** (`fsr-playbook-framework`) | P4 (`system_prompt_build.md` + `test_build_prompt_skeleton.py`) staged, **UNCOMMITTED** — blocked by the reference-DB clobber (§"BLOCKER"). |
 
 **Foreign WIP — do not touch/commit:** `widget/widgetAssets/js/fsrPbRender.ts` (the user's
 `manual_input` dynamic_list / manager→device picker work) and, in the connector,
