@@ -7,7 +7,30 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-17 (awaiting-form CHAT CARD built — the run_playbook/resume_playbook pause now renders as an interactive manual_input card with a GENERIC two-level dynamic_list picker. Connector shipped 0.4.72 to 206, EMIT side live-verified; submit rewired to a no-owners retrieve→pyfsr resume (owner-scoped answer() empties options on-box). Widget jest+e2e green. UNCOMMITTED both repos; clean live submit confirm still OPEN. See memory `soc_triage_lookup_hardening_and_run_playbook`.)_
 
-> **▶ 2026-07-17 (session 3) — F3 FIXED + live-proven on 206 (uncommitted). NEXT = P4 (prompt), the last item.**
+> **▶ 2026-07-17 (session 3b) — P4 DONE + live-proven; 🔴 I clobbered the framework's reference DB (needs a decision).**
+> **P4** (framework, **UNCOMMITTED**): the designer prompt was promising three things that don't
+> exist, each checked against the real `tools_for_intent("build")` slice, not inferred —
+> (1) *"call `analyze_playbook` on [the IRI]"*, but that tool is `required: ['yaml_text']` with **no
+> IRI param** and nothing in the build slice reads a live playbook: **this is the sentence behind
+> S2's 0/4**; (2) `suggest_fix_for_diagnostic`, exposed to **no intent at all**; (3) "always end with
+> `emit_playbook_offer`", whose accept path **pushes/creates** — so with a playbook open it saves a
+> **duplicate** and leaves the analyst's untouched. Live on 206 (real LLM, grounded via F1's shipped
+> `entity.playbook_yaml`): **new prompt 3/3 PASS** (`verify_enhancement`, complete fence, `diff
+> changed=1 added=0 removed=0`, runs → BRAVO) vs **old prompt 1/2 FAIL** as the control (the failing
+> run emitted an offer card and **no yaml fence at all**). So F1's grounding alone gives a correct
+> EDIT but still loses the SAVE ~half the time. Durable piece = a test pinning the prompt against the
+> slice, so it can't name a tool the persona lacks. **S2 is now effectively green.**
+> 🔴 **BLOCKER, my fault:** running connector ops locally fires the warmup, which `db_write`s the
+> **box's** catalog into `FSRPB_DEV`'s `data/fsr_reference.db` → **724 connectors → 206's 21**
+> (proof: `warmup_runs` ledger). ~10 `fsr_playbooks` tests silently became skips; **31 `tooling`
+> tests FAIL** → the framework **pre-commit gate refuses the P4 commit**. Gitignored (no `git
+> restore`), no intact copy on the machine, and `fsr_reference.json` is a *reduced* export (missing
+> `config_schema_json`/`condition_value`/`observed_type`) so reseeding is lossy. Real fix =
+> `probe_connectors` against a box that has those connectors (the 26 Jun probe got 724/6867) —
+> **which box is the open question.** Backup: `/tmp/fsr_reference.db.post-my-warmup.bak`.
+> **Prevention:** `export FSRPB_DB=/tmp/probe.db` before ANY local connector op.
+>
+> **▶ 2026-07-17 (session 3) — F3 FIXED + live-proven on 206 (uncommitted).**
 > `_graft_live_ids` now pairs compiled↔live records by **uuid first, then name** (routes: by the two
 > steps they connect), and a paired record takes the live **uuid as well as the `@id`** — so the live
 > identity survives the edit. Taking the uuid strands every reference to it, so the graft remaps

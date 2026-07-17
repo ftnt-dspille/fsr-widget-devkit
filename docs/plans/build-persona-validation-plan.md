@@ -86,11 +86,79 @@ guards (uuid-wins-over-name, refuses-to-guess, non-mutating) — they must hold 
 is **not mine** — it fails identically with the old graft pinned back in. It is the user's
 `manual_input` WIP, exactly as this plan predicted.
 
-### 🔜 NEXT: P4 — the designer prompt
+### ✅ P4 — the designer prompt: DONE and live-proven (framework, UNCOMMITTED — see the blocker)
 
-The last item, and S2 is the argument for that ordering rather than an instinct: the grounded run
-shows the prompt is not what is broken. F1 gave the persona a read path; F3 makes its writes
-surgical. What is left is whether the prompt asks for the right thing.
+S2 said the prompt was not the blocker, and it was right — but "not the blocker" turned out not to
+mean "correct". P4 was mostly **deletion**: three instructions could not be followed at all, each
+verified against the real slice (`tools_for_intent("build")`), not inferred.
+
+1. **`"the open playbook's IRI is in the entity block, so call `analyze_playbook` on it"`** —
+   `analyze_playbook` is `required: ['yaml_text']` with **no IRI parameter**, and nothing in the
+   build slice reads a live playbook. **This is the sentence behind S2's 0/4.** The model was
+   obeying an instruction that named a capability that does not exist. F1 now seeds the YAML, so
+   the prompt points at the `OPEN PLAYBOOK` block and says to pass that text as `yaml_text`.
+2. **`suggest_fix_for_diagnostic`** (instructed by `add_error_handling`) — exists as an MCP
+   function, exposed to **no intent at all**. Already shipped; found by auditing the prompt against
+   the slice, not by another eval.
+3. **"the moment `verify_playbook` passes, END by calling `emit_playbook_offer`"** — unconditional.
+   That card's accept path **pushes (creates)**, so obeyed while a playbook is open it saves a
+   **duplicate** and leaves the analyst's playbook untouched. Now conditional: editing the open
+   playbook ends with the complete YAML in a fence (their Save updates in place); a NEW playbook
+   still ends with the offer.
+
+Also written down for the first time: **the widget saves the LAST ```yaml fence over the open
+record**, so a fragment — or an illustrative snippet placed *after* the full playbook — silently
+deletes every step it omits. And untouched steps must stay byte-identical **including `name:`**,
+since names are how F3's graft matches an edit to the live records it updates.
+
+**Live on 206** (`scripts/_p4_prompt_probe.py`, real LLM, real box, grounded via
+`entity.playbook_yaml` — F1's shipped contract, not S2's `--ground` rehearsal):
+
+| prompt | runs | result |
+|---|---|---|
+| **new (P4)** | **3/3 PASS** | `verify_enhancement`, a complete fence, `diff changed=1 added=0 removed=0`, playbook **runs and emits BRAVO** |
+| **old**, same grounding (the control) | **1/2 FAIL** | the failing run emitted `emit_playbook_offer` and **no yaml fence at all** — the duplicate-instead-of-edit path, exactly as predicted from the code |
+
+**So F1's grounding alone yields a correct EDIT but still loses the SAVE about half the time.** The
+control is what makes P4 a fix rather than a guess; it is stochastic, which is how it survived.
+
+**The durable part is the test, not the wording.** The prompt is now checked against
+`tools_for_intent("build")`, so it cannot name a tool the persona does not have — that catches (1)
+and (2) mechanically, and would have caught one of them before S2 spent four live runs on it. Prose
+cannot be trusted to stay true to a toolset that moves underneath it: C5's scoping silently removed
+`get_record` from build and this prompt never noticed. 5 of the new tests go red against the old
+prompt; the rest are invariance guards, including one that fails if the tool-mention parser ever
+stops seeing anything.
+
+### 🔴 BLOCKER (my fault): the framework's reference DB is clobbered, and P4 cannot commit
+
+Running connector ops **locally** fires the connector's warmup, which `db_write`s the **box's**
+catalog into `db_path` — and under `FSRPB_DEV=1` that resolves to the framework's dev store
+`data/fsr_reference.db`. My probes took it from **724 connectors → box 206's 21**. The DB's own
+ledger is the proof: `select ts, connectors, operations from warmup_runs` shows my run today at
+`21 / 280`, matching the file's current state exactly.
+
+- ~10 `fsr_playbooks` tests degrade to **skips** (`fortinet-fortisiem not in reference DB`) — a
+  green-looking run that quietly stopped testing anything;
+- **31 `tooling` tests FAIL** (`unknown_connector`) → the repo's **pre-commit gate refuses the P4
+  commit**. The hook did its job; P4 is written, live-proven, and **not committed**.
+
+**Restore is not clean, which is why it is parked rather than guessed at:**
+- gitignored (`.gitignore:13`) → no `git restore`; no intact copy anywhere on the machine (every
+  other `fsr_reference.db` is the shipped *slim* catalog, 12–23 connectors);
+- `data/fsr_reference.json` holds all 714 but is a **reduced** export — no `config_schema_json`, no
+  `parent_param_name`/`condition_value`, no `observed_type`/`coerces_from`. Reseeding from it
+  restores connector *names* while silently degrading the corpus, including the columns the
+  param-type tests read. `fsrpb refresh` is DB → JSON; there is no importer.
+- the real rebuild is `tooling/probes/probe_connectors.py` against **a box that has those connectors
+  installed** (the 2026-06-26 probe captured 724 / 6867). Which box that is, is the open question.
+  Its local fallback `fortisoar-rpm-extracted/*/info.json` does not exist here.
+
+Current state backed up to `/tmp/fsr_reference.db.post-my-warmup.bak`.
+
+**Prevention (one line, use it every time):** `FSRPB_DB` (`fsr_playbooks/_db.py:42`) wins over the
+repo DB, so point it at a scratch copy *before* running any connector op locally:
+`cp <framework>/data/fsr_reference.db /tmp/probe.db && export FSRPB_DB=/tmp/probe.db`.
 
 ### ⚠️ None of the F1 fix is committed, and it cannot be cleanly committed alone
 
@@ -436,8 +504,16 @@ why S7 is nearly free once S5/S6 exist.
     `defaultIntent: 'build'`, but only 4 depended on it — the 4 that click `yaml-push`. They now
     reach build the way a user does: the earned handoff (`enterBuildWithDraft` helper). The rest
     reached build via fixtures and never noticed. Widget: 695 jest + smoke e2e green.
-- **P4** — flesh out the designer build prompt against its now-guaranteed context.
+- ~~**P4** — flesh out the designer build prompt against its now-guaranteed context.~~ ✅ **DONE
+  2026-07-17, live-proven 3/3 on 206 with a 1/2 control on the old prompt** (see the resume block).
+  It was mostly deletion: three instructions were uncallable, one of them the cause of S2's 0/4.
+  **UNCOMMITTED** — the framework's pre-commit gate is red because my local probes clobbered its
+  reference DB (see the blocker above).
 - **P5** — scenarios, in order: S2 (smallest, sharpest oracle) → S1 → S5/S6/S7 → S3 → S4 → S8.
+  **S2 is now effectively green** — `_p4_prompt_probe.py` runs S2's shape end to end (edit lands,
+  diff shows only the asked-for change, the playbook runs and emits BRAVO), 3/3. Folding it back
+  into `eval_s2_modify.py` needs the F1+F3 connector on the box; today the probe runs the turn and
+  the push locally so it needs no ship.
 
 S2 first: it has a real fixture, a tight `diff_versions` oracle, and it exercises the write path
 that P0 confirmed already works. It also directly regression-tests P1 — a passing S2 proves both
