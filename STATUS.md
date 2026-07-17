@@ -5,7 +5,31 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-17 (session 3c — F1+F3 + manual_input card COMMITTED + PUSHED + SHIPPED to 206 as **0.4.73**; grounded S2 build-persona eval **3/3 GREEN** with a real LLM; SUBMIT clean-green live confirmed. Build-persona bar MET. STILL OPEN: P4 framework prompt uncommitted (reference-DB clobber blocker), widget-side F1 seed committed but unpushed/unshipped. See `docs/plans/build-persona-validation-plan.md` session-3 resume block.)_
+_Last updated: 2026-07-17 (session 3d — **P4 framework prompt COMMITTED** (`d9a18b7`); the reference-DB clobber that blocked it is now structurally handled: tooling gate decoupled onto a committed fixture (`071bd57`) + connector warmup guard (`285c032`). All three commits LOCAL/unpushed. STILL OPEN: widget-side F1 seed committed but unpushed/unshipped; full 724-connector dev cache still locally clobbered (no longer blocks anything).)_
+
+> **▶ 2026-07-17 (session 3d) — reference-DB clobber blocker RESOLVED; P4 committed.**
+> The framework pre-commit gate no longer depends on the mutable, clobber-prone dev cache
+> `data/fsr_reference.db`.
+> - **Gate decoupled** (framework `071bd57`): `tooling/tests/conftest.py` now copies a small
+>   COMMITTED fixture `tooling/tests/fixtures/tooling_reference.db` (~13 MB — 14 test-referenced
+>   connectors at full param fidelity + the infra tables the compiler needs) to a temp file and points
+>   `db_path`+`$FSRPB_DB` there (tmp copy because compile paths connect read-write and would otherwise
+>   trip pre-commit's "files modified by hook"). Regenerate via
+>   `tooling/tests/fixtures/build_tooling_fixture.py` — sources the committed slim catalog + the public
+>   Fortinet RPM repo (`repo.fortisoar.fortinet.com`; `apivoid/aws-access-analyzer/recorded-future/
+>   http/claroty-xdome` probed at full fidelity), regenerates `op_safety` via `probe_op_safety`.
+>   `cli.py --db` now honors `default_db_path()`/`$FSRPB_DB`. **Repo-wide gate: 1852 passed, 0 failed**
+>   (silent skips 12 → 6 — the fixture restored `fortinet-fortisiem`/`cyops_utilities` the clobber had
+>   removed, so coverage went UP).
+> - **P4 committed** (framework `d9a18b7`): open-playbook edit-in-place (final ```yaml fence → Save
+>   updates the open record) vs new-playbook `emit_playbook_offer`; + skeleton test pinning both
+>   terminal-action branches.
+> - **Warmup guard** (connector `285c032`): `operations._warmup_clobber_refusal()` refuses a warmup
+>   that would write the framework dev cache unless `FSR_REFERENCE_DB`/`FSRPB_DB` points elsewhere or
+>   `FSRPB_ALLOW_DEV_DB_CLOBBER=1`; inert on-box. Framework primitive `_db.warmup_write_path()`. Guard
+>   test green.
+> - **All three commits are LOCAL / unpushed.** The full 724-connector dev cache is still clobbered
+>   locally (21 connectors) — no longer blocks anything; rebuild from a full-catalog box when convenient.
 
 > **▶ 2026-07-17 (session 3c) — build-persona validated end-to-end; connector 0.4.73 live on 206.**
 > - **F1** (read path / `decompile_playbook`) + **F3** (graft-by-name write) committed `779ae18`,
@@ -20,15 +44,7 @@ _Last updated: 2026-07-17 (session 3c — F1+F3 + manual_input card COMMITTED + 
 >   UNCOMMITTED (blocked by the reference-DB clobber, below); widget-side F1 seed `7743229` committed
 >   but unpushed + unshipped (eval used `--ground` rehearsal, not the widget path on-box).
 
-> **▶ 2026-07-17 (session 3b) — P4 DONE + live-proven; 🔴 I clobbered the framework's reference DB (needs a decision).**
-> **P4** (framework, **UNCOMMITTED**): the designer prompt was promising three things that don't
-> exist, each checked against the real `tools_for_intent("build")` slice, not inferred —
-> (1) *"call `analyze_playbook` on [the IRI]"*, but that tool is `required: ['yaml_text']` with **no
-> IRI param** and nothing in the build slice reads a live playbook: **this is the sentence behind
-> S2's 0/4**; (2) `suggest_fix_for_diagnostic`, exposed to **no intent at all**; (3) "always end with
-> `emit_playbook_offer`", whose accept path **pushes/creates** — so with a playbook open it saves a
-
-> **▶ 2026-07-17 (session 3b) — P4 DONE + live-proven; 🔴 I clobbered the framework's reference DB (needs a decision).**
+> **▶ 2026-07-17 (session 3b) — P4 DONE + live-proven; 🔴 reference DB was clobbered (now resolved, see 3d).**
 > **P4** (framework, **UNCOMMITTED**): the designer prompt was promising three things that don't
 > exist, each checked against the real `tools_for_intent("build")` slice, not inferred —
 > (1) *"call `analyze_playbook` on [the IRI]"*, but that tool is `required: ['yaml_text']` with **no
