@@ -5,11 +5,21 @@ prompt file but does not block this work).
 
 ---
 
-## ▶ RESUME HERE (last touched 2026-07-16)
+## ▶ RESUME HERE (last touched 2026-07-16, session 2)
 
-**Where the work is: the plumbing is fixed and live-verified; the actual question is unanswered.**
-P0/P1/P3 are done. **Nothing yet tests whether the assistant is any GOOD at building playbooks** —
-that starts at S2, and P2 is the only thing in the way.
+**P2 is done and S2 has answered the question — with three live-verified blockers.** The assistant
+is *not* the problem: given the playbook's YAML it edits it correctly on the first try. It cannot
+get the YAML, and the write path breaks on any playbook it didn't itself compile. See
+§"S2 findings" below. **All three are reproducible without an LLM** (`scripts/_s2_409_probe.py`).
+
+**Next decision is yours (nothing below is started):**
+1. **F1 — give build a read path.** The cheapest is a build-slice tool that returns a live
+   playbook's YAML by IRI. Without it no designer scenario can pass, ever.
+2. **F2/F3 — the graft must match by NAME, not uuid** (`_graft_live_ids`, `operations.py:4606`).
+3. **The diff oracle is defeated by F3** — see below. Fix F3 and it works again.
+
+**P4 (prompt) is still last, and S2 is now the argument for it:** the grounded run shows the prompt
+is not what's broken.
 
 ### State by repo
 
@@ -34,14 +44,67 @@ that starts at S2, and P2 is the only thing in the way.
 
 ### Next, in order
 
-1. **P2 — the eval harness.** `scripts/_p1_snapshot_live_confirm.py` in the connector repo is a
-   WORKING prototype (gitignored per the `scripts/_*` convention — read it before rebuilding).
-   Generalise: fixture deploy (`import_from_yaml(replace=True)`) + `clone()` per test, trigger+wait,
-   marker-record assertion helper, `diff_versions` helper, run cleanup.
-2. **S2 — modify an existing playbook.** First real scenario. Smallest, sharpest oracle, and it
-   exercises everything P0/P1 just fixed. A passing S2 also regression-tests P1 for free.
-3. **P4 — the designer prompt.** Deliberately AFTER S2: writing a better prompt before the harness
-   exists is tuning blind, and this session is a strong argument against that.
+1. ~~**P2 — the eval harness.**~~ ✅ **DONE 2026-07-16** (`f52af4c`). `scripts/eval_harness.py` +
+   `scripts/eval_fixtures/marker_emitter.yaml`; `make eval-selfcheck ENV=<file>` proves the harness
+   against 206 with the AI taken out (deterministic pyfsr edit), incl. proving its own teardown.
+   19 unit tests pair every oracle with a case it must REJECT.
+2. ~~**S2 — modify an existing playbook.**~~ **BUILT, and RED for real reasons** — see below.
+3. **P4 — the designer prompt.** Still after S2, now with evidence: the grounded run shows the
+   prompt is not the blocker.
+
+## S2 findings (live on 206, connector 0.4.71 — 2026-07-16)
+
+`scripts/eval_s2_modify.py`. **The assistant is competent and structurally blocked.** Ungrounded:
+0/4 runs, every one dead-ending in `analyze_playbook` with nothing to pass it. With `--ground`
+(the YAML a read tool *would* have returned, injected — the only variable changed): it read the
+playbook, verified it, emitted a correct one-field revision and an offer card on the first try.
+
+**F1 — the build persona cannot read the playbook it is editing.** Its whole premise (Decision 1:
+"may assume an open playbook with a real step graph") is unmet by the shipped toolset.
+- `tools_for_intent("build")` has no tool that reads a live playbook. `get_record` and
+  `search_module_records` are excluded from build by **C5's triage-only scoping**
+  (`fsr_soc_triage/registry.py:88` adds them to `TRIAGE_ONLY_TOOLS`); `search_playbooks` queries an
+  **offline pattern corpus** (`tools_corpus.py:26`), not the box; `analyze_playbook` takes
+  `yaml_text` only. Verified by enumerating the slice, not by inference.
+- The widget assumes otherwise: *"the connector can also fetch by iri with its own SOAR tools"*
+  (`view.controller.js:3331`). It cannot — that comment is wrong, and the authoring quick-actions
+  ("Explain this playbook", "Find issues") all fire into this hole.
+- The **"⊕ Playbook context / Pull in this playbook's steps"** button does not pull steps.
+  `_resolveEntityRecord` does GET `?$relationships=true` (so the steps ARE on the record), but
+  `_composeEntitySummary` (`view.controller.js:3507`) renders only name/severity/status/description
+  and drops the step graph. The tooltip promises the one thing it doesn't do.
+
+**F2 — `update_playbook` 409s on any playbook it did not itself compile.** `_graft_live_ids`
+(`operations.py:4606`) matches compiled steps to live steps **by uuid**, so it only grafts when the
+target's step uuids ARE the compiler's deterministic ones. Clean control, no LLM, 2/2 reproducible:
+
+| probe | target | body | result |
+|---|---|---|---|
+| A | a **clone** of the fixture | fixture's names, marker flipped | **409 UniqueConstraintViolation** |
+| C | the **fixture itself** | *identical body* | `ok=True method=put` |
+
+The deterministic uuids collide with whatever record *does* own them (here, the original). The
+user-facing bug: **duplicate a playbook, ask the assistant to tweak the copy → fails every time.**
+P0's live-verify never saw this because it created its collection *from* the compiled envelope, so
+the uuids matched by construction.
+
+**F3 — on a designer-built playbook the "in-place update" replaces every step.** Probe D: target's
+step uuids random (as the designer makes them), body's names hash to uuids that exist nowhere → the
+graft matches nothing → `ok=True`, edit lands, but `kept=0 new=2 dropped=2`. Every step record is
+destroyed and recreated. `_graft_live_ids`'s docstring ("Compiled uuids are deterministic, so they
+collide EXACTLY with the live ones") is true *only* for a playbook the compiler created — which a
+designer-built playbook, the persona's entire premise, is not.
+
+**F3 defeats this plan's chosen oracle.** `diff_versions` is **uuid-keyed**
+(`pyfsr/api/playbooks.py:303`), so a correct one-field AI edit of a designer-built playbook reads as
+`added=N, removed=N` — a total rewrite — and no `assert_diff_only` expectation can distinguish it
+from actual collateral damage. Fixing F3 (graft by name) restores the oracle; until then S2's diff
+check only works against compiler-created fixtures.
+
+**Suggested fix for F2+F3 (one change):** match `_graft_live_ids` by **step name** (the compiler's
+own uuid seed) with uuid as a fallback, and align each compiled step's uuid to its live
+counterpart's the way the workflow uuid is already aligned (`operations.py:4769`). That makes the
+cascade update in place for designer-built and cloned playbooks alike.
 
 ### The lesson this session actually taught (read before trusting any doc here)
 
