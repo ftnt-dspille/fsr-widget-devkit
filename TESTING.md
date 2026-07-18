@@ -108,12 +108,24 @@ make ship-verify WIDGET=fortiaiAgenticAssistant [BUMP=patch]
 
 runs, in order, failing fast:
 
-1. **lint** — `widget.js lint` (controller naming / stale-version guards)
+1. **lint + typecheck** — four gates, because there are **two different linters**:
+   `widget.js lint` (the harness-server `HU.lintWidget`: controller naming /
+   stale-version / required-files) **and** the standalone `lint-angular.js`
+   (config-defaults, drawer-standalone, copyright-header, enableFor state-match…)
+   **and** `lint-testids.js`, then `typecheck-widgets.js` (checkJs). The two
+   standalone linters used to be reachable *only* via `pnpm lint` (no make target,
+   no CI, no git-hook ran them) — they're now wired here so their rules actually
+   enforce on every ship. Don't "simplify" by dropping back to just `widget.js lint`.
 2. **unit** — `make test-unit` (jest; must exit 0 — see "trustworthy green" below)
 3. **e2e (mock)** — `make test-e2e-widget` (all non-live specs; `[Ll]ive` excluded)
-4. **deploy** — `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
+4. **introspect-gate** — hermetic DOM/payload/console regression vs baseline,
+   **scoped to the shipped widget** (`GATE_WIDGET=<w>`) so an unrelated widget's
+   stale baseline can't block your ship. It still *renders* the whole fleet
+   (~2.8 min); set `SKIP_INTROSPECT=1` to bypass when box-time is tight. Re-baseline
+   an intended DOM/payload change with `make introspect`.
+5. **deploy** — `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
    at the **harness `.env`** so it deploys to the *same* box the tests hit
-5. **live-sweep** — `make test-live-sweep` (real UI vs the real connector)
+6. **live-sweep** — `make test-live-sweep` (real UI vs the real connector)
 
 Sub-commands you'll also use directly:
 

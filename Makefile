@@ -84,17 +84,22 @@ widget-inspect: ## Mount a widget in the running harness + measure it as JSON (A
 BUMP ?= patch
 ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
-	@echo "▶ 1/5 lint";       cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
-	@echo "▶ 1/5 typecheck";  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
-	@echo "▶ 2/5 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
-	@echo "▶ 3/5 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
-	@echo "▶ 4/5 deploy ($(BUMP)) via ship.sh (bulletproof start+push, harness .env → same box tests hit)"; \
+	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
+	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
+	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-testids.js $(WIDGET)
+	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
+	@echo "▶ 2/6 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
+	@echo "▶ 3/6 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
+	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline — scoped to $(WIDGET))"; \
+	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set — skipping; run 'make introspect-gate' separately)"; \
+	  else $(MAKE) introspect-gate GATE_WIDGET=$(WIDGET); fi
+	@echo "▶ 5/6 deploy ($(BUMP)) via ship.sh (bulletproof start+push, harness .env → same box tests hit)"; \
 	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/.env PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) --bump $(BUMP)
-	@echo "▶ 5/5 live-sweep"; \
+	@echo "▶ 6/6 live-sweep"; \
 	  if [ "$(WIDGET)" = "fsrSocAssistant" ]; then $(MAKE) test-live-sweep; \
 	  else echo "  (no live sweep defined for $(WIDGET) — skipping)"; fi
-	@echo "✅ ship-verify complete: $(WIDGET) gated, deployed, and live-verified."
+	@echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed, and live-verified."
 
 release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
@@ -178,9 +183,9 @@ introspect: ## Hermetic widget-render introspection (builds baseline reports; in
 	  cd $(HARNESS) && HARNESS_URL=http://localhost:$(INTROSPECT_PORT) pnpm node scripts/introspect.js; \
 	)
 
-introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors).
+introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors). GATE_WIDGET=<name> scopes the pass/fail to one widget.
 	@echo "▶ Checking regressions against baseline…"
-	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js
+	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js $(GATE_WIDGET)
 
 introspect-soar: ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. Source the box env first (e.g. `set -a; . .env.159; set +a`). ENV=.env.159 to point it; ARGS='--offline' to re-diff without driving the box.
 	@echo "▶ Rendering deployed widget(s) live + diffing vs harness baseline…"

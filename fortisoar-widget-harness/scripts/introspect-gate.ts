@@ -17,9 +17,15 @@
  * gate doesn't fail on them.
  *
  * Usage:
- *   node scripts/introspect-gate.js
+ *   node scripts/introspect-gate.js            # gate every widget
+ *   node scripts/introspect-gate.js <widget>   # gate only reports for <widget>
  *
- * Exit code: 0 if all checks pass, 1 if any widget regresses.
+ * The optional <widget> filter (the widget dir/name, unversioned) scopes the
+ * PASS/FAIL to that widget's report(s) only — used by `make ship-verify` so a
+ * single-widget ship isn't blocked by an unrelated widget's stale baseline.
+ * It does NOT change what `make introspect` renders (that's still the fleet).
+ *
+ * Exit code: 0 if all checks pass, 1 if any (in-scope) widget regresses.
  */
 
 import fs = require("fs");
@@ -61,6 +67,14 @@ function runGate(): void {
     process.exit(1);
   }
 
+  // Optional unversioned widget-name filter (e.g. "fortiaiAgenticAssistant").
+  // Report ids are versioned ("fortiaiAgenticAssistant-1.2.13"); match the
+  // exact name or the "<name>-" version prefix so a filter can't partial-match
+  // a sibling ("counter" must not catch "counterPlus").
+  const filter = (process.argv[2] || "").trim();
+  const inScope = (widgetId: string): boolean =>
+    !filter || widgetId === filter || widgetId.startsWith(filter + "-");
+
   const reports = fs.readdirSync(REPORT_DIR)
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
@@ -68,7 +82,13 @@ function runGate(): void {
       const report = loadReport(path.join(REPORT_DIR, f));
       const baseline = loadReport(path.join(BASELINE_DIR, f));
       return { widgetId, report, baseline };
-    });
+    })
+    .filter((r) => inScope(r.widgetId));
+
+  if (filter && reports.length === 0) {
+    console.log(`Introspection gate: no reports match "${filter}" — nothing to gate.`);
+    process.exit(0);
+  }
 
   let failures = 0;
   const results: string[] = [];

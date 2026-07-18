@@ -73,9 +73,107 @@ function checkNgModelDotRule(file, lines) {
 }
 // R2: $scope.config.X read in controller before defaults are applied. Causes
 // "Cannot read properties of undefined" when widget mounts with no config.
+//
+// Ordering ('config-access-before-defaults') is a SYNCHRONOUS-construction
+// hazard: it only bites when the read runs during controller construction,
+// before the guard line executes. A read inside a later-invoked function (an
+// event handler, a $scope method, a $watch/promise callback) runs long after
+// construction — the guard has already applied — so flagging it by raw line
+// order is a false positive. We judge ordering with a real JS AST: an access is
+// "before defaults" only when it lives in the SAME function scope as the guard
+// and precedes it. The missing-guard hazard ('config-defaults-missing') is
+// nesting-independent (an unguarded read crashes whenever it runs) and stays a
+// whole-file check. If the source can't be parsed we fall back to the original
+// line-based heuristic so the linter never goes dark.
 function checkConfigDefaultsBeforeAccess(file, lines) {
-    // Find the first line that GUARDS config (`if (!$scope.config) $scope.config = {}`
-    // or similar). Any read above that line is a risk.
+    const src = lines.join('\n');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    let acorn, walk;
+    try {
+        acorn = require('acorn');
+        walk = require('acorn-walk');
+    }
+    catch (_a) {
+        return checkConfigDefaultsRegex(file, lines);
+    }
+    let ast;
+    try {
+        ast = acorn.parse(src, {
+            ecmaVersion: 'latest',
+            locations: true,
+            allowReturnOutsideFunction: true,
+            allowAwaitOutsideFunction: true,
+        });
+    }
+    catch (_b) {
+        // Unparseable (exotic syntax, a partial file) — degrade, don't go dark.
+        return checkConfigDefaultsRegex(file, lines);
+    }
+    // `$scope.config` as a MemberExpression (non-computed .config on .$scope).
+    const isScopeConfig = (n) => n && n.type === 'MemberExpression' && !n.computed &&
+        n.property && n.property.name === 'config' &&
+        n.object && n.object.type === 'Identifier' && n.object.name === '$scope';
+    // A read/write of `$scope.config.X` — a 3-level member whose object is
+    // `$scope.config`. This naturally excludes the guard's own bare LHS and any
+    // `$scope.config || {}` (both 2-level).
+    const isScopeConfigDotX = (n) => n && n.type === 'MemberExpression' && isScopeConfig(n.object);
+    // Guard: first assignment whose LHS is `$scope.config` (covers `= {}`,
+    // `= $scope.config || {}`, `= angular.extend(...)`, and the if-guard's body).
+    let guard = null;
+    const accesses = [];
+    walk.ancestor(ast, {
+        AssignmentExpression(node, _st, ancestors) {
+            if (!guard && isScopeConfig(node.left)) {
+                guard = { start: node.start, line: node.loc.start.line, fn: nearestFn(ancestors) };
+            }
+        },
+        MemberExpression(node, _st, ancestors) {
+            if (!isScopeConfigDotX(node))
+                return;
+            // De-dupe nested matches (`$scope.config.a.b` visits `.a` and `.a.b`):
+            // keep only the innermost `$scope.config.X`, i.e. when the direct object
+            // is exactly `$scope.config`.
+            if (!isScopeConfig(node.object))
+                return;
+            accesses.push({ start: node.start, line: node.loc.start.line, fn: nearestFn(ancestors) });
+        },
+    });
+    if (!guard && accesses.length > 0) {
+        // Report the earliest read, matching the pre-AST behaviour.
+        const first = accesses.reduce((a, b) => (a.start <= b.start ? a : b));
+        record('warning', file, first.line, 'config-defaults-missing', 'controller reads $scope.config.X but never guards $scope.config = $scope.config || {}. ' +
+            'Cold-mount in a drawer crashes here.');
+        return;
+    }
+    if (guard) {
+        const g = guard;
+        const reported = new Set();
+        accesses.forEach((a) => {
+            // Only a synchronous, same-scope read that precedes the guard is unsafe.
+            // A read nested in a later-invoked function runs after construction.
+            if (a.fn === g.fn && a.start < g.start && !reported.has(a.line)) {
+                reported.add(a.line);
+                record('warning', file, a.line, 'config-access-before-defaults', 'reads $scope.config before the defaults guard on line ' + g.line + '.');
+            }
+        });
+    }
+}
+// Nearest enclosing Function node for an acorn-walk ancestor chain (ancestors
+// includes the node itself as the last element; its own function scope is the
+// last Function among the preceding ancestors). Returns null at module top
+// level (two top-level reads share the `null` scope, which is correct — they
+// run in the same synchronous construction pass).
+function nearestFn(ancestors) {
+    for (let i = ancestors.length - 2; i >= 0; i--) {
+        const t = ancestors[i].type;
+        if (t === 'FunctionDeclaration' || t === 'FunctionExpression' || t === 'ArrowFunctionExpression') {
+            return ancestors[i];
+        }
+    }
+    return null;
+}
+// Fallback for unparseable sources: the original line-order heuristic.
+function checkConfigDefaultsRegex(file, lines) {
     let guardLine = -1;
     const accessLines = [];
     lines.forEach((line, i) => {
@@ -253,6 +351,36 @@ function checkInfoJson(file, json) {
     const metaView = meta.view && typeof meta.view === 'object' ? meta.view : null;
     if (metaView && metaView.views) {
         record('error', file, 1, 'view-views-typo', 'metadata.view.views is not a real field. Did you mean metadata.view.enableFor? KB §18.1.');
+    }
+    // enableFor entries are UI-Router state names (`main.playbookDetail`,
+    // `viewPanel.modulesDetail`) matched against `$state.current.name` by
+    // csDrawerWidgetGroup (KB §18.4). Missing/empty enableFor is legitimate —
+    // it means "always visible" — so we DON'T flag that. We only flag entries
+    // that can never match any state, i.e. the widget silently appears nowhere:
+    //   - a marketplace *page label* ("Dashboard", "View Panel") — those scope
+    //     the dashboard picker, not the router; state names have no spaces.
+    //   - a bare segment with no dot ("dashboard" vs "main.dashboard").
+    //   - a non-string entry.
+    const PAGE_LABELS = ['View Panel', 'Dashboard', 'Reports', 'Listing', 'Add Form'];
+    if (metaView && Array.isArray(metaView.enableFor)) {
+        metaView.enableFor.forEach((entry) => {
+            if (typeof entry !== 'string') {
+                record('error', file, 1, 'enablefor-entry-not-string', 'metadata.view.enableFor contains a non-string entry (' + JSON.stringify(entry) +
+                    '). Each entry must be a UI-Router state name. KB §18.4.');
+                return;
+            }
+            if (PAGE_LABELS.indexOf(entry) >= 0 || /\s/.test(entry)) {
+                record('error', file, 1, 'enablefor-page-label', 'metadata.view.enableFor entry "' + entry + '" looks like a marketplace page ' +
+                    'label, not a UI-Router state — it will never match $state.current.name so the ' +
+                    'drawer icon appears nowhere. Use a state name like "main.dashboard". KB §18.4.');
+                return;
+            }
+            if (entry.indexOf('.') < 0) {
+                record('warning', file, 1, 'enablefor-bare-state', 'metadata.view.enableFor entry "' + entry + '" has no dot; UI-Router state ' +
+                    'names are namespaced (e.g. "main.' + entry + '" / "viewPanel.modulesDetail"). ' +
+                    'A bare segment matches no state, so the widget stays hidden. KB §18.4.');
+            }
+        });
     }
     // metadata.pages is required for dashboard / view-panel widgets but
     // legitimately empty for drawer widgets (their `enableFor` array drives

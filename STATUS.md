@@ -7,6 +7,71 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 committed**; linter gap **fixed + released (v0.4.28) + live on 206 (0.4.74)**; S7 pytest landed (parallel session); S5 ground truth characterized. Next: S5. See top entry.)_
 
+> **▶ 2026-07-18 (session 3h) — Two-agent lane split (Frontend / Backend) + patch_proposal contract.**
+> Agentic-assistant work partitioned so two agents don't collide (handoff:
+> `fortisoar-widget-harness/scratchpad/LANE_B_BACKEND_HANDOFF.md`).
+> - **Lane A (Frontend — widget + harness):** this session. Introspection DOM/style
+>   diffing was already DONE 2026-07-12 (STATUS was stale). **✅ `patch_proposal`
+>   chat-card renderer BUILT + tested (uncommitted):** contract in `contract.d.ts`;
+>   `normalizePatchProposal` in `fsrPbRender.ts` (+compiled .js, tsc strict clean);
+>   `acceptPatchProposal`/`rejectPatchProposal` in `view.controller.js` (resume via
+>   chat_resume keyed on cardId, tier≥3 badge); before→after diff block in
+>   `view.html`; fixture `patch_proposal_demo.json`; jest `patchProposal.test.js`
+>   (5 cases) + e2e `fortiaiAgenticAssistant.patchProposal.spec.js` (3 cases, green);
+>   full unit suite 716 passed. **Blocked-on-Lane-B:** the `emit_patch_proposal`
+>   framework emitter + `apply_patch` reply tool (contract above).
+> - **✅ TS-linter `enablefor` state-match BUILT + tested (uncommitted):** new rules in
+>   `scripts/lint-angular.ts::checkInfoJson` — `enablefor-page-label` (error: a marketplace
+>   page label like "Dashboard"/"View Panel", or any space-containing entry, can't match
+>   `$state.current.name`), `enablefor-bare-state` (warning: dot-less segment), and
+>   `enablefor-entry-not-string`. KB §18.4-grounded: does NOT flag missing/empty enableFor
+>   (that legitimately means "always visible"), no closed state allowlist (any UI-Router
+>   state is valid). 4 new jest cases in `tests/lintAngular.test.js`; suite 720 passed;
+>   zero false positives across real widgets.
+> - **✅ config-defaults AST-accuracy DONE (uncommitted).** R2 (`checkConfigDefaultsBeforeAccess`)
+>   rewritten on a real `acorn` AST: `config-access-before-defaults` is now judged per **function
+>   scope** — a `$scope.config.X` read only counts as "before the guard" when it lives in the SAME
+>   function scope as the guard assignment and precedes it, so a read inside a later-invoked handler/
+>   `$scope` method above the guard no longer false-positives. Missing-guard (`config-defaults-missing`)
+>   stays a nesting-independent whole-file check. Regex heuristic kept as a parse-failure fallback
+>   (linter stays lit on exotic/partial sources). `acorn`+`acorn-walk` added as devDeps. 5 new jest
+>   cases (before/after guard, later-invoked-fn no-flag, missing-guard-any-nesting, comment-ignored);
+>   suite 13 green; tsc clean; full-fleet lint has **zero `config-access-before-defaults`** and the
+>   same 2 genuine `config-defaults-missing` findings as before (no regression). This clears the last
+>   Lane-A linter item.
+> - **✅ Orphaned-tooling audit + ship-verify wiring (uncommitted).** Found that
+>   `ship-verify`'s lint step ran only the harness-server `HU.lintWidget` (info.json/
+>   controller-name/files) — the RICHER standalone `lint-angular.js` (config-defaults,
+>   drawer-standalone, copyright-header, the new enableFor rule) and `lint-testids.js`
+>   were reachable ONLY via `pnpm lint`, which no make target / CI / git-hook invoked.
+>   `introspect-gate` was also never in the pipeline. **Fix (Makefile + introspect-gate.ts):**
+>   `ship-verify` now runs server-lint + angular-lint + testid-lint + typecheck (step 1),
+>   unit, mock-e2e, then a **per-widget-scoped `introspect-gate`** (new optional `<widget>`
+>   filter arg → `GATE_WIDGET`; a single-widget ship no longer blocks on unrelated widgets'
+>   stale baselines), deploy, live-sweep. `SKIP_INTROSPECT=1` escape hatch (gate renders the
+>   full fleet, ~2.8 min). Verified: scoped gate PASSes fortiaiAgenticAssistant, FAILs counter
+>   in isolation; recipe dry-run clean. **Note (unrelated, pre-existing):** `counter`,
+>   `dataVisualization`, `myWidget` currently regress the fleet-wide gate (stale baselines /
+>   real drift) — needs re-baseline, separate from this work. Widget also has 7
+>   copyright-header-missing warnings (Content Hub rejects) — pre-existing, non-blocking.
+> - **🔴 Backend orphans handed to Lane B** (in handoff doc): connector
+>   `scripts/validate_connector.py` (contract self-test T1–T12, "run before every release
+>   tag") is wired into NOTHING — no make target/CI; offline subset should gate `make build`/
+>   `ship`. Framework `shape-contract-ratchet` pre-commit hook lacks a `pre-push` stage.
+> - **Lane B (Backend — framework + connector):** other agent. P5 matrix S5→S6,
+>   materializer Phase 4, `emit_patch_proposal` emitter, custom-module personas.
+> - **Shared-resource rules:** one live-box window at a time (announce here); each
+>   lane appends its own dated bullet, never rewrites the other's; framework→connector
+>   release sequencing is Lane B's alone.
+> - **🔗 CROSS-LANE CONTRACT — `patch_proposal` card (locked in widget
+>   `contract.d.ts`, Lane B emits to match):** frame `type:'patch_proposal'` with
+>   `{proposal_id, title?, rationale?, target:{step?,path?}, before_yaml, after_yaml,
+>   tier?, reply_tool}`. Widget renders a before→after diff + tier-gated accept/reject;
+>   on accept it resumes via `chat_resume` and the connector invokes `reply_tool`
+>   (e.g. `apply_patch`). Distinct from the YAML-pane apply-patch panel (whole-doc
+>   `corrected_yaml`/`auto_fixes` from `validate_yaml`) — this is agent-initiated,
+>   value-level, in-chat.
+>
 > **▶ 2026-07-18 (session 3g) — P5 matrix: linter gap fixed, S1 + S7 landed, S5 grounded.**
 > Continued the build-persona scenario matrix (plan: `docs/plans/build-persona-validation-plan.md`).
 > A **parallel session** worked the same thread — it pinned framework 0.4.28, released connector 0.4.74,
