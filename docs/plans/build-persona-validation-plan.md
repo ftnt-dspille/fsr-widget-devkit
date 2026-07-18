@@ -5,7 +5,29 @@ prompt file but does not block this work).
 
 ---
 
-## ▶ RESUME HERE (last touched 2026-07-18, session 3g)
+## ▶ RESUME HERE (last touched 2026-07-18, session 3h)
+
+**S5 (troubleshoot a broken playbook) is SHIPPED + box-proven on 206. Next: S6, then S3/S4/S8.**
+The build persona can now diagnose why a run failed. The validation caught a **3-layer latent
+defect** — `why_did_playbook_fail` and `diagnose_yaml_against_pb_execution` were both dead against
+live runs in this connector (wrong `tools_triage` module path; `get_run_env` broke on pyfsr's typed
+`RunSummary`). Fixed pyfsr-first:
+- Exposed `why_did_playbook_fail` to the build LLM slice + build prompt `find_issues`.
+- Framework `set_failed_run_provider` hook (connector supplies `list_recent_failed_runs`);
+  `get_run_env` now delegates to pyfsr's typed `run_env()` (no raw calls); enrichment via pyfsr
+  `why_failed()` surfaces `failing_step` + the runtime error.
+- pyfsr `run_failure(run)` + `RunEnv.name` added (committed, tested) but out of the ship's critical
+  path (framework uses the already-released `why_failed`).
+- **Eval:** `scripts/eval_s5_diagnose.py` (Frank half-live, in-process editable framework + live 206)
+  passed; box probe PASS on shipped 0.4.75 → `failing_step='Emit'`, `insert_data()` error.
+- **Shipped:** framework v0.4.29 (PyPI), connector 0.4.75 on 206. Commits: pyfsr `a18f643`, framework
+  `5b6c8fb`, connector `a0bb403`+`e68deda`.
+- **S6 next:** the anchor fixture doubles as S6's — the model already proposes a `verify_enhancement`-
+  checked fix in the S5 runs; S6 = apply it → the playbook runs and creates the record.
+
+---
+
+### (superseded) session 3g resume
 
 **S7 (linter negative test) + the create_record linter gap are DONE; S1 is committed. Next is S5.**
 A **parallel session** worked this same thread (pinned framework 0.4.28, released connector 0.4.74,

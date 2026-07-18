@@ -5,7 +5,39 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 committed**; linter gap **fixed + released (v0.4.28) + live on 206 (0.4.74)**; S7 pytest landed (parallel session); S5 ground truth characterized. Next: S5. See top entry.)_
+_Last updated: 2026-07-18 (session 3h — P5 **S5 SHIPPED + box-proven on 206**: build persona can troubleshoot a failed run. Fixed a 3-layer latent defect the validation caught; framework 0.4.29 + connector 0.4.75 + pyfsr enhancements. Next: S6/S3/S4/S8. See top entry.)_
+
+> **▶ 2026-07-18 (session 3h) — P5 S5 (troubleshoot a broken playbook): SHIPPED + LIVE-PROVEN on 206.**
+> The build persona can now diagnose why a run failed. Getting there, the validation caught a
+> **3-layer latent defect** — the whole runtime-troubleshooting stack was dead in this connector:
+> - **Exposed `why_did_playbook_fail` to the build LLM slice** (framework `tools.py` + build prompt
+>   `find_issues`): the slice had `diagnose_yaml_against_pb_execution` + `get_run_env` but no way to
+>   DISCOVER the failed run. Chosen over widget-seeding (it's a slice gap, not missing content).
+> - **L1** — `why_did_playbook_fail` imported a non-existent `fsr_playbooks.mcp_server.tools_triage`
+>   → `no_investigation_tools` on every live box. Fix: framework `set_failed_run_provider` hook; the
+>   connector's `register_triage_tools()` supplies `list_recent_failed_runs`.
+> - **L2** — it AND `diagnose_yaml_against_pb_execution` (the supposed "working last link" — equally
+>   dead) called `tools_triage.get_run_env`, absent here. Fix: use the library's own `get_run_env`.
+> - **L3** — `get_run_env` reimplemented the fetch with RAW calls + an `isinstance(data, dict)` guard
+>   that broke on pyfsr's typed `RunSummary` → "unexpected response type". Fix: **delegate to pyfsr's
+>   typed `playbooks.run_env()`** (per the user's pyfsr-first directive — no raw endpoints).
+> - **Enrichment** — surface the RUNTIME step error (not just jinja diagnostics) via pyfsr
+>   `why_failed()`; `why_did_playbook_fail` now returns `failing_step` + `error_message`.
+> - **pyfsr enhancements** (committed, tested; NOT in the ship's critical path — used `why_failed`
+>   already in released 0.11.0): new typed `run_failure(run)` (by-run counterpart to `why_failed`) +
+>   `RunEnv.name`. +3 unit tests.
+> - **Validated:** Frank/GLM-5 half-live eval (`scripts/eval_s5_diagnose.py`, in-process editable
+>   framework + live 206) 3/3 then 2/2 with the strict run-grounded assertion; **box probe PASS on
+>   shipped 0.4.75** (`_s5_whyfail_box_probe.py`, no LLM): `failing_step='Emit'`, `error_message=
+>   'insert_data() takes at least 2 positional arguments (1 given)'`.
+> - **Shipped:** framework **v0.4.29** (PyPI, main+tag pushed); connector **0.4.75** on 206 (10 workers,
+>   warmup ok). Commits: pyfsr `a18f643`, framework `5b6c8fb`, connector `a0bb403`+`e68deda`
+>   (connector/pyfsr LOCAL — box got it via `make ship`). Lesson reinforced: **the box is the truth**
+>   — every unit test was green while the tool had never worked once on a live run.
+> - **NEXT:** S6 (apply the fix → it runs), then S3, S4, S8. Two known non-blockers: `why_did_playbook_fail`
+>   Step-2 decompile fallback needs the framework's `tooling/cli` (absent in the connector runtime) —
+>   moot on the real path since the widget always supplies `entity.playbook_yaml`; and pyfsr
+>   `run_failure`/`RunEnv.name` await a pyfsr release to be usable on-box (framework uses `why_failed`).
 
 > **▶ 2026-07-18 (session 3i) — SOC assistant widget UI gaps + hardening plan.**
 > Lane A pivots onto the assistant widget's own UI. Full plan + backlog:
