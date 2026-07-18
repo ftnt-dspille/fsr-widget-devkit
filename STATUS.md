@@ -5,28 +5,31 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 + S7 committed**, linter gap **fixed + committed** with full gate green. S5 ground truth characterized on 206. See top entry.)_
+_Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 committed**; linter gap **fixed + released (v0.4.28) + live on 206 (0.4.74)**; S7 pytest landed (parallel session); S5 ground truth characterized. Next: S5. See top entry.)_
 
 > **▶ 2026-07-18 (session 3g) — P5 matrix: linter gap fixed, S1 + S7 landed, S5 grounded.**
 > Continued the build-persona scenario matrix (plan: `docs/plans/build-persona-validation-plan.md`).
-> - **Linter gap FIXED + committed** (framework `4778ec8`): the `create_record`-args-outside-
->   `arguments:` class (module:/resource: as siblings of type:) that compiled clean and crashed only
->   at runtime (`insert_data() takes at least 2 positional arguments`). Root cause was `parser.py`
->   silently dropping unrecognized step-level keys — NOT the arg-validator. Fix: check each step's
->   top-level keys against `_UNIVERSAL_STEP_KEYS | _STEP_KEYS_BY_TYPE[type]`, emit an `unknown_param`
->   **warning** (not error, so a harmless extra key can't hard-fail a compile) pointing at
->   `arguments:`; decompiler escape keys allowlisted. 6 new parser tests, 33 green. **Full pre-commit
->   gate passed** (the decoupled tooling fixture from 3d held). Needs a framework release + connector
->   re-pin to reach the box.
+> A **parallel session** worked the same thread — it pinned framework 0.4.28, released connector 0.4.74,
+> and committed the S7 pytest; notes below reflect the reconciled state.
+> - **Linter gap FIXED + RELEASED + LIVE** (framework `4778ec8` = tag **v0.4.28**; connector **0.4.74**
+>   on 206): the `create_record`-args-outside-`arguments:` class (module:/resource: as siblings of
+>   type:) that compiled clean and crashed only at runtime (`insert_data() takes at least 2 positional
+>   arguments`). Root cause was `parser.py` silently dropping unrecognized step-level keys — NOT the
+>   arg-validator. Fix: check each step's top-level keys against
+>   `_UNIVERSAL_STEP_KEYS | _STEP_KEYS_BY_TYPE[type]`, emit an `unknown_param` **warning** pointing at
+>   `arguments:`; decompiler escape keys allowlisted. 6 new parser tests. Full pre-commit gate passed.
+>   ✅ **Verified live on 206**: the box's `validate_yaml` flags the broken fixture
+>   `unknown_param warning | steps[1].resource`. (An earlier draft said "needs release + re-pin" —
+>   wrong; already shipped.)
 > - **S1 (create from natural language) committed** (connector `9ae4015`): `scripts/eval_s1_create.py`
 >   + `EvalHarness.track()` for create-scenario teardown. Was validated 6/6 live on 206 last session;
 >   now committed. Alert name is FIXED (grade the playbook, not the model's copy-typing).
-> - **S7 (linter negative test) BUILT + committed** (connector `ceade46`): `scripts/eval_s7_lint.py`
->   — deterministic, box-free, runs `validate_yaml`/`compile_yaml` in-process against the editable
->   framework via the repo's test bootstrap. Table of broken fixtures, each asserting a
->   **(code, severity)** diagnostic (severity is load-bearing — `missing_field` is an ERROR for an
->   absent type but a soft WARNING corpus-hint on a good playbook). Anchor = the create_record gap
->   above; GOOD control must trip none of them. 4/4 green.
+> - **S7 (linter negative test) — the parallel session's pytest** (connector `0dcbca4`):
+>   `tests/test_broken_fixtures_linted.py` + fixture `scripts/eval_fixtures/broken_create_record_bad_args.yaml`.
+>   Asserts `validate_yaml` flags the misplaced `resource:` as an `unknown_param` warning AND that the
+>   corrected `marker_emitter.yaml` is NOT flagged. 2 passed. (I had built a broader `eval_s7_lint.py`
+>   script with extra defect classes + a severity model but **dropped it as redundant** with their
+>   pytest; the extra coverage — missing-type, dangling-next — is a future add to their fixture-glob.)
 > - **S5 ground truth characterized on 206** (throwaway probe, not kept): the anchor fixture RUNS →
 >   `status=failed`, `why_failed`/`diagnose_run` both give clean structure: `failing_step='Emit'`,
 >   `insert_data() takes at least 2 positional arguments`. So S5's oracle is well-defined, and the

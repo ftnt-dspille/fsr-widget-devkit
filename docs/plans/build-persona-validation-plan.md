@@ -8,17 +8,18 @@ prompt file but does not block this work).
 ## ▶ RESUME HERE (last touched 2026-07-18, session 3g)
 
 **S7 (linter negative test) + the create_record linter gap are DONE; S1 is committed. Next is S5.**
-- **Linter gap FIXED + committed** (framework `4778ec8`, full pre-commit gate green): `parser.py` now
-  flags step-level keys it would silently drop (`unknown_param` warning → "nest it under `arguments:`").
-  The `create_record` args-outside-`arguments:` runtime crash S1 found is now caught pre-push. 33 parser
-  tests green. **Needs a framework release + connector re-pin to reach the box** (the live box still runs
-  a pre-fix wheel, so a *live* S7 would correctly not catch the anchor yet — which is why S7 runs
-  in-process, see below).
+A **parallel session** worked this same thread (pinned framework 0.4.28, released connector 0.4.74,
+committed the S7 pytest). Reconciled state:
+- **Linter gap FIXED + RELEASED + LIVE** (framework `4778ec8` = tag **v0.4.28**; connector **0.4.74** on
+  206): `parser.py` now flags step-level keys it would silently drop (`unknown_param` warning → "nest it
+  under `arguments:`"). The `create_record` args-outside-`arguments:` runtime crash S1 found is caught
+  pre-push. ✅ **Verified live on 206** — the box's `validate_yaml` flags `steps[1].resource`. (An
+  earlier note said "needs release + re-pin"; wrong — already shipped.)
 - **S1 committed** (connector `9ae4015`) — `eval_s1_create.py` + `EvalHarness.track()`. Was 6/6 on 206.
-- **S7 committed** (connector `ceade46`) — `eval_s7_lint.py`, deterministic + box-free, runs
-  `validate_yaml`/`compile_yaml` in-process against the editable framework. Broken-fixture table asserts
-  a **(code, severity)** diagnostic per case; a GOOD control must trip none. 4/4. Severity is
-  load-bearing (`missing_field` = ERROR for a missing type, soft WARNING corpus-hint on a good playbook).
+- **S7 = the parallel session's pytest** (connector `0dcbca4`): `tests/test_broken_fixtures_linted.py`
+  + fixture `broken_create_record_bad_args.yaml`; asserts the misplaced `resource:` warns AND the
+  corrected `marker_emitter.yaml` does not. 2 passed. (I dropped a broader `eval_s7_lint.py` as
+  redundant; its extra defect classes — missing-type, dangling-next — are a future add.)
 - **S5 ground truth characterized on 206:** the anchor fixture RUNS → `status=failed`,
   `why_failed`/`diagnose_run` both give `failing_step='Emit'` + `insert_data() takes at least 2
   positional arguments`. Clean oracle. SAME fixture = the S5/S6 runtime-failure playbook.
