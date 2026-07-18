@@ -52,7 +52,15 @@ stable across rebuilds because frame order is stable — or a content hash), car
 keeps each card's key stable, plus an e2e that streams tool→info_card→tool and
 asserts no slot collision.
 
-**Status:** IN PROGRESS.
+**Status:** ✅ FIXED + tested (uncommitted in widget repo — interleaved with the
+manual_input WIP). Stable per-event `_key` stamped in `buildAssistantMessage`
+(`fsrPbRender.ts`, recompiled `.js` with the repo's tsc 6.0.3); idless `card-<n>`
+ids pinned to the key; timeline `track by ev._key` (`view.html:1698`). Tests: 4
+new jest cases in `render.pipeline.test.ts` (unique keys, key stable across an
+incremental streaming rebuild, two idless cards get distinct pinned ids,
+connector id preserved) — full unit suite **729 passed**; e2e `rendering.spec`
+6/6 incl. "info_cards renders all card kinds". Repro-on-box still worth a glance
+but the structural defect is closed.
 
 ---
 
@@ -71,9 +79,13 @@ no recovery path.
   `_resolved=true`, buttons gone, error only in the global banner
   (`view.controller.js:3215`) → user can't retry from the card. On failure,
   clear `_submitting`, keep the card actionable, show an inline error + retry.
-- **A3 — manual_input has no validation UI.** No required markers, no
-  submit-gating (unlike `action_card`'s `ng-disabled="!actionCardValid(ev)"`),
-  no inline field errors. `view.html:1860-1896`.
+- **A3 — ✅ DONE (widget `41cb5be`).** manual_input now has required-field
+  validation at parity with `action_card`: `required` carried through
+  `normalizeManualFields`, pure `manualInputComplete` gate (dynamic_list needs
+  group+item; required checkbox checked; others non-empty), required stars,
+  `ng-disabled="!manualInputValid(ev)"` submit-gating, and a "fill required
+  fields" hint. Typed `ManualInputField` in contract. +6 jest + e2e gating case.
+  (Completed as the manual_input-WIP merge-point work.)
 - **A4 — Inconsistent `viewState` gating.** Composer & value-patch buttons gate
   on `viewState`; interactive cards don't. Fold into A1's disabled logic.
 - **A5 — (opt) "Always allow" grant** exists only on `action_card`

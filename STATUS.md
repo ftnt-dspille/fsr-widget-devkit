@@ -20,6 +20,19 @@ _Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 committed**; 
 >   Fix: stable per-event `_key`, track by it. **← IN PROGRESS.**
 > - Order: B0 → A1–A4 (card in-flight/error/validation) → B1/B2 (auto-scroll, focus)
 >   → C1–C4 (render robustness) → a11y/theme/polish. Each ships with tests.
+> - **🟢 MERGE POINT committed — widget `41cb5be` ("Lane A merge point … 1.2.25"), all green.**
+>   The interleaved widget tree (B0 + patch_proposal + F1 seed + the manual_input WIP)
+>   is now ONE clean commit, so widget commits stop stacking as done-uncommitted.
+>   - **B0 DONE** (stable per-event `_key`, `track by ev._key`) — 4 jest + rendering e2e.
+>   - **manual_input WIP COMPLETE + tested** (A3 done): required-field validation at
+>     parity with action_card — `required` through `normalizeManualFields`, pure
+>     `manualInputComplete` gate (dynamic_list needs group+item; required checkbox
+>     checked; others non-empty), required stars, submit-gating + hint, typed
+>     `ManualInputField` in contract. +6 jest + new e2e gating case.
+>   - Full unit **735 passed**; e2e rendering/manualInput(4)/patchProposal(3)/smoke(14) green.
+>   - Handoff updated (`scratchpad/LANE_B_BACKEND_HANDOFF.md`): Lane B should rebase/
+>     discard any local widget-side manual_input copy — it's in this commit now.
+>   - Remaining Lane A: A1/A2/A4 (card in-flight + error recovery), B1/B2, C1–C4.
 >
 > **▶ 2026-07-18 (session 3h) — Two-agent lane split (Frontend / Backend) + patch_proposal contract.**
 > Agentic-assistant work partitioned so two agents don't collide (handoff:
