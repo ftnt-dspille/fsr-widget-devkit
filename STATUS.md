@@ -5,7 +5,37 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-17 (session 3d — **P4 framework prompt COMMITTED** (`d9a18b7`); the reference-DB clobber that blocked it is now structurally handled: tooling gate decoupled onto a committed fixture (`071bd57`) + connector warmup guard (`285c032`). All three commits LOCAL/unpushed. STILL OPEN: widget-side F1 seed committed but unpushed/unshipped; full 724-connector dev cache still locally clobbered (no longer blocks anything).)_
+_Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 + S7 committed**, linter gap **fixed + committed** with full gate green. S5 ground truth characterized on 206. See top entry.)_
+
+> **▶ 2026-07-18 (session 3g) — P5 matrix: linter gap fixed, S1 + S7 landed, S5 grounded.**
+> Continued the build-persona scenario matrix (plan: `docs/plans/build-persona-validation-plan.md`).
+> - **Linter gap FIXED + committed** (framework `4778ec8`): the `create_record`-args-outside-
+>   `arguments:` class (module:/resource: as siblings of type:) that compiled clean and crashed only
+>   at runtime (`insert_data() takes at least 2 positional arguments`). Root cause was `parser.py`
+>   silently dropping unrecognized step-level keys — NOT the arg-validator. Fix: check each step's
+>   top-level keys against `_UNIVERSAL_STEP_KEYS | _STEP_KEYS_BY_TYPE[type]`, emit an `unknown_param`
+>   **warning** (not error, so a harmless extra key can't hard-fail a compile) pointing at
+>   `arguments:`; decompiler escape keys allowlisted. 6 new parser tests, 33 green. **Full pre-commit
+>   gate passed** (the decoupled tooling fixture from 3d held). Needs a framework release + connector
+>   re-pin to reach the box.
+> - **S1 (create from natural language) committed** (connector `9ae4015`): `scripts/eval_s1_create.py`
+>   + `EvalHarness.track()` for create-scenario teardown. Was validated 6/6 live on 206 last session;
+>   now committed. Alert name is FIXED (grade the playbook, not the model's copy-typing).
+> - **S7 (linter negative test) BUILT + committed** (connector `ceade46`): `scripts/eval_s7_lint.py`
+>   — deterministic, box-free, runs `validate_yaml`/`compile_yaml` in-process against the editable
+>   framework via the repo's test bootstrap. Table of broken fixtures, each asserting a
+>   **(code, severity)** diagnostic (severity is load-bearing — `missing_field` is an ERROR for an
+>   absent type but a soft WARNING corpus-hint on a good playbook). Anchor = the create_record gap
+>   above; GOOD control must trip none of them. 4/4 green.
+> - **S5 ground truth characterized on 206** (throwaway probe, not kept): the anchor fixture RUNS →
+>   `status=failed`, `why_failed`/`diagnose_run` both give clean structure: `failing_step='Emit'`,
+>   `insert_data() takes at least 2 positional arguments`. So S5's oracle is well-defined, and the
+>   SAME fixture doubles as the S5/S6 runtime-failure playbook.
+> - **🔜 S5 design crux (the next real chunk):** the assistant's build slice has
+>   `diagnose_yaml_against_pb_execution(yaml_text, pb_execution)`, but it has **no channel to a failed
+>   run's execution env** — mirroring exactly how S2 surfaced F1 (no read channel). S5 will likely be
+>   an investigation + a grounding change (feed the failed run's `pb_execution` into the build turn),
+>   not just an eval script. THEN S6 (apply the fix → it runs), S3, S4, S8.
 
 > **▶ 2026-07-17 (session 3d) — reference-DB clobber blocker RESOLVED; P4 committed.**
 > The framework pre-commit gate no longer depends on the mutable, clobber-prone dev cache
@@ -28,8 +58,19 @@ _Last updated: 2026-07-17 (session 3d — **P4 framework prompt COMMITTED** (`d9
 >   that would write the framework dev cache unless `FSR_REFERENCE_DB`/`FSRPB_DB` points elsewhere or
 >   `FSRPB_ALLOW_DEV_DB_CLOBBER=1`; inert on-box. Framework primitive `_db.warmup_write_path()`. Guard
 >   test green.
-> - **All three commits are LOCAL / unpushed.** The full 724-connector dev cache is still clobbered
->   locally (21 connectors) — no longer blocks anything; rebuild from a full-catalog box when convenient.
+> - **Loop closed (session 3e, same day): all commits PUSHED + widget SHIPPED + on-box proof.**
+>   - Pushed: framework `d9a18b7` (github/main), connector `285c032` (origin/main), widget
+>     `7743229` (origin/master).
+>   - **Widget shipped to 206: `fortiaiAgenticAssistant-1.2.25`** (ship-verify: 110 e2e + unit green,
+>     deploy confirmed to 10.99.248.206).
+>   - **Real widget-path proof, 3/3 live on 206** (connector `6a136ec`): new `eval_s2_modify.py
+>     --widget-path` seeds `entity.playbook_yaml` exactly as the deployed widget does (read into the
+>     connector's OPEN PLAYBOOK block) — the SHIPPED grounding channel, not the `--ground` prompt
+>     rehearsal. Every run: grounded read → complete YAML fence (open-playbook edit, no offer card) →
+>     `update_playbook ok method=put` → snapshot → `diff changed=[('Emit','arguments')] added=0
+>     removed=0` → playbook runs to `finished`. Committed + pushed.
+> - The full 724-connector dev cache is still clobbered locally (21 connectors) — no longer blocks
+>   anything; rebuild from a full-catalog box when convenient.
 
 > **▶ 2026-07-17 (session 3c) — build-persona validated end-to-end; connector 0.4.73 live on 206.**
 > - **F1** (read path / `decompile_playbook`) + **F3** (graft-by-name write) committed `779ae18`,

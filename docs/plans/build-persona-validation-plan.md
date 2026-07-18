@@ -5,7 +5,73 @@ prompt file but does not block this work).
 
 ---
 
-## ▶ RESUME HERE (last touched 2026-07-17, session 3d)
+## ▶ RESUME HERE (last touched 2026-07-18, session 3g)
+
+**S7 (linter negative test) + the create_record linter gap are DONE; S1 is committed. Next is S5.**
+- **Linter gap FIXED + committed** (framework `4778ec8`, full pre-commit gate green): `parser.py` now
+  flags step-level keys it would silently drop (`unknown_param` warning → "nest it under `arguments:`").
+  The `create_record` args-outside-`arguments:` runtime crash S1 found is now caught pre-push. 33 parser
+  tests green. **Needs a framework release + connector re-pin to reach the box** (the live box still runs
+  a pre-fix wheel, so a *live* S7 would correctly not catch the anchor yet — which is why S7 runs
+  in-process, see below).
+- **S1 committed** (connector `9ae4015`) — `eval_s1_create.py` + `EvalHarness.track()`. Was 6/6 on 206.
+- **S7 committed** (connector `ceade46`) — `eval_s7_lint.py`, deterministic + box-free, runs
+  `validate_yaml`/`compile_yaml` in-process against the editable framework. Broken-fixture table asserts
+  a **(code, severity)** diagnostic per case; a GOOD control must trip none. 4/4. Severity is
+  load-bearing (`missing_field` = ERROR for a missing type, soft WARNING corpus-hint on a good playbook).
+- **S5 ground truth characterized on 206:** the anchor fixture RUNS → `status=failed`,
+  `why_failed`/`diagnose_run` both give `failing_step='Emit'` + `insert_data() takes at least 2
+  positional arguments`. Clean oracle. SAME fixture = the S5/S6 runtime-failure playbook.
+- **🔜 NEXT — S5, and it is an INVESTIGATION not just an eval.** The build slice has
+  `diagnose_yaml_against_pb_execution(yaml_text, pb_execution)` — but the assistant has **no channel to a
+  failed run's execution env**, exactly like S2 had no read channel (→ F1). Expect S5 to surface a
+  grounding gap and need a connector/widget change to feed the failed run's `pb_execution` into the build
+  turn, before the eval can grade the assistant's diagnosis against the ground truth above. THEN S6 (fix
+  applied → runs), S3, S4, S8.
+
+---
+
+## ▶ RESUME (session 3f)
+
+**S1 (create from natural language) is GREEN — 6/6 live on 206, connector 0.4.73.**
+`scripts/eval_s1_create.py` (new, tracked — mirrors `eval_s2_modify.py`) drives a build turn
+with **no OPEN PLAYBOOK**, extracts the final YAML from `emit_playbook_offer(yaml=…)` (fallback: last
+```yaml fence), then does the Deploy button's work — `compile_yaml` → **`push_playbook`** (create, not
+update) → activate → trigger → assert the created alert's `description == CHARLIE`. Oracle is purely
+behavioural (a create has no `diff_versions` before). Harness gained `EvalHarness.track(collection=,
+playbook=)` so a create scenario registers its pushed collection/playbook for teardown (no clone to do
+it). **Both files UNCOMMITTED**; no box details in source (hygiene-clean).
+
+Two things the box taught, both kept:
+- **Eval brittleness, fixed:** an early draft made the alert name a per-run unique timestamp for
+  isolation. The model occasionally *mistranscribes* a hyphenated literal (`…1791-2` → `…1791_2`),
+  which read as a behavioural FAIL while the playbook had in fact created the alert correctly (the run
+  tree showed the created record). Isolation is not the model's job — `emit_marker` already snapshots
+  records BEFORE the run and returns only the new one, so the name is now FIXED (`ZZ Eval S1 Alert`)
+  and the model only reproduces two simple strings. **Grade the playbook, not the model's copy-typing.**
+- **A real finding for the S5/S7 cluster (linter gap) — ✅ FIXED at the parser level.** ~1-in-a-handful
+  of runs the model authors `create_record` with `module:`/`resource:` as **siblings of `type:`**
+  instead of nested under `arguments:`. `validate_yaml`/`compile_yaml`/`verify_playbook` **all passed
+  it**, and it failed only at runtime: `insert_data() takes at least 2 positional arguments (1 given)`
+  (the step ran with no data). **Root cause was in the parser, not the arg-validator:**
+  `parser.py` built each `Step` from a fixed set of recognized top-level keys and *silently dropped*
+  any others — there was no unknown-step-key check (unlike `for_each`/`retry`, which already had one).
+  **Fix:** `parser.py` now checks each step's top-level keys against `_UNIVERSAL_STEP_KEYS |
+  _STEP_KEYS_BY_TYPE[type]` and emits an `UNKNOWN_PARAM` **warning** ("…not recognized and was ignored
+  — nest it under `arguments:`") for any leftover. Warning (not error) so a harmless extra key can't
+  hard-fail a compile; decompiler escape keys (`branches`/`unlabeled_next`) are allowlisted so
+  decompiled YAML never trips it. 6 new tests in `tooling/tests/test_parser.py`; full tooling suite
+  1135 passed (5 pre-existing live-`.env` e2e fails unrelated). **Framework change — UNCOMMITTED,
+  needs release + connector re-pin to reach the box.** Still carry a broken fixture into S5/S6/S7 as
+  the negative-test anchor.
+
+Next: the **S5/S6/S7 troubleshooting cluster** (broken fixtures double as linter negative tests — start
+by encoding the `create_record`-args-outside-`arguments:` gap above as a deliberately-broken fixture),
+then S3, S4, S8.
+
+---
+
+## ▶ RESUME (session 3d)
 
 **Session 3d — the reference-DB blocker is RESOLVED and P4 is COMMITTED.** The framework
 pre-commit gate no longer reads the mutable, clobber-prone dev cache, so P4 landed:
@@ -21,9 +87,17 @@ pre-commit gate no longer reads the mutable, clobber-prone dev cache, so P4 land
 - **Warmup guard** (connector `285c032`): `operations._warmup_clobber_refusal()` refuses a warmup that
   would clobber the framework dev cache unless `FSR_REFERENCE_DB`/`FSRPB_DB` points elsewhere or
   `FSRPB_ALLOW_DEV_DB_CLOBBER=1`; inert on-box. Framework primitive `_db.warmup_write_path()`.
-- **All three commits are LOCAL / unpushed.** Full 724-connector dev cache still clobbered locally —
-  no longer blocks anything; rebuild from a full-catalog box when convenient (§"BLOCKER" is historical).
-- **Still open:** widget-side F1 seed (`7743229`) committed but **unpushed + unshipped**.
+- **Session 3e (same day) — LOOP CLOSED.** All commits PUSHED (framework `d9a18b7` github/main,
+  connector `285c032` origin/main, widget `7743229` origin/master). **Widget shipped to 206 as
+  `fortiaiAgenticAssistant-1.2.25`** (ship-verify 110 e2e + unit green). **Real widget-path proof
+  3/3 live on 206** (connector `6a136ec`): `eval_s2_modify.py --widget-path` seeds
+  `entity.playbook_yaml` exactly as the deployed widget does — the SHIPPED grounding channel, not the
+  `--ground` prompt rehearsal. Each run grounds the read, emits a complete YAML fence (open-playbook
+  edit, no offer card), `update_playbook ok method=put`, snapshot, `diff
+  changed=[('Emit','arguments')] added=0 removed=0`, runs to `finished`. **Nothing left open on the
+  build-persona thread** — next is the P5 scenario matrix (S1, then S5/S6/S7, S3, S4, S8).
+- Full 724-connector dev cache still clobbered locally — no longer blocks anything; rebuild from a
+  full-catalog box when convenient (§"BLOCKER" is historical).
 
 ---
 
@@ -531,11 +605,14 @@ why S7 is nearly free once S5/S6 exist.
 - ~~**P0** — prove the write path.~~ **DONE** (was already fixed in 0.4.43; status was stale).
 - **P1** — 🔴 snapshot-before-write in `update_playbook`, fail-closed, + unit coverage. Ship first:
   it is a live data-loss risk in released code and does not depend on any eval work.
-- **P2** — 🔜 **NEXT.** Harness: fixture deploy/clone/teardown, trigger+wait, marker-record
-  assertion helper, `diff_versions` assertion helper, run cleanup. (pyfsr gaps: no run cleanup, no
-  step-assert helpers — thin wrappers, we build them.)
+- ~~**P2** — Harness: fixture deploy/clone/teardown, trigger+wait, marker-record assertion helper,
+  `diff_versions` assertion helper, run cleanup.~~ ✅ **DONE** (connector `f52af4c`, per STATUS.md
+  session 3c). Built as `scripts/eval_harness.py` (`EvalHarness`: `deploy`/`clone`/`track`/
+  `snapshot`/`version_json`/`ai_snapshots`/`diff`/`run`/`new_records`/`emit_marker`/`cleanup`) +
+  `assert_diff_only` (the `diff_versions` oracle) + `eval_fixtures/`. Wired into `eval_s1_create.py`
+  and `eval_s2_modify.py`. It encodes every gotcha below and proves its own teardown.
 
-  **Start from the working prototype**, don't rebuild from scratch:
+  **Started from the working prototype** (this is how it was built, not a TODO):
   `ConnectorsV2/fsr-playbook-builder/scripts/_p1_snapshot_live_confirm.py`. It already does
   seed → act via the DEPLOYED connector → assert behaviour → restore → self-clean, and it encodes
   every gotcha listed under §"Two traps" plus these, each of which cost a live round-trip:
