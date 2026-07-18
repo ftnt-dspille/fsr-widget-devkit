@@ -119,11 +119,18 @@ no recovery path.
 
 ## C — Render robustness (defensive)
 
-- **C1 — Unknown block kinds render blank** in `info_card` (`view.html:2104`,
-  the six-`ng-if` set) and unknown `draftStep` kinds in `playbook_offer`
-  (`:2000`). Add a catch-all that renders the raw block rather than nothing.
-- **C2 — capability_gap `tips`/`alternatives` unnormalized** (`fsrPbRender.ts:896`)
-  — template assumes `.text`/`.hint`/`.label`/`.value`. Normalize like other cards.
+- **C1 — ✅ DONE (widget `e4d9a63`).** The real bug was in `normalizeBlocks`: an
+  unknown `info_card` block kind fell through to an **empty rows block** and
+  rendered blank. Now an unknown kind surfaces its text-ish content as a text
+  block (or dumps the raw block when it has none); a kind-less block carrying
+  `rows[]` still renders as rows (regression-guarded). Plus a template catch-all
+  so an unexpected `playbook_offer` draftStep kind shows its name/type instead of
+  an empty `<li>`.
+- **C2 — ✅ DONE (widget `e4d9a63`).** `_capgapTips`/`_capgapAlternatives`/
+  `_capgapFixSteps`/`_capgapResume` coerce bare strings OR objects into the
+  template's contract; an alternative with no usable value is dropped (no
+  dead button). CapabilityGap type tightened. +6 jest + 2 e2e
+  (`renderRobustness`, new `render_robustness` fixture).
 - **C3 — Table row/column mismatch** unguarded (`view.html:2133`); pad/clip rows
   to `columns.length`.
 - **C4 — Catch-all exclusion list incomplete** (`view.html:2214`, missing
@@ -137,7 +144,7 @@ no recovery path.
 2. **A1–A4** — ✅ interactive-card in-flight/error/validation (core HITL flows).
    A3 (`41cb5be`) + A1/A2/A4 (`af11159`) all landed.
 3. **B1 + B2** — ✅ auto-scroll + focus restore (widget `21926fd`).
-4. **C1–C4** — render robustness. ← current
+4. **C1–C4** — render robustness. C1+C2 ✅ (widget `e4d9a63`); C3+C4 ← current.
 5. **B3/B4/B5, A5, C5** — a11y, theme, polish (batchable).
 
 Each item ships with tests (jest for logic, e2e for DOM) per repo policy.
