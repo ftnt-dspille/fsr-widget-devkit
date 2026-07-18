@@ -70,15 +70,18 @@ The approval / manual_input / patch_proposal cards hide their action buttons via
 `ng-if="!ev._resolved"` **before** the network call, with no in-flight state and
 no recovery path.
 
-- **A1 — No in-flight feedback.** accept/reject/apply/submit buttons vanish
-  instantly; no spinner/disabled state. `view.html:1836` (patch), `:1898`
-  (manual_input), `:2194` (approval); handlers `view.controller.js:1174`,
-  `:1280`, `:942`. Add a per-card `_submitting` state → disabled buttons +
-  spinner; only flip `_resolved` on success.
-- **A2 — No card-level error recovery.** On failure the card stays
-  `_resolved=true`, buttons gone, error only in the global banner
-  (`view.controller.js:3215`) → user can't retry from the card. On failure,
-  clear `_submitting`, keep the card actionable, show an inline error + retry.
+- **A1 — ✅ DONE (widget `af11159`).** Per-card `_submitting` state across all
+  four interactive cards (action_card, patch_proposal, manual_input, approval):
+  buttons disable + show an inline spinner and the card stays put; `_resolved`/
+  `_outcome` flip only on SUCCESS. Shared `_resolveCardVia` orchestrator; the
+  `_runResume*` helpers now return the resume promise so card handlers chain
+  success/failure independently of the global `_handleTurnResult` path.
+- **A2 — ✅ DONE (widget `af11159`).** On failure `_resolveCardVia` clears
+  `_submitting`, stamps a secret-scrubbed `_error` on the card (inline `.card-error`
+  with a "retry from the buttons above" hint), and leaves it unresolved so the
+  same buttons retry in place. Global banner still shows too. +5 jest
+  (`card.inflight-error.test.js`) + 1 e2e (`cardInflightError.spec.js`, 503-then-
+  retry via new `manual_input_error` fixture).
 - **A3 — ✅ DONE (widget `41cb5be`).** manual_input now has required-field
   validation at parity with `action_card`: `required` carried through
   `normalizeManualFields`, pure `manualInputComplete` gate (dynamic_list needs
@@ -86,8 +89,11 @@ no recovery path.
   `ng-disabled="!manualInputValid(ev)"` submit-gating, and a "fill required
   fields" hint. Typed `ManualInputField` in contract. +6 jest + e2e gating case.
   (Completed as the manual_input-WIP merge-point work.)
-- **A4 — Inconsistent `viewState` gating.** Composer & value-patch buttons gate
-  on `viewState`; interactive cards don't. Fold into A1's disabled logic.
+- **A4 — ✅ DONE (widget `af11159`).** `cardBusy(ev)` gates every interactive
+  card's buttons — busy while its own resume is in flight (`_submitting`) OR any
+  turn is streaming (`viewState === 'sending'`), but deliberately NOT on
+  `viewState === 'error'` so a failed card stays retryable. Folded into A1's
+  disabled logic across all four cards.
 - **A5 — (opt) "Always allow" grant** exists only on `action_card`
   (`view.html:1797`); patch_proposal / approval have tiers but no grant UI.
 
@@ -122,9 +128,10 @@ no recovery path.
 ---
 
 ## Order of execution
-1. **B0** — info_card overwrite (functional bug, foundational to card correctness). ← current
-2. **A1–A4** — interactive-card in-flight/error/validation (core HITL flows).
-3. **B1 + B2** — auto-scroll + focus restore (cheap, daily-visible).
+1. **B0** — ✅ info_card overwrite (functional bug, foundational to card correctness).
+2. **A1–A4** — ✅ interactive-card in-flight/error/validation (core HITL flows).
+   A3 (`41cb5be`) + A1/A2/A4 (`af11159`) all landed.
+3. **B1 + B2** — auto-scroll + focus restore (cheap, daily-visible). ← current
 4. **C1–C4** — render robustness.
 5. **B3/B4/B5, A5, C5** — a11y, theme, polish (batchable).
 
