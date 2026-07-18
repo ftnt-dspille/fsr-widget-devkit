@@ -7,6 +7,20 @@ is the index. Update it when a thread changes state; move finished items to
 
 _Last updated: 2026-07-18 (session 3g — P5 scenario matrix: **S1 committed**; linter gap **fixed + released (v0.4.28) + live on 206 (0.4.74)**; S7 pytest landed (parallel session); S5 ground truth characterized. Next: S5. See top entry.)_
 
+> **▶ 2026-07-18 (session 3i) — SOC assistant widget UI gaps + hardening plan.**
+> Lane A pivots onto the assistant widget's own UI. Full plan + backlog:
+> `docs/plans/soc-assistant-ui-gaps.md` (3 parallel UI audits synthesized into
+> workstreams A/B/C, plus **B0** — a user-reported functional bug: *info_card
+> blocks show up at odd times and overwrite other tools/content*).
+> - **B0 lead root cause:** the streaming preview rebuilds `msg.events` every ~700ms
+>   and the timeline tracks by `(ev._toolUseId || $index)` (`view.html:1698`) — only
+>   tool_calls have a stable id, so info_cards/activity/text fall back to positional
+>   `$index` and get reused onto the wrong slot as tool frames interleave between
+>   polls; compounded by idless cards getting a per-rebuild `cardId` (`fsrPbRender.ts:683`).
+>   Fix: stable per-event `_key`, track by it. **← IN PROGRESS.**
+> - Order: B0 → A1–A4 (card in-flight/error/validation) → B1/B2 (auto-scroll, focus)
+>   → C1–C4 (render robustness) → a11y/theme/polish. Each ships with tests.
+>
 > **▶ 2026-07-18 (session 3h) — Two-agent lane split (Frontend / Backend) + patch_proposal contract.**
 > Agentic-assistant work partitioned so two agents don't collide (handoff:
 > `fortisoar-widget-harness/scratchpad/LANE_B_BACKEND_HANDOFF.md`).
