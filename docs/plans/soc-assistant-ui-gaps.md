@@ -99,10 +99,15 @@ no recovery path.
 
 ## B — Everyday UX: scroll, focus, keyboard, theme
 
-- **B1 — No auto-scroll to bottom** on new/streamed messages
-  (`view.controller.js` append flow ~`:3018`). Cheap, high-impact. Pin-to-bottom
-  unless the user has scrolled up.
-- **B2 — Focus not restored** to the composer after send (`:886`).
+- **B1 — ✅ DONE (widget `21926fd`).** Transcript pins to the latest content as
+  messages append and the live preview streams in, unless the analyst scrolled up
+  (scroll listener releases the pin past a 48px slop, re-arms near bottom); the
+  analyst's own send always re-pins. Driven by a per-digest content signal
+  (message count + preview event/text growth); scroll deferred a tick for layout.
+- **B2 — ✅ DONE (widget `21926fd`).** Composer regains focus on the sending→idle
+  transition after a USER send (disabled mid-turn, so restored on settle), gated
+  on `_wantComposerFocus` so card resume / history load / entity seed don't steal
+  focus. +2 e2e (`scrollFocus.spec.js`).
 - **B3 — a11y:** only 1 aria-label in the widget; no `aria-live` on the
   transcript; no focus move to a newly-rendered card; quick-action/choice chips
   lack labels. `view.html:1523`, `:1680`, `:2249`.
@@ -131,8 +136,8 @@ no recovery path.
 1. **B0** — ✅ info_card overwrite (functional bug, foundational to card correctness).
 2. **A1–A4** — ✅ interactive-card in-flight/error/validation (core HITL flows).
    A3 (`41cb5be`) + A1/A2/A4 (`af11159`) all landed.
-3. **B1 + B2** — auto-scroll + focus restore (cheap, daily-visible). ← current
-4. **C1–C4** — render robustness.
+3. **B1 + B2** — ✅ auto-scroll + focus restore (widget `21926fd`).
+4. **C1–C4** — render robustness. ← current
 5. **B3/B4/B5, A5, C5** — a11y, theme, polish (batchable).
 
 Each item ships with tests (jest for logic, e2e for DOM) per repo policy.
