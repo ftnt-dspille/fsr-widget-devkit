@@ -108,8 +108,16 @@ _Last updated: 2026-07-18 (session 3j — P5 **S6 SHIPPED + box-proven 3/3 on 20
 >   chat_resume keyed on cardId, tier≥3 badge); before→after diff block in
 >   `view.html`; fixture `patch_proposal_demo.json`; jest `patchProposal.test.js`
 >   (5 cases) + e2e `fortiaiAgenticAssistant.patchProposal.spec.js` (3 cases, green);
->   full unit suite 716 passed. **Blocked-on-Lane-B:** the `emit_patch_proposal`
->   framework emitter + `apply_patch` reply tool (contract above).
+>   full unit suite 716 passed. **✅ emit_patch_proposal EMITTER BUILT (local,
+>   2026-07-18) — propose half done:** framework `emit_patch_proposal` tool
+>   (fn+schema+pydantic gate+tier0+`BUILD_ONLY_TOOLS`; framework `e306d18`, +5
+>   tests) and connector wire-map (`_CARD_EMITTER_TO_TYPE`/`_CARD_STOP_REASON` →
+>   `awaiting_patch_proposal`; connector `df1d390` = 0.4.79, +4 splice tests). The
+>   build agent can now emit the card, which renders (C4-hardened) and halts the
+>   turn; reject works client-side. **STILL OPEN:** the accept path — the
+>   `apply_patch` reply-tool resume dispatch that applies the after_yaml to the
+>   open playbook (reuses `update_playbook`). Not prompt-advertised yet (would
+>   produce failing accepts until apply lands). Unshipped/unpushed.
 > - **✅ TS-linter `enablefor` state-match BUILT + tested (uncommitted):** new rules in
 >   `scripts/lint-angular.ts::checkInfoJson` — `enablefor-page-label` (error: a marketplace
 >   page label like "Dashboard"/"View Panel", or any space-containing entry, can't match
