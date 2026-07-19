@@ -18,18 +18,21 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ## ▶ RESUME HERE (2026-07-19)
 
-**Phase 0/1 COMPLETE. Phase 2 CODE COMPLETE: 2.1+2.2 already built (stale
+**Phase 0/1 COMPLETE. Phase 2 FULLY SHIPPED: 2.1+2.2 already built (stale
 premises); 2.3 built + tested + SHIPPED (framework 0.4.34 → box 159); 2.4 built +
-tested (connector `b5ebc36`, unshipped). Widget SHIPPED to 8.0 box 159 (1.2.28).
-Next: ship the 2.4 connector build to a box, then Phase 3 (feature breadth).**
+tested + SHIPPED (connector 0.4.85 → box 159, `d5c4325`). Widget SHIPPED to 8.0
+box 159 (1.2.28). Live on 159: widget 1.2.28 + connector 0.4.85 (framework 0.4.34).
+Next: Phase 3 (feature breadth) — pick an axis (3A deeper tools / 3B richer cards /
+3C autonomy).**
 
-### 2.4 build-completion salvage — DONE (2026-07-19, box-free)
+### 2.4 build-completion salvage — DONE + SHIPPED (2026-07-19)
 `_salvage_build_offer` in `operations.py` (`_finalize`): a build turn narrating
 its final YAML with no card now gets a deterministic `playbook_offer` (deploy
 button) synthesized from `last_assistant_yaml` via the framework's
 `_offer_from_yaml`. Open-playbook edits exempt (raw fence + Save updates in
 place). `test_salvage_build_offer.py` 7 cases; suite 140 green. Committed
-`b5ebc36`, **unshipped** — needs `make ship` (connector) when a box window opens.
+`b5ebc36`; **connector 0.4.85 shipped to box 159** (`d5c4325`, 5 workers recycled +
+verified, warmup 36 conn/464 ops).
 See §"Phase 2" 2.4 for detail.
 
 ### Ship record (2026-07-19)
