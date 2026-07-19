@@ -5,7 +5,54 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-19 (session 3m — **Stability & Scalability push kicked off**: audited widget + connector + feature-set; wrote `docs/plans/stability-and-scalability-plan.md` (4 phases). **Phase 0 COMPLETE + Phase 1 COMPLETE.** Phase 0: `make turn-hermetic` = box-free real-widget↔real-connector turn (hermetic sidecar: fake LLM + cassette reuse of `local_turn` seams); shared verdict/scenario/lifecycle (connector `03a08a0`) + shared cassette format + `docs/acceptance-checklist.md`. Phase 1: the 4 HIGH widget bugs (YAML truncation, dedup, connector-resolution self-heal, message track-by) fixed with tests, widget **1.2.27** (`c1ebb55`, unshipped). **NEXT: ship 1.2.27 + record 0.6 live pass, then Phase 2 (session-state depth).** Resume block atop `docs/plans/stability-and-scalability-plan.md`.)_
+_Last updated: 2026-07-19 (session 3n — **Phase 2 + SHIPPED to 8.0 box 159.** Audit found Phase 2's premises **stale**: 2.1 (persist grounding/guards/caps/phase/intent) is **already built** by the session-state spine, and 2.2's "capability-gap re-triggers full triage" symptom is **already handled** (chat_resume reuses cached grounding + "don't restart the hunt" directive + capgap guard-clear). **2.3 tool-output budgeting was the one real gap → built + tested** (framework `shrink_history` caps oversized tool_result bodies; suite 741 green). **Shipped the full stack to 159** (206 down): widget **1.2.28** + connector **0.4.84** (framework **fsr-playbooks v0.4.34**, released to PyPI). v0.4.34 also carried the user's `ApprovalManualInput` WIP (committed as user, `8daaf43`). Fixed a Phase-0 gate bug: `seamHermetic.spec.js` now self-skips without `FSRPB_SEAMC_URL`. **NEXT: 2.4 (unify build-completion via `emit_playbook_offer`) — the only remaining Phase-2 code item — or Phase 3 breadth.**)_
+
+> **▶ 2026-07-19 (session 3n) — Phase 2 (linchpin) + FULL STACK SHIPPED to 8.0 box 159.**
+> Plan: **`docs/plans/stability-and-scalability-plan.md`** (RESUME block updated).
+> - **Phase 2 audit correction (verified in code).** Mapped the connector + framework state layer.
+>   The plan's Phase-2 premises were STALE — the session-state spine already solves them:
+>   - **2.1 (persist grounding/progress/capabilities/phase/guard counters) = ALREADY BUILT.**
+>     Grounding cached per `record_key` → preflight skipped w/ continuation directive
+>     (`operations.py:2434`); guard counters seed from persisted `Investigation` + sticky
+>     `hunt_floor_met` (`_loop_helpers.py:365`); capabilities persist via `note_result`
+>     (`:514`, wired w/ persisted `case_state.capabilities` `openai_provider.py:382`); phase via
+>     `_advance_phase`; intent via `session_intent` table. **No code needed.**
+>   - **2.2 (intent per-turn-aware) = SYMPTOM ALREADY HANDLED.** Capability-gap "Re-check &
+>     continue" resolves via **`chat_resume`**: cached grounding + *"resuming an in-progress
+>     triage — do NOT restart the hunt"* directive (`operations.py:4233`), no preflight re-run
+>     (`:4220`), `capgap_recheck` clears just that connector's guard (`:4148–4246`). Page-pinned
+>     `uiIntent` is a **deliberate** widget constraint (no triage→build jump from an alert), not
+>     a bug. **No code needed.**
+>   - **2.3 (tool-output budgeting) = THE ONE REAL GAP → BUILT + TESTED.** `shrink_history` only
+>     deduped identical read-only calls + capped old yaml *arg* bodies; a single large *result*
+>     (`verify_playbook` ~47KB, dup-enrichment ~40KB) sailed through uncapped → long chains blow
+>     context. Added a 3rd pass: oversized `tool_result` bodies clipped head+tail, freshest kept
+>     full, deterministic fixed point. `test_shrink_history_result_cap.py` (4) + full framework
+>     suite **741 passed**. (framework `e860ea7`)
+>   - **2.4 (unify build-completion via `emit_playbook_offer`) = the only remaining Phase-2 code
+>     item** (soft reliability gap — tool exists + is prompt-advertised; free-form "design a
+>     playbook" can still dead-end in prose).
+> - **SHIPPED the full stack to 159** (`fsr8`, 10.99.249.159, 8.0 GA — **206 still down**, 168
+>   lacks `/api/ai/*`):
+>   - **Widget `1.2.28`** via `make ship-verify` (lint→typecheck→unit→mock-e2e→introspect-gate→deploy;
+>     no live-sweep is defined for this widget). uuid `891fd3ae…`. (widget-repo `d6157f7`)
+>   - Fixed a **Phase-0 gate-wiring bug** en route: `seamHermetic.spec.js` needs the hermetic
+>     sidecar that only `make turn-hermetic` starts, but the general mock-e2e gate globbed it →
+>     `seamc_sidecar_unreachable` red'd ship-verify. Now **self-skips when `FSRPB_SEAMC_URL` is
+>     unset**. (Would have red'd every ship-verify of this widget.)
+>   - **Framework `fsr-playbooks v0.4.34`** released to PyPI (`make release`; publish workflow green)
+>     → `make bump-framework` (symbol preflight OK, 66/25) → **connector `0.4.84`** on 159, all 7
+>     workers recycled + warmup re-synced (36 conn/464 ops). (connector `f82ebd0`)
+>   - **v0.4.34 also carried the user's uncommitted `ApprovalManualInput` WIP** (5 files: parser
+>     accepts+hoists `is_approval`, normalizer re-points step type to `ApprovalManualInput`,
+>     decompiler, AUTHORING.md, tests — complete + passing). Committed authored as the user
+>     (`8daaf43`) since release requires a clean tree and the feature was ready.
+> - **Live on 159 now:** widget **1.2.28** + connector **0.4.84** (framework 0.4.34, §2.3).
+> - **Gotchas captured:** `make ship-verify` hardcodes `FSR_ENV_FILE=…/.env` (line 123) — to ship
+>   to a non-default box, point `.env` at it (the `.env.<box>` sidecar files aren't read by
+>   ship-verify). `fsr8`/`fsr159` = **10.99.249.159** (not .250.159). Framework pre-commit
+>   fast-subset has pre-existing **test-order pollution** (2 tests pass in isolation; `make tests`
+>   release gate is clean) — not a real failure.
 
 > **▶ 2026-07-19 (session 3m) — Stability & Scalability push: audit → plan → Phase 0 spine started.**
 > Plan: **`docs/plans/stability-and-scalability-plan.md`** (the durable home for this thread).
