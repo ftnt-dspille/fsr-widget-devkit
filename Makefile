@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-live-sweep test-matrix-live test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -71,6 +71,32 @@ test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fre
 	@if [ -z "$(SPEC)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js"; exit 2; fi
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC) --reporter=list
+
+# Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
+# turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
+# fake LLM + cassette reads — no box, no LLM credits), then runs the Seam C e2e
+# spec whose route interception forwards /api/integration/execute to it. This is
+# the one tier that exercises the real widget controller against real connector
+# logic without a live appliance. Teardown always kills the sidecar.
+SEAMC_PORT   := 4778
+SEAMC_SIDECAR := $(HARNESS)/scripts/local-connector-sidecar.py
+SEAMC_PY     := $(HARNESS)/.venv-localdev/bin/python
+SEAMC_SPEC   := ../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.seamHermetic.spec.js
+turn-hermetic: ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
+	-lsof -ti:$(SEAMC_PORT) | xargs kill -9 2>/dev/null || true
+	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	FSRPB_DEV=1 FSRPB_SIDECAR_HERMETIC=1 FSRPB_SIDECAR_PORT=$(SEAMC_PORT) \
+		$(SEAMC_PY) $(SEAMC_SIDECAR) > /tmp/seamc-sidecar.log 2>&1 & echo $$! > /tmp/seamc-sidecar.pid
+	@echo "▶ waiting for hermetic sidecar on :$(SEAMC_PORT)…"
+	@for i in $$(seq 1 30); do \
+		curl -sf http://127.0.0.1:$(SEAMC_PORT)/health >/dev/null 2>&1 && break; \
+		sleep 0.5; \
+	done; curl -sf http://127.0.0.1:$(SEAMC_PORT)/health >/dev/null || \
+		{ echo "sidecar failed to start; log:"; cat /tmp/seamc-sidecar.log; exit 1; }
+	@echo "▶ sidecar up; running Seam C e2e"
+	cd $(HARNESS) && PORT=$(TEST_PORT) FSRPB_SEAMC_URL=http://127.0.0.1:$(SEAMC_PORT)/execute \
+		pnpm test:e2e $(SEAMC_SPEC) --reporter=list; \
+		rc=$$?; kill $$(cat /tmp/seamc-sidecar.pid) 2>/dev/null || true; exit $$rc
 
 # Ad-hoc one-shot widget inspector: mount a widget in the RUNNING dev harness and
 # answer a visual/DOM question as JSON (dropdown clipped? grid row count? size?).

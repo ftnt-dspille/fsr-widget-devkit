@@ -114,6 +114,71 @@ def _build_config(config_name: str | None) -> dict:
     return cfg
 
 
+# --------------------------------------------------------------------------
+# Hermetic mode (Seam C — stability plan Phase 0.4).
+#
+# FSRPB_SIDECAR_HERMETIC=1 swaps the two live seams for the box-free ones the
+# connector's own `scripts/local_turn.py` already implements — a FAKE LLM
+# (deterministic, no gateway, no credits) and a CASSETTE FSR client (reads
+# replayed in-process; any write raises). The result: the REAL widget
+# controller drives the REAL operations.py with ZERO box/network dependency,
+# so `make turn-hermetic` can gate the widget↔connector contract in CI.
+#
+# We REUSE the connector's helpers (never reimplement them) so the hermetic
+# seams can't drift from what local_turn.py / the connector test suite already
+# vet: `_install_fake_provider`, `_CassetteClient`, `_cassette_rules`.
+# --------------------------------------------------------------------------
+HERMETIC = str(os.environ.get("FSRPB_SIDECAR_HERMETIC", "")).strip().lower() in (
+    "1", "true", "yes", "on")
+_lt = None  # the connector's local_turn module, imported lazily in hermetic mode
+_shared = None
+
+
+def _init_hermetic() -> None:
+    """Import the connector's local_turn seam helpers and install the fake LLM
+    provider once. Cassette reads are (re)wired per request from the mounted
+    module's persona."""
+    global _lt, _shared
+    _CONN_SCRIPTS = os.path.join(os.path.dirname(CONNECTOR_DIR), "scripts")
+    if _CONN_SCRIPTS not in sys.path:
+        sys.path.insert(0, _CONN_SCRIPTS)
+    import local_turn as lt  # noqa: E402 — path just set up
+    from fsr_playbooks.mcp_server import _shared as shared  # noqa: E402
+    _lt, _shared = lt, shared
+    # Install the fake provider onto the SAME operations module the sidecar
+    # dispatches through (patches operations_mod._build_provider).
+    _lt._install_fake_provider(operations_mod, "fake-1")
+    print("[sidecar] HERMETIC mode: fake LLM + cassette reads (box-free)", flush=True)
+
+
+def _hermetic_config(op: str, params: dict) -> dict:
+    """Rewire the cassette FSR client for this request's mounted module and
+    return the fake LLM config. Mirrors local_turn.run_turn's seam setup."""
+    entity = params.get("entity") if isinstance(params.get("entity"), dict) else None
+    module = (params.get("module")
+              or (entity.get("module") if entity else None))
+    # Fresh cassette per request: a 200-empty miss so read tools "find nothing"
+    # rather than error-flail (behavioral-grade semantics).
+    rules = _lt._cassette_rules(module, "fixture", None, None)
+    cassette = _lt._CassetteClient(
+        base_url=os.environ.get("FSR_BASE_URL", "https://fsr.local"),
+        rules=rules, miss_status=200)
+    _shared._LIVE_CLIENT_CACHE["client"] = cassette
+    _shared._live_client = lambda: cassette
+    _shared._invalidate_live_client = lambda: None
+    # Persona cache is process-global; clear so this request's fixture applies.
+    try:
+        operations_mod._PROFILE_CACHE.clear()
+        operations_mod._PROFILE_NEG_TS.clear()
+    except Exception:
+        pass
+    return {"anthropic_api_key": "sk-local-not-real", "model": "fake-1"}
+
+
+if HERMETIC:
+    _init_hermetic()
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status: int, payload) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
@@ -150,7 +215,7 @@ class Handler(BaseHTTPRequestHandler):
                 "error": {"code": "unknown_operation",
                           "message": f"{op!r} not in operations map"}}})
             return
-        config = _build_config(config_name)
+        config = _hermetic_config(op, params) if HERMETIC else _build_config(config_name)
         try:
             result = handler(config, params)
             # Real FortiSOAR's execute endpoint returns {status:"Success"|"Failed",

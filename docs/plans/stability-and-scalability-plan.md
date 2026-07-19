@@ -90,9 +90,21 @@ fully-mocked (fast/fake) or fully-live (slow/box). That's the vetting blind spot
   (`{code, severity, detail}`).
 - **0.3 Shared mock/cassette layer** — one URL-pattern→response rule format feeding
   both `local_turn` and Playwright.
-- **0.4 Close Seam C** — a mock connector server exposing `/api/integration/execute`
-  backed by **real `operations.py` in-process + swappable LLM**; Playwright routes
-  through it → real widget ↔ real connector, box-free. New target `make turn-hermetic`.
+- **0.4 Close Seam C** — ✅ **DONE (2026-07-19).** The plumbing already existed: the
+  harness's `local-connector-sidecar.py` runs real `operations.py` in-process and the
+  harness forwards `/api/integration/execute` to it under `FSR_LOCAL_CONNECTOR=1` — but
+  as the *live* loop (real LLM gateway + live pyfsr reads). The Seam-C gap was only the
+  two **hermetic seams** the connector's own `local_turn.py` already implements. Added
+  `FSRPB_SIDECAR_HERMETIC=1` to the sidecar: it imports (does not reimplement)
+  `local_turn._install_fake_provider` + `_CassetteClient` + `_cassette_rules`, so real
+  `operations.py` runs against a **fake LLM + cassette reads** — box-free, no credits.
+  Widget-side: `fortiaiAgenticAssistant.seamHermetic.spec.js` boots the real widget with
+  `&real=1` and **forwards** the intercepted execute call to the hermetic sidecar (vs the
+  usual static fixture), so the real controller drives real connector logic. New target
+  **`make turn-hermetic`** boots the sidecar, runs the spec, tears down. Green: real
+  `chat_turn` → persona resolution + prompt assembly + envelope shaping → rendered in the
+  widget timeline, zero box. _(Follow-up: script tool-using fake turns to exercise cards;
+  today the fake turn is a single end_turn text — enough to gate the contract.)_
 - **0.5 Session-lifecycle integration tests** (connector, the audit's untested
   corners): open → turn → card emit → resume → execute → next; **cross-worker resume**
   (cold worker + persisted profile); **corrupt/diverged state** (malformed JSON in
@@ -102,6 +114,9 @@ fully-mocked (fast/fake) or fully-live (slow/box). That's the vetting blind spot
 **Build order within Phase 0:** spine first — 0.2 (verdict registry) + 0.1 (schema)
 on the `local_turn.py` hub, then 0.5 (lifecycle tests, immediate stability value on
 the spine), then 0.4 (Seam C, the widget-facing payoff), then 0.3/0.6.
+_Status: 0.2 + 0.1 + 0.5 ✅ (connector `03a08a0`); 0.4 ✅ (this repo — sidecar hermetic
+mode + `make turn-hermetic`). Remaining: 0.3 (shared cassette format) + 0.6 (live
+acceptance checklist)._
 
 _Exit: one scenario schema + one verdict vocabulary; `make turn-hermetic` green
 (real widget↔real connector, box-free); the lifecycle suite green; one recorded

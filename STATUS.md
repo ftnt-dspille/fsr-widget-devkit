@@ -5,7 +5,130 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-18 (session 3j — P5 **S6 SHIPPED + box-proven 3/3 on 206**: apply the fix so a failed playbook runs. Validation caught that a prose prompt rule isn't enough for the box's gpt-4.1-class model → built a deterministic+transparent connector lever. framework 0.4.30 + connector 0.4.78. Next: S3/S4/S8. See top entry.)_
+_Last updated: 2026-07-19 (session 3m — **Stability & Scalability push kicked off**: audited widget + connector + feature-set; wrote `docs/plans/stability-and-scalability-plan.md` (4 phases). Phase 0 (consolidate 5 existing harnesses): **0.2 verdict registry + 0.1 scenario schema + 0.5 lifecycle tests BUILT (connector `03a08a0`), and ✅ 0.4 Seam C DONE** — `make turn-hermetic` drives the real widget against real `operations.py` box-free (hermetic sidecar: fake LLM + cassette reuse of `local_turn` seams). Next: 0.3 shared cassette format + 0.6 live acceptance. See top entry.)_
+
+> **▶ 2026-07-19 (session 3m) — Stability & Scalability push: audit → plan → Phase 0 spine started.**
+> Plan: **`docs/plans/stability-and-scalability-plan.md`** (the durable home for this thread).
+> User directive: "focus on stability and scalability of the widget and connector." Scoped with
+> the user — **stability** = state/session correctness + basic functionality not fully vetted;
+> **scalability** = feature breadth toward the end-stage (co-equal SOC copilot + authoring IDE;
+> deeper tools / richer cards / more autonomy). Method: audit first, then plan.
+> - **Audit (3 parallel, read-only):** (a) connector session/state code is SOLID — every historical
+>   bug fixed; the gap is that the full session lifecycle is UNTESTED (cross-worker resume, corrupt
+>   state, concurrent-turn minting). (b) widget has 4 real HIGH bugs: YAML-fence extractor can
+>   silently truncate a playbook on deploy; no message dedup (export/audit double-count);
+>   connector-resolution cache never recovers from a 404; messages `track by $index`. (c) session-
+>   state depth is the linchpin for BOTH halves (durable case-state = correctness fix + autonomy
+>   substrate). Roadmap docs are STALE (C2 update_playbook / C5 build-scoping are done, not open).
+> - **Plan = 4 phases:** 0 vet-the-basics (consolidate the 5 existing harnesses; NOT greenfield) →
+>   1 widget HIGH fixes → 2 session-state depth (the pivot) → 3 feature expansion (deeper tools /
+>   richer cards / autonomy) → 4 structural (split monoliths, pydantic, Postgres audit, SSE).
+> - **Phase 0, connector-first, spine-first (user's calls):** mapped the real testing surface —
+>   `local_turn.py` (in-process, swappable LLM/persona/tools; the hub), `eval_harness`+`eval_s*`
+>   (live oracle), framework `chat_drive`/`scoring`, widget Playwright hermetic + live matrix. The
+>   ONE real gap = **Seam C**: nothing drives the real widget controller against real `operations.py`
+>   with a mock LLM. Five harnesses = five verdict dialects sharing ZERO codes.
+> - **✅ 0.2 shared verdict registry BUILT + tested (uncommitted):** `scripts/verdict_registry.json`
+>   (canonical codes, every framework gate + widget red-flag + eval prose aliased in) + `scripts/verdict.py`
+>   (pydantic `Finding`/`Verdict`, 3 adapters `from_framework_score`/`from_widget_grade`/`from_checks`,
+>   soft/strict/xfail `rollup` ported from the widget gate ladder). `tests/test_verdict_registry.py`
+>   **48 passed** — completeness guard (no unmapped grader term), adapters, rollup ladder. Additive
+>   only; rewrites no harness.
+> - **✅ 0.1 shared scenario schema BUILT + tested (uncommitted):** `scripts/scenario.py` (pydantic
+>   `Scenario`+`Expectations`; one superset of matrix rows / chat tasks / native form; adapters
+>   `from_matrix_row`/`from_chat_task`; `to_local_turn_kwargs()` maps onto the hub; red-flags
+>   canonicalize through the verdict registry) + `scripts/scenarios/example_triage.json`.
+>   `tests/test_scenario_schema.py` (15, incl. a REAL-spine integration drive: Scenario →
+>   `local_turn` fake-LLM → 38-tool slice/31KB prompt → verdict rollup). New `make spine-test`
+>   runs 0.1+0.2 together: **63 passed**. All additive — no existing harness rewritten.
+> - **✅ 0.5 session-lifecycle tests BUILT + a REAL bug fixed (uncommitted):** `tests/test_session_lifecycle.py`
+>   (8) closes the audit's untested corners — full lifecycle as one flow (open→reserve→conversation→
+>   card→suspend→pop→next) verified cross-instance (cold worker); **concurrent `reserve_next_turn`**
+>   under real thread contention (6×15, separate Storage instances → no shared lock) mints no
+>   duplicate turns (BEGIN IMMEDIATE holds); patch_proposal card recoverable by `proposal_id`
+>   cross-worker. **Found + fixed a real bug:** `load_conversation` AND `get_card` did a bare
+>   `json.loads` (no guard) → a corrupt/half-written row **crashed the resume turn**; now fail-soft
+>   ([]/None) matching `get_case_state`. Tests went RED first, then green. **Full connector root
+>   suite: 394 passed / 21 skipped / 0 failed** (71 new tests this session, no regression).
+> - **✅ 0.4 Seam C DONE — `make turn-hermetic` green (real widget ↔ real connector, box-free).**
+>   The big reframe: the plumbing already existed. The harness's `local-connector-sidecar.py` runs
+>   real `operations.py` in-process and the harness forwards `/api/integration/execute` to it under
+>   `FSR_LOCAL_CONNECTOR=1` — but as the *live* loop (real LLM gateway + live pyfsr reads). Seam C's
+>   only real gap was the two **hermetic seams** the connector's own `scripts/local_turn.py` already
+>   implements. Added `FSRPB_SIDECAR_HERMETIC=1`: the sidecar **imports** (never reimplements)
+>   `local_turn._install_fake_provider` + `_CassetteClient` + `_cassette_rules` → real `operations.py`
+>   against a **fake LLM + cassette reads**, box-free, no LLM credits. Widget side: new e2e
+>   `fortiaiAgenticAssistant.seamHermetic.spec.js` boots the real widget `&real=1` and **forwards**
+>   the intercepted execute call to the hermetic sidecar (vs the usual static fixture), so the real
+>   controller drives real connector logic. New Makefile target **`make turn-hermetic`** boots the
+>   sidecar → runs the spec → tears down (verified: sidecar killed on exit). **1 passed (8.6s)** — a
+>   real `chat_turn` ran persona resolution + prompt assembly + envelope shaping and rendered in the
+>   widget timeline with ZERO box. All in THIS repo (parent `fsr_all_widgets`: Makefile + harness
+>   sidecar; the widget spec is in the nested `widget-fsr-soc-assistant` repo). The connector's
+>   `local_turn.py` was only imported, not modified. _(Follow-up: script tool-using fake turns to
+>   exercise cards; today the fake turn is a single end_turn text — enough to gate the contract.)_
+>   User's Frank note captured: the sidecar's non-hermetic path already uses Frank (local
+>   OpenAI-compat gateway) as a free real-LLM seam; hermetic uses the zero-dependency fake.
+> - **🔜 NEXT:** 0.3 (shared cassette/mock format feeding both `local_turn` and Playwright) + 0.6
+>   (one recorded live acceptance pass) close out Phase 0; then Phase 1 widget HIGH fixes.
+
+> **▶ 2026-07-19 (session 3l) — patch_proposal ACCEPT/APPLY: BUILT + tested, uncommitted/unshipped.**
+> The emit_patch_proposal PROPOSE half shipped (0.4.79); this closes the APPLY half — the
+> `apply_patch` reply-tool resume dispatch that applies the card's `after_yaml` to the open playbook.
+> - **Connector `_resume_apply_patch`** (`operations.py`): on a patch_proposal accept the connector
+>   recovers the card's FULL (uncapped) `after_yaml` from storage, compiles it, and applies it via
+>   `update_playbook` — the same snapshot-first, fail-closed Save path the designer's own ```yaml fence
+>   uses. Splices a deterministic `apply_patch` tool_use/tool_result + an analyst-facing summary
+>   (outage-survivable; no model round-trip). Honest failure reporting (compile-fail is fail-closed;
+>   update-fail surfaces the code, playbook unchanged). Routed in `chat_resume` on `reply_tool` BEFORE
+>   the action_card path; degrades to conversational resume for a non-patch card.
+> - **Persistence gap fixed:** `patch_proposal` was not in `_persist_session_state._GATE_TYPES`, so the
+>   card (with `after_yaml`) was never stored → unrecoverable on resume. Added it; `storage.save_card`
+>   now falls back to `proposal_id` for the key (patch cards use `proposal_id`, not `id`), matching the
+>   id the widget resumes with (`normalizePatchProposal`).
+> - **Widget:** `acceptPatchProposal` sends `reply_tool` + the open playbook's `workflow_iri` at the
+>   resume params TOP level (chat_resume carries no entity, contract §4). `_runResumeAction` gained an
+>   `extra` merge; new `_openPlaybookIri()` helper (module==='workflows' guarded) shared with Save.
+>   `ChatResumeParams` typed `reply_tool`/`workflow_iri`/`workflow_uuid`.
+> - **Tests:** connector `tests/test_apply_patch_resume.py` (7: recover→compile→update chain, uncapped
+>   after_yaml, missing-iri/failed-update honesty, compile fail-closed, non-patch degrade, persist +
+>   save_card id fallback, chat_resume routing). Widget e2e
+>   `fortiaiAgenticAssistant.applyPatchResume.spec.js` — route-intercepted in **playbook-designer
+>   context**, asserts the wire chat_resume carries `reply_tool='apply_patch'` + `workflow_iri`
+>   containing the open playbook uuid. Widget unit **748 passed**; patchProposal(3)+applyPatchResume(1)
+>   e2e green; connector root suite 318 passed (8 pre-existing/environmental fails, baseline-confirmed).
+> - **🔜 NEXT to go live:** the build prompt does NOT yet advertise `emit_patch_proposal` (deferred
+>   until apply landed — it just did). Advertise it (framework release → connector pin → `make ship`),
+>   then box-prove the accept applies. Until then the card is reachable but the agent won't proactively
+>   emit it. Nothing committed/pushed/shipped this session.
+
+> **▶ 2026-07-19 (session 3k) — P5 S3 (connector-action playbook): OUTPUT-PATH DEFECT SOLVED + shipped; residual is stochastic discovery noise.**
+> Built `eval_s3_connector.py` (dual oracle: a real connector step invoking
+> `cyops_utilities/convert_periodic_time_to_minutes` with the asked input AND the record field is a
+> Jinja ref to its output, not a hardcoded literal; + behavioural: run → alert description == "180").
+> Three lever-ships took the box rate 0/3 → 1/3 → 2/3 → 2/5:
+> - **Ship-1 (fw 0.4.31 / conn 0.4.79):** compiler param-hoist (connector step's top-level `params`
+>   now hoisted into `arguments:` like `connector`/`operation`) + `.data`-envelope grounding fix
+>   (`get_step_type('connector')` + validator: a connector result is `{data, status, message,
+>   operation}`, op fields at `vars.steps.<name>.data.<field>`).
+> - **Ship-2 (fw 0.4.32 / conn 0.4.80):** the deterministic output-path lever the user chose (A+B):
+>   **A** compile-time auto-correct rewrites `vars.steps.<connstep>.<x>` → `.data.<field>` when
+>   unambiguous (real subkey, or `.result`/`.outputs` on a single-output op), on the always-taken
+>   Deploy compile path; **B1** pure-compute verbs (convert/parse/format/…) classify op_safety 'safe';
+>   **B2** safe live-probe default-on in build verify (double-gated: walker op_safety=='safe' + run_op
+>   refuses non-safe categories w/o confirm → no mutating op runs).
+> - **Ship-3 (fw 0.4.33 / conn 0.4.82):** config-less-connector grounding — `find_connector` returns
+>   `config_required` + a note that config-less utilities are usable with `config: ''` and won't appear
+>   in `list_configured_connectors` (the model had misread `config_count=0` as "unavailable").
+> - **Verdict:** the output-path defect the eval existed to catch is FIXED deterministically (runs
+>   reliably author `.data.minutes` when the model wires the step). The residual 2/5 is the box gpt-4.1
+>   model's discovery/comprehension unreliability for a deliberately-obscure utility op (can't find it →
+>   declares it nonexistent; or `.data`-whole-dict) — diminishing-returns stochastic noise, the S6
+>   lesson at full strength. **Grade the defect (solved), not the symptom. Next: S4 / S8.**
+> - Framework releases 0.4.31–0.4.33 committed + pushed (tests: connector_step_envelope,
+>   probe_op_safety, verify_live_probe_default, connector_config_required). Connector commits scoped to
+>   pin+version only (a parallel session's patch_proposal WIP left uncommitted, but baked into the box
+>   build). Detail: `docs/plans/build-persona-validation-plan.md` RESUME + `s3_connector_step_envelope_and_params` memory.
 
 > **▶ 2026-07-18 (session 3j) — P5 S6 (apply the fix so a failed playbook runs): SHIPPED + BOX-PROVEN 3/3 on 206.**
 > Started as a "close to free" eval; the box turned it into a real fix. Chain of findings:
