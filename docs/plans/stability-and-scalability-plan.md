@@ -46,10 +46,14 @@ Test `test_shrink_history_result_cap.py` (4 cases) + full suite **741 passed, 12
 skipped**. UNCOMMITTED in `fsr-playbook-framework`; needs framework release +
 `make bump-framework` + connector ship to reach a box.
 
-**Still real in Phase 2:** 2.2 (intent is sticky per-session — a capability-gap
-click re-triggers full triage; make it per-turn-aware), 2.4 (build tool
-`emit_playbook_offer` exists + is prompt-advertised but free-form "design a
-playbook" can still dead-end in prose — a reliability, not capability, gap).
+**Phase 2 reframed:** 2.1 AND 2.2 describe symptoms the connector's session-state
+spine (case-state grounding cache + §E/spine-P3 resume path) **already solves** —
+the audit that generated this plan predates that work. 2.3 was the one real code
+gap (now built + tested). **The only remaining Phase-2 item is 2.4** (build tool
+`emit_playbook_offer` exists + is prompt-advertised, but free-form "design a
+playbook" can still dead-end in prose — a *reliability*, not capability, gap). The
+"session-state depth linchpin" is therefore largely already built; Phase 2's
+residual value is **vetting** (Phase-0's thin-testing conclusion) + Phase-3 breadth.
 
 ---
 
@@ -225,8 +229,21 @@ workers — fixing correctness seams *and* laying the substrate for autonomy.
   case-state. **✅ ALREADY BUILT** (2026-07-19 audit — see RESUME block). No code
   needed; residual value is Phase-0 lifecycle vetting.
 - **2.2 Make intent per-turn-aware** rather than page-pinned (a capability-gap
-  click shouldn't re-trigger full triage). **OPEN** — intent is sticky per-session
-  (`session_intent` table; set at `operations.py:2861`, reused on every resume).
+  click shouldn't re-trigger full triage). **✅ SYMPTOM ALREADY HANDLED** (2026-07-19
+  audit). The capability-gap "Re-check & continue" resolves through `chat_resume`,
+  which (a) reuses cached grounding + a *"resuming an in-progress triage — do NOT
+  restart the hunt"* directive (`operations.py:4233`), (b) never re-runs preflight
+  ("no preflight re-run on resume, ever", `operations.py:4220`), (c) clears only the
+  specific connector's capability guard via `capgap_recheck` + `forget_connector_
+  availability` (`operations.py:4148–4190, 4246`). A fresh `chat_turn` follow-up on
+  the same `record_key` likewise reuses cached grounding + continuation directive +
+  seeded guards. Covered by `test_case_state_wiring.py` (`test_second_turn_same_
+  record_skips_preflight`, `test_resume_uses_grounded_prompt_with_resume_directive`).
+  The residual "page-pinned intent" (`uiIntent` fixed at mount) is a **deliberate**
+  widget constraint — analysts must not jump triage→build from an alert — NOT a bug.
+  ⇒ No code needed. Optional follow-up: strengthen the resume-directive test to
+  drive the real `chat_resume` op (today it re-simulates the string) + add a
+  capgap-recheck-clears-guard regression test.
 - **2.3 Tool-output budgeting** — cap/sample large tool outputs (`verify_playbook`
   ~47KB, duplicate enrichment ~40KB) so long chains don't blow the context window.
   Prerequisite for both deeper tools and autonomy. **✅ BUILT + TESTED** (framework
