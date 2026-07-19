@@ -32,9 +32,14 @@ code item; framework 2.3 not yet released to a box.**
   now self-skips when `FSRPB_SEAMC_URL` is unset — it needs the hermetic sidecar that
   only `make turn-hermetic` starts, but the general mock-e2e gate globbed it and red'd
   ship-verify. Runs under `turn-hermetic`, skipped in the mock gate.
-- **Framework 2.3 (`e860ea7`) NOT yet on a box** — needs `make release` (PyPI) +
-  `make bump-framework` + connector `make ship`. Touches the GA/159 connector →
-  get user OK first.
+- **Framework 2.3 SHIPPED to 159 (2026-07-19).** Released **fsr-playbooks v0.4.34**
+  (framework `8daaf43`/`e860ea7`; PyPI publish green) → `make bump-framework 0.4.34`
+  (symbol preflight OK, 66 symbols/25 modules) → `make ship` → **connector 0.4.84**
+  on 10.99.249.159, all 7 workers recycled + warmup re-synced (36 conn/464 ops).
+  Connector deploy record committed `f82ebd0`. **v0.4.34 also carried the user's
+  `ApprovalManualInput` feature** (was uncommitted WIP; committed as `8daaf43`,
+  authored as user, with the release).
+- **Live on 159 now:** widget `1.2.28` + connector `0.4.84` (framework 0.4.34, §2.3).
 
 **Phase 0 COMPLETE. Phase 1 COMPLETE (widget 1.2.27). Phase 2: 2.1 was already
 built (stale premise); 2.3 now built + tested. 2.2/2.4 remain.**
