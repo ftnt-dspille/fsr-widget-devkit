@@ -18,9 +18,19 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ## ▶ RESUME HERE (2026-07-19)
 
-**Phase 0/1 COMPLETE. Phase 2: 2.1+2.2 already built (stale premises); 2.3 built +
-tested. Widget SHIPPED to 8.0 box 159 (1.2.28). 2.4 is the only remaining Phase-2
-code item; framework 2.3 not yet released to a box.**
+**Phase 0/1 COMPLETE. Phase 2 CODE COMPLETE: 2.1+2.2 already built (stale
+premises); 2.3 built + tested + SHIPPED (framework 0.4.34 → box 159); 2.4 built +
+tested (connector `b5ebc36`, unshipped). Widget SHIPPED to 8.0 box 159 (1.2.28).
+Next: ship the 2.4 connector build to a box, then Phase 3 (feature breadth).**
+
+### 2.4 build-completion salvage — DONE (2026-07-19, box-free)
+`_salvage_build_offer` in `operations.py` (`_finalize`): a build turn narrating
+its final YAML with no card now gets a deterministic `playbook_offer` (deploy
+button) synthesized from `last_assistant_yaml` via the framework's
+`_offer_from_yaml`. Open-playbook edits exempt (raw fence + Save updates in
+place). `test_salvage_build_offer.py` 7 cases; suite 140 green. Committed
+`b5ebc36`, **unshipped** — needs `make ship` (connector) when a box window opens.
+See §"Phase 2" 2.4 for detail.
 
 ### Ship record (2026-07-19)
 - **206 down** (still); **159 (`fsr8`, 10.99.249.159, 8.0 GA) up** → shipped there.
@@ -272,9 +282,21 @@ workers — fixing correctness seams *and* laying the substrate for autonomy.
   Prerequisite for both deeper tools and autonomy. **✅ BUILT + TESTED** (framework
   `shrink_history` 3rd pass; `test_shrink_history_result_cap.py`; suite 741 green).
   Uncommitted; unshipped.
-- **2.4 Unify the build-completion path** — free-form "design a playbook" currently
-  dead-ends in prose with no deploy button; always route through
-  `emit_playbook_offer` so every build turn can land.
+- **2.4 Unify the build-completion path** — free-form "design a playbook" used to
+  dead-end in prose with no deploy button. **✅ BUILT + TESTED** (connector
+  `b5ebc36`). Added `_salvage_build_offer` (`operations.py`): a deterministic
+  backstop in `_finalize` — when a **build**-intent turn would end in prose
+  carrying a final `last_assistant_yaml` fence and no gating card, it synthesizes
+  the same `playbook_offer` card the tool would emit (via the framework's
+  `_offer_from_yaml`, so `final_yaml` + shape are identical) and appends it,
+  turning `end_turn` → `awaiting_playbook_offer` so the Deploy button always lands.
+  **Exempt:** editing an OPEN playbook (`entity.playbook_yaml` present) — the raw
+  fence is correct there and Save updates in place; an offer would compile a
+  duplicate (the anti-pattern `system_prompt_build.md` warns against). Also skips
+  triage intent, errored turns, and already-carded turns. `test_salvage_build_offer.py`
+  (7 cases); connector self-contained suite **140 green**. Committed, unshipped.
+  Follow-up: exercise it end-to-end once the hermetic sidecar can script a
+  tool-using fake build turn (Phase-0 carried follow-up).
 
 ## Phase 3 — Feature expansion (scalability), on the three chosen axes
 
