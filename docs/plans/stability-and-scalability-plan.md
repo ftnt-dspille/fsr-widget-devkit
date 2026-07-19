@@ -16,6 +16,38 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ---
 
+## ▶ RESUME HERE (2026-07-19)
+
+**Phase 0 COMPLETE. Phase 1 COMPLETE (widget 1.2.27, committed, unshipped).**
+
+- ✅ **Phase 0 — vet the basics.** All six items done. `make turn-hermetic` gives a
+  box-free real-widget↔real-connector turn (hermetic sidecar: fake LLM + cassette,
+  reusing the connector's `local_turn` seams). Shared verdict registry / scenario
+  schema / lifecycle tests landed in the connector (`03a08a0`). Shared cassette
+  format + acceptance checklist (`docs/acceptance-checklist.md`) done.
+- ✅ **Phase 1 — the 4 HIGH widget bugs** (1.1 YAML truncation, 1.2 dedup, 1.3
+  connector-resolution self-heal, 1.4 message track-by), each with tests. Widget
+  **1.2.27**, commit `c1ebb55` in the nested `widget-fsr-soc-assistant` repo. Unit
+  66 suites / 756; smoke+rendering e2e 20 passed.
+
+**Next actions, in order:**
+1. **Ship 1.2.27** to a box: `make ship-verify WIDGET=fortiaiAgenticAssistant`
+   (lint→unit→mock-e2e→deploy→live-sweep) when a box window opens.
+2. **Record the 0.6 live acceptance pass** in `docs/acceptance-checklist.md`'s table.
+3. **Phase 2 — session-state depth** (the linchpin: correctness fix + autonomy
+   substrate). Start at §"Phase 2" below — 2.1 persist grounding/progress/guard
+   counters in case-state.
+
+**Carried-forward follow-up:** script tool-using fake turns in the hermetic sidecar
+so `turn-hermetic` exercises tool cards (unlocks 0.3's read-cassette payoff). Today
+the fake turn is a single end_turn text.
+
+**Nothing is pushed or shipped to a box.** Parent-repo work (Seam C + Phase 0.3/0.6)
+committed to `main` (`9d12560`, `904e903`); widget Phase 1 committed to its own repo
+(`c1ebb55`). All local, unpushed.
+
+---
+
 ## 0. What the audit actually found
 
 Three read-only audits ran: widget stability, connector stability, feature/roadmap
