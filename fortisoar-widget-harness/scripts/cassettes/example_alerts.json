@@ -1,0 +1,19 @@
+{
+  "_comment": "Shared cassette format (stability plan Phase 0.3). Seeds connector-internal reads for the hermetic sidecar (FSRPB_SIDECAR_CASSETTE) and, in the same rule shape, local_turn's extra_reads. Each rule's `body` is served for any GET whose URL contains `match` (first hit wins).",
+  "reads": [
+    {
+      "match": "/api/3/alerts/",
+      "body": {
+        "hydra:member": [
+          {
+            "@id": "/api/3/alerts/seed-1",
+            "name": "Suspicious outbound connection",
+            "severity": "High",
+            "sourceIp": "203.0.113.7"
+          }
+        ],
+        "hydra:totalItems": 1
+      }
+    }
+  ]
+}

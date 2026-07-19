@@ -69,8 +69,39 @@ _Last updated: 2026-07-19 (session 3m — **Stability & Scalability push kicked 
 >   exercise cards; today the fake turn is a single end_turn text — enough to gate the contract.)_
 >   User's Frank note captured: the sidecar's non-hermetic path already uses Frank (local
 >   OpenAI-compat gateway) as a free real-LLM seam; hermetic uses the zero-dependency fake.
-> - **🔜 NEXT:** 0.3 (shared cassette/mock format feeding both `local_turn` and Playwright) + 0.6
->   (one recorded live acceptance pass) close out Phase 0; then Phase 1 widget HIGH fixes.
+> - **✅ 0.3 shared cassette format + 0.6 acceptance checklist DONE → Phase 0 COMPLETE.** 0.3: one
+>   cassette JSON (`{"reads":[{"match","body"}]}`) in `local_turn`'s rule shape feeds BOTH the Python
+>   hub (`extra_reads`) and the widget-facing hermetic sidecar (`FSRPB_SIDECAR_CASSETTE`, appended
+>   after the persona fixture); example `scripts/cassettes/example_alerts.json`; verified the sidecar
+>   loads it and a hermetic turn still runs green. 0.6: `docs/acceptance-checklist.md` — every row
+>   tagged `hermetic` vs `live`, with a recorded-passes table (the one live run is box-gated).
+>   Follow-up carried forward: scripted-tool fake turns so the hermetic tier exercises tool cards
+>   (unlocks 0.3's read payoff).
+>
+> **▶ 2026-07-19 (session 3m cont.) — Phase 1 widget HIGH fixes SHIPPED to the tree (widget 1.2.27, `c1ebb55`).**
+> All four audit HIGH bugs fixed, each with tests; full widget unit **66 suites / 756 passed**, smoke+rendering
+> e2e (incl. `history_rehydrate`) **20 passed**. Committed in the nested `widget-fsr-soc-assistant` repo.
+> - **1.1 YAML-fence truncation (data corruption):** the old `([\s\S]*?)```` stopped at the FIRST
+>   ``` anywhere, so a ``` INSIDE the YAML (mid-line string, description, embedded example) clipped
+>   the playbook and Save compiled the clipped copy OVER the record, deleting steps. Fix: shared
+>   `_extractLastYamlFence` with a **line-anchored** close (an inline ``` can't clip) + a **stateless
+>   fail-closed save guard** that refuses YAML still holding a standalone ``` line. Both fence scans
+>   (live + rehydrate) use the one helper so they can't drift.
+> - **1.2 Message dedup (audit integrity):** the turn-level idempotency guard only fires when
+>   `result.turn != null`; a null-turn transcript / poll-vs-late-return race slipped past and
+>   double-counted tool calls. Fix: dedup assistant commits by globally-unique `tool_use` id (a re-commit
+>   carries an id already on the timeline → drop it). Centralized in `_appendAssistantMessage` so the
+>   rehydrate path is covered too.
+> - **1.3 Connector-resolution self-heal:** a cached SUCCESSFUL resolution goes stale on a mid-session
+>   connector redeploy/rename/reconfig → every later call 404s until reload. Fix: `_dispatchReal` drops
+>   `_resolved` and re-resolves ONCE on a stale-resolution error (404 / unknown-connector / bad-config).
+> - **1.4 Stable message track-by:** the messages ng-repeat `track by $index` bled card state across a
+>   history rebuild by position. Fix: stamp a monotonic per-message `_key` lazily in `chatMessages()`
+>   (covers every creation path) + `track by (msg._key || $index)`.
+> - **🔜 NEXT:** ship 1.2.27 to a box (`make ship-verify`) when a window opens + record the 0.6 live
+>   acceptance pass; then Phase 2 (session-state depth — the linchpin). Optional Phase-1 mediums (1.5)
+>   remain. Nothing shipped to a box this session; parent-repo Phase-0 work + widget-repo Phase-1 both
+>   committed to their trees, unpushed.
 
 > **▶ 2026-07-19 (session 3l) — patch_proposal ACCEPT/APPLY: BUILT + tested, uncommitted/unshipped.**
 > The emit_patch_proposal PROPOSE half shipped (0.4.79); this closes the APPLY half — the

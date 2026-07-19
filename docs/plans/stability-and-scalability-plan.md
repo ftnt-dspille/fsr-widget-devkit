@@ -88,8 +88,14 @@ fully-mocked (fast/fake) or fully-live (slow/box). That's the vetting blind spot
 - **0.2 Shared verdict/code registry** — promote the existing eval↔chat_drive↔
   exportGrader code-sharing into the single grading vocabulary every harness emits
   (`{code, severity, detail}`).
-- **0.3 Shared mock/cassette layer** — one URL-pattern→response rule format feeding
-  both `local_turn` and Playwright.
+- **0.3 Shared mock/cassette layer** — ✅ **DONE (2026-07-19).** One cassette JSON
+  (`{"reads":[{"match","body"}]}`) in `local_turn`'s rule shape — `[(url_substring,
+  body)]` — so the SAME file feeds the Python `local_turn` hub (`extra_reads`) and the
+  widget-facing hermetic sidecar (`FSRPB_SIDECAR_CASSETTE`, appended after the persona
+  fixture). Example: `fortisoar-widget-harness/scripts/cassettes/example_alerts.json`.
+  Verified: the sidecar loads it and a hermetic turn still runs green. _(The behavioral
+  payoff — seeded reads surfacing as tool cards — lands with scripted-tool fake turns,
+  the 0.4 follow-up; the format + plumbing are in place now.)_
 - **0.4 Close Seam C** — ✅ **DONE (2026-07-19).** The plumbing already existed: the
   harness's `local-connector-sidecar.py` runs real `operations.py` in-process and the
   harness forwards `/api/integration/execute` to it under `FSR_LOCAL_CONNECTOR=1` — but
@@ -109,14 +115,18 @@ fully-mocked (fast/fake) or fully-live (slow/box). That's the vetting blind spot
   corners): open → turn → card emit → resume → execute → next; **cross-worker resume**
   (cold worker + persisted profile); **corrupt/diverged state** (malformed JSON in
   `session_conversation`); **concurrent `chat_turn`** minting (assert `BEGIN IMMEDIATE`).
-- **0.6 "App works" acceptance checklist**, run live once and recorded.
+- **0.6 "App works" acceptance checklist** — ✅ **written** (`docs/acceptance-checklist.md`):
+  every row tagged `hermetic` (box-free, `make turn-hermetic`/mock e2e) vs `live` (needs
+  an appliance), with a recorded-passes table. The one-time live run is box-gated — record
+  it in that table at the next box window.
 
 **Build order within Phase 0:** spine first — 0.2 (verdict registry) + 0.1 (schema)
 on the `local_turn.py` hub, then 0.5 (lifecycle tests, immediate stability value on
 the spine), then 0.4 (Seam C, the widget-facing payoff), then 0.3/0.6.
-_Status: 0.2 + 0.1 + 0.5 ✅ (connector `03a08a0`); 0.4 ✅ (this repo — sidecar hermetic
-mode + `make turn-hermetic`). Remaining: 0.3 (shared cassette format) + 0.6 (live
-acceptance checklist)._
+_Status: **Phase 0 COMPLETE.** 0.2 + 0.1 + 0.5 ✅ (connector `03a08a0`); 0.4 ✅ (sidecar
+hermetic mode + `make turn-hermetic`); 0.3 ✅ (shared cassette format); 0.6 ✅ (acceptance
+checklist written — one live run box-gated). Follow-up carried forward: scripted-tool fake
+turns so the hermetic tier exercises tool cards (unlocks 0.3's read-cassette payoff)._
 
 _Exit: one scenario schema + one verdict vocabulary; `make turn-hermetic` green
 (real widget↔real connector, box-free); the lifecycle suite green; one recorded

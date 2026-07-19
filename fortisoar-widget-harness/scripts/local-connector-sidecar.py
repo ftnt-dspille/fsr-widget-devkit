@@ -132,6 +132,38 @@ HERMETIC = str(os.environ.get("FSRPB_SIDECAR_HERMETIC", "")).strip().lower() in 
     "1", "true", "yes", "on")
 _lt = None  # the connector's local_turn module, imported lazily in hermetic mode
 _shared = None
+_CASSETTE_READS: list = []  # shared-format read rules seeded from FSRPB_SIDECAR_CASSETTE
+
+
+def _load_cassette(path: str) -> list:
+    """Load a shared cassette JSON and return read rules in local_turn's rule
+    shape — `[(url_substring, body)]` — so the SAME file feeds both the Python
+    `local_turn` hub and this widget-facing sidecar (stability plan Phase 0.3).
+
+    Format::
+
+        { "reads": [ { "match": "/api/3/alerts/", "body": { ... } }, ... ] }
+
+    A rule's `body` is served for any GET whose URL contains `match` (first hit
+    wins), exactly as `_CassetteClient` replays it. These rules are appended
+    after the persona fixture, so a cassette seeds the connector-internal reads
+    (get_record / search_module_records) a scripted turn makes — box-free.
+    """
+    if not path:
+        return []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+    except Exception as e:  # noqa: BLE001
+        print(f"[sidecar] cassette load failed ({path}): {e}", flush=True)
+        return []
+    rules = []
+    for r in (doc.get("reads") or []):
+        match = r.get("match")
+        if match:
+            rules.append((match, r.get("body", {"hydra:member": [], "hydra:totalItems": 0})))
+    print(f"[sidecar] cassette: {len(rules)} read rule(s) from {path}", flush=True)
+    return rules
 
 
 def _init_hermetic() -> None:
@@ -148,6 +180,8 @@ def _init_hermetic() -> None:
     # Install the fake provider onto the SAME operations module the sidecar
     # dispatches through (patches operations_mod._build_provider).
     _lt._install_fake_provider(operations_mod, "fake-1")
+    global _CASSETTE_READS
+    _CASSETTE_READS = _load_cassette(os.environ.get("FSRPB_SIDECAR_CASSETTE", ""))
     print("[sidecar] HERMETIC mode: fake LLM + cassette reads (box-free)", flush=True)
 
 
@@ -157,9 +191,10 @@ def _hermetic_config(op: str, params: dict) -> dict:
     entity = params.get("entity") if isinstance(params.get("entity"), dict) else None
     module = (params.get("module")
               or (entity.get("module") if entity else None))
-    # Fresh cassette per request: a 200-empty miss so read tools "find nothing"
+    # Fresh cassette per request: persona fixture + any shared-format cassette
+    # reads (extra_reads), then a 200-empty miss so read tools "find nothing"
     # rather than error-flail (behavioral-grade semantics).
-    rules = _lt._cassette_rules(module, "fixture", None, None)
+    rules = _lt._cassette_rules(module, "fixture", None, _CASSETTE_READS or None)
     cassette = _lt._CassetteClient(
         base_url=os.environ.get("FSR_BASE_URL", "https://fsr.local"),
         rules=rules, miss_status=200)
