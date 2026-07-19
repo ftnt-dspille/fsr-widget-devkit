@@ -18,6 +18,41 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ## ▶ RESUME HERE (2026-07-19)
 
+**Phase 0 COMPLETE. Phase 1 COMPLETE (widget 1.2.27). Phase 2: 2.1 was already
+built (stale premise); 2.3 now built + tested. 2.2/2.4 remain.**
+
+### Phase 2 audit correction (2026-07-19, box-free session)
+
+A code map of the connector + framework state layer showed the plan's **2.1
+premise is stale** — grounding does NOT re-run every turn and guards do NOT reset:
+- Grounding is cached per `record_key` with a continuation directive, skipping
+  preflight (`operations.py:2434`).
+- Guard counters (`invest_attempts`, sticky `hunt_floor_met`, `called_once_sigs`)
+  seed from persisted `Investigation` (`_loop_helpers.py:365`).
+- Capabilities (`unavailable`/`confirmed`) persist via `note_result`
+  (`_loop_helpers.py:514`), wired with the persisted `case_state.capabilities`
+  (`openai_provider.py:382`, `anthropic_provider.py`).
+- Phase persists via `_advance_phase`; intent via the `session_intent` table.
+- **⇒ 2.1 needs no code.** Its residual value is *vetting* (Phase-0 lifecycle
+  tests), not new persistence.
+
+**2.3 tool-output budgeting — DONE (framework, box-free).** `shrink_history` only
+deduped identical read-only calls + capped old yaml *arg* bodies; a single large
+*result* (verify_playbook ~47KB, dup-enrichment ~40KB) sailed through uncapped.
+Added a 3rd pass (`_loop_helpers.py`): oversized `tool_result` bodies over
+`_RESULT_CAP_CHARS` (8000) are clipped head+tail, keeping the freshest
+`_RESULT_KEEP_LATEST` (1) full; deterministic fixed point (prompt-prefix stable).
+Test `test_shrink_history_result_cap.py` (4 cases) + full suite **741 passed, 12
+skipped**. UNCOMMITTED in `fsr-playbook-framework`; needs framework release +
+`make bump-framework` + connector ship to reach a box.
+
+**Still real in Phase 2:** 2.2 (intent is sticky per-session — a capability-gap
+click re-triggers full triage; make it per-turn-aware), 2.4 (build tool
+`emit_playbook_offer` exists + is prompt-advertised but free-form "design a
+playbook" can still dead-end in prose — a reliability, not capability, gap).
+
+---
+
 **Phase 0 COMPLETE. Phase 1 COMPLETE (widget 1.2.27, committed, unshipped).**
 
 - ✅ **Phase 0 — vet the basics.** All six items done. `make turn-hermetic` gives a
@@ -187,12 +222,16 @@ Each ships with tests (jest for logic, e2e for DOM), per repo rules.
 workers — fixing correctness seams *and* laying the substrate for autonomy.
 
 - **2.1 Persist grounding + progress + capabilities + phase + guard counters** in
-  case-state, so grounding stops re-running every turn and guards stop resetting.
+  case-state. **✅ ALREADY BUILT** (2026-07-19 audit — see RESUME block). No code
+  needed; residual value is Phase-0 lifecycle vetting.
 - **2.2 Make intent per-turn-aware** rather than page-pinned (a capability-gap
-  click shouldn't re-trigger full triage).
+  click shouldn't re-trigger full triage). **OPEN** — intent is sticky per-session
+  (`session_intent` table; set at `operations.py:2861`, reused on every resume).
 - **2.3 Tool-output budgeting** — cap/sample large tool outputs (`verify_playbook`
   ~47KB, duplicate enrichment ~40KB) so long chains don't blow the context window.
-  Prerequisite for both deeper tools and autonomy.
+  Prerequisite for both deeper tools and autonomy. **✅ BUILT + TESTED** (framework
+  `shrink_history` 3rd pass; `test_shrink_history_result_cap.py`; suite 741 green).
+  Uncommitted; unshipped.
 - **2.4 Unify the build-completion path** — free-form "design a playbook" currently
   dead-ends in prose with no deploy button; always route through
   `emit_playbook_offer` so every build turn can land.
