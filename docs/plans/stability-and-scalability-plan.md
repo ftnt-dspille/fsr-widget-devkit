@@ -18,6 +18,24 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ## ▶ RESUME HERE (2026-07-19)
 
+**Phase 0/1 COMPLETE. Phase 2: 2.1+2.2 already built (stale premises); 2.3 built +
+tested. Widget SHIPPED to 8.0 box 159 (1.2.28). 2.4 is the only remaining Phase-2
+code item; framework 2.3 not yet released to a box.**
+
+### Ship record (2026-07-19)
+- **206 down** (still); **159 (`fsr8`, 10.99.249.159, 8.0 GA) up** → shipped there.
+- `make ship-verify WIDGET=fortiaiAgenticAssistant BUMP=patch` with `.env`→159:
+  **fortiaiAgenticAssistant-1.2.28** installed (uuid `891fd3ae-8e03-4313-93b6-3ebe818ccc40`).
+  No live-sweep is defined for this widget (only `fsrSocAssistant`), so ship =
+  lint→typecheck→unit→mock-e2e→introspect-gate→**deploy**. Gated + deployed, not swept.
+- **Fixed a Phase-0 gate-wiring bug** (widget-repo `d6157f7`): `seamHermetic.spec.js`
+  now self-skips when `FSRPB_SEAMC_URL` is unset — it needs the hermetic sidecar that
+  only `make turn-hermetic` starts, but the general mock-e2e gate globbed it and red'd
+  ship-verify. Runs under `turn-hermetic`, skipped in the mock gate.
+- **Framework 2.3 (`e860ea7`) NOT yet on a box** — needs `make release` (PyPI) +
+  `make bump-framework` + connector `make ship`. Touches the GA/159 connector →
+  get user OK first.
+
 **Phase 0 COMPLETE. Phase 1 COMPLETE (widget 1.2.27). Phase 2: 2.1 was already
 built (stale premise); 2.3 now built + tested. 2.2/2.4 remain.**
 
