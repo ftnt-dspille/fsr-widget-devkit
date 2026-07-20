@@ -119,16 +119,34 @@ No creds → prior CS-HMAC path (fine for `utility`/`modules`).
   TTL cache, 401 retry). Connector suite 399 passed (3 pre-existing §2.4
   fake-provider failures, unrelated — `awaiting_playbook_offer` vs `end_turn`).
 
-**REMAINING — the final integrated on-box agent-turn proof (not yet done):**
-drive a real `chat_turn` on a config that has BOTH a reachable LLM AND the soar
-creds, and confirm the agent's `mcp_soc__*` call succeeds (no 401). Blocked on:
-(a) LLM egress — Frank/openai gateway is unreachable from 159 (only Anthropic is);
-(b) activating creds needs writing them to a config: `fsrpb-live` (Anthropic,
-reachable, has the allowlist) needs `soar_username`/`soar_password` added — a
-config write whose encrypted `anthropic_api_key` shouldn't be clobbered. Left a
-leftover test config `fsrpb-mcp-bearer-test` (id 408, openai/unreachable) on 159
-— **clean up**. Cleanest finish: set `soar_username`+`soar_password` on
-`fsrpb-live` via the FortiSOAR UI, then re-run the proven `chat_turn` against it.
+**✅ AUTH FIX COMPLETED + BOX-PROVEN on 206 (2026-07-20, session 3p).** Reading
+the gateway source on-box settled the mechanism and opened a cleaner fix than
+bearer:
+- `/opt/mcp-server/app/fsr_app.py` `FortiSOARApp.__init__` sets
+  `headers={'Authorization': self.auth_value}` and **replays it verbatim** on the
+  downstream `/api/3` calls; `core/auth_service.py` accepts an `Authorization`
+  that is a **Bearer token OR an API-KEY**. So the fix is *any* non-URI-bound,
+  user-mapped credential — CS-HMAC fails only because it's signed for `/mcp/soc/`.
+- Shipped an **API-KEY** path (connector 0.4.89→0.4.91): `_live_mcp.build_client(
+  soar_api_key=…)` → static `Authorization: API-KEY <key>` (no mint/TTL), priority
+  api_key > bearer > hmac; new `soar_api_key` field. Preferred over bearer (no
+  stored password, no token machinery). Added diagnostic op **`probe_native_mcp`**.
+- **Proven on 206 through the real gateway (worker context), driven via the
+  connector API against a fresh `fsrpb-apikey-proof` config made with pyfsr — no
+  SSH, no password, no clobber:** HMAC → `soc.get_indicators {"values":["8.8.8.8"]}`
+  **401**; API-KEY → same call **`status:success`**, real hydra Indicator data.
+- **⚠️ Api-key auth 400s "invalid URL" on 159** (per-box api-key URL-scoping);
+  clean on 206 — the api-key user needs unrestricted URL scope. Bearer
+  (user+password) stays the fallback where api-key auth is scoped off.
+
+**STILL OPEN — the full-LLM `chat_turn` proof** (the agent *decides* to call the
+tool, vs. the adapter probe that calls it directly): needs a config with a
+reachable LLM AND `soar_api_key`. Cleanest: add `soar_api_key` to `fsrpb-live`
+(has the Anthropic key + allowlist) via the FortiSOAR UI — a config write whose
+encrypted `anthropic_api_key` a blind PUT would clobber, so UI or a create with a
+real key — then re-run `chat_turn`. The adapter/auth itself is already proven, so
+this is a materializer-integration check, not an auth check. Connector 0.4.91
+changes are **uncommitted**.
 
 **NEXT (Step 3, breadth) — gated / choose:**
 - (a) **Fix the soc-server 401** first (appliance `/opt/mcp-server` soc service

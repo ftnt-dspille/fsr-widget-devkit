@@ -5,7 +5,33 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-20 (session 3o — **Phase 3A (deeper tools): MCP bridge lit up + soc-401 root-caused & fixed, all shipped to 159.** (1) Materializer had two dormancy bugs (MCPTool pydantic models skipped by an `isinstance(dict)` gate; shorthand allowlist rules crashed) → fixed, framework **v0.4.35**, connector **0.4.86**. Bridge now **live-proven on 159**: agent offered + CALLED `mcp_soc__*` tools. (2) Those soc calls 401'd → root-caused to the connector: the soc MCP server uses `auth_strategy=api_call` and sets a downstream user identity ONLY on the `bearer` path; the on-box adapter's CS-HMAC (URI-bound) carries none → 401. Fixed: `_live_mcp` **bearer mode** (new optional `soar_username`/`soar_password` config → mint JWT → `Authorization: Bearer`); **proven against 159's real soc server** (`soc.get_indicators` returns data), 6 unit tests, connector **0.4.87** shipped. **NEXT: final integrated agent-turn proof** (needs a config with reachable LLM + soar creds — set them on `fsrpb-live` in UI, then re-run chat_turn); clean up leftover test config 408. Corrects the "mcp_soc 401 resolved" memory. Prior session 3n: Phase 2 shipped.)_
+_Last updated: 2026-07-20 (session 3p — **soc-401 fix completed via API-KEY path + BOX-PROVEN on 206.** Read the gateway source on-box (`/opt/mcp-server`): `FortiSOARApp` replays the `Authorization` header **verbatim** on downstream `/api/3`; `auth_service.py` accepts "Bearer OR **API-KEY**". So the fix is any non-URI-bound, user-mapped credential — shipped an **API-KEY** path (preferred over bearer: static `Authorization: API-KEY <key>`, no minting) `soar_api_key` field, priority api_key>bearer>hmac. Added diagnostic op **`probe_native_mcp`**. Created a FortiSOAR api-key user (SOC Analyst) + a fresh `fsrpb-apikey-proof` config via pyfsr (no clobber). **A/B on 206 through the real gateway (worker context): HMAC → `get_indicators` 401; API-KEY → `status:success` real data.** connector **0.4.91** on 206. Api-key auth 400s on 159 (per-box URL-scoping) so proof ran on 206. Prior session 3o below.)_
+
+> **▶ 2026-07-20 (session 3p) — soc-401 fix completed (API-KEY) + box-proven on 206.**
+> Plan: **`docs/plans/stability-and-scalability-plan.md`** (§3A).
+> - **Root cause reconfirmed from the gateway source on-box** (not just the connector docstring):
+>   `/opt/mcp-server/app/fsr_app.py` `FortiSOARApp.__init__` → `headers={'Authorization': self.auth_value}`
+>   and **replays it verbatim** on downstream `/api/3`. `core/auth_service.py` accepts an
+>   `Authorization` that is a Bearer token **or an API-KEY**. So CS-HMAC (signed for `/mcp/soc/`)
+>   fails the replay against `/api/3` → 401; any **non-URI-bound, user-mapped** credential works.
+>   (The 0.4.87 "identity only on bearer" framing was imprecise — it's URI-binding vs verbatim replay.)
+> - **Shipped the API-KEY path (connector 0.4.89 → 0.4.91 on 206):** `_live_mcp.build_client(soar_api_key=…)`
+>   sends static `Authorization: API-KEY <key>` (no mint/TTL); priority api_key > bearer > hmac. New
+>   `soar_api_key` config field. 2 new unit tests. Added diagnostic op **`probe_native_mcp`**
+>   (`server`/`tool`/`args` + `api_key` param override + `schemas`).
+> - **Credential:** FortiSOAR api-key user via pyfsr (`api_users.create` + `api_keys.create`,
+>   role SOC Analyst, team SOC Team); reads `/api/3/indicators` → 200.
+> - **BOX-PROVEN on 206 through the real localhost:8010 gateway, worker context** (driven via the
+>   connector API against a fresh `fsrpb-apikey-proof` config — no SSH, no password, no clobber):
+>   HMAC (`fsrpb-frank`/`repro-openai`) → `soc.get_indicators {"values":["8.8.8.8"]}` **401**;
+>   API-KEY (`fsrpb-apikey-proof`) → same call **`status:success`**, real hydra Indicator collection.
+>   `list_tools` passes on HMAC too (same URI) — only the downstream fetch 401s.
+> - **⚠️ Api-key auth 400s "invalid URL" on 159** (per-box api-key URL-scoping) but is clean on 206 —
+>   so the api-key user needs unrestricted URL scope; bearer (user+password) is the fallback.
+> - **OPEN:** (a) the full LLM `chat_turn` proof (agent *decides* to call the tool) still needs a
+>   config with a reachable LLM + `soar_api_key` — set it on `fsrpb-live` (has the Anthropic key) via
+>   UI, or reuse `fsrpb-apikey-proof` with a real key; the adapter/auth itself is now proven.
+>   (b) connector 0.4.91 changes are **uncommitted**. (c) Phase 3A breadth (utility/modules/`connector:<name>`).
 
 > **▶ 2026-07-20 (session 3o) — Phase 3A (deeper tools): MCP bridge lit up + soc-401 fixed, shipped to 159.**
 > Plan: **`docs/plans/stability-and-scalability-plan.md`** (§3A, RESUME block updated).
