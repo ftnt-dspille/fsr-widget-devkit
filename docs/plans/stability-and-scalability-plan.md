@@ -35,6 +35,20 @@ place). `test_salvage_build_offer.py` 7 cases; suite 140 green. Committed
 verified, warmup 36 conn/464 ops).
 See §"Phase 2" 2.4 for detail.
 
+**Verification gap CLOSED (2026-07-20) + Phase-0 tool-using-fake follow-up done.**
+The hermetic fake LLM was a single generic end_turn text — it never drove a build
+turn or tool card. Replaced with an **intent-aware `_ScenarioFakeProvider`**
+(connector `a333fda`): triage slice → the marker text; build slice → a scripted
+turn that calls `verify_playbook` (a real tool card) then narrates a ```yaml
+fence WITHOUT offering, exercising the §2.4 salvage. One install serves both
+intents (branches on the tool slice like the real provider). §2.4 now verified at
+**three layers, all box-free**: unit (7), in-process through the REAL `chat_turn`
+(`test_local_turn_harness.py` +2: salvage fires → `awaiting_playbook_offer` w/
+`final_yaml`; open-playbook edit exempt), and **widget-level** (`seamHermetic.spec.js`
+build test, widget-repo `2f9a3d5`) — designer mount → build turn → salvaged
+`playbook-offer` renders. `make turn-hermetic` 2/2 green. Closes the carried
+"script tool-using fake turns" follow-up.
+
 ### Ship record (2026-07-19)
 - **206 down** (still); **159 (`fsr8`, 10.99.249.159, 8.0 GA) up** → shipped there.
 - `make ship-verify WIDGET=fortiaiAgenticAssistant BUMP=patch` with `.env`→159:
@@ -113,9 +127,10 @@ residual value is **vetting** (Phase-0's thin-testing conclusion) + Phase-3 brea
    substrate). Start at §"Phase 2" below — 2.1 persist grounding/progress/guard
    counters in case-state.
 
-**Carried-forward follow-up:** script tool-using fake turns in the hermetic sidecar
-so `turn-hermetic` exercises tool cards (unlocks 0.3's read-cassette payoff). Today
-the fake turn is a single end_turn text.
+**Carried-forward follow-up — ✅ DONE (2026-07-20).** The hermetic fake now scripts
+a tool-using build turn (`verify_playbook` card + narrated YAML) via an
+intent-aware `_ScenarioFakeProvider`, so `turn-hermetic` exercises a tool card AND
+the §2.4 salvage. Connector `a333fda`; widget-repo build e2e `2f9a3d5`; 2/2 green.
 
 **Nothing is pushed or shipped to a box.** Parent-repo work (Seam C + Phase 0.3/0.6)
 committed to `main` (`9d12560`, `904e903`); widget Phase 1 committed to its own repo
@@ -216,8 +231,9 @@ fully-mocked (fast/fake) or fully-live (slow/box). That's the vetting blind spot
   usual static fixture), so the real controller drives real connector logic. New target
   **`make turn-hermetic`** boots the sidecar, runs the spec, tears down. Green: real
   `chat_turn` → persona resolution + prompt assembly + envelope shaping → rendered in the
-  widget timeline, zero box. _(Follow-up: script tool-using fake turns to exercise cards;
-  today the fake turn is a single end_turn text — enough to gate the contract.)_
+  widget timeline, zero box. _(Follow-up ✅ DONE 2026-07-20: the fake is now
+  intent-aware and scripts a tool-using build turn — `verify_playbook` card +
+  narrated YAML — so `turn-hermetic` exercises a tool card AND the §2.4 salvage.)_
 - **0.5 Session-lifecycle integration tests** (connector, the audit's untested
   corners): open → turn → card emit → resume → execute → next; **cross-worker resume**
   (cold worker + persisted profile); **corrupt/diverged state** (malformed JSON in
