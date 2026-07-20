@@ -16,14 +16,50 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ---
 
-## ▶ RESUME HERE (2026-07-19)
+## ▶ RESUME HERE (2026-07-20)
 
-**Phase 0/1 COMPLETE. Phase 2 FULLY SHIPPED: 2.1+2.2 already built (stale
-premises); 2.3 built + tested + SHIPPED (framework 0.4.34 → box 159); 2.4 built +
-tested + SHIPPED (connector 0.4.85 → box 159, `d5c4325`). Widget SHIPPED to 8.0
-box 159 (1.2.28). Live on 159: widget 1.2.28 + connector 0.4.85 (framework 0.4.34).
-Next: Phase 3 (feature breadth) — pick an axis (3A deeper tools / 3B richer cards /
-3C autonomy).**
+**Phase 0/1/2 COMPLETE + SHIPPED. Phase 3 STARTED — axis 3A (deeper tools),
+sub-item #1 (MCP bridge). User chose "verify plumbing, defer breadth choice."**
+
+**3A.1 status — MCP-bridge plumbing is BUILT + SHIPPED + box-free-verified;
+awaiting a live box-prove.** Key findings this session:
+- The dynamic-tool-surface **materializer is already in the released framework
+  v0.4.34** (framework commits `991d374` + `241cf73` are ancestors of tag
+  `v0.4.34`) → **live on box 159** in connector 0.4.85. It ships **dormant**:
+  materializes zero tools unless `mcp_allowlist` is a non-empty dict.
+- The connector **already wires it**: `_apply_mcp_allowlist(config)`
+  (`operations.py:348`, called at `:2902`) reads `config["mcp_allowlist"]` and
+  calls `materializer.configure(mcp_allowlist=…, client_factory=build_client)`.
+  The `build_client` closure builds a pyfsr client from connector config →
+  **resolves the old "on-box worker has no creds → client.mcp dormant" blocker**
+  (memory `dynamic_tool_surface_materializer.md`, option A).
+- pyfsr **native MCP client is present** in the editable install the connector
+  uses: `client.mcp.list_tools(server)` / `call_tool(server, name, arguments=)` /
+  `supports_native_mcp()` (`pyfsr/api/native_mcp.py`). (Still uncommitted in the
+  pyfsr repo per memory.)
+- **Box-free proof (this session):** stub-client run through the SHIPPED framework
+  verified the full path — `configure({"fsiem": read_only}, client_factory)` →
+  `list_tools` → injection into `anthropic_tools()` (38→40 tools:
+  `mcp_fsiem__get_alert`, `mcp_fsiem__list_incidents`) → tier registered (1 =
+  read-only auto-run) → dispatch routes to `client.mcp.call_tool(server, tool,
+  arguments)`. Scratch probes in this session's scratchpad
+  (`mcp_stub_probe.py` box-free PASS; `mcp_probe.py` live — needs box).
+- **BLOCKER for the live half:** box 159 network is **unreachable right now** —
+  REST (13000/443) and SSH (fsr159 :11000) both time out; the lab 10.99.x net is
+  VPN/jump-gated and currently down. The live box-prove (allowlist a safe
+  read-only native server on 159, confirm `supports_native_mcp` + real
+  `list_tools`/`call_tool` inside an agent turn) is deferred until the box is up.
+
+**NEXT when box is up:** run `mcp_probe.py` against 159 (or set `mcp_allowlist` in
+the 159 connector config + publish) to confirm the live gateway advertises servers
+and a materialized tool round-trips. THEN choose 3A breadth: native 8.0 gateway
+servers (soc/modules/playbooks/utility + .60 cross-product bridge) vs
+`connector:<name>` materialized tools.
+
+Prior (2026-07-19): Phase 2 FULLY SHIPPED: 2.1+2.2 already built (stale premises);
+2.3 built + tested + SHIPPED (framework 0.4.34 → box 159); 2.4 built + tested +
+SHIPPED (connector 0.4.85 → box 159, `d5c4325`). Widget SHIPPED to 8.0 box 159
+(1.2.28). Live on 159: widget 1.2.28 + connector 0.4.85 (framework 0.4.34).
 
 ### 2.4 build-completion salvage — DONE + SHIPPED (2026-07-19)
 `_salvage_build_offer` in `operations.py` (`_finalize`): a build turn narrating
