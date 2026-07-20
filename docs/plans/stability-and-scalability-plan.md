@@ -18,8 +18,25 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 
 ## ▶ RESUME HERE (2026-07-20)
 
-**Phase 0/1/2 COMPLETE + SHIPPED. Phase 3 STARTED — axis 3A (deeper tools),
-sub-item #1 (MCP bridge). User chose "verify plumbing, defer breadth choice."**
+**Phase 0/1/2 COMPLETE + SHIPPED. Phase 3A (deeper tools) — MCP bridge lit up +
+soc-401 root-caused & fixed, ALL SHIPPED to 159.** Live on 159: widget 1.2.28 +
+connector **0.4.87** (framework **0.4.35**). This session:
+1. **Materializer dormancy bugs fixed** (framework `1cd6d4d` → v0.4.35 → connector
+   0.4.86): MCPTool-model gate + shorthand allowlist rules. Bridge live-proven on
+   159 (agent calls `mcp_soc__*`). See §3A.1 detail below.
+2. **soc-tool 401 root-caused to the connector** (not appliance): CS-HMAC carries
+   no forwardable downstream identity; the soc `api_call` server needs a bearer.
+3. **Bearer-mode fix** (connector `13c73a7` → connector 0.4.87): `_live_mcp` mints
+   a JWT from new `soar_username`/`soar_password` config fields. Proven against
+   159's real soc server; 6 unit tests.
+
+**NEXT:** (a) final integrated agent-turn proof — set `soar_username`/`soar_password`
+on `fsrpb-live` (Anthropic, reachable) via UI, then re-run `chat_turn` and confirm
+the agent's `mcp_soc__*` call returns data; (b) delete leftover test config
+`fsrpb-mcp-bearer-test` (id 408) on 159; (c) Phase 3A breadth
+(utility/modules/`connector:<name>`, .60 cross-product bridge).
+
+--- superseded (kept for history): initial "verify plumbing, defer breadth choice" ---
 
 **3A.1 status — MCP bridge is now LIVE-PROVEN on 159; two box-found bugs fixed
 (framework `48485c4`), NOT yet released/shipped.**

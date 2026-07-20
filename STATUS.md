@@ -5,7 +5,44 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-19 (session 3n — **Phase 2 + SHIPPED to 8.0 box 159.** Audit found Phase 2's premises **stale**: 2.1 (persist grounding/guards/caps/phase/intent) is **already built** by the session-state spine, and 2.2's "capability-gap re-triggers full triage" symptom is **already handled** (chat_resume reuses cached grounding + "don't restart the hunt" directive + capgap guard-clear). **2.3 tool-output budgeting was the one real gap → built + tested** (framework `shrink_history` caps oversized tool_result bodies; suite 741 green). **Shipped the full stack to 159** (206 down): widget **1.2.28** + connector **0.4.84** (framework **fsr-playbooks v0.4.34**, released to PyPI). v0.4.34 also carried the user's `ApprovalManualInput` WIP (committed as user, `8daaf43`). Fixed a Phase-0 gate bug: `seamHermetic.spec.js` now self-skips without `FSRPB_SEAMC_URL`. **NEXT: 2.4 (unify build-completion via `emit_playbook_offer`) — the only remaining Phase-2 code item — or Phase 3 breadth.**)_
+_Last updated: 2026-07-20 (session 3o — **Phase 3A (deeper tools): MCP bridge lit up + soc-401 root-caused & fixed, all shipped to 159.** (1) Materializer had two dormancy bugs (MCPTool pydantic models skipped by an `isinstance(dict)` gate; shorthand allowlist rules crashed) → fixed, framework **v0.4.35**, connector **0.4.86**. Bridge now **live-proven on 159**: agent offered + CALLED `mcp_soc__*` tools. (2) Those soc calls 401'd → root-caused to the connector: the soc MCP server uses `auth_strategy=api_call` and sets a downstream user identity ONLY on the `bearer` path; the on-box adapter's CS-HMAC (URI-bound) carries none → 401. Fixed: `_live_mcp` **bearer mode** (new optional `soar_username`/`soar_password` config → mint JWT → `Authorization: Bearer`); **proven against 159's real soc server** (`soc.get_indicators` returns data), 6 unit tests, connector **0.4.87** shipped. **NEXT: final integrated agent-turn proof** (needs a config with reachable LLM + soar creds — set them on `fsrpb-live` in UI, then re-run chat_turn); clean up leftover test config 408. Corrects the "mcp_soc 401 resolved" memory. Prior session 3n: Phase 2 shipped.)_
+
+> **▶ 2026-07-20 (session 3o) — Phase 3A (deeper tools): MCP bridge lit up + soc-401 fixed, shipped to 159.**
+> Plan: **`docs/plans/stability-and-scalability-plan.md`** (§3A, RESUME block updated).
+> - **Bridge was fully built + shipped but dormant.** The dynamic-tool-surface materializer
+>   (`fsr_playbooks/mcp_server/materializer.py`) is in released framework 0.4.34 (live on 159 in
+>   connector 0.4.85) and the connector already reads `mcp_allowlist` from config. Live-probing
+>   159 found the native gateway healthy (`soc` = 9 cross-product tools: get_alert, block_indicator,
+>   enrich_indicator, hunt_ioc_siem, …) but the materializer registered **zero** tools.
+> - **Two materializer bugs (framework `1cd6d4d`, released v0.4.35 → connector 0.4.86):**
+>   1. pyfsr's **native** `client.mcp.list_tools` returns `MCPTool` pydantic models, but the loop
+>      gated on `isinstance(tool, dict)` → silently skipped every one. (On-box CS-HMAC adapter
+>      builds dicts, so this bit only the native-pyfsr path.) Fixed via `_tool_field` (dict-or-model).
+>   2. Shorthand allowlist values (`{"soc": true}` / `"*"` / list) raised `'bool' object has no
+>      attribute 'get'` and aborted ALL materialization. Fixed via `_normalize_rule`.
+>   28 materializer tests, 758 framework green. **Bridge now live-proven on 159**: real `chat_turn`
+>   on `fsrpb-live` → agent offered + **called** `mcp_soc__enrich_indicator` / `get_indicators`.
+> - **But every soc call 401'd — ROOT-CAUSED to the connector (not the appliance):**
+>   `soc.get_indicators` from desktop with **admin bearer** auth → success (soc server is healthy).
+>   159's `/opt/mcp-server/config.yaml` = `auth_strategy: api_call`; the auth middleware sets the
+>   downstream user identity (`current_user_id`) **only** on the `bearer` path. The on-box adapter
+>   sent `Authorization: CS <hmac>` whose fingerprint covers URI+verb → carries no forwardable
+>   identity → record-fetch / playbook-trigger 401. **Corrects `ga_mcp_soc_401_resolved` memory**
+>   (its "resolved" check used bearer auth, so never exercised the HMAC-forwarding path).
+> - **Fix (connector `13c73a7` → connector 0.4.87 shipped to 159):** `_live_mcp` **bearer mode**.
+>   New optional `soar_username`/`soar_password` config fields → `build_client` mints a FortiSOAR
+>   access token (`_mint_bearer` → `/auth/authenticate`, TTL-cached, one 401 re-mint retry) and
+>   sends `Authorization: Bearer <jwt>`. No creds → prior CS-HMAC (fine for utility/modules).
+>   **Proven end-to-end against 159's real soc server** (`bearer_adapter_probe.py`): bearer adapter
+>   → `soc.get_indicators` returns data. 6 hermetic unit tests; connector suite 399 passed
+>   (3 pre-existing §2.4 fake-provider failures, unrelated).
+> - **`make_request` vs `make_cyops_request`:** `make_request` is real (`integrations.crudhub`,
+>   HMAC per-URL); `make_cyops_request` **does not exist** on-box (would be a bad call).
+> - **Live on 159 now:** widget 1.2.28 + connector **0.4.87** (framework **0.4.35**).
+> - **OPEN:** (a) final integrated agent-turn proof — needs a config with a reachable LLM AND soar
+>   creds (Frank/openai unreachable from 159; `fsrpb-live` = Anthropic + allowlist, add soar creds
+>   via UI then re-run `chat_turn`); (b) clean up leftover test config `fsrpb-mcp-bearer-test` (id
+>   408, openai) on 159; (c) then Phase 3A breadth (utility/modules/`connector:<name>`, .60 bridge).
 
 > **▶ 2026-07-19 (session 3n) — Phase 2 (linchpin) + FULL STACK SHIPPED to 8.0 box 159.**
 > Plan: **`docs/plans/stability-and-scalability-plan.md`** (RESUME block updated).
