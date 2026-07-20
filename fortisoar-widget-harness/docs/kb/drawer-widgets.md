@@ -565,6 +565,27 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   would false-trigger the minor-drift banner on older connectors). Existing chats
   can't be back-filled for author (never stored); timestamps can (already stored).
 
+- **Record-scope the chat session, or a drawer shows the WRONG record's chat.**
+  A drawer stays mounted across UI-Router state changes (§18.4), so a chat session
+  persisted under an intent-only `localStorage` key (`fsrPbSession:triage`) is
+  shared by every record — opening the widget on alert B rehydrates alert A's last
+  conversation. Fix: key the *triage* session by the host record IRI
+  (`fsrPbSession:triage:<iri>`; `_sessionKey`), and make the `entityContext.iri`
+  `$watch` the single authority that re-points `_sessionId` to the new record's own
+  thread whenever the record changes — `_switchSessionForEntity` (mint-or-rehydrate
+  + reset the stream fence like `newConversation`). Three non-obvious pins:
+  (1) the host record is **not** reliably on `$state` at controller construction
+  (§18.6 init re-detect), so the construction-time `_sessionId` may be un-scoped —
+  the `$watch` re-points it once the record settles, and a **superseded-load guard**
+  (`if (_sessionId !== _capturedSession) return;` in every `chatHistory().then`)
+  stops a stale load from replaying the previous record's thread over the current
+  one. (2) **Exempt the playbook designer / build mode** — its entity is the open
+  playbook (a `workflows` IRI), one designer thread that must never be re-pointed by
+  an entity change (gate on `uiIntent==='build' || inPlaybookEditor || module==='workflows'`).
+  (3) Only adopt the legacy un-namespaced `fsrPbSession` key for the *un-scoped*
+  triage bucket — adopting it onto a specific record re-introduces the bleed.
+  Off-record (dashboard / list) keeps the bare `fsrPbSession:triage` bucket.
+
 ### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
 
 Two platform behaviors bite any live-UI Playwright drive against a FortiSOAR 8.0

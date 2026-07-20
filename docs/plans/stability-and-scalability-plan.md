@@ -139,14 +139,32 @@ bearer:
   clean on 206 — the api-key user needs unrestricted URL scope. Bearer
   (user+password) stays the fallback where api-key auth is scoped off.
 
-**STILL OPEN — the full-LLM `chat_turn` proof** (the agent *decides* to call the
-tool, vs. the adapter probe that calls it directly): needs a config with a
-reachable LLM AND `soar_api_key`. Cleanest: add `soar_api_key` to `fsrpb-live`
-(has the Anthropic key + allowlist) via the FortiSOAR UI — a config write whose
-encrypted `anthropic_api_key` a blind PUT would clobber, so UI or a create with a
-real key — then re-run `chat_turn`. The adapter/auth itself is already proven, so
-this is a materializer-integration check, not an auth check. Connector 0.4.91
-changes are **uncommitted**.
+**✅ DONE — the full-LLM `chat_turn` proof (2026-07-20, box-proven on 206).**
+Agent-decision + working API-KEY auth + real data, all in ONE full LLM turn.
+Ran on config **`repro-openai`** (real OpenAI gpt-4o LLM — 206's `fsrpb-live`/
+`repro-openai` are OpenAI, NOT Anthropic; `fsrpb-apikey-proof`'s Anthropic key is
+a dead placeholder → "authentication failed"). Turn: gpt-4o **decided on its own**
+to call the materialized `mcp_soc__get_indicators {"values":["8.8.8.8"]}` →
+`status:success` real hydra Indicator collection, **no 401/403**. (`stop=end_turn`.)
+Findings from getting there:
+- **Round-trip PUT is clobber-SAFE** (was the open unknown): GET returns the
+  encrypted key as re-submittable ciphertext (`head='AKw'`, not an asterisk mask);
+  re-PUTting it via `update_configuration(validate=False, autofill=False)`
+  preserved LLM auth (gpt-4o still authenticated after). So the earlier "UI-only"
+  fear was unfounded — a whole-config PUT that echoes the ciphertext is safe.
+- **soar_api_key ciphertext is portable across configs** (appliance-global key):
+  copied the encrypted `soar_api_key` from `fsrpb-apikey-proof` → `repro-openai`
+  and it decrypted/authenticated fine — no plaintext handling needed.
+- **`enrich_indicator` (playbook-TRIGGER tool) 403s** on this api-key user: the
+  soc playbook trigger is ACCEPTED (task_id issued, past the 401) but polling the
+  task's execution status returns `403 AccessDenied` — the api-key user's role
+  (SOC Analyst) can't read playbook execution status. READ tools (`get_indicators`)
+  return real data; trigger tools need a broader role. (Separate perm gap, not auth.)
+- **MCP `run_connector_operation` ignores `config_name`** → hits the DEFAULT config
+  (`fsrpb-frank`, unreachable Frank gateway). Drive turns via pyfsr
+  `connectors.execute(config_name=…)`, which routes correctly.
+- ⚠️ `repro-openai` now carries `soar_api_key` + soc allowlist (left configured;
+  disposable repro). Connector 0.4.91 changes still **uncommitted**.
 
 **NEXT (Step 3, breadth) — gated / choose:**
 - (a) **Fix the soc-server 401** first (appliance `/opt/mcp-server` soc service
