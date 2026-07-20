@@ -87,6 +87,32 @@ CS-HMAC. list_tools/initialize still work on HMAC (same URI), so only the
 downstream-forwarding tools (`soc`, and any `api_call`-strategy server) are hit.
 This gates §3A cross-product value. Corrects [[ga_mcp_soc_401_resolved]].
 
+**FIX BUILT + SHIPPED + PROVEN against the real soc server (2026-07-20).**
+Connector `13c73a7`, shipped as **connector 0.4.87** to 159 (5 workers, warmup
+green). `_live_mcp` gained a **bearer mode**: when the config supplies service
+creds (new optional `soar_username`/`soar_password` fields in `info.json`),
+`build_client` mints a FortiSOAR access token (`_mint_bearer` → `/auth/authenticate`,
+TTL-cached, one re-mint retry on 401) and sends `Authorization: Bearer <jwt>`.
+No creds → prior CS-HMAC path (fine for `utility`/`modules`).
+`operations._apply_mcp_allowlist` threads the creds into the client factory.
+- **PROVEN end-to-end against 159's real soc server** (`bearer_adapter_probe.py`,
+  gateway repointed to 159): the adapter's bearer mode → `soc.get_indicators`
+  returns real data — the exact call that 401'd on HMAC. `utility` also clean.
+- 6 hermetic unit tests (`tests/test_live_mcp_bearer.py`: mode-select, header,
+  TTL cache, 401 retry). Connector suite 399 passed (3 pre-existing §2.4
+  fake-provider failures, unrelated — `awaiting_playbook_offer` vs `end_turn`).
+
+**REMAINING — the final integrated on-box agent-turn proof (not yet done):**
+drive a real `chat_turn` on a config that has BOTH a reachable LLM AND the soar
+creds, and confirm the agent's `mcp_soc__*` call succeeds (no 401). Blocked on:
+(a) LLM egress — Frank/openai gateway is unreachable from 159 (only Anthropic is);
+(b) activating creds needs writing them to a config: `fsrpb-live` (Anthropic,
+reachable, has the allowlist) needs `soar_username`/`soar_password` added — a
+config write whose encrypted `anthropic_api_key` shouldn't be clobbered. Left a
+leftover test config `fsrpb-mcp-bearer-test` (id 408, openai/unreachable) on 159
+— **clean up**. Cleanest finish: set `soar_username`+`soar_password` on
+`fsrpb-live` via the FortiSOAR UI, then re-run the proven `chat_turn` against it.
+
 **NEXT (Step 3, breadth) — gated / choose:**
 - (a) **Fix the soc-server 401** first (appliance `/opt/mcp-server` soc service
   auth) — unblocks all `soc` cross-product tools already materializing.
