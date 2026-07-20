@@ -32,17 +32,24 @@ the fixes, `soc` materialized all 9 into `anthropic_tools()` (38→47, tier 1) a
 read-only `mcp_utility__get_current_datetime` **round-tripped through the box
 gateway** (`/mcp/utility/`, returned real datetime).
 
-**Two defects that had kept the bridge dormant-when-configured (framework
-`48485c4`, 28 materializer tests, 758 green):**
-1. pyfsr's `client.mcp.list_tools` returns **`MCPTool` pydantic models**, but the
-   loop gated on `isinstance(tool, dict)` → silently skipped every live tool
-   (materialized ZERO). Fixed with `_tool_field` (dict-or-model read;
-   `input_schema` is a property `_Lenient.get` doesn't surface → getattr
-   fallback). **This is why the bridge never lit up live before.**
-2. A natural hand-written allowlist value (`{"soc": true}` / `"*"` /
-   `"read_only"` / a tool-name list) raised `'bool' object has no attribute
-   'get'` and aborted ALL materialization (swallowed). `_normalize_rule` coerces
-   the shorthands; one bad rule no longer aborts the rest.
+**IMPORTANT accuracy note:** the bridge was **already live-verified on-box** 13
+days ago (memory `dynamic_tool_surface_materializer.md`, connector 0.4.42 on 206)
+via the CS-HMAC adapter `_live_mcp._CrudhubMcpClient`, which builds **plain dicts**
+— so neither bug below bit the on-box path. The two fixes harden **other** client
+shapes, not "why 159 was dormant." 159's dormancy (if any) is a **config**
+question — is `mcp_allowlist` set on its connector config? — not code.
+
+**Two defects fixed (framework commit `1cd6d4d`, 28 materializer tests, 758 green):**
+1. pyfsr's **native** `client.mcp.list_tools` returns `MCPTool` pydantic models,
+   but the loop gated on `isinstance(tool, dict)` → silently skipped every one →
+   zero tools on the native-pyfsr path (desktop probes, off-box tests, any
+   deployment whose client is real pyfsr with `native_mcp`). On-box adapter builds
+   dicts → unaffected. Fixed with `_tool_field` (dict-or-model; `input_schema` is a
+   property `_Lenient.get` doesn't surface → getattr fallback).
+2. Shorthand allowlist values (`{"soc": true}` / `"*"` / `"read_only"` / a
+   tool-name list) raised `'bool' object has no attribute 'get'` and aborted ALL
+   materialization (shape-agnostic — would bite on-box too). `_normalize_rule`
+   coerces them; one bad rule no longer aborts the rest.
 
 **NEXT: release + ship + breadth choice** — (a) release framework (>0.4.34) via
 `make release` + `make bump-framework` + `make ship` so 159's connector picks up
