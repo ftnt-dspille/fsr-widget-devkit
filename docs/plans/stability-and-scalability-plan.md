@@ -64,16 +64,28 @@ question — is `mcp_allowlist` set on its connector config? — not code.
   and `mcp_soc__get_indicators` (tier 1) — materializer is live on the worker,
   end-to-end dispatch through the gateway confirmed.
 
-**⚠️ NEW BLOCKER surfaced (appliance-side, NOT the materializer):** every `soc`
-MCP tool call returns `401 An authentication exception occurred` — on both
-record-fetch (`get_indicators`) and playbook-trigger (`enrich_indicator`). The
-**soc MCP server's internal auth to crudhub is broken on 159.** Desktop probe of
-`utility.get_current_datetime` returned real data cleanly (200), so it's specific
-to the `soc` server backend, not the bridge/connector/framework. Matches the
-`mcp_soc__ 401` class in memory `ga_mcp_soc_401_resolved.md` (reportedly resolved
-2026-07-17 — regressed on 159). **This gates cross-product value until the
-appliance soc-gateway auth is fixed** (SSH `/opt/mcp-server`; separate from this
-plan's code).
+**⚠️ NEW BLOCKER — ROOT-CAUSED to a CONNECTOR bug (not the appliance):** every
+`soc` MCP tool call returns `401 An authentication exception occurred` (both
+record-fetch `get_indicators` and playbook-trigger `enrich_indicator`). Isolated
+2026-07-20:
+- Same `soc.get_indicators` called from **desktop with admin user/password auth**
+  → `status: success` with real indicator data. **The soc server backend is
+  fine.** (Earlier "appliance-side / stale soc token" framing was WRONG.)
+- 159's `/opt/mcp-server/config/config.yaml` shows the soc server uses
+  `auth_strategy: api_call` — it **forwards the caller's `Authorization` header**
+  to its downstream `/api/3` record-fetch + playbook-trigger.
+- The connector's on-box adapter (`fsr_soc_triage/_live_mcp._cs_header`) presents
+  `Authorization: CS <hmac>` whose **fingerprint covers URI+verb** (its own
+  docstring). Signed for `/mcp/soc/`, it is **invalid when the soc server re-uses
+  it for `/api/3/indicators`** → 401. A bearer JWT (what user auth yields) is not
+  URI-bound, so it forwards cleanly — hence admin-user works, HMAC doesn't.
+
+**Fix owner = connector.** The on-box `_live_mcp` adapter must present a
+**forwardable, non-URI-bound bearer token** the soc server can reuse downstream
+(mint/obtain a service JWT on-box), instead of (or alongside) the URI-scoped
+CS-HMAC. list_tools/initialize still work on HMAC (same URI), so only the
+downstream-forwarding tools (`soc`, and any `api_call`-strategy server) are hit.
+This gates §3A cross-product value. Corrects [[ga_mcp_soc_401_resolved]].
 
 **NEXT (Step 3, breadth) — gated / choose:**
 - (a) **Fix the soc-server 401** first (appliance `/opt/mcp-server` soc service
