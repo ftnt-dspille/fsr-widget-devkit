@@ -51,12 +51,41 @@ question — is `mcp_allowlist` set on its connector config? — not code.
    materialization (shape-agnostic — would bite on-box too). `_normalize_rule`
    coerces them; one bad rule no longer aborts the rest.
 
-**NEXT: release + ship + breadth choice** — (a) release framework (>0.4.34) via
-`make release` + `make bump-framework` + `make ship` so 159's connector picks up
-the fix; (b) set `mcp_allowlist` in the 159 connector config (start read-only:
-`{"soc": "read_only", "utility": "read_only"}`) + publish; (c) box-prove a
-materialized `soc` tool **inside a real agent triage turn** (not just in-process);
-(d) then widen to `connector:<name>` / the .60 cross-product bridge.
+**3A.1 SHIPPED + LIVE-PROVEN on-box (2026-07-20).** Steps 1+2 done:
+- **Step 1 (ship):** framework **v0.4.35** released to PyPI (fix `1cd6d4d`);
+  connector pin bumped (preflight 67 symbols/26 modules); **connector 0.4.86**
+  shipped to 159 — all 5 workers recycled to 0.4.86, warmup green (36 conn/464
+  ops). Framework `1cd6d4d` (main pushed, tag v0.4.35); connector `a9de2be`.
+- **Step 2 (activate + prove on-box):** 159's `fsrpb-live` config (id 398)
+  **already carried** `mcp_allowlist={"soc":{"tools":"*","tier":"read_only"}}`
+  (the other two configs `fsrpb-frank`/`fsrpb-anthropic` don't). Drove real
+  `chat_turn`s on 159/`fsrpb-live` via `run_connector_operation` (on-box worker,
+  CS-HMAC adapter path): the agent was **offered and CALLED** `mcp_soc__enrich_indicator`
+  and `mcp_soc__get_indicators` (tier 1) — materializer is live on the worker,
+  end-to-end dispatch through the gateway confirmed.
+
+**⚠️ NEW BLOCKER surfaced (appliance-side, NOT the materializer):** every `soc`
+MCP tool call returns `401 An authentication exception occurred` — on both
+record-fetch (`get_indicators`) and playbook-trigger (`enrich_indicator`). The
+**soc MCP server's internal auth to crudhub is broken on 159.** Desktop probe of
+`utility.get_current_datetime` returned real data cleanly (200), so it's specific
+to the `soc` server backend, not the bridge/connector/framework. Matches the
+`mcp_soc__ 401` class in memory `ga_mcp_soc_401_resolved.md` (reportedly resolved
+2026-07-17 — regressed on 159). **This gates cross-product value until the
+appliance soc-gateway auth is fixed** (SSH `/opt/mcp-server`; separate from this
+plan's code).
+
+**NEXT (Step 3, breadth) — gated / choose:**
+- (a) **Fix the soc-server 401** first (appliance `/opt/mcp-server` soc service
+  auth) — unblocks all `soc` cross-product tools already materializing.
+- (b) **Widen the `fsrpb-live` allowlist** to `utility`/`modules`/`playbooks`
+  (utility proven clean on desktop) + `connector:<name>` — but needs a SAFE
+  config-write path: `update_connector_configuration` is a PUT; must round-trip
+  the encrypted `anthropic_api_key` without clobbering it (unverified whether the
+  GET returns a re-submittable secret or a mask). Backup of all 3 soc-assistant
+  configs saved to scratch before any write.
+- (c) **.60 cross-product bridge** (FMG/FAZ/FSIEM/EDR) — register those product
+  MCP servers, then allowlist `connector:<name>`.
 
 --- earlier findings (still valid) ---
 
