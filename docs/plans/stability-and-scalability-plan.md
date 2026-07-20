@@ -21,8 +21,38 @@ alongside `ROADMAP.md` (where the widget is going) and `STATUS.md` (live state).
 **Phase 0/1/2 COMPLETE + SHIPPED. Phase 3 STARTED — axis 3A (deeper tools),
 sub-item #1 (MCP bridge). User chose "verify plumbing, defer breadth choice."**
 
-**3A.1 status — MCP-bridge plumbing is BUILT + SHIPPED + box-free-verified;
-awaiting a live box-prove.** Key findings this session:
+**3A.1 status — MCP bridge is now LIVE-PROVEN on 159; two box-found bugs fixed
+(framework `48485c4`), NOT yet released/shipped.**
+
+Live-prove (159 up again 2026-07-20): `supports_native_mcp()`→True; `soc` server
+advertises **9 cross-product tools** (`get_alert`, `get_indicators`,
+`block_indicator`, `enrich_indicator`, `hunt_ioc_siem`,
+`update_alert_ai_analysis`, …), `modules`/`playbooks`/`utility` also live. After
+the fixes, `soc` materialized all 9 into `anthropic_tools()` (38→47, tier 1) and a
+read-only `mcp_utility__get_current_datetime` **round-tripped through the box
+gateway** (`/mcp/utility/`, returned real datetime).
+
+**Two defects that had kept the bridge dormant-when-configured (framework
+`48485c4`, 28 materializer tests, 758 green):**
+1. pyfsr's `client.mcp.list_tools` returns **`MCPTool` pydantic models**, but the
+   loop gated on `isinstance(tool, dict)` → silently skipped every live tool
+   (materialized ZERO). Fixed with `_tool_field` (dict-or-model read;
+   `input_schema` is a property `_Lenient.get` doesn't surface → getattr
+   fallback). **This is why the bridge never lit up live before.**
+2. A natural hand-written allowlist value (`{"soc": true}` / `"*"` /
+   `"read_only"` / a tool-name list) raised `'bool' object has no attribute
+   'get'` and aborted ALL materialization (swallowed). `_normalize_rule` coerces
+   the shorthands; one bad rule no longer aborts the rest.
+
+**NEXT: release + ship + breadth choice** — (a) release framework (>0.4.34) via
+`make release` + `make bump-framework` + `make ship` so 159's connector picks up
+the fix; (b) set `mcp_allowlist` in the 159 connector config (start read-only:
+`{"soc": "read_only", "utility": "read_only"}`) + publish; (c) box-prove a
+materialized `soc` tool **inside a real agent triage turn** (not just in-process);
+(d) then widen to `connector:<name>` / the .60 cross-product bridge.
+
+--- earlier findings (still valid) ---
+
 - The dynamic-tool-surface **materializer is already in the released framework
   v0.4.34** (framework commits `991d374` + `241cf73` are ancestors of tag
   `v0.4.34`) → **live on box 159** in connector 0.4.85. It ships **dormant**:
