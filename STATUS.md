@@ -11,6 +11,18 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 
 > _Prior: 2026-07-20 (session 3p — **soc-401 fix completed via API-KEY path + BOX-PROVEN on 206.** Read the gateway source on-box (`/opt/mcp-server`): `FortiSOARApp` replays the `Authorization` header **verbatim** on downstream `/api/3`; `auth_service.py` accepts "Bearer OR **API-KEY**". So the fix is any non-URI-bound, user-mapped credential — shipped an **API-KEY** path (preferred over bearer: static `Authorization: API-KEY <key>`, no minting) `soar_api_key` field, priority api_key>bearer>hmac. Added diagnostic op **`probe_native_mcp`**. Created a FortiSOAR api-key user (SOC Analyst) + a fresh `fsrpb-apikey-proof` config via pyfsr (no clobber). **A/B on 206 through the real gateway (worker context): HMAC → `get_indicators` 401; API-KEY → `status:success` real data.** connector **0.4.91** on 206. Api-key auth 400s on 159 (per-box URL-scoping) so proof ran on 206. Prior session 3o below.)_
 
+> **🎯 TOP PRIORITY (user, 2026-07-21): make the SOC assistant look great in a GA demo.**
+> Tracker: **`docs/plans/ga-demo-soc-investigation.md`** — start there.
+> GA = 10.99.249.159:13000. **Beats 1–4 (open record → investigate → enrich → verdict) are
+> LIVE-VERIFIED GOOD on GA** (30s, gpt-4.1-mini, real `run_op` enrichment, Qakbot attribution,
+> grounded on host/IP/user/command-line). 🔴 **Beat 5 — the containment action — does NOT fire:**
+> the assistant *recommends* "isolate the endpoint" in prose but emits **`info_card` only, no
+> `action_card`**, so the demo ends on advice, not action. That reproduces the emit-card gap on
+> the box with the real demo record. 🔑 **Connector on GA is `connector-fsr-soc-assistant`, NOT
+> `fortinet-fsr-playbook-builder`** — `session_analyze.py` + `fsr_live.py` hardcode the old name
+> and fail there. FortiGate (block IP) is configured ✅; **FortiEDR (isolate host) has 0 configs
+> ❌** and so does the MCP bridge.
+>
 > **▶ 2026-07-21 (session 4d) — offline testing for the SOC-INVESTIGATION half + 3 defects fixed; emit-card surface found dead.**
 > Detail in `docs/plans/widget-capability-test-and-persona-rollout.md` §6h. All committed; the
 > framework/connector compiler bits are offline-proven and **need a release+ship**.
