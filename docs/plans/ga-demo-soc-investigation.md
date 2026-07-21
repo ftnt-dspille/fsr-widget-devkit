@@ -15,25 +15,33 @@ after a context clear.
 **GA = `10.99.249.159:13000`** (`.env.fsr-ga`; same appliance as `.env.159`,
 which splits the port into `FSR_PORT`). SSH: `ssh fsr159` / `ssh fsr8`.
 
-### 🔑 GOTCHA — the connector is named differently on GA
+### 🔑 The connector's name is `connector-fsr-soc-assistant` — everywhere
 
-The assistant is installed as **`connector-fsr-soc-assistant`** (v0.5.0, 2
-configs), **not** `fortinet-fsr-playbook-builder`. Calling the old name returns
-a confident-sounding lie:
+Not GA-specific, and **not** a box quirk. Verified three ways:
+
+| source | name |
+|---|---|
+| `connector-fsr-soc-assistant/info.json` | `connector-fsr-soc-assistant` v0.5.0 |
+| box **206** | `connector-fsr-soc-assistant` 0.5.0 |
+| box **GA/159** | `connector-fsr-soc-assistant` 0.5.0 |
+
+`fortinet-fsr-playbook-builder` is the **pre-rename** name and exists on
+**neither** box; calling it returns a confident-sounding lie that reads like a
+box outage rather than a stale string:
 
     CS-INTEGRATION-5: Connector fortinet-fsr-playbook-builder does not exists
 
-Two of our own tools hardcode the OLD name and will therefore fail against GA:
-- `scripts/session_analyze.py` → `CONNECTOR = "fortinet-fsr-playbook-builder"`
-- `scripts/fsr_live.py` → same constant
+`scripts/fsr_live.py` was always correct. `scripts/session_analyze.py` shipped
+with the stale constant (author error, taken from a stale memory entry) — now
+**derived from `info.json` at import**, not hardcoded, per the
+connector-identity-has-ONE-SOURCE rule in `TESTING.md`. Box pulls verified
+working against GA afterwards.
 
-⚠️ This is the exact drift `TESTING.md` warns about (connector identity must
-have ONE source). **Fix before using either tool against GA**, and check whether
-206 uses the old name — if the two boxes disagree, the constant has to become a
-lookup, not a rename.
+⚠️ Anything else that hardcodes a connector name is suspect for the same
+reason. Prefer reading `info.json`.
 
-Also note the client default timeout is 30s and a real triage turn exceeds it —
-use `EnvConfig.from_env_file(ENV).client(timeout=600)`.
+Separately: the pyfsr client default timeout is 30s and a real triage turn
+exceeds it — use `EnvConfig.from_env_file(ENV).client(timeout=600)`.
 
 ---
 
@@ -167,8 +175,8 @@ follow-up-turn shape ("ok, block it") because the offline rig is single-turn.
    model declining. Check in this order: (a) is `emit_action_card` even in the
    triage intent slice at runtime, (b) does the prompt tell it to offer one,
    (c) does the model pick it when explicitly asked.
-2. **Fix the connector-name drift** (§1) so `session_analyze.py` / `fsr_live.py`
-   work against GA.
+2. ~~Fix the connector-name drift~~ — ✅ **DONE.** `session_analyze.py` now
+   derives the name from `info.json`; GA box pulls verified working.
 3. **Decide the containment beat**: configure FortiEDR (unblocks "isolate host")
    or build around FortiGate block-IP (ready now).
 4. **Wire `fsr-agent-communication-bridge`** if the MCP beat stays in the story.

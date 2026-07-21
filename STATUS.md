@@ -18,9 +18,11 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 > grounded on host/IP/user/command-line). 🔴 **Beat 5 — the containment action — does NOT fire:**
 > the assistant *recommends* "isolate the endpoint" in prose but emits **`info_card` only, no
 > `action_card`**, so the demo ends on advice, not action. That reproduces the emit-card gap on
-> the box with the real demo record. 🔑 **Connector on GA is `connector-fsr-soc-assistant`, NOT
-> `fortinet-fsr-playbook-builder`** — `session_analyze.py` + `fsr_live.py` hardcode the old name
-> and fail there. FortiGate (block IP) is configured ✅; **FortiEDR (isolate host) has 0 configs
+> the box with the real demo record. 🔑 **Connector name is `connector-fsr-soc-assistant`
+> EVERYWHERE** (info.json + 206 + GA all agree; `fortinet-fsr-playbook-builder` is the pre-rename
+> name and is on neither box). `fsr_live.py` was always right; `session_analyze.py` shipped with
+> the stale constant and now derives it from `info.json`. FortiGate (block IP) is configured ✅;
+> **FortiEDR (isolate host) has 0 configs
 > ❌** and so does the MCP bridge.
 >
 > **▶ 2026-07-21 (session 4d) — offline testing for the SOC-INVESTIGATION half + 3 defects fixed; emit-card surface found dead.**
