@@ -900,6 +900,94 @@ in it, and worth a note if anyone files against the content pack.
 5. ~~Task D (make targets)~~ — ✅ `make preflight` + `make t1-turn` done; the
    rest waits on Task C.
 
+## 6h. Session 2026-07-21 (later) — SOC-investigation offline coverage + the emit-card gap
+
+Everything below is committed; framework/connector compiler bits are
+offline-proven only and still need a release+ship.
+
+**Shipped/committed this session:**
+- ✅ needs-config panel BLESSED — widget `39d5ee1` (matches the 1.2.32 tarball
+  already on both boxes; no deploy).
+- ✅ **F2 CLOSED** — read-only fence guard, widget `d72b670`. Re-confirmed the
+  prompt lever is spent (`explain_loop_semantics` 3/6 at RUNS=6, unchanged), so
+  the write is refused where it lands. 15 tests.
+- ✅ **F3(a) FIXED** — token cap 4096 → 16384 + `max_turns`→`max_tokens`,
+  framework `9241ee0`. The "overloaded" belief was WRONG (see
+  [[max_turns_stop_reason_is_overloaded]] — corrected). Proven: the scenario
+  that died truncated now passes 6/6.
+- ✅ **F4 unblocked + 2/3 leads fixed** — framework `edd45d9`, from a 400-playbook
+  box pull. Biggest class was OUR decompiler dropping declared parameters, not
+  strictness. 142→178/400 clean.
+- ✅ **automate_manual_step 0/6 was a GRADER defect** (`cb6102f`) — second grader
+  defect after F1. `replaces_step` grader; 0/6 → 3/3.
+- ✅ **`scripts/session_analyze.py`** (`c843a37`) — pull agent sessions (local
+  sqlite OR box) and grade tool errors + signal density. One analysis core, two
+  sources.
+- ✅ **SOC-investigation T1 scenarios** (`31b8e18`) — the triage half, box-free.
+  Mount a real captured record through `entity`; 3 scenarios, 5 grounding
+  graders, 12 grader unit tests. First offline coverage of the OTHER half of the
+  product.
+
+### 6h.1 🔴 The emit-card surface is effectively dead — MEASURED
+
+`session_analyze.py` over the local corpus (481 sessions, 1218 tool calls):
+
+| interactive tool | calls | note |
+|---|---|---|
+| `emit_action_card` | **4** | the "Block this IP" button after triage |
+| `emit_decision_step` | 7 | |
+| `emit_playbook_offer` | 2 | |
+| `emit_capability_gap_card` | 2 | |
+| `emit_choice_card` | 1 | |
+| `emit_manual_input` | **0** | never fires |
+
+Five interactive-card tools, **16 firings total** across the whole corpus, and
+the one that matters for an ad-hoc action (`emit_action_card`) fired 4×. The
+user's read — *"we have a lot of emit cards, not sure they're actually being
+used"* — is correct on the numbers. Two hypotheses, and this session cannot tell
+them apart (the corpus is dev/eval traffic, mostly GLM via Frank):
+  1. the model rarely *chooses* to emit — a prompt/affordance problem, or
+  2. the paths are *broken* and never reached — a functionality problem.
+**Neither is tested.** This is the highest-value SOC-investigation gap.
+
+### 6h.2 🔜 SOC-investigation quality — what still needs coverage
+
+The 3 new scenarios cover the READ path (grounding, no-confab, honest gaps,
+verdict). The gaps, roughly in priority order:
+
+1. **Ad-hoc action after investigation** — *"ok, block that IP"* as a follow-up
+   turn. This is the money path and has ZERO coverage. It should route to
+   `emit_action_card` (analyst-approved) or `run_op` behind the tier-≥3 approval
+   gate ([[agent_mutating_op_approval_gate]], [[agent_triage_pivot_toolset]]).
+   Needs a MULTI-TURN offline scenario (investigate → then ask to act) — the
+   current rig is single-turn. Assert the card/op is actually emitted with the
+   right IP bound, and that it's gated, not auto-run.
+2. **Emit-card liveness** — a direct offline test that each `emit_*` path, when
+   the model is steered to it, produces a well-formed card the widget can
+   render. Separates "model won't" from "path is broken" (6h.1).
+3. **Tool-works coverage** — the triage tools (`search_module_records`,
+   `find_enrichment_actions`, SIEM ops, `run_op`) are exercised only
+   incidentally. A cassette-backed test per tool: given a known input, the tool
+   returns the expected SHAPE and the agent uses it. Ties into Task C.
+4. **Multi-turn investigation memory** — does a second turn remember the first
+   turn's findings, or re-investigate from scratch? Offline, multi-message.
+5. **Wrong-tool / refusal discipline** — asked something out of triage scope
+   (e.g. "build me a playbook" mid-investigation), does it stay in lane?
+6. **Signal density as a quality gate** — 6h.1's `session_analyze` metric
+   (70% of tool output carried nothing actionable) should become a tracked
+   number, not a one-off. Big-playbook-in / little-value-out is a real
+   agent-usability regression risk.
+
+### 6h.3 ZTP personas on .206 — NOT STARTED (user's second priority)
+
+`_soc_agent_eval.py` already has ZTP scenarios (`ztpf_metadata_sources`,
+`ztpf_devices`) but drives them LIVE on 206. Open question for the user (asked,
+unanswered): offline in the T1 style, or live-on-206? Persona *resolution* reads
+206's Key Store, so a resolution test likely needs the box; the persona's
+*behaviour* can be graded offline with a fixture persona (the `persona_fixture`
+seam in `local_turn`). Likely split: behaviour offline, resolution live.
+
+
 ## 7. RESUME HERE (post-clear)
 
 1. Read this doc, then §3 (the design question), then the plan for whichever area you pick.

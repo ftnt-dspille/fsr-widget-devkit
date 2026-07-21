@@ -5,9 +5,106 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSED, box-proven on 206.** Real OpenAI gpt-4o on config `repro-openai` (206's `fsrpb-live`/`repro-openai` are OpenAI, not Anthropic; `fsrpb-apikey-proof`'s Anthropic key is a dead placeholder) **decided on its own** to call materialized `mcp_soc__get_indicators {"values":["8.8.8.8"]}` → `status:success` real hydra Indicator collection, **no 401/403**, `stop=end_turn`. Getting there proved: (1) **config PUT round-trip is clobber-SAFE** — GET returns the key as re-submittable ciphertext, re-PUT preserves LLM auth (the "UI-only" fear was unfounded); (2) **soar_api_key ciphertext is portable across configs** (appliance-global key), copied donor→target, no plaintext; (3) **`enrich_indicator` (playbook-TRIGGER tool) 403s** — trigger accepted (past 401, task_id issued) but api-key user's SOC-Analyst role can't read exec status; READ tools return real data; (4) **MCP `run_connector_operation` ignores `config_name`** → hits DEFAULT (`fsrpb-frank`, unreachable Frank gw); drive via pyfsr `execute(config_name=…)`. `repro-openai` left carrying soar_api_key+allowlist. Session 3p below.)_
+_Last updated: 2026-07-21 (session 4d — SOC-investigation offline coverage + 3 defects fixed; emit-card surface measured dead. See the 4d banner below.)_
+
+_Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSED, box-proven on 206.** Real OpenAI gpt-4o on config `repro-openai` (206's `fsrpb-live`/`repro-openai` are OpenAI, not Anthropic; `fsrpb-apikey-proof`'s Anthropic key is a dead placeholder) **decided on its own** to call materialized `mcp_soc__get_indicators {"values":["8.8.8.8"]}` → `status:success` real hydra Indicator collection, **no 401/403**, `stop=end_turn`. Getting there proved: (1) **config PUT round-trip is clobber-SAFE** — GET returns the key as re-submittable ciphertext, re-PUT preserves LLM auth (the "UI-only" fear was unfounded); (2) **soar_api_key ciphertext is portable across configs** (appliance-global key), copied donor→target, no plaintext; (3) **`enrich_indicator` (playbook-TRIGGER tool) 403s** — trigger accepted (past 401, task_id issued) but api-key user's SOC-Analyst role can't read exec status; READ tools return real data; (4) **MCP `run_connector_operation` ignores `config_name`** → hits DEFAULT (`fsrpb-frank`, unreachable Frank gw); drive via pyfsr `execute(config_name=…)`. `repro-openai` left carrying soar_api_key+allowlist. Session 3p below.)_
 
 > _Prior: 2026-07-20 (session 3p — **soc-401 fix completed via API-KEY path + BOX-PROVEN on 206.** Read the gateway source on-box (`/opt/mcp-server`): `FortiSOARApp` replays the `Authorization` header **verbatim** on downstream `/api/3`; `auth_service.py` accepts "Bearer OR **API-KEY**". So the fix is any non-URI-bound, user-mapped credential — shipped an **API-KEY** path (preferred over bearer: static `Authorization: API-KEY <key>`, no minting) `soar_api_key` field, priority api_key>bearer>hmac. Added diagnostic op **`probe_native_mcp`**. Created a FortiSOAR api-key user (SOC Analyst) + a fresh `fsrpb-apikey-proof` config via pyfsr (no clobber). **A/B on 206 through the real gateway (worker context): HMAC → `get_indicators` 401; API-KEY → `status:success` real data.** connector **0.4.91** on 206. Api-key auth 400s on 159 (per-box URL-scoping) so proof ran on 206. Prior session 3o below.)_
+
+> **▶ 2026-07-21 (session 4d) — offline testing for the SOC-INVESTIGATION half + 3 defects fixed; emit-card surface found dead.**
+> Detail in `docs/plans/widget-capability-test-and-persona-rollout.md` §6h. All committed; the
+> framework/connector compiler bits are offline-proven and **need a release+ship**.
+> - ✅ **needs-config panel BLESSED** (widget `39d5ee1`) — matches the 1.2.32 tarball already on
+>   both boxes; no deploy.
+> - ✅ **F2 CLOSED** — read-only fence guard (widget `d72b670`, 15 tests). Prompt lever confirmed
+>   spent (`explain_loop_semantics` 3/6 unchanged at RUNS=6); the write is refused where it lands.
+> - ✅ **Token cap 4096 → 16384 + `max_turns`→`max_tokens`** (framework `9241ee0`). The "overloaded
+>   token" belief was WRONG — corrected in `max_turns_stop_reason_is_overloaded`. Proven: the
+>   scenario that died truncated now passes 6/6.
+> - ✅ **F4 unblocked, 2/3 leads fixed** (framework `edd45d9`) via a **400-playbook box pull**.
+>   Biggest class was OUR decompiler dropping declared parameters, not strictness. **142→178/400
+>   compile clean.** Probe at `scripts/session_analyze.py` sibling `f4_pull.py` (scratchpad).
+> - ✅ **automate_manual_step 0/6 was a GRADER defect** (`cb6102f`) — 2nd grader defect after F1;
+>   `replaces_step` grader, 0/6→3/3.
+> - ✅ **`scripts/session_analyze.py`** (`c843a37`) — pull agent sessions (local sqlite OR a box)
+>   and grade tool errors + **signal density**. One analysis core, two sources.
+> - ✅ **SOC-investigation T1 scenarios** (`31b8e18`) — the triage half, **box-free**: mount a real
+>   captured record through `entity`; 3 scenarios, 5 grounding graders, 12 grader unit tests.
+> - 🔴 **Emit-card surface is effectively dead (MEASURED):** across 481 sessions, all 5 interactive
+>   `emit_*` tools fired **16× total**; `emit_action_card` (the "block this IP" button) **4×**,
+>   `emit_manual_input` **0×**. Can't yet tell "model won't emit" from "path is broken" — untested.
+>   **Highest-value SOC gap.** See §6h.1–6h.2.
+> - 🔵 **OPEN — ad-hoc action after investigation** (*"ok, block that IP"*) has ZERO coverage and is
+>   the money path; needs a MULTI-TURN offline scenario. **ZTP personas on .206 not started**
+>   (user's 2nd priority; offline-vs-live question open).
+>
+> **▶ 2026-07-21 (session 4c) — prompt-cache correctness + cost accounting SHIPPED; NEXT PHASE organized.**
+> **▶▶ NEXT PHASE TRACKER: `docs/plans/widget-capability-test-and-persona-rollout.md`** — the
+> consolidating index for widget testing across **C1 SOC triage / C2 investigation /
+> C3 playbook troubleshooting / C4 assistance / C5 building** + the **persona-for-other-modules**
+> design question. Start there after a clear; it maps each area to its existing plan + harness
+> and lists the gaps. **Nothing in it is started.**
+> - **SHIPPED:** connector **0.4.93** + framework **0.4.36** (PyPI) → **both 159 and 206**,
+>   7/7 workers recycled each, warmup green. Both repos merged to `main` (connector `main`
+>   committed but **NOT pushed**).
+> - **Caching was silently broken/blind on both providers.** OpenAI `cache_read` was hardcoded 0
+>   (caching *was* working — 99% hit — but nothing could see it); Anthropic cached only
+>   (tools+system) and re-sent the whole conversation **uncached every tool-loop iteration**
+>   (now a rolling history breakpoint: round 2 went from re-billing ~15.4k input to
+>   `cache_read=15202 / write=233`). **GPT-5 models were 100% unusable** — we sent `max_tokens`,
+>   which they reject with a 400, and the provider's blanket `except` swallowed it into a
+>   zero-token result that reads as a dumb model.
+> - **Cost math was wrong**: ignored caching entirely (overstated OpenAI ~3.2x). The two providers
+>   report cached tokens with **opposite semantics** — OpenAI nests them inside `input_tokens`,
+>   Anthropic keeps them disjoint. Branch on **model name**, never `cache_write>0`
+>   (memory `prompt_cache_accounting_two_provider_shapes`). GPT-5 price rows added.
+> - **Live-verified in-platform on 206:** turn1 `cache_read=0` → turn2 `cache_read=11136` of
+>   `11227`, cost $0.028→$0.015.
+> - **Model A/B (box-free, `scripts/eval_model_ab.py`, now reports cache hit-rate):**
+>   **gpt-4.1-mini 15/15** · gpt-5.4-mini 12/15 · gpt-4o **9/15** · gpt-5.4-nano 4/15.
+>   4o and 5.4-mini both fail `no_halluc` 0/3 (the confabulation guard). Default moved to
+>   **gpt-4.1-mini** in `info.json` + `install_to_fsr.py`.
+> - 🔴 **OPEN (user-owned):** that default only affects **newly created** configs. The boxes
+>   still run **gpt-4o**. **User said they will update the connector config.** Verify by driving
+>   a `chat_turn` and reading `usage.model` — do NOT infer from `info.json`.
+> - **RESOLVED:** the `fsrpb-frank` default-clobber-on-every-ship gotcha (deploy now leaves the
+>   manual default untouched and never installs frank). That memory entry is updated.
+> - Also repaired 10 pre-existing stale tests (6 turn-context goldens vs the shipped GROUND-TRUTH
+>   block, 3 `end_turn`→`awaiting_playbook_offer` from the Phase 2.4 salvage, 1 magic-number
+>   prompt-length assert). Suites: connector 629 pass, framework 752 pass.
+
+> **▶ 2026-07-21 (session 4a) — SOC-agent "not intelligent" root-caused + connector-wide fix SHIPPED 0.4.92 on 206.**
+> Detail: memory `resume_2026_07_21_soc_agent_intelligence` + `soc_agent_smartness_eval_and_repro`.
+> - **Root cause (live-reproduced in the real widget):** the agent presents a record's
+>   embedded EXAMPLE/sample data as REAL results. On a `ztpf_metadata_sources` page,
+>   "what interfaces were created in the last run group?" → 0 tool calls, recited
+>   `exampleOutput` port1..port4 (fake IPs) as fact. NOT an entity-plumbing bug (proved
+>   live the widget sends the correct `entity.module`; `viewPanel.modulesDetail` params
+>   resolve correctly).
+> - **Fix (connector-wide, every intent + persona — NOT one persona):** (1) `_entity_context_block`
+>   fences+labels `example*/sample*` fields "ILLUSTRATIVE — not live"; (2) `_CONNECTOR_INVARIANT_RULES`
+>   appended to EVERY turn's prompt unconditionally (never cite example as real; tool-verify
+>   factual/live claims; don't guess); (3) `get_record full=True` over-cap → pruned projection
+>   not a byte-chop; (4) `SearchModuleRecordsArgs` coerces list-form `filters`. Tests
+>   `tests/test_ground_truth_hardening.py` (22) + 171 suite green.
+> - **SHIPPED 0.4.92 → 206** (all 10 workers recycled, warmup clean). **Live-verified via eval
+>   harness `scripts/_soc_agent_eval.py`:** reproduced follow-up now **2/2 calls `run_playbook`**
+>   + "must verify real live data" (was 0 tools + port1..port4 as fact).
+> - **FIXED the frank-default gotcha:** deleted `fsrpb-frank` from 206 + promoted `fsrpb-live`
+>   (OpenAI/gpt-4o/api.openai.com) to DEFAULT (clobber-safe PUT); verified default chat_turn → gpt-4o,
+>   no fortilab error. **`deploy.sh` fixed** to stop installing/defaulting frank (leaves the manual
+>   default untouched). `deploy.sh` change UNCOMMITTED.
+> - **OPEN:** (a) **model A/B simulated LOCALLY** via connector harness `scripts/local_turn.py`
+>   (`make local-turn`; no box needed) — extend with `--llm openai/anthropic`. **PRIMARY compare:
+>   GLM 5.2 (local, OpenAI-compat endpoint) vs Claude Haiku 4.5** — user runs GLM 5.2 locally + expects
+>   it to beat live gpt-4o. gpt-4.1-mini = secondary (needs real OpenAI key). eval-harness `--expect-model`
+>   validates routing; grade by pass-rate+cost. Post-clear TASK: search WIDER for an OpenAI key (Keychain,
+>   1Password, other repos, shell history — not just env files; frank key = fortilab gw, not api.openai.com;
+>   real key only in box `fsrpb-live` ciphertext).
+>   (b) **baseline (no-persona) intelligence** — don't require a per-module Key Store persona to be
+>   smart (user's key point; 4 personas exist: ztpf_templates/_automation_profiles/_devices/_metadata_sources).
+>   (c) relationship-query self-correction in `search_module_records` (0-row `field="uuid"` free-text).
+>   Connector 0.4.92 + deploy.sh changes **uncommitted**.
 
 > **▶ 2026-07-20 (session 3p) — soc-401 fix completed (API-KEY) + box-proven on 206.**
 > Plan: **`docs/plans/stability-and-scalability-plan.md`** (§3A).
