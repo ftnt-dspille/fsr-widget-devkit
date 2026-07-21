@@ -730,6 +730,25 @@ coverage before these scenarios existed.
 > fence the analyst did not ask for**, the same shape as the truncation guard in
 > F3. A prompt is a disposition lever, and disposition is exactly what a prompt
 > cannot guarantee.
+>
+> ✅ **CLOSED — widget guard shipped (2026-07-21, widget `d72b670`).** Re-ran T1
+> vs Frank at `RUNS=6` first: `explain_loop_semantics no_yaml_written` **3/6**,
+> unchanged — confirming the prompt lever is spent and the residual is real, not
+> run-to-run noise. So the write is now refused where it lands: `_runTurnNow`
+> latches whether the ask **scoped** the turn read-only (the composer is cleared
+> by the time the fence arrives), and `_handleTurnResult` diverts the authored
+> YAML into `withheldYaml`, restoring `currentYaml` untouched.
+> - Deliberately narrow — phrasings that scope the turn, not every question.
+>   *"How does this loop work?"* may well want the fix; *"…and don't change
+>   anything"* does not. A quick-action chip is an explicit clicked intent and
+>   always beats whatever phrasing rode along with it.
+> - Because it is still a heuristic over English the playbook is **withheld,
+>   never discarded** — a notice offers *"Load it anyway"*, so a false positive
+>   costs one click rather than the model's work.
+> - 15 tests (`tests/yaml.readonly.withhold.test.js`): the verbatim T1 asks,
+>   prose-only turns raising no notice, `last_assistant_yaml` withheld too, and
+>   **4 edit-intent asks proving the guard is not overbroad**. Widget suite
+>   **808 pass**.
 
 **F3 — ❓ UNTRIAGED: two build scenarios ended mid-sentence with no YAML.**
 `add_branch_to_decision` stopped at `"…so it's evaluated before the fallback.
@@ -773,6 +792,31 @@ ask needs **discovery tools**, so it may simply be the longest turn.
 > one; (b) **history rehydration** (`_rehydrateBuildState`) re-scans stored
 > transcripts for the last fence and has no `stop_reason` to consult, so a
 > truncated fence from a past turn can still be restored on refresh.
+>
+> ✅ **(a) FIXED — cap raised + the name collision removed (framework `9241ee0`).**
+> Two defects that shared a root: *the output-token cap was invisible.*
+> 1. `finish_reason: "length"` mapped onto the contract token **`max_turns`**,
+>    which reads as the tool-loop budget — so a build cut off mid-playbook was
+>    indistinguishable on the wire from the benign "out of tool turns, send
+>    another message" stop. ⚠️ **The earlier note that `max_turns` is
+>    *overloaded* was wrong**: the tool loop has always emitted its OWN reason
+>    (`max_tool_turns`), and the widget's `payload.max_turns` is not consumed by
+>    the connector at all — so `max_turns` never meant anything but the cap. The
+>    collision was purely in the name. It now maps to **`max_tokens`**; both
+>    consumers already accepted that token and `stop_reason` is an unconstrained
+>    `str` on the wire, so no coordinated bump was needed.
+> 2. The cap is now `_loop_helpers.DEFAULT_MAX_OUTPUT_TOKENS` = **16384**, with a
+>    `max_output_tokens` ctor override on all three providers. Raised
+>    **uniformly, not per-intent**, because a cap is a *ceiling, not an
+>    allocation* — billing is on tokens emitted, so a 300-token triage answer
+>    costs the same under a 16k ceiling as under 4k. Per-intent would buy nothing
+>    and would need `intent` plumbed into the provider, which is deliberately
+>    unaware of it. 16384 is the largest value gpt-4o accepts.
+>
+> **Proven, not assumed:** `add_branch_to_decision` — the scenario that died as a
+> hard `DRIVE ERROR (TRUNCATED, stop_reason='max_turns')` — now completes with
+> **6/6 checks green at 3/3 runs**.
+> Still open: **(b) history rehydration** is unchanged.
 
 **F4 — 📋 The 5 real playbooks that do not compile** (§6g above) — in
 particular `set_variable.message: unknown key(s) 'tenant'` and `playbook
@@ -788,6 +832,51 @@ gaps against shipped Fortinet content.
 > the right move is to **re-pull those playbooks from the box, install them as
 > fixtures, and fix against the real documents**. Same for the `records`
 > parameter shadowing. Box-dependent, so it is a separate work item.
+
+> ✅ **UNBLOCKED + 2 of 3 leads FIXED (2026-07-21, framework `edd45d9`).** Pulled
+> **400** stock playbooks from a live 8.0 appliance (`/api/3/workflows` with
+> `$relationships=true`, each wrapped as a one-workflow collection envelope —
+> `decompile()` takes a `WorkflowCollection`, not a bare workflow row). Compiled
+> the whole corpus and bucketed by message shape. That is far better evidence
+> than the original 10, and it reframed the biggest class entirely.
+>
+> **Baseline: 142/400 clean, 122 hard failures** (plus 136 `unknown connector`
+> results that are a LOCAL reference-DB gap, not compiler bugs — excluded from
+> both counts; cf. [[local_dev_loop_warmup_clobbers_reference_db]]). Grade on
+> `severity == "error"` only: the result also carries lint *warnings* (absent
+> `button_label`, missing `mock_result`) and counting those inflates "stock
+> content does not compile" with style notes.
+>
+> | class | n | verdict |
+> |---|---|---|
+> | undeclared playbook parameter | 42 | 🐛 **our decompiler**, not strictness |
+> | `set_variable.message` unknown key | 9 | 🐛 compiler strictness — all 9 are `tenant` |
+> | `parameters` shadows `vars.input.records` | 5 | ⏸ judgment call, still open |
+> | per-connector param-schema mismatches | ~66 | ⏸ may be reference-DB fidelity, not content bugs |
+>
+> **The 42 were not a strictness gap at all.** A playbook's input form is built
+> from the **trigger step's `arguments.inputVariables[]`**, but the decompiler
+> read declarations only from the workflow's top-level `parameters`. The two
+> sources disagree on real content — most stock playbooks leave the top-level
+> field empty, and *some carry a non-empty list that still omits names the
+> trigger declares*, so a fallback was not enough and they must be **unioned**
+> (found only because the first fix left 17 failures behind). Same silent
+> data-loss class as the dropped `for_each`, and destructive the same way: pull
+> → any one-field edit → save stripped the playbook's entire manual-trigger
+> input form. It also meant **the compiler rejected its own decompiler's
+> output**.
+>
+> `tenant` is the ONLY message key real content uses outside the allowlist, in 9
+> playbooks — strictness rejecting valid product output. The emitter passes it
+> through too, since accepting a key and then dropping it trades a loud error for
+> silent data loss.
+>
+> **Result: 142/400 → 178/400 clean, 122 → 86 hard failures.** 8 new tests, old
+> impls pinned back in and the behavioural ones verified RED (3 + 1) per
+> [[tests_inherit_the_fixs_blind_spots]]. 780 pass.
+> ⚠️ Offline/box-pull-proven only — **needs a release + ship** like the other
+> compiler fixes. Probe kept at `scratchpad/f4_pull.py`; the 86 failing playbooks
+> are written out as JSON + YAML for fixture installation.
 
 **F5 — content bug spotted in passing, not ours:** the stock `Action - IPv4
 Addresses - Block Threat Feeds` playbook has `button_label: Block File Hash`.
