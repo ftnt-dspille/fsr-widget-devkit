@@ -218,6 +218,55 @@ cisa-advisory, smtp_ng.
 
 ---
 
+## 4c. Rehearsal findings — 2026-07-22 (session 4e, part 2)
+
+Driving beat 5 through the **widget** surfaced three more things. All fixed and
+shipped (framework **0.4.41**, connector **0.5.4**).
+
+**⑤ 🎯 The demo record must name a REAL FortiEDR collector.** The isolate 400'd
+with *"No matching collectors"*. The soc-simulator's alerts carry synthetic
+hostnames (`win-rdp-04`, `filesrv-42`), and the FortiEDR tenant has exactly
+**two** collectors: `JPALM-DC` and `The-Flame` (both `Disconnected`, org
+*Palm Labs*). A synthetic host can never match.
+**Seeded `Ransomware Precursor: vssadmin Delete Shadows on The-Flame`**
+(`scratchpad/seed_demo_alert.py`) — use THAT record for the demo. Note the
+simulator keeps generating, so query it by name, not by "newest N".
+✅ **Isolate proven live against it: 1.5s, `Successfully executed
+isolate_collector`** — a Disconnected collector isolates fine. Un-isolated
+afterwards, so the demo is repeatable; `unisolate_collector` also runs in ~1.3s
+if you need to reset mid-rehearsal.
+
+**⑥ 🐛 The investigation could not check EDR device inventory (FIXED).**
+`find_enrichment_actions(target_type="host")` never offered
+`fortinet-fortiedr.get_collector_list`: it carries no intel token, and
+`collector`/`agent` were in the CONTAINMENT keyword list but missing from the
+ENRICHMENT indicator tokens. So the assistant could not ask *"does this host
+even have an EDR agent?"* — the single most useful question before staging an
+isolate — and the host's absence from EDR only surfaced as a 400 at execution
+time. Third instance of the same drift bug this session; the fix asserts the
+containment keywords are a **subset** of the enrichment tokens so it can't
+recur. Verified on the box: `get_collector_list` + `get_agent_group` now
+surface for `host`.
+
+**⑦ 🐛 A resume turn streamed nothing (FIXED).** The "Executing…" button sat for
+**7 minutes** with only a typing indicator. Not a stuck button — the widget
+holds `_submitting` until the `chat_resume` promise settles, and the op itself
+takes 1.5s; the time was the follow-up LLM turn. The real defect was that
+`_resume_conversation` was not a streaming producer: it derived `turn_idx` from
+`max(list_turns)+1` (no `turn_start`, so the widget's monotonic `since_turn`
+fence never advanced) and its event hook handled only `UsageEvent`, dropping
+every `tool_use`/`tool_result`/`text`. Now reserves the turn, forwards every
+renderable event, and closes with a `stream_end` built through the
+`StreamEndFrame` model (the hand-rolled dict had already dropped
+`last_assistant_yaml`).
+✅ **Proven live** (`scratchpad/ga_resume_stream_probe.py`): card on turn 2,
+poll follows turn **3**, **170 frames, first at 1.8s** of a 4.4s turn.
+⚠️ That probe needs its `since_turn` fence set from the **envelope's** `turn`
+(wire events don't carry one) or it re-reads the card turn's finished feed and
+reports a false pass — which it did on the first two attempts.
+
+---
+
 ## 5. RESUME HERE — ordered
 
 1. ✅ **BEAT 5 FIRES — DONE, live-proven on GA 2026-07-22.** Framework

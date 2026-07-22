@@ -53,6 +53,25 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 > **FortiEDR (isolate host) has 0 configs
 > ❌** and so does the MCP bridge.
 >
+> **▶ 2026-07-22 (session 4e, part 2) — beat 5 REHEARSED through the widget; 3 more fixes.**
+> Framework **0.4.41** + connector **0.5.4** on GA. Detail in §4c of the GA plan.
+> - 🎯 **The demo record must name a real FortiEDR collector.** Simulator hosts are
+>   synthetic; the tenant has only `JPALM-DC` + `The-Flame`. Seeded
+>   *"Ransomware Precursor … on The-Flame"* (`scratchpad/seed_demo_alert.py`) — **use that
+>   record**, and query it by NAME (the simulator pushes it out of any newest-N window).
+>   ✅ isolate proven live: **1.5s**, un-isolated after, so the demo is repeatable.
+> - ✅ **Investigation can now check EDR device inventory.** `get_collector_list` was
+>   invisible to `find_enrichment_actions(host)` — `collector`/`agent` were in the
+>   containment keywords but not the enrichment tokens. **Third instance of the same
+>   list-drift bug this session**; the fix asserts containment keywords ⊆ enrichment tokens.
+> - ✅ **Resume turns stream progress.** The 7-minute "Executing…" was not a stuck button
+>   (the op takes 1.5s; the time was the follow-up LLM turn) — `_resume_conversation` simply
+>   wasn't a streaming producer. Now reserves the turn + forwards every event.
+>   Proven: **170 frames, first at 1.8s**. Terminal frame now built via `StreamEndFrame`
+>   (the hand-rolled dict had dropped `last_assistant_yaml`).
+> - 🔵 **NEXT:** full widget rehearsal on the The-Flame record end-to-end; decide whether to
+>   approve-and-execute live on stage. FortiGate block-IP still deferred (config Disconnected).
+>
 > **▶ 2026-07-21 (session 4d) — offline testing for the SOC-INVESTIGATION half + 3 defects fixed; emit-card surface found dead.**
 > Detail in `docs/plans/widget-capability-test-and-persona-rollout.md` §6h. All committed; the
 > framework/connector compiler bits are offline-proven and **need a release+ship**.
