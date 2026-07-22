@@ -46,7 +46,7 @@ instrument that catches that class, and there wasn't one.
 
 ### There is now a real metric, and nobody owns it
 
-The F4 work (framework `edd45d9`, **shipped in 0.4.40 → GA**) pulled **400 stock
+The F4 work (framework `edd45d9`, **shipped in 0.4.39 → GA**) pulled **400 stock
 playbooks** from a live 8.0 appliance and moved the corpus from
 **142/400 → 178/400 clean** (122 → 86 hard failures). That number is a genuine
 regression metric currently living in a scratchpad probe. Phase 1 is mostly
