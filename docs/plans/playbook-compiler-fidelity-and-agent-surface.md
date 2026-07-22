@@ -134,55 +134,71 @@ Known buckets from the F4 pull:
 Resolve the ~66 first: if they are reference-DB fidelity rather than content
 bugs, the true residual is far smaller and Phase 2 shrinks dramatically.
 
-### 4.2 Errors as affordances — now backed by evidence
+### 4.2 Errors as affordances — evidence, from BOTH corpora
 
-There is a second recovered script that answers the *"does the YAML need to be
-simpler"* question directly, and it is the more important of the two:
-**`connector-fsr-soc-assistant/scripts/validate_yaml_corpus.py`** (recovered
-from the same scratchpad, now committed alongside `session_analyze.py`). It
-mines every `validate_yaml` call out of the connector's session store and
-buckets the errors that came back — *"to decide, on evidence, whether the lever
-is a better PROMPT, a better LANGUAGE, or better TOOL OUTPUT, rather than
-guessing from the failures we happen to remember."*
+The tool that answers the *"does the YAML need to be simpler"* question is
+**`session_analyze.py --tool validate_yaml`** in the connector repo, now wired
+to make targets so it is a command rather than a rediscovered scratchpad script:
 
-**Run 2026-07-22 — 61 call/result pairs across 50 sessions:**
+    make analyze      TOOL=validate_yaml      # local dev/eval corpus
+    make analyze-box  TOOL=validate_yaml ENV=…/.env.fsr-ga
+    make analyze-yaml ENV=…/.env.fsr-ga       # both, side by side
 
-    submissions with NO hard error : 60/61
-    severity mix                   : 76 warnings, 1 error
+> A standalone `validate_yaml_corpus.py` was recovered from the same scratchpad
+> and then **deleted**: it is the older local-only version of this same analysis
+> and produced identical counts. Two implementations of one analysis is the
+> drift bug class ([[parallel_name_lists_drift_bug_class]]) — keep one.
 
-⚠️ Pairing caveat, encoded in the script: `chat_messages` stores tool_use and
-tool_result separately and results are keyed by the provider's `tool_call_id`,
-so they pair by **adjacency across ALL tools** — queueing only the target tool
-mis-attributes another tool's result. Independently re-verified for this run:
-all 61 paired results are genuine `validate_yaml` envelopes, 0 suspicious.
+#### ⚠️ The two sources disagree. Run both.
 
-**This overturns the plan's original premise.** Agents are *not* failing to
-produce valid playbook YAML — 60 of 61 submissions had **no hard error at all**.
-So "make the YAML simpler" is not indicated for *validity*. The real surface is
-the **warning** tail and message quality:
+| | **local** (long-lived dev/eval) | **GA box** (since last publish) |
+|---|---|---|
+| calls / sessions | 61 / 50 | 16 / 6 |
+| **with a HARD error** | **1** | **5 of 16 (31%)** |
+| advisory only | 47 | 8 |
+| top finding | `InsertData.arguments.step_variables is missing` ×23 *(warning)* | **`set_variable outputs live at top-level vars, not under the step-output namespace` ×11 *(error)*** |
+
+**A local-only read gives the wrong answer.** Local says agents almost never
+emit invalid YAML (60/61 clean) and the surface is a warning tail. The box says
+**roughly a third of real submissions carry a hard error**, and the top cause is
+a different, deeper problem.
+
+⚠️ Caveats on both: the box store is **wiped on connector upgrade**, so its 16
+calls only cover sessions since the last publish (four connector versions
+shipped 2026-07-22) — small N, treat as directional. Local is long-lived but is
+dev/eval traffic, not production. Neither alone is authoritative.
+
+#### What the box says the real problem is
 
 | n | finding | read |
 |---|---|---|
-| 23 | `InsertData.arguments.step_variables is missing — every corpus sample sets this key` | convention the agent can't infer; a **prompt/tool-output** lever |
-| 15 | `unknown argument 'X' for handler 'X'` | schema drift or genuine agent error — needs splitting |
-| 7 | `InsertData.arguments.resource is missing` | same class as the 23 |
-| **7 + 4** | **`connector step has step-level 'connector:' — hoisted into 'arguments.connector'`** and `step-level key 'resource' … nest it under 'arguments:'` | ⭐ **the one real LANGUAGE signal** — the agent repeatedly puts keys at step level instead of under `arguments:`. `WIRE_SHAPE_GAP_PLAN` Phase 3 hoisted the *universal envelope* but not `connector:`/`resource:`. Extending the hoist would delete this class outright. |
-| 4 | `reference catalog was warmed from a DIFFERENT SOAR than target …` | **environment**, not agent — cf. [[local_dev_loop_warmup_clobbers_reference_db]] |
-| 2–3 | `value '/api/3/picklists/1c4def41-…' is not in picklist 'IndicatorType' (valid: Domain, Email Address, …)` | the opaque-IRI case — **confirmed real**, and note the message *does* list valid values; the defect is that the agent was handed an IRI to begin with |
+| **11** | **`vars.steps.X.y` rewritten — `set_variable` outputs live at top-level `vars`, not under the step-output namespace** | ⭐ **the genuine language/mental-model defect.** The agent has the wrong model of *where variables live*. Matches the known S3 residual (`.result` vs `.data.<field>`, missing `vars.` prefix). |
+| 7 | `unknown connector: 'X'` | **discovery**, not authoring — cf. the `find_connector` first-word bug already fixed |
+| 6 | Jinja ref `X is not in step X's output keys ()` | the agent guesses output keys; empty `()` means we could not tell it what they are |
+| 3 | `unknown Jinja filter 'X'` | filter catalog gap or hallucination — split these |
+| 1 each | duplicate start steps, missing required param, bad `parameters` shape | long tail |
 
-**Revised Phase 2 deliverables, in evidence order:**
+#### Revised Phase 2 deliverables, in evidence order
 
-1. **Extend the step-level hoist to `connector:` / `resource:`** (11 occurrences,
-   pure language ergonomics, mirrors a pattern already shipped).
-2. **Kill the `step_variables` / `resource` convention warnings** (30
-   occurrences) — either default them in the emitter or teach them in the tool
-   output; they are the single biggest bucket by far.
-3. Split the 15 `unknown_param` cases into schema-drift vs real agent error.
-4. Only then the error-string audit: *can an agent act on this without another
-   tool call?*
+1. **Fix the variable-namespace mental model** (11 box errors). The compiler
+   already auto-rewrites `vars.steps.X.y` → `vars.y` — so the *fix* exists and
+   the *teaching* does not. Decide: is the lever the prompt, the tool output, or
+   making the wrong form legal? This is the closest thing to "the YAML needs to
+   be simpler" that the evidence actually supports.
+2. **Tell the agent the real output keys.** Six findings say `output keys ()` —
+   an empty set. An error naming what *is* available is actionable; one naming
+   what isn't, isn't.
+3. **Step-level nesting hoist** — `connector:`/`resource:` at step level instead
+   of under `arguments:` (11 local occurrences, warnings). Mirrors the shipped
+   `WIRE_SHAPE_GAP_PLAN` Phase-3 envelope hoist; would delete the class.
+4. **Kill the `step_variables`/`resource` convention warnings** (30 local) —
+   default them in the emitter or teach them in tool output.
+5. The opaque picklist IRI, and the error-string audit: *can an agent act on
+   this without another tool call?*
 
-Re-run `validate_yaml_corpus.py` after each to measure, rather than asserting
-improvement.
+**Re-run `make analyze-yaml` after each change to measure**, rather than
+asserting improvement. Growing the box sample matters as much as any fix —
+16 calls is too few to steer on alone.
 
 ---
 
