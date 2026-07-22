@@ -11,7 +11,35 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 
 > _Prior: 2026-07-20 (session 3p — **soc-401 fix completed via API-KEY path + BOX-PROVEN on 206.** Read the gateway source on-box (`/opt/mcp-server`): `FortiSOARApp` replays the `Authorization` header **verbatim** on downstream `/api/3`; `auth_service.py` accepts "Bearer OR **API-KEY**". So the fix is any non-URI-bound, user-mapped credential — shipped an **API-KEY** path (preferred over bearer: static `Authorization: API-KEY <key>`, no minting) `soar_api_key` field, priority api_key>bearer>hmac. Added diagnostic op **`probe_native_mcp`**. Created a FortiSOAR api-key user (SOC Analyst) + a fresh `fsrpb-apikey-proof` config via pyfsr (no clobber). **A/B on 206 through the real gateway (worker context): HMAC → `get_indicators` 401; API-KEY → `status:success` real data.** connector **0.4.91** on 206. Api-key auth 400s on 159 (per-box URL-scoping) so proof ran on 206. Prior session 3o below.)_
 
-> **🎯 TOP PRIORITY (user, 2026-07-21): make the SOC assistant look great in a GA demo.**
+> **🎯 TOP PRIORITY (user): make the SOC assistant look great in a GA demo.**
+>
+> **▶ 2026-07-22 (session 4e) — 🟢 BEAT 5 FIRES. The containment gap is CLOSED and live-proven on GA.**
+> Framework **0.4.40** + connector **0.5.2** shipped to GA/159 (7/7 workers, warmup green).
+> Detail in `docs/plans/ga-demo-soc-investigation.md` §4b. Two framework defects, both found by
+> driving the real two-turn shape (`scratchpad/ga_beat5_probe.py`, transcripts in
+> `scratchpad/ga_beat5.json`) rather than reading code:
+> - ✅ **Hunt floor under-counted the connector's own hunt tools** (fw `8e9f534`, connector
+>   `7f2225e`). A turn-1 investigation run through `fmg_*`/`faz_*` scored **0 of 3** evidence
+>   calls, so turn 2's "isolate that host" was refused as un-scoped and the model burned the
+>   turn satisfying the floor, staging an *enrichment* op as the action card.
+>   `_INVESTIGATION_TOOLS` is now mutable + `siem_`/`faz_`/`fmg_` prefixes; the connector
+>   registry calls the new `credit_as_investigation()`. Same Option-A drift as
+>   `TRIAGE_ONLY_TOOLS`.
+> - ✅ **🔒 `isolate_collector` was ungated AND undiscoverable** (fw `a5c2afa`). FortiEDR's
+>   isolate op is categorized `investigation` and had **no `op_safety` verdict** on GA (391 of
+>   466 ops carry one), so it resolved to **tier 2** — `run_op` would have isolated a host with
+>   **no approval card**, and `find_containment_actions` dropped it from its tier≥3 slice.
+>   `_op_name_is_destructive()` now reuses discovery's own verb list as the fail-safe.
+> - 🟢 **PROVEN, twice, on different records:** `stop=awaiting_action_card` in 7-8s,
+>   `find_containment_actions → emit_action_card(fortinet-fortiedr.isolate_collector,
+>   devices=<the alert's host>)`, card carrying an `approval_id` + full `param_schema`.
+> - 🔵 **NEXT:** rehearse beat 5 through the **widget** (this proof is connector-level), and
+>   decide whether to approve-and-execute the isolate live on stage.
+> - 📌 Box facts corrected: **`fortinet-fortiedr` IS configured and Available** on GA (the plan's
+>   "0 configs" was stale). **`fortigate-firewall` is Disconnected** — "Invalid endpoint or
+>   credentials" — so block-IP genuinely cannot run; user deferred fixing it, demo uses FortiEDR.
+>
+
 > Tracker: **`docs/plans/ga-demo-soc-investigation.md`** — start there.
 > GA = 10.99.249.159:13000. **Beats 1–4 (open record → investigate → enrich → verdict) are
 > LIVE-VERIFIED GOOD on GA** (30s, gpt-4.1-mini, real `run_op` enrichment, Qakbot attribution,

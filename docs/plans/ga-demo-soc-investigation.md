@@ -158,10 +158,83 @@ follow-up-turn shape ("ok, block it") because the offline rig is single-turn.
 
 ---
 
+## 4b. 🔬 BEAT 5 ROOT-CAUSED ON GA — 2026-07-21 (session 4e)
+
+Drove the real two-turn shape on GA (`scratchpad/ga_beat5_probe.py`,
+transcripts in `scratchpad/ga_beat5.json`): turn 1 investigate, turn 2
+*"ok, block that IP"* / *"ok, isolate that host now"*.
+
+**The action-card path is NOT broken.** Turn 2 of the isolate-host run ended
+`stop=awaiting_action_card` with a real `action_card` frame carrying an
+`approval_id`. The "maybe the emit path never works" hypothesis is dead — and
+the model does *want* to contain: it called `find_containment_actions` as its
+very first move on both runs.
+
+Three distinct causes, all found:
+
+**① 🐛 The hunt-floor guard blocks containment on the follow-up turn (FIXED + SHIPPED).**
+`find_containment_actions` was refused with `hunt_floor_guard`,
+`investigation_calls: 0 / required: 3` — *after* a turn-1 investigation that ran
+`fmg_get_device_status`, `fmg_get_ha_status`, `fmg_get_policy_package_status`
+and `faz_search_device_events`. None of those names were in the framework's
+hardcoded `_INVESTIGATION_TOOLS`, so a genuine investigation scored **zero**
+evidence. The model then burned the whole turn satisfying the floor and staged
+an *enrichment* op (`fortinet-fortiguard.ip_reputation`) as the action card
+instead of containment.
+Same Option-A drift as `TRIAGE_ONLY_TOOLS`: the connector registers its hunt
+tools at import but nothing extended the floor's set.
+Fix: `_INVESTIGATION_TOOLS` is now a mutable set plus `siem_`/`faz_`/`fmg_`
+family prefixes (`counts_as_investigation`), and the connector's
+`register_triage_tools()` calls the new `credit_as_investigation(...)`.
+Framework `_loop_helpers.py` + connector `fsr_soc_triage/registry.py`;
+2 regression tests. Shipped in framework **0.4.39**.
+
+**② 🔴 GA's `fortigate-firewall` config is Disconnected** — healthcheck says
+*"Invalid endpoint or credentials"* (config `test`, pointed at a fortidemo host,
+proxied through a FortiSOAR Agent). So **block-IP containment genuinely does not
+exist on GA today**, and `find_containment_actions(target_type="ip")` correctly
+returned `actions: []` → the assistant emitted a capability-gap card. That
+behaviour is *right*; the box is wrong. Fix the config or drop block-IP from the
+demo.
+
+**④ 🐛 `isolate_collector` was invisible to containment discovery AND ungated
+(FIXED + SHIPPED).** With ① fixed, the assistant staged
+`fortinet-fortiedr.remediate_device` ("Kill Process") — the wrong op — because
+FortiEDR's real isolate op is categorized **`investigation`** in the catalog and
+had **no `op_safety` verdict** on GA (only 391 of 466 catalogued ops carry one).
+`_tier_for_run_op` therefore resolved it to **tier 2**: `run_op` would have
+ISOLATED A HOST WITH NO APPROVAL CARD, and `find_containment_actions` dropped it
+from its tier≥3 slice. Fix: `_op_name_is_destructive()` reuses the exact verb +
+non-action-prefix lists `find_containment_actions` classifies with, so discovery
+and the approval gate cannot disagree. Framework **0.4.40**, connector **0.5.2**.
+
+**③ ✅ `fortinet-fortiedr` IS configured and Available on GA** — the §2 table
+above ("0 configs, isolate host BLOCKED") is **stale**. Isolate-host is the
+viable containment beat. Full health sweep 2026-07-21: Available =
+fortinet-fortiedr, fortinet-fortiai-proxy, smtp, fortisoar-soc-simulator,
+fortinet-fortiguard-{threat-intelligence,ioc,outbreak}, mitre-attack,
+code-snippet. Disconnected = fortigate-firewall, exchange. No config =
+cisa-advisory, smtp_ng.
+
+---
+
 ## 5. RESUME HERE — ordered
 
-1. 🔵 **START HERE — make beat 5 fire.** Beats 1–4 are proven good on GA
-   (above); the only thing between us and the demo is the action card.
+1. ✅ **BEAT 5 FIRES — DONE, live-proven on GA 2026-07-22.** Framework
+   **0.4.40** + connector **0.5.2** shipped (7/7 workers, warmup green).
+   Turn 2 of `scratchpad/ga_beat5_probe.py "Ransomware Precursor" "ok, isolate
+   that host now"`, reproduced twice on different records:
+
+       stop: awaiting_action_card | 7-8s
+       TOOLS: find_containment_actions, emit_action_card
+       emit_action_card(connector="fortinet-fortiedr", operation="isolate_collector",
+                        args={"type":"Name","devices":"<the alert's host>"})
+
+   The card carries an `approval_id` and the op's full `param_schema`, so the
+   widget renders an editable approve/reject form. **The demo now ends on an
+   action, not advice.** Remaining: rehearse it through the WIDGET (this proof
+   is connector-level), and decide whether to actually approve-and-execute the
+   isolate on stage.
    Drive a SECOND turn on the same session saying *"block that IP"* /
    *"isolate that host"* and read the transcript: does an `action_card` frame
    appear, is the indicator bound correctly, does the tier-≥3 approval gate it,
