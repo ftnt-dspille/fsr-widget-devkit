@@ -874,8 +874,9 @@ gaps against shipped Fortinet content.
 > **Result: 142/400 → 178/400 clean, 122 → 86 hard failures.** 8 new tests, old
 > impls pinned back in and the behavioural ones verified RED (3 + 1) per
 > [[tests_inherit_the_fixs_blind_spots]]. 780 pass.
-> ⚠️ Offline/box-pull-proven only — **needs a release + ship** like the other
-> compiler fixes. Probe kept at `scratchpad/f4_pull.py`; the 86 failing playbooks
+> ~~⚠️ Offline/box-pull-proven only — needs a release + ship~~ → ✅ **SHIPPED
+> 2026-07-22** in framework **0.4.39** (`edd45d9` verified an ancestor of the
+> tag), on GA via connector 0.5.1+. Probe kept at `scratchpad/f4_pull.py`; the 86 failing playbooks
 > are written out as JSON + YAML for fixture installation.
 
 **F5 — content bug spotted in passing, not ours:** the stock `Action - IPv4
