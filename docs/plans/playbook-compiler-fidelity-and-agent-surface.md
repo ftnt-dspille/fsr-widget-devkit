@@ -82,8 +82,14 @@ turned into **affordances an agent can act on**.
 
 ### 3.1 Own the corpus
 
-- Promote the throwaway probe (`f4_pull.py`, written to a scratchpad and since
-  lost) into a committed tool: `scripts/corpus_pull.py`.
+- ✅ **The probe was recovered, not lost** — `f4_pull.py` was still in the
+  2026-07-21 session scratchpad under `/private/tmp/...` (ephemeral). It is now
+  committed at **`fsr-playbook-framework/scripts/corpus_pull.py`**. The 1,389
+  written-out failing playbooks (`f4_failing/`, JSON + YAML per playbook) are
+  also recovered, to `fsr-playbook-framework/scratch/f4_failing/` (14 MB) —
+  **gitignored for now**: `scratch/` is a tracked directory, so the dump would
+  otherwise be committed by a `git add -A` before the R1 review. A scan found
+  **no lab IPs**, but licensing/PII review still gates committing it.
 - Pull via `/api/3/workflows?$relationships=true`, wrapping **each workflow as a
   one-workflow collection envelope** — `decompile()` takes a
   `WorkflowCollection`, not a bare workflow row. This cost time last round;
@@ -128,20 +134,55 @@ Known buckets from the F4 pull:
 Resolve the ~66 first: if they are reference-DB fidelity rather than content
 bugs, the true residual is far smaller and Phase 2 shrinks dramatically.
 
-### 4.2 Errors as affordances (the actual agent question)
+### 4.2 Errors as affordances — now backed by evidence
 
-The question behind *"does the YAML need to be simpler"* turned out **not** to be
-about syntax — it is whether a failure tells the agent what to do next.
+There is a second recovered script that answers the *"does the YAML need to be
+simpler"* question directly, and it is the more important of the two:
+**`connector-fsr-soc-assistant/scripts/validate_yaml_corpus.py`** (recovered
+from the same scratchpad, now committed alongside `session_analyze.py`). It
+mines every `validate_yaml` call out of the connector's session store and
+buckets the errors that came back — *"to decide, on evidence, whether the lever
+is a better PROMPT, a better LANGUAGE, or better TOOL OUTPUT, rather than
+guessing from the failures we happen to remember."*
 
-| today | problem | better |
+**Run 2026-07-22 — 61 call/result pairs across 50 sessions:**
+
+    submissions with NO hard error : 60/61
+    severity mix                   : 76 warnings, 1 error
+
+⚠️ Pairing caveat, encoded in the script: `chat_messages` stores tool_use and
+tool_result separately and results are keyed by the provider's `tool_call_id`,
+so they pair by **adjacency across ALL tools** — queueing only the target tool
+mis-attributes another tool's result. Independently re-verified for this run:
+all 61 paired results are genuine `validate_yaml` envelopes, 0 suspicious.
+
+**This overturns the plan's original premise.** Agents are *not* failing to
+produce valid playbook YAML — 60 of 61 submissions had **no hard error at all**.
+So "make the YAML simpler" is not indicated for *validity*. The real surface is
+the **warning** tail and message quality:
+
+| n | finding | read |
 |---|---|---|
-| `required param 'ip' is missing` | ✅ already actionable | — |
-| `value '/api/3/picklists/1c4d…' is not in picklist` | ✗ hands the agent an **opaque IRI** it cannot reason about or resolve | name the picklist, list valid display values, and say how to resolve one |
+| 23 | `InsertData.arguments.step_variables is missing — every corpus sample sets this key` | convention the agent can't infer; a **prompt/tool-output** lever |
+| 15 | `unknown argument 'X' for handler 'X'` | schema drift or genuine agent error — needs splitting |
+| 7 | `InsertData.arguments.resource is missing` | same class as the 23 |
+| **7 + 4** | **`connector step has step-level 'connector:' — hoisted into 'arguments.connector'`** and `step-level key 'resource' … nest it under 'arguments:'` | ⭐ **the one real LANGUAGE signal** — the agent repeatedly puts keys at step level instead of under `arguments:`. `WIRE_SHAPE_GAP_PLAN` Phase 3 hoisted the *universal envelope* but not `connector:`/`resource:`. Extending the hoist would delete this class outright. |
+| 4 | `reference catalog was warmed from a DIFFERENT SOAR than target …` | **environment**, not agent — cf. [[local_dev_loop_warmup_clobbers_reference_db]] |
+| 2–3 | `value '/api/3/picklists/1c4def41-…' is not in picklist 'IndicatorType' (valid: Domain, Email Address, …)` | the opaque-IRI case — **confirmed real**, and note the message *does* list valid values; the defect is that the agent was handed an IRI to begin with |
 
-Deliverable: an audit of every compiler error string against one test — *can an
-agent act on this without another tool call?* — and a fix pass on the ones that
-fail it. This is measurable through the existing offline scenario rig, not by
-opinion.
+**Revised Phase 2 deliverables, in evidence order:**
+
+1. **Extend the step-level hoist to `connector:` / `resource:`** (11 occurrences,
+   pure language ergonomics, mirrors a pattern already shipped).
+2. **Kill the `step_variables` / `resource` convention warnings** (30
+   occurrences) — either default them in the emitter or teach them in the tool
+   output; they are the single biggest bucket by far.
+3. Split the 15 `unknown_param` cases into schema-drift vs real agent error.
+4. Only then the error-string audit: *can an agent act on this without another
+   tool call?*
+
+Re-run `validate_yaml_corpus.py` after each to measure, rather than asserting
+improvement.
 
 ---
 
@@ -149,7 +190,7 @@ opinion.
 
 | # | risk |
 |---|---|
-| R1 | **Corpus licensing/PII.** 400 stock playbooks from a customer-representative appliance become committed fixtures. Confirm they are stock content only, and scrub any tenant/host specifics per the public-repo hygiene rule. |
+| R1 | **Corpus licensing/PII — now concrete.** The 1,389-file dump is recovered to a gitignored `scratch/f4_failing/`. An IP scan came back clean, but before it becomes a committed fixture: confirm stock content only, and scrub tenant/host specifics per the public-repo hygiene rule. **This gates Phase 1.1.** |
 | R2 | **Ratchet brittleness.** A legitimate compiler improvement can change wire output and read as a regression. The gate needs a documented "accept new baseline" path or it gets disabled the first time it's inconvenient. |
 | R3 | **`parameters` vs `vars.input.records` (5 cases) is a real judgment call**, not a bug to fix blindly — decide the semantics before coding. |
 | R4 | Phase 2's ~66 param-schema mismatches may dissolve into a reference-DB refresh, making Phase 2 much smaller than it looks — **measure before scoping**. |
@@ -178,7 +219,9 @@ RED** before accepting the fix.
 
 ## 7. Recommended first slice
 
-**Phase 1.1 + 1.2 only** — commit the puller, commit the corpus, build the diff.
+**Phase 1.1 + 1.2** — the puller is now committed; commit the corpus and build
+the diff. Phase 2 item 1 (hoist `connector:`/`resource:`) is a strong parallel
+candidate: 11 evidenced occurrences, and it mirrors a pattern already shipped.
 Even with zero new bugs fixed, that converts "we found two silent data-loss bugs
 by accident" into "we would have caught both automatically", which is the entire
 argument for this plan.
