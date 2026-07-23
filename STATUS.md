@@ -21,6 +21,20 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 
 > **🎯 TOP PRIORITY (user): make the SOC assistant look great in a GA demo.**
 >
+> **▶ 2026-07-23 (session 4i cont.) — 🟢 Multi-gate manual-input CHAIN fixed + live-proven (connector 0.5.13 on .206).**
+> A playbook that paused on a SECOND `manual_input` after the first was submitted dead-ended in the widget:
+> `resume_playbook` did one status read and returned no `awaiting` form, so `_manual_input_card_from_awaiting`
+> synthesized no second card. **Fix:** `resume_playbook` now polls the run to settle and, on a re-pause on a
+> fillable gate, re-emits the SAME `awaiting_input` seam (run_pk + form) `run_playbook` returns for gate 1 →
+> the transcript splice renders the next `manual_input` card, chain continues. Only a *transient* (running)
+> status keeps the poll alive; button-only/terminal/unknown settle immediately (`_TRANSIENT_STATUSES` +
+> `_reawait_after_resume` in tools_playbook.py). **Proven:** live regression `scripts/repro_two_manual_inputs.py`
+> builds a 2-gate ztpf_devices playbook, uploads it, drives run→submit→re-pause → "CHAIN OK: gate-2 fields
+> [note_two] surfaced" (was "GAP" pre-fix). 2 unit tests + full triage suite green. Widget needs NO change
+> (it already renders whatever `manual_input` card it's handed). NOTE: caveat still open — a MANUAL-trigger
+> (non record-action) playbook that pauses returns `not_finished_awaiting_or_slow` with no form; only
+> record-action-triggered playbooks get the clean seam.
+>
 > **▶ 2026-07-23 (session 4i) — 🟢 ZTPF Track-1 tool robustness SHIPPED to .206 + live `run_playbook` proven.**
 > Full pipeline shipped: framework **0.4.47** (PyPI, commit `7cc9b1d`; `SearchModuleRecordsArgs.filters` accepts
 > dict OR list-of-conditions, `GetRecordArgs.relationships` accepts bool|list[str] — the top validation dead-ends
