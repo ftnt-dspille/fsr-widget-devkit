@@ -1029,3 +1029,31 @@ seam in `local_turn`). Likely split: behaviour offline, resolution live.
      tool-using turn.
 4. LLM turns are stochastic — grade the pattern over N runs, never one sample
    ([[eval_llm_turns_are_stochastic]]).
+
+### 6f. S3 authoring A/B on GA — gpt-4.1-mini vs claude-haiku-4-5 (2026-07-23)
+
+Ran `eval_s3_connector.py --runs 5` on GA (159:13000, connector 0.5.9) for two
+arms. **GA has NO gpt-4o config** — both `default` and `fsrpb-live` resolve to
+gpt-4.1-mini (the `fsrpb-live=gpt-4o` mapping is 206-only). The only non-41mini
+model on GA is `fsrpb-anthropic` → claude-haiku-4-5. So the "does a stronger
+model fix authoring" hypothesis is **not testable on GA** without provisioning a
+stronger config.
+
+**Result — both 0/5, but failure QUALITY is decisive:**
+- **gpt-4.1-mini: scattered/structural** — some runs no YAML; one wandered into
+  the ENHANCE path on a CREATE task (`stop=awaiting_enhancement_offer`); one
+  dropped the named connector op. Incoherent.
+- **claude-haiku-4-5: consistent/one bug** — EVERY run authored the right op,
+  validated, verified, emitted the offer, deployed AND ran; failed only on output
+  binding — referenced `.data` (Array) not `.data.minutes` (scalar) → alert
+  description rendered `Array` instead of `180`.
+
+**Takeaways:**
+1. Haiku is the qualitatively BETTER authoring model of the two — one promptable
+   fix from passing. **NEXT: teach connector-output-shape referencing**
+   (`{{ vars.steps.X.data.minutes }}`), re-run haiku S3, expect 0/5 → passing.
+2. **OPEN DECISION: per-intent model routing** — build wants haiku (coherent
+   authoring), triage wants 41mini (no-halluc, per §6a). Run the TRIAGE-side A/B
+   on GA to confirm the tradeoff still holds before committing to routing.
+3. See [[s3_authoring_ab_gpt41mini_vs_haiku_ga]] and
+   [[resume_2026_07_23_enhance_delivery_ship]].

@@ -5,7 +5,13 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-22 (session 4f — "stuck in build mode" traced to 4 defects + a lying catalog; all fixed, shipped 0.4.42/0.5.6/1.2.33 and live-proven on 159. 5 follow-ups logged in the 4f banner.)_
+_Last updated: 2026-07-23 (session 4i — 🟢 ZTPF tool-robustness SHIPPED to .206. Framework **0.4.47** (list-form filters + name-list relationships) → connector **0.5.12** → widget **1.2.36**; 3 ztpf personas upserted (device/metadata/authoring). **Live-proven:** `list_module_playbooks` returns 6 device playbooks; **actual `run_playbook` execution** — "Synch Device DVMDB info from FMG" on FG1 triggered → `status: finished` (workflow pk 5671). Closes the ztpf Track-1 ship + the "run not verified live" gap. UI scenario pass pending box login.)_
+
+_Prior: 2026-07-23 (session 4h — 🟢 TWO model-agnostic tool fixes shipped to GA. (1) output-binding: `get_op_schema` teaches `.data.<field>`; haiku S3 0/5 → 5/5 (fw 0.4.45/conn 0.5.10). (2) config-less verify false-positive on cyops_utilities fixed (fw 0.4.46/conn 0.5.11). Direction set: support MOST models, harden the tool, Frank-local primary loop; dropped 4g #2/#3. See [[model_agnostic_tool_robustness_direction]].)_
+
+_Prior: 2026-07-23 (session 4g — enhance-delivery guard SHIPPED fw 0.4.44 / connector 0.5.9 on GA; e3 delivery 1/4 → 5/5 live. Coverage hardened, approved-card reconciled, S3 authoring A/B run. 6 follow-ups in the 4g banner.)_
+
+_Prior: 2026-07-22 (session 4f — "stuck in build mode" traced to 4 defects + a lying catalog; all fixed, shipped 0.4.42/0.5.6/1.2.33 and live-proven on 159. 5 follow-ups logged in the 4f banner.)_
 
 _Prior: 2026-07-21 (session 4d — SOC-investigation offline coverage + 3 defects fixed; emit-card surface measured dead. See the 4d banner below.)_
 
@@ -14,6 +20,88 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 > _Prior: 2026-07-20 (session 3p — **soc-401 fix completed via API-KEY path + BOX-PROVEN on 206.** Read the gateway source on-box (`/opt/mcp-server`): `FortiSOARApp` replays the `Authorization` header **verbatim** on downstream `/api/3`; `auth_service.py` accepts "Bearer OR **API-KEY**". So the fix is any non-URI-bound, user-mapped credential — shipped an **API-KEY** path (preferred over bearer: static `Authorization: API-KEY <key>`, no minting) `soar_api_key` field, priority api_key>bearer>hmac. Added diagnostic op **`probe_native_mcp`**. Created a FortiSOAR api-key user (SOC Analyst) + a fresh `fsrpb-apikey-proof` config via pyfsr (no clobber). **A/B on 206 through the real gateway (worker context): HMAC → `get_indicators` 401; API-KEY → `status:success` real data.** connector **0.4.91** on 206. Api-key auth 400s on 159 (per-box URL-scoping) so proof ran on 206. Prior session 3o below.)_
 
 > **🎯 TOP PRIORITY (user): make the SOC assistant look great in a GA demo.**
+>
+> **▶ 2026-07-23 (session 4i) — 🟢 ZTPF Track-1 tool robustness SHIPPED to .206 + live `run_playbook` proven.**
+> Full pipeline shipped: framework **0.4.47** (PyPI, commit `7cc9b1d`; `SearchModuleRecordsArgs.filters` accepts
+> dict OR list-of-conditions, `GetRecordArgs.relationships` accepts bool|list[str] — the top validation dead-ends
+> in live ztpf sessions) → connector pin bumped (preflight: 68 symbols/27 modules) → connector **0.5.12** on .206
+> (10.99.248.206, 10 workers recycled, warmup 21 conn/283 ops, commit `7ed859b`) → widget **1.2.36**
+> (`fortiaiAgenticAssistant`, uuid `6054a063…`, ship-verify green: lint/typecheck/unit/mock-e2e/introspect-gate).
+> 3 ztpf personas upserted to .206 Key Store (device/metadata/authoring), all read-back OK.
+> - ✅ **`list_module_playbooks` (deployed):** returns **6** ztpf_devices playbooks.
+> - ✅ **ACTUAL `run_playbook` execution (the gap the user flagged):** "Synch Device DVMDB info from FMG" on
+>   device FG1 (`/api/3/ztpf_devices/5b23794a…`) triggered via the persona-bound tool → workflow run **pk 5671**,
+>   `status: finished`, `triggered: true` `followed: true`. Previously only discovery + auto-record wiring were
+>   verified; the live trigger→finish path is now proven.
+> - 🔜 **PENDING:** browser UI scenario pass on .206 (mount a device, exercise the last-10 ztpf scenarios incl.
+>   the approval-card → run_playbook flow through the widget). Blocked on box login — I can't enter the password.
+>
+> **▶ 2026-07-23 (session 4h) — 🟢 Haiku S3 output-binding bug FIXED + SHIPPED + LIVE-PROVEN (0/5 → 5/5). Closes 4g follow-up #1.**
+> Framework **0.4.45** (PyPI, commit `cfd1822`) · connector **0.5.10** on GA (159:13000, 6 workers, warmup
+> 38 conn/515 ops, commit `d3e64f1`). **Live confirmation:** `eval_s3` haiku arm (`fsrpb-anthropic`) went
+> **0/5 → 5/5** — every run authored `vars.steps.<name>.data.minutes` and the alert rendered `180`.
+> On GA the haiku authoring arm previously failed all 5 S3 runs identically:
+> it bound a connector op's whole envelope (`vars.steps.X.data`) into an alert description → rendered
+> `Array` instead of the scalar `180`. Root cause: the `.data.<field>` envelope rule lived ONLY in
+> `get_step_type("connector")`, which the build sequence SKIPS; `get_op_schema` (which it DOES call)
+> surfaced no output guidance and even hid the static output schema as "untyped scaffolding".
+> - ✅ **Fix:** `get_op_schema` now surfaces the op's output FIELD NAMES (from the static schema — its
+>   keys are the real `.data` fields even though its types are empty) + an explicit `## output binding`
+>   hint in the markdown. `convert_periodic_time_to_minutes` now hands the author `minutes` →
+>   `vars.steps.<name>.data.minutes`.
+> - 🔒 **Guardrail against a NEW wrong binding:** an OBSERVED schema captures the FLAT envelope
+>   (`status`/`message` as siblings of the payload), NOT the `.data` sub-object — so observed keys are
+>   trusted only when they nest an explicit `data` object; otherwise fall back to the generic envelope
+>   rule. (Static schema = the `.data` payload shape, reliably.)
+> - 🧪 7 unit tests (`test_op_schema_output_binding.py`); full framework suite **835 passed**.
+> - ✅ **SHIPPED + PROVEN:** framework 0.4.45 → connector 0.5.10; `eval_s3` haiku arm **0/5 → 5/5**.
+>
+> **▶ 2026-07-23 (session 4h cont.) — 🟢 Direction set: MODEL-AGNOSTIC tool robustness. 2nd fix shipped.**
+> User dropped 4g follow-ups #2 (per-intent model routing) and #3 (provision a stronger GA config):
+> the tool should **support most models** — harden the tool surface, don't route to a chosen model.
+> Low-tier model = fast testing only; **primary test loop = Frank local harness** (GLM-5.2, runs the
+> editable framework in-process → no ship needed to test). See [[model_agnostic_tool_robustness_direction]].
+> - 🔎 **Found via the Frank loop:** `verify_playbook` flagged `connector_config_missing` as a REQUIRED
+>   fix on `cyops_utilities` (config-less built-in that backs no_op/stop/end). A GLM-5.2 build turn
+>   burned **~6 tool calls** fighting the false gate (retrying verify, mis-formatting `disable_checks`,
+>   tripping the repeated-call guard) before abandoning verify for `dry_run`. Classic weak-model friction.
+> - ✅ **Fix** (framework `6f3cd0b` → **0.4.46** → connector **0.5.11** on GA, 7 workers, warmup green):
+>   `CONFIG_LESS_CONNECTORS` exemption in `record_op_checks`, scoped to empty config (a typo'd config
+>   *name* still errors). `config_schema_json` is empty across all catalogs so it can't distinguish
+>   config-less — the authoritative set is the reliable signal. 2 tests; suite **837 passed**.
+> - ✅ **Confirmed on GLM-5.2 (Frank):** verify now returns clean `ready_to_push` on the FIRST call,
+>   straight to `emit_playbook_offer` with correct `.data.minutes` binding. Both 4h fixes model-agnostic.
+> - 🔜 Connector commits `d3e64f1`/`6e4f0f7` pushed to `origin` (Fortilab GitLab); `fndn` mirror pending (host unreachable w/o VPN).
+> - 📦 **Also deployed to .206** (10.99.248.206, user request): **connector 0.5.11** (BUMP=none, 10 workers,
+>   warmup 21 conn/282 ops) + **widget 1.2.35** (`fortiaiAgenticAssistant`, uuid `264fe55c…`; the widget
+>   push CLI requires a bump so 1.2.34→1.2.35, identical code; info.json is gitignored so no repo change).
+>   Full ship-verify gate (lint/unit/e2e/introspect) passed; deployed via ship.sh --bump patch to `.env.206`.
+>   Both boxes now on connector 0.5.11 (GA widget stays 1.2.34).
+>
+> **▶ 2026-07-23 (session 4g) — 🟢 Enhance-delivery guard SHIPPED to GA + live-proven; coverage hardened; S3 authoring A/B.**
+> Framework **0.4.44** (PyPI, commit 2e8de2f) · connector **0.5.9** on GA (159:13000, all 4 workers). Full detail:
+> [[resume_2026_07_23_enhance_delivery_ship]], [[enhance_write_path_shipped_ga]].
+> - 🟢 **EnhanceDeliveryGuard** — the enhance turn's terminal action (`emit_enhancement_offer`) was
+>   prose-enforced, so a weak model narrated "Call emit_enhancement_offer with verified_id …" and ended
+>   the turn instead of calling it. Now structural: both providers, at the terminal exit, run ONE
+>   tool_choice-pinned round forcing the offer + override `verified_id` with the blessed handle. The loop
+>   already forced *text* (P1 assessment) and *evidence* (hunt floors) — this adds *delivery*.
+>   **e3 rewire-a-branch: 1/4 → 5/5 delivered live** (gpt-4.1-mini). Design rule: force the *execution* of
+>   a decision already made+verified; never force the *decision*.
+> - 🟢 **Coverage hardened** (framework 8d95d03): `make enhance-live` live delivery gate (5/5 GA, rich-trace
+>   so it can't false-PASS a stall); anthropic parity test; **fixed chat_drive's 2 stale constants**
+>   (CONN=pre-rename name, DEFAULT_VERSION=0.3.116) that broke EVERY current-box drive. Widget
+>   enhancement_offer Apply-wiring jest test (widget f6a5e4a); matrixDriver regex (harness 87ba27d, LOCAL-ONLY).
+> - 🟢 **Approved-card reconciled** — impl already shipped 0.5.9 (deterministic dispatch = the same
+>   force-the-execution pattern); committed the loose regression test (connector 740625d) + 0.5.9 ship
+>   artifacts (08b654e), pushed. See [[approved_card_execution_was_advisory]].
+> - 🔬 **S3 authoring A/B on GA** — 41mini & haiku BOTH 0/5, but haiku fails CLEAN (one output-binding bug:
+>   `.data` vs `.data.minutes`) while 41mini scatters (no YAML / wrong mode / dropped op). GA has NO gpt-4o.
+>   See [[s3_authoring_ab_gpt41mini_vs_haiku_ga]].
+> - **6 open follow-ups** (see resume): (1) fix haiku S3 output-binding → likely 0/5→pass; (2) per-intent
+>   model routing (needs triage-side A/B; user decision); (3) GA has no gpt-4o config; (4) 41mini
+>   create→enhance mode-confusion (drift smell); (5) harness 87ba27d local-only (65 ahead, no upstream);
+>   (6) widget DOM/live-sweep tier for the offer card.
 >
 > **▶ 2026-07-22 (session 4f) — 🟢 "Stuck in build mode" traced to FOUR defects; all fixed + SHIPPED + live-proven on 159.**
 > Framework **0.4.42** (PyPI) · connector **0.5.6** · widget **1.2.33**, all on 159. Driven from

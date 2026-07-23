@@ -542,3 +542,102 @@ for the mock tier). Lesson: any harness "hot-reload" / soft-remount must be off
 under e2e — a mid-test controller re-mount is an un-debuggable state wipe.
 
 ---
+
+## Config selection: honor the connector DEFAULT, never hardcode a config name
+
+A widget that talks to a configured connector must pick the config the platform
+would: the connector's **starred DEFAULT** (`configuration[].default === true`),
+falling back to the first. That default is the *visible, admin-controlled*
+switch (FortiSOAR → Connectors → star a config). Do **not** hardcode a preferred
+config name in the widget — it silently overrides the starred default, and an
+admin looking at the Connectors UI has no way to tell or change what actually
+runs. (`fortiaiAgenticAssistant` shipped a hidden `PREFERRED_CONFIG='fsrpb-live'`
+that overrode a broken default; removed — the widget now selects
+`configs.find(c => c.default)`.) If a session-scoped override is genuinely
+needed, make it user-initiated, non-persisted, and shown in a banner.
+
+## Reading / writing a connector config body (and flipping the default) via API
+
+`GET /api/integration/connectors/?search=` returns config **names / ids / default
+flag** but NOT the config **body**. That does NOT mean bodies are unreadable:
+- **Read the bodies:** `POST /api/integration/connectors/{int-id}/` with body `{}`
+  (pyfsr `client.connectors.connector_detail(name)`) returns `configuration[]`
+  each WITH its `config` body.
+- **Write / set default:** `PUT /api/integration/configuration/{config_id}/`
+  (pyfsr `client.connectors.update_configuration(name, config_id, config, name=…,
+  default=True)`). The `default: true` flag re-stars a config.
+- **Trailing slash is mandatory.** Omitting it yields
+  `403 "Could not validate HMAC fingerprint"` — that error is a *malformed-path*
+  symptom, NOT an identity/permission wall. (A GET on `/configuration/{uuid}`
+  without slash 403s the same way; don't read it as "the API-key path can't
+  touch configs.")
+
+Caveats when flipping the default programmatically:
+- `update_configuration` sends `config` **whole** — you must supply every field,
+  not just `default`. Read the current body first (`connector_detail`), then
+  PUT it back with `default=True`.
+- **Secret preservation:** the UI's "update config without changing password"
+  round-trips the masked-secret sentinel and the platform keeps the stored
+  secret. pyfsr does not model a secret-preserving *set-default* convenience, so
+  confirm the read returns the real secret (or the preserve sentinel) before
+  re-PUTting — otherwise you can blank an encrypted key. (NFR candidate:
+  `set_default(connector, config_id)` that reads→writes with secret preservation.)
+
+To grade a config's LLM health without touching key material at all, call the
+connector's own `health_check` op against a specific `config_id` — it runs inside
+the agent worker and returns `{ok, llm_reachable, llm_error, llm_key_configured,
+llm_provider}` via a free `models.list` probe (how the needs_config help panel
+grades every config).
+
+---
+
+## Approving an action card must EXECUTE it, not ask the model to
+
+Live-verified on 8.0 (GA). The connector's card-approve resume
+(`operations.py::_resume_conversation`) originally rendered the human's approval
+as a **natural-language user turn**:
+
+    I approve the action card '<id>'. Execute <connector>.<operation> now
+    using exactly these arguments: {...}  Then report the result.
+
+Execution was therefore at the model's discretion. In a live containment run the
+model ignored the instruction, spent the turn hunting for unrelated FortiEDR
+search ops, and still opened its answer with *"The host was successfully
+isolated"* — an approved containment action that **never ran, reported as
+done**, with nothing in the transcript to contradict it.
+
+**Rule:** an approved card is dispatched deterministically, before the model
+turn, via `dispatch(tool, {**args, "_approved": True}, _internal=True)` — the
+same internal-only post-approval bypass the framework's legacy tier-3 gate
+(`llm/openai_provider.py::resume`) has always used. The model is then told the
+action **has already been executed** and is handed the real result to narrate.
+
+Two consequences worth keeping:
+- **Emit a real `tool_use`/`tool_result` pair** for the execution, into both the
+  poll feed and the persisted transcript. The dispatch happens outside
+  `run_agent_turn`, so its frames are *not* in `result.transcript`; without
+  fronting them the stored history shows the assistant discussing an action with
+  no record it ran. "The assistant said so" is not an audit record.
+- **On failure, say so.** The failure branch tells the model plainly not to
+  claim success — an approved-but-failed containment is the one case where a
+  confident summary is most dangerous.
+
+Regression tests: `tests/test_approved_card_executes.py`.
+
+## A guard is not an error — don't render it red
+
+Framework guards (`repeated_call_guard`, `call_once_guard`,
+`forbidden_pivot_guard`, `hunt_floor_guard`, and `kind: "guard_redirect"`)
+return `{ok: false, error: "STOP calling …"}`. The `ok:false` + `error` shape is
+deliberate — it makes the **model** treat the guard as terminal — but it made
+the guard indistinguishable from a real failure to
+`fsrPbRender.ts::inferToolStatus`, which keys off exactly those fields.
+
+A healthy live investigation showed **7 red ERROR badges, 2 of which were guards
+firing exactly as designed**. `inferToolStatus` now checks the guard keys
+*before* the error branch and returns a third status, `guard`, rendered as an
+amber **skipped** chip; `view.controller.js`'s export error tally counts only
+`error`, so guards drop out of it automatically.
+
+When adding a new guard, add its key to `GUARD_KEYS` in `fsrPbRender.ts` — this
+is a [parallel name list](../../../CLAUDE.md), so it drifts silently otherwise.

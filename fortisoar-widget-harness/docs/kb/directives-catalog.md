@@ -415,4 +415,53 @@ Two related interaction fixes shipped with it:
   document-level outside-click handler will close the just-opened dropdown otherwise.
   (`actionRendererPickerLabel` directive in `directives.js`.)
 
+### 9.17 `ng-model` to a **primitive** inside `ng-if` → silently shadowed
+
+`ng-if` creates a **new child scope**. An `<input ng-model="myFilter">` where
+`myFilter` is a bare string on the controller writes the typed value to the
+child scope; any controller function that reads `$scope.myFilter` still sees the
+old (empty) value — the filter/search appears to do nothing. Classic AngularJS
+"dot rule." Symptom seen building the fortiaiAgenticAssistant Tools-panel search:
+the search box was inside `<div ng-if="tools.length">`, so `filteredTools()`
+never received the query (e2e: list stayed at 3 items). **Fix — bind through an
+object** so the write lands on the shared reference:
+```js
+$scope.toolsSearch = { q: '' };          // NOT $scope.toolsFilter = ''
+```
+```html
+<input ng-model="toolsSearch.q">         <!-- inside ng-if, still reaches the parent -->
+```
+Applies to any `ng-model` under `ng-if`/`ng-repeat`/`ng-switch`. (Reads via
+`{{myFilter}}` work up the prototype chain; only the `ng-model` *write* is
+shadowed — which is why it's easy to miss.) The same trap bit the History-panel
+search + rating chips (`historyUi = {query, filter}`, was two bare primitives);
+`ng-click="historyFilter='flagged'"` inside `ng-if` shadows a write just like
+`ng-model` does. **A jest controller test cannot catch this** — it sets
+`$scope.myFilter` directly on the controller scope (no `ng-if` child scope
+exists), so it passes green while the browser silently no-ops. Only a DOM e2e
+that drives the real input/click under the rendered `ng-if` catches it — which
+is why filter/search UIs behind an overlay need an e2e, not just a unit test.
+
 ---
+
+## `ng-repeat` over a function that builds fresh objects → `$rootScope:infdig`
+
+`ng-repeat="l in makeRows()"` where `makeRows()` returns a **new array of new
+objects** every call throws AngularJS into an infinite digest: each digest sees
+a different object identity, marks the model dirty, and re-digests until it hits
+the 10-iteration cap (`$rootScope:infdig`). Symptom seen building the
+fortiaiAgenticAssistant Tools-panel **tier legend**: the panel rendered but the
+console filled with `infdig` and the e2e `expect(errors).toEqual([])` gate went
+red. **Fix — precompute the array once** and repeat over the stored reference:
+```js
+// NOT $scope.tierLegend = function(){ return keys.map(...) }  // new objs each digest
+$scope.tierLegendRows = keys.map(function (k) { return {...}; });  // stable identities
+```
+```html
+<li ng-repeat="l in tierLegendRows">…</li>
+```
+Only matters when the elements are objects/arrays (identity comparison). A
+function returning the same primitives, or one guarded by `track by`, is fine —
+but precomputing a static list is simplest. Contrast the read-only
+`filteredTools()` above: that one is fine because it returns *the same* array
+(or a filtered slice whose elements keep their identity).

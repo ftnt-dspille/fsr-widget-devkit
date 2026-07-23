@@ -7,7 +7,12 @@
 // `fsr-playbook-builder` name in soarClient.js — which aborted the live build
 // test after the rename — was exactly that second copy drifting.)
 //
-// Usage: const { name, search, preferredConfig } = require("./connectorIdentity");
+// Usage: const { name, search } = require("./connectorIdentity");
+//
+// NOTE: there is deliberately no `preferredConfig` here. The widget honors the
+// connector's DEFAULT (starred) configuration, so the config choice is not part
+// of the widget's hardcoded identity — soarClient selects `configs.find(default)`
+// exactly as the widget does.
 
 const fs = require("fs");
 const path = require("path");
@@ -30,7 +35,6 @@ try {
   identity = {
     name: pluck(src, "CONNECTOR_NAME", "connector-fsr-soc-assistant"),
     search: pluck(src, "CONNECTOR_SEARCH", "assistant"),
-    preferredConfig: pluck(src, "PREFERRED_CONFIG", "fsrpb-live"),
     source: SERVICE,
     derived: true
   };
@@ -40,7 +44,6 @@ try {
   identity = {
     name: "connector-fsr-soc-assistant",
     search: "assistant",
-    preferredConfig: "fsrpb-live",
     source: SERVICE,
     derived: false
   };
