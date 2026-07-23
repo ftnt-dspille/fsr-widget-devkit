@@ -33,8 +33,12 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 >   device FG1 (`/api/3/ztpf_devices/5b23794a…`) triggered via the persona-bound tool → workflow run **pk 5671**,
 >   `status: finished`, `triggered: true` `followed: true`. Previously only discovery + auto-record wiring were
 >   verified; the live trigger→finish path is now proven.
-> - 🔜 **PENDING:** browser UI scenario pass on .206 (mount a device, exercise the last-10 ztpf scenarios incl.
->   the approval-card → run_playbook flow through the widget). Blocked on box login — I can't enter the password.
+> - ✅ **UI scenario pass DONE** (`make test-matrix-live MATRIX_ENV=.env.206 MATRIX_GATE=soft`, headed, self-auth):
+>   4 ztpf rows on FG1 all **PASS, 0 tool errors** — Z1 summarize steps (6 tools), Z2 steps-with-no-run-group
+>   (isnull filter, 1 tool), Z3 list_module_playbooks discovery (1 tool), Z4 run_playbook. **Z4 frame order
+>   `tool_use → approval_request → stream_end`**, trace `run_playbook({"playbook":"Synch Device DVMDB info from FMG"})`,
+>   terminal `approval_required` — the widget surfaces the tier-3 approval card (not auto-run), exactly right.
+>   The prior tool-flailing (search/discovery guesses) is gone. Rows added to gitignored scenarios.local.206.json.
 >
 > **▶ 2026-07-23 (session 4h) — 🟢 Haiku S3 output-binding bug FIXED + SHIPPED + LIVE-PROVEN (0/5 → 5/5). Closes 4g follow-up #1.**
 > Framework **0.4.45** (PyPI, commit `cfd1822`) · connector **0.5.10** on GA (159:13000, 6 workers, warmup
