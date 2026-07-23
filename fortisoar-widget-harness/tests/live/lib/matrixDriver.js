@@ -375,7 +375,7 @@ function buildTimeline(rawFrames, requests) {
       timeline.push({ kind: "text", text: f.text ?? f.content ?? "" });
     } else if (t === "error") {
       timeline.push({ kind: "error", payload: f });
-    } else if (/_card$|^info_card$|playbook_offer|capability_gap|manual_input|choice_card/.test(t || "")) {
+    } else if (/_card$|^info_card$|playbook_offer|enhancement_offer|capability_gap|manual_input|choice_card/.test(t || "")) {
       timeline.push({ kind: "card", cardType: t, payload: f });
     } else if (t === "usage") {
       timeline.push({ kind: "usage", input_tokens: f.input_tokens, output_tokens: f.output_tokens,
