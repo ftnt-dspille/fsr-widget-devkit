@@ -108,14 +108,33 @@ no recovery path.
   transition after a USER send (disabled mid-turn, so restored on settle), gated
   on `_wantComposerFocus` so card resume / history load / entity seed don't steal
   focus. +2 e2e (`scrollFocus.spec.js`).
-- **B3 — a11y:** only 1 aria-label in the widget; no `aria-live` on the
-  transcript; no focus move to a newly-rendered card; quick-action/choice chips
-  lack labels. `view.html:1523`, `:1680`, `:2249`.
-- **B4 — Theme:** hardcoded hex on Stop button + connector-gate/version badges
-  break light theme (`view.html:2338`, `:2310`, `:1530`, `:1585`). Move to CSS
-  vars with a `.theme-light` override.
-- **B5 — Overflow:** long tool/skill names (`.step-name`, `view.html:1919`) wrap
-  and shove siblings; add `min-width:0` + ellipsis on the flex row.
+- **B3 — a11y: ✅ DONE (2026-07-23, uncommitted).** Added the missing live
+  region — the widget previously gave a non-sighted analyst NO signal that a turn
+  started, needed approval, failed, or finished. Deliberately announces the
+  **state, not the transcript**: the streaming preview rebuilds every poll
+  (~700ms), so an `aria-live` region over the transcript would re-announce the
+  whole partial answer several times per turn. `a11yStatus()` (controller) feeds
+  a visually-hidden `role="status" aria-live="polite" aria-atomic="true"` region;
+  the transcript itself gets `role="log"` + a label + `aria-busy` while
+  streaming, and explicitly NO `aria-live`. `sr-only` uses the clip-rect idiom —
+  `display:none`/`visibility:hidden` would drop the node from the accessibility
+  tree and it would never be read. +11 jest (`a11y.status.test.js`), incl. a
+  markup-contract block because a mis-wired live region is silent and would
+  otherwise regress unnoticed. _Remaining (not done): focus move to a
+  newly-rendered card; labels on quick-action/choice chips._
+- **B4 — Theme: ✅ DONE (2026-07-23, uncommitted).** The named offenders were
+  already fixed by the `.theme-light` override block, except the **version
+  pill**, which carried its whole look as an **inline style** — un-themeable by
+  construction, since an inline declaration beats any stylesheet rule short of
+  `!important`, so its `rgba(255,255,255,0.06)` dark-theme wash washed out on
+  light. Moved to a `.version-badge` class + a `.theme-light` override
+  (`rgba(0,0,0,0.05)` / `#475569`).
+- **B5 — Overflow: ✅ DONE (2026-07-23, uncommitted).** `.step-name` now
+  ellipsizes: `min-width:0` (a flex item defaults to `min-width:auto` and refuses
+  to shrink below its content — that is what actually let long names like
+  `mcp_soc__get_indicators` shove the ▶ toggle off the row), plus
+  `overflow:hidden; text-overflow:ellipsis; white-space:nowrap`, `gap` on
+  `.step-head` and `flex:0 0 auto` on the toggle.
 
 ## C — Render robustness (defensive)
 
@@ -131,10 +150,13 @@ no recovery path.
   template's contract; an alternative with no usable value is dropped (no
   dead button). CapabilityGap type tightened. +6 jest + 2 e2e
   (`renderRobustness`, new `render_robustness` fixture).
-- **C3 — Table row/column mismatch** unguarded (`view.html:2133`); pad/clip rows
-  to `columns.length`.
-- **C4 — Catch-all exclusion list incomplete** (`view.html:2214`, missing
-  patch_proposal/playbook_offer/error) — semantically fragile; tighten.
+- **C3 — ✅ DONE (widget `c566dba`).** Rows pad/clip to `columns.length` in
+  `normalizeBlocks` (`fsrPbRender.ts`), so a ragged row can't shift cells under
+  the wrong header or emit a stray `<td>` with no `<th>` above it. Fixed in the
+  renderer rather than the template so it is unit-testable.
+- **C4 — ✅ DONE (widget `c566dba`).** The catch-all now excludes
+  patch_proposal / playbook_offer / error, so no known card falls through to the
+  raw-JSON view and nothing double-renders.
 - **C5 — Score `max===0`** suppresses the `/max` suffix (`view.html:2128`); minor.
 
 ---
@@ -144,7 +166,10 @@ no recovery path.
 2. **A1–A4** — ✅ interactive-card in-flight/error/validation (core HITL flows).
    A3 (`41cb5be`) + A1/A2/A4 (`af11159`) all landed.
 3. **B1 + B2** — ✅ auto-scroll + focus restore (widget `21926fd`).
-4. **C1–C4** — render robustness. C1+C2 ✅ (widget `e4d9a63`); C3+C4 ← current.
-5. **B3/B4/B5, A5, C5** — a11y, theme, polish (batchable).
+4. **C1–C4** — render robustness. ✅ all done (C1+C2 `e4d9a63`, C3+C4 `c566dba`).
+5. **B3/B4/B5, A5, C5** — a11y, theme, polish. B3/B4/B5 ✅ 2026-07-23
+   (uncommitted — the widget tree carries another session's WIP in the same
+   files; see the warning at the top). ← remaining: **A5** (grant UI on
+   patch_proposal/approval) and **C5** (score `max===0`).
 
 Each item ships with tests (jest for logic, e2e for DOM) per repo policy.
