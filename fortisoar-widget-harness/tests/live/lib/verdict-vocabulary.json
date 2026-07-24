@@ -1,0 +1,100 @@
+{
+  "$comment": [
+    "CANONICAL turn-grading vocabulary — the single source of truth for how ANY",
+    "repo grades an agentic turn. P0a of docs/plans/agentic-tooling-best-practices-alignment.md.",
+    "",
+    "WHY THIS IS DATA, NOT CODE: the only real grader (matrixDriver.js) is JS and",
+    "two of its three consumers (connector, framework) are Python. Hand-porting the",
+    "grader would create exactly the parallel-list drift this file exists to stop.",
+    "So the VOCABULARY (what counts as an error, which cards are interchangeable,",
+    "the verdict ladder, the gate ladder) lives here as language-neutral data that",
+    "both runtimes read, while the grading LOGIC stays in one place per language.",
+    "",
+    "CONSUMERS:",
+    "  JS     tests/live/lib/matrixDriver.js  (loads this file directly)",
+    "  Python connector fsr_soc_triage/verdict_vocab.py (vendored copy + parity test)",
+    "",
+    "CHANGING THIS FILE changes acceptance for every repo. Bump `version` when you",
+    "do — the Python parity test compares it and fails loudly on a stale vendor."
+  ],
+  "version": 1,
+
+  "errorPattern": {
+    "$comment": [
+      "Classifies a tool_result payload as an error. Covers the connector's",
+      "structured failures ({ok:false}, {error}, {code}), thrown-exception text,",
+      "and the 'empty/degraded' results that silently derail a hunt (no matches,",
+      "module/connector unavailable, unknown_operation).",
+      "JS-flavoured regex source; `\\b` and alternation only, so Python's `re`",
+      "compiles it unchanged. Keep it portable — no lookbehind, no named groups."
+    ],
+    "source": "\\b(error|unavailable|not available|unknown_operation|no matches|no operations|failed|exception|traceback|denied|forbidden|timed? out|invalid endpoint|invalid credentials|not configured|no close suggestion)\\b",
+    "flags": "i"
+  },
+
+  "notAnError": {
+    "$comment": [
+      "Payload shapes that look like failures but are not. `guard_redirect` is",
+      "STEERING (hunt-floor / call-once / capability guards, AGENT_HARDENING §D);",
+      "`ok:true` with a nested 'error' string is DATA, not a tool failure —",
+      "list_configured_connectors reports each config's health, and an",
+      "unconfigured imap once red-flagged the whole call."
+    ],
+    "kinds": ["guard_redirect"],
+    "okTrueIsSuccess": true
+  },
+
+  "cardAlias": {
+    "$comment": [
+      "Card-type equivalence for the expected-card gate. The widget renders",
+      "status_card / info_card / ioc_card through the SAME normalizeInfoCard path,",
+      "and the connector normalizes an IOC-consolidation deliverable to an",
+      "info_card (variant ioc_enrichment) — so for acceptance they are ONE",
+      "deliverable. status_card is deliberately NOT folded in: it is a",
+      "connector-health deliverable, semantically distinct from an info/ioc",
+      "finding, so a scenario wanting an info deliverable must not pass on a bare",
+      "status card."
+    ],
+    "ioc_card": "info_card"
+  },
+
+  "verdicts": {
+    "$comment": [
+      "The ladder, worst first. `hardFail` marks the ones that block a soft gate.",
+      "`driveError` marks the ones that are HARNESS failures, not agent behaviour —",
+      "those block on EVERY gate including xfail (an xfail that swallowed a drive",
+      "error would report 'XPASS (promote?)' for a turn that never sent a prompt)."
+    ],
+    "ladder": [
+      { "name": "FAIL (no turn captured)", "hardFail": true, "driveError": true },
+      { "name": "FAIL (red flag)", "hardFail": true },
+      { "name": "FAIL (no-investigation)", "hardFail": true },
+      { "name": "FAIL", "hardFail": true },
+      { "name": "DEGRADED", "hardFail": false },
+      { "name": "PASS (minor errors)", "hardFail": false },
+      { "name": "PASS", "hardFail": false },
+      { "name": "ENV-SKIP (no containment capability)", "hardFail": false }
+    ]
+  },
+
+  "gates": {
+    "$comment": [
+      "Per-row gating: the matrix must hold rows that must stay clean AND rows",
+      "documenting an open bug. A suite that goes perma-red on a known bug gets",
+      "ignored; one that blocks only on hard-FAIL ships DEGRADED regressions",
+      "silently. forbidRedFlags[] overrides EVERY gate — that is what keeps an",
+      "xfail honest."
+    ],
+    "names": ["soft", "strict", "xfail"],
+    "default": "soft"
+  },
+
+  "defaults": {
+    "$comment": [
+      "errBudget: tool errors tolerated before DEGRADED. minTools: a triage that",
+      "runs 0 tools is an LLM summarizer, not an investigator."
+    ],
+    "errBudget": 1,
+    "minTools": 1
+  }
+}

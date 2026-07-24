@@ -23,11 +23,21 @@
 //    DEGRADED > PASS (minor errors) > PASS. Only FAIL* is a hard failure.
 "use strict";
 
-// Classify a tool_result / frame payload as an error. Covers the connector's
-// structured failures ({ok:false}, {error}, {code:...}), thrown-exception text,
-// and the "empty/degraded" results that silently derail a hunt (no matches,
-// module/connector unavailable, unknown_operation).
-const ERR_RX = /\b(error|unavailable|not available|unknown_operation|no matches|no operations|failed|exception|traceback|denied|forbidden|timed? out|invalid endpoint|invalid credentials|not configured|no close suggestion)\b/i;
+// ── Grading vocabulary ───────────────────────────────────────────────────────
+//
+// The error pattern, card aliases, verdict ladder, and gate names used to be
+// hardcoded here — but this is the ONLY real grader, and the connector +
+// framework (both Python) need to grade a turn the same way. Hand-porting these
+// constants would create exactly the parallel-list drift we keep getting bitten
+// by, so they now live as language-neutral data in `verdict-vocabulary.json`,
+// which both runtimes read. Behaviour is unchanged; the definitions just moved.
+// See docs/plans/agentic-tooling-best-practices-alignment.md §P0a.
+const VOCAB = require("./verdict-vocabulary.json");
+
+const ERR_RX = new RegExp(VOCAB.errorPattern.source, VOCAB.errorPattern.flags);
+const NOT_AN_ERROR_KINDS = new Set(VOCAB.notAnError.kinds);
+const HARD_FAIL_VERDICTS = new Set(
+  VOCAB.verdicts.ladder.filter((v) => v.hardFail).map((v) => v.name));
 
 function payloadOf(f) { return f.content ?? f.result ?? f.output ?? f.message ?? ""; }
 
@@ -44,7 +54,8 @@ function payloadOf(f) { return f.content ?? f.result ?? f.output ?? f.message ??
 // is a connector-health deliverable, semantically distinct from an info/ioc
 // finding, so a scenario that wants an info deliverable must not pass on a bare
 // status card.)
-const CARD_ALIAS = { ioc_card: "info_card" };
+const CARD_ALIAS = Object.fromEntries(
+  Object.entries(VOCAB.cardAlias).filter(([k]) => !k.startsWith("$")));
 function canonCard(t) { return CARD_ALIAS[t] || t; }
 
 // ── Resolving a tool_result's tool NAME ──────────────────────────────────────
@@ -77,7 +88,7 @@ function isErr(f) {
     // STEERING, not failures — the framework marks them kind:"guard_redirect"
     // (AGENT_HARDENING §D) exactly so evals and the widget can tell them
     // apart from real tool errors.
-    if (p.kind === "guard_redirect") return false;
+    if (NOT_AN_ERROR_KINDS.has(p.kind)) return false;
     if (p.ok === false) return true;
     if (p.error || p.code === "error" || p.exception) return true;
     // Structured success: a nested "error" string is DATA, not a tool
@@ -179,8 +190,8 @@ function envSkippedContainment(rawFrames, opts, emitted) {
 //         errBudget: number (default 1), minTools: number (default 1) }
 function evaluate(allFrames, opts = {}) {
   const expectedCards = opts.expectedCards || [];
-  const errBudget = opts.errBudget ?? 1;
-  const minTools = opts.minTools ?? 1;
+  const errBudget = opts.errBudget ?? VOCAB.defaults.errBudget;
+  const minTools = opts.minTools ?? VOCAB.defaults.minTools;
 
   const digest = digestFrames(allFrames);
   const { counts, toolErrors, terminalStop } = digest;
@@ -253,7 +264,10 @@ function evaluate(allFrames, opts = {}) {
     digest,
     verdict,
     why,
-    hardFail: verdict.startsWith("FAIL"),
+    // Membership in the shared ladder, not a `startsWith("FAIL")` guess — so a
+    // new non-blocking verdict can't accidentally inherit hard-fail semantics
+    // from its name (and the Python readers agree on which ones block).
+    hardFail: HARD_FAIL_VERDICTS.has(verdict),
     // Blocks on EVERY gate (see gateRow): a row that never ran can't be an
     // "expected" failure for any gate to tolerate.
     driveError,
@@ -477,7 +491,7 @@ async function runScenario(scenario) {
 // bug would silently stop guarding every other bug that row can see.
 //
 // Pure — unit-tested in tests/matrixEval.test.js, no browser required.
-const GATES = ["soft", "strict", "xfail"];
+const GATES = VOCAB.gates.names;
 
 function gateRow(row) {
   const gate = row.gate || "soft";
