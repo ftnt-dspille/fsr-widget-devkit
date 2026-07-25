@@ -64,6 +64,12 @@
     { "id": "P4", "kind": "playbook", "skip": true, "_note": "manual_input stage: fixture flow", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 },
     { "id": "P5", "kind": "playbook", "skip": true, "_note": "rehydrate build: needs a saved draft to resume", "recordUuid": "00000000-0000-0000-0000-000000000000", "prompt": "", "expectedCards": [], "minTools": 0, "errBudget": 1, "timeoutMs": 120000 },
 
+    { "id": "MIC", "kind": "playbook", "recordUuid": "00000000-0000-0000-0000-000000000000",
+      "prompt": "Run the two-gate manual-input playbook on this record.",
+      "expectedCards": ["manual_input"], "minTools": 1, "errBudget": 1, "timeoutMs": 300000,
+      "autoApprove": true,
+      "_note": "THE MANUAL-INPUT-CHAIN WIDGET-TIER PROOF (connector 0.5.13). A record-action-triggered playbook that pauses on TWO consecutive manual_input gates: run_playbook stops at the tier-3 approval, autoApprove clicks Approve (a real run on the box), the first manual_input card renders + is submitted, and resume_playbook must re-emit awaiting_input so the SECOND gate's card renders too (the fix — pre-0.5.13 it dead-ended after gate 1). respondApprovals loops up to 3 rounds, so both gates decide in one drive; the chain completing (reaching end_turn after both submits) is the proof, and a click that never registers reports as a drive error, not an agent miss. REQUIRES a 2-gate record-action playbook on YOUR box (build one like the connector's scripts/repro_two_manual_inputs.py, on a module whose record you mount here). A MANUAL-trigger playbook does NOT get the clean awaiting_input seam — it must be record-action-triggered. expectedCards lists manual_input once (gateRow checks type presence); the multi-gate assertion is the chain reaching a clean terminal frame." },
+
     { "id": "P6a", "kind": "build", "gate": "xfail",
       "mountPath": "/playbooks/00000000-0000-0000-0000-000000000000",
       "prompt": "create a new playbook to block an ip and create an alert",
