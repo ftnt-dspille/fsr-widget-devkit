@@ -221,6 +221,15 @@ function evaluate(allFrames, opts = {}) {
       "submit did not register (ng-model debounce race); the turn never streamed. A drive/capture " +
       "failure, not agent behaviour. Re-run the row.";
     driveError = true;
+  } else if (opts.approvalDriveError) {
+    // An approval card rendered and the row opted into deciding it, but the
+    // click never reached the connector — so the whole post-approval half of
+    // the turn is missing. Same class as submitConfirmed=false: the row did not
+    // run to completion, and grading the truncated frames would blame the agent
+    // for a deliverable the driver prevented it from producing.
+    verdict = "FAIL (no turn captured)";
+    why = opts.approvalDriveError;
+    driveError = true;
   } else if (!(allFrames || []).length) {
     // NOTHING was captured — no frames, so the turn never streamed. This is NOT
     // an agent verdict: with zero frames the minTools branch below would call it
@@ -290,7 +299,7 @@ function evaluate(allFrames, opts = {}) {
 // entity context the connector sees — the D1-class bug (a stale `keys` entity
 // poisoning an authored playbook) is only reachable from a non-alert mount, so
 // the matrix has to be able to express one.
-async function captureScenario({ module = "alerts", recordUuid, mountPath, visitFirst, prompt, timeoutMs = 120000 }) {
+async function captureScenario({ module = "alerts", recordUuid, mountPath, visitFirst, prompt, timeoutMs = 120000, autoApprove = false }) {
   // Lazy require: keeps the pure eval half loadable in offline jest without
   // pulling in Playwright/the browser stack.
   const { openWidgetDrawer } = require("../../../lib/liveUiDriver");
@@ -306,6 +315,9 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
   // had different target_type args (domain vs ip).
   const allFrames = [];
   const requests = [];
+  // Transcripts returned inline by a chat_turn/chat_resume response, with the
+  // frame count at the moment they arrived. See the fold-in below.
+  const syncTranscripts = [];
   page.on("response", async (r) => {
     if (!/integration\/execute/.test(r.url())) return;
     let req = {};
@@ -313,11 +325,39 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
     const op = req.operation;
     if (op === "chat_turn" || op === "chat_resume") {
       const p = req.params || req.body || {};
-      requests.push({
+      // approval_id/turn_id are the keys the connector pops the SuspendedSession
+      // by (view.controller.js _runResume). Omitting them from the capture made
+      // a dead-ended approval indistinguishable from one the widget resumed
+      // correctly — the artifact showed a bare {decision:"approve"} either way.
+      const entry = {
         op,
         messages: p.messages, intent: p.intent, entity: p.entity,
         decision: p.decision, card_id: p.card_id, session_id: p.session_id,
-      });
+        approval_id: p.approval_id, turn_id: p.turn_id,
+      };
+      // ...and READ THE RESPONSE. This used to return early, so a turn that
+      // answered synchronously in its own response body (rather than streaming
+      // through chat_poll) was captured as zero frames — the harness then
+      // graded the row "no deliverable" for output it simply never looked at.
+      try {
+        const data = (await r.json()).data || {};
+        entry.response = {
+          stop_reason: data.stop_reason, turn_id: data.turn_id,
+          ok: data.ok, error: data.error,
+          transcriptTypes: (data.transcript || []).map((e) => e.type),
+          frameTypes: (data.frames || []).map((e) => e.type),
+        };
+        // A synchronous turn IS the turn — its transcript is the only record of
+        // the tool_result and the answer. Park it; whether it gets folded into
+        // the graded frame list is decided after the drive finishes, so a turn
+        // that ALSO streamed through chat_poll is not double-counted (see
+        // `syncTranscripts` below).
+        if ((data.transcript || []).length) {
+          syncTranscripts.push({ atFrameCount: allFrames.length, transcript: data.transcript,
+            stopReason: data.stop_reason });
+        }
+      } catch (_) { /* non-JSON / already consumed */ }
+      requests.push(entry);
       return;
     }
     if (op !== "chat_poll") return;
@@ -333,10 +373,51 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
   // completed"), so a completed 3-minute run looks like an infinite hang and
   // gets killed — hiding the real per-row failure that caused it.
   let res;
+  let approvals = null;
   try {
     res = await session.sendChat(prompt, { timeoutMs });
+    // Tier-3 rows (every device `run_playbook`) stop at `approval_required`, so
+    // any card the scenario expects BEYOND the gate — the playbook's own
+    // deliverable, a manual_input chain — never streams unless someone clicks
+    // Approve. Opt-in only: this executes a real mutating op on the box.
+    if (autoApprove && res.submitConfirmed) {
+      approvals = await session.respondApprovals({ timeoutMs });
+      // The resumed turn's frames arrive on the SAME page listener above, so
+      // allFrames already has them; only the done/poll summary needs merging.
+      res = {
+        ...res,
+        polls: res.polls.concat(approvals.polls),
+        done: approvals.approved > 0 ? approvals.done : res.done,
+        approvalsDecided: approvals.approved,
+        approvalDriveError: approvals.driveError,
+      };
+    }
   } finally {
     await session.close().catch(() => {});
+  }
+
+  // Fold in any turn that answered synchronously instead of streaming. The
+  // resumed half of an approval does exactly this: the connector returns the
+  // tool_result + the answer in the chat_resume response body and never polls
+  // again. Grading only poll-sourced frames therefore reported a turn that had
+  // fully succeeded as "no deliverable" — blaming the agent for output the
+  // harness declined to read. Guarded on the frame count being unchanged since
+  // the response arrived, so a turn that streamed AND echoed its transcript is
+  // counted once.
+  for (const t of syncTranscripts) {
+    if (allFrames.length !== t.atFrameCount) continue;   // it streamed too — already counted
+    // It must go in as a stream_end whose transcript is PRIOR + NEW: the grader
+    // reads the LAST stream_end.transcript and ignores everything else
+    // (canonicalFrames), so appending bare entries would be silently dropped,
+    // and appending a transcript of only the resumed half would erase the
+    // approval_request the first half emitted.
+    const prev = [...allFrames].reverse().find(
+      (f) => f && f.type === "stream_end" && Array.isArray(f.transcript) && f.transcript.length);
+    allFrames.push({
+      type: "stream_end",
+      stop_reason: t.stopReason || (prev && prev.stop_reason),
+      transcript: [...(prev ? prev.transcript : []), ...t.transcript],
+    });
   }
   return { frames: allFrames, res, requests };
 }
@@ -420,6 +501,10 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
         frameCounts: d.counts, toolCalls: (d.tools || []).length,
         toolErrors: (d.toolErrors || []).length, terminalStop: d.terminalStop,
         done: res.done, streamedTurn: res.sawStreamingTurn,
+        // How many approval gates the driver decided (absent = the row did not
+        // opt into autoApprove). Distinguishes "the agent never gated" from
+        // "the driver approved and the turn still produced nothing".
+        approvalsDecided: res.approvalsDecided,
       },
       timeline,          // paired, full input/output/error — the human view
       requests,          // raw chat_turn/chat_resume inputs
@@ -437,7 +522,11 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
 // recordUuid, prompt, expectedCards[], minTools, errBudget, timeoutMs }.
 async function runScenario(scenario) {
   const { frames, res, requests } = await captureScenario(scenario);
-  const evaluation = evaluate(frames, { ...scenario, submitConfirmed: res.submitConfirmed });
+  const evaluation = evaluate(frames, {
+    ...scenario,
+    submitConfirmed: res.submitConfirmed,
+    approvalDriveError: res.approvalDriveError,
+  });
   // Red-flag the live capture through the SAME rules that grade offline
   // `.events.json` exports, so a known-bad flow signature caught once offline
   // gates the live matrix forever after. Lazy require: module cycle (see

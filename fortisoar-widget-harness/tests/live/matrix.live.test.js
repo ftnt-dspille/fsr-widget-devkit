@@ -44,6 +44,12 @@ const SCENARIOS_PATH = process.env.MATRIX_SCENARIOS
 const GATE_FILTER = (process.env.MATRIX_GATE || "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 
+// Hand-picked subset by row id (comma-separated, e.g. MATRIX_IDS=Z3,Z5). A full
+// sweep is 11 headed browser turns at ~2–4 min each, so targeting the rows that
+// cover a specific fix is the common case. Unset = all (subject to GATE_FILTER).
+const ID_FILTER = (process.env.MATRIX_IDS || "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+
 function loadScenarios() {
   if (!fs.existsSync(SCENARIOS_PATH)) return null;
   const cfg = JSON.parse(fs.readFileSync(SCENARIOS_PATH, "utf8"));
@@ -59,7 +65,8 @@ function loadScenarios() {
         throw new Error(`scenario ${s.id}: unknown gate "${s.gate}" (expected one of ${GATES.join("|")})`);
       }
       return GATE_FILTER.length === 0 || GATE_FILTER.indexOf(s.gate) >= 0;
-    });
+    })
+    .filter((s) => ID_FILTER.length === 0 || ID_FILTER.indexOf(s.id) >= 0);
 }
 
 const scenarios = LIVE ? loadScenarios() : null;

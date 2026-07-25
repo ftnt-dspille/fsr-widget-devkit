@@ -599,6 +599,21 @@ stub `window.open` in an init script to capture the URL instead of navigating a
 real popup, or the hermetic tier flags the platform route as an un-snapshotted
 leak.
 
+**Stacking-context trap — `backdrop-filter`/`filter`/`transform` on a header
+TRAPS its descendant dropdowns.** A high `z-index` on an absolutely-positioned
+menu only wins *within its nearest stacking-context ancestor*. If that ancestor
+(e.g. a `.topbar` with `backdrop-filter: blur()`) is itself painted at
+`z-index: auto`, a **later-in-DOM sibling** (the message feed / a card) paints on
+top of the whole context — so the "open" dropdown renders *behind* the card and
+its items aren't clickable where they overlap (Playwright reports the click
+intercepted). `backdrop-filter`/`filter`/`transform`/`opacity<1` all create a
+stacking context AND (for filter/transform) a containing block that also breaks
+`position:fixed` descendants (a full-widget backdrop shrinks to the header). Fix:
+give the header its own `position: relative; z-index: N` above the feed but below
+your modals — or move the dropdown out of the filtered ancestor. Reference:
+`fortiaiAgenticAssistant` `.topbar` overflow menu over a `manual-input-card`
+(regression test `manualInputForm.spec.js` "overflow menu is clickable…").
+
 ### 7.1 Asset paths
 
 Reference your own assets with the `<name>-<version>` prefix — this is what the platform serves them under:

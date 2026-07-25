@@ -17,6 +17,21 @@ const COMPOSER = '#custom-modal .composer textarea, #custom-modal .composer [con
 function captureChatFeed(page) {
     const polls = [];
     const turns = [];
+    const sent = [];
+    const settled = [];
+    page.on("request", (r) => {
+        if (!/integration\/execute/.test(r.url()))
+            return;
+        let req = {};
+        try {
+            req = r.postDataJSON() || {};
+        }
+        catch (_) {
+            return;
+        }
+        if (typeof req.operation === "string" && /^chat_/.test(req.operation))
+            sent.push(req.operation);
+    });
     page.on("response", async (r) => {
         var _a, _b;
         if (!/integration\/execute/.test(r.url()))
@@ -29,13 +44,17 @@ function captureChatFeed(page) {
             return;
         }
         const op = req.operation;
-        if (op !== "chat_poll" && op !== "chat_turn")
+        if (op !== "chat_poll" && op !== "chat_turn" && op !== "chat_resume")
             return;
         let data = {};
         try {
             data = (await r.json()).data || {};
         }
         catch (_) { /* non-JSON */ }
+        if (op === "chat_resume") {
+            settled.push({ op, stopReason: data.stop_reason });
+            return;
+        }
         if (op === "chat_poll") {
             polls.push({
                 since: (_a = req.params) === null || _a === void 0 ? void 0 : _a.since_turn,
@@ -48,7 +67,7 @@ function captureChatFeed(page) {
             turns.push({ detached: !!((_b = req.params) === null || _b === void 0 ? void 0 : _b.detached) });
         }
     });
-    return { polls, turns };
+    return { polls, turns, sent, settled };
 }
 /**
  * Full flow: launch → login → navigate → open the SOC Assistant drawer.
@@ -213,6 +232,95 @@ async function openWidgetDrawer(opts = {}) {
                 done: !!(mine[mine.length - 1] && mine[mine.length - 1].done),
                 submitConfirmed: submitConfirmed || streaming.length > 0,
             };
+        },
+        /**
+         * Decide any pending inline approval card(s) and wait for each resumed
+         * turn to finish.
+         *
+         * Every tier-3 tool (which is every `run_playbook` against a device) stops
+         * the turn at `approval_required`. Everything past that gate — the
+         * playbook's own deliverable, a `manual_input` chain — is unreachable to a
+         * driver that only types and presses Enter, so a scenario expecting a
+         * post-approval card could never pass no matter how the agent behaved.
+         *
+         * Deliberately OPT-IN per scenario (matrixDriver's `autoApprove`): clicking
+         * Approve executes a real mutating operation on a real appliance, so it
+         * must never happen as a side effect of running the matrix.
+         */
+        async respondApprovals({ decision = "approve", timeoutMs = 120000, pollEveryMs = 3000, appearMs = 15000, maxRounds = 3, } = {}) {
+            const sel = `[data-testid="approval-${decision}"]`;
+            const startedAt = feed.polls.length;
+            let approved = 0;
+            let done = false;
+            for (let round = 0; round < maxRounds; round++) {
+                // A card only counts if its buttons are live: `ng-disabled="cardBusy(ev)"`
+                // means an already-submitting or already-decided card still exists in
+                // the transcript, and clicking it is a no-op that would burn a round.
+                const deadline = Date.now() + (round === 0 ? appearMs : 5000);
+                let btn = null;
+                while (Date.now() < deadline) {
+                    for (const el of await page.$$(sel)) {
+                        if (await el.isVisible() && await el.isEnabled()) {
+                            btn = el;
+                            break;
+                        }
+                    }
+                    if (btn)
+                        break;
+                    await page.waitForTimeout(500);
+                }
+                if (!btn)
+                    break; // no (further) gate — normal exit
+                const before = feed.polls.length;
+                const sentBefore = feed.sent.length;
+                await btn.click();
+                // Same contract as sendChat's submitConfirmed: prove the decision
+                // reached the connector rather than trusting the click. Watch the
+                // REQUEST feed, not the poll feed — the click's job is to send
+                // chat_resume, and the connector holds that request open for as long as
+                // the approved playbook takes to run, so a response-level check reports
+                // a slow-but-working approval as "the button did nothing".
+                let registered = false;
+                const verifyDeadline = Date.now() + 10000;
+                while (Date.now() < verifyDeadline) {
+                    await page.waitForTimeout(500);
+                    if (feed.sent.slice(sentBefore).some((op) => op === "chat_resume") ||
+                        feed.polls.slice(before).some((p) => p.turn != null || p.frames > 0)) {
+                        registered = true;
+                        break;
+                    }
+                }
+                if (!registered) {
+                    return {
+                        approved, polls: feed.polls.slice(startedAt), done,
+                        driveError: `an approval card was showing but the "${decision}" click never ` +
+                            "registered — no resumed-turn traffic followed. A drive/capture failure, " +
+                            "not agent behaviour. Re-run the row.",
+                    };
+                }
+                approved++;
+                // The resumed turn can finish EITHER way: streaming through chat_poll,
+                // or synchronously in the chat_resume response body. Watching only the
+                // poll feed made an approval that had already answered look like a hung
+                // turn — it burned the full budget and then graded the row on frames it
+                // never collected. Whichever channel reports first wins.
+                const settledBefore = feed.settled.length;
+                const turnDeadline = Date.now() + timeoutMs;
+                done = false;
+                while (Date.now() < turnDeadline) {
+                    await page.waitForTimeout(pollEveryMs);
+                    const last = feed.polls[feed.polls.length - 1];
+                    if (last && last.done) {
+                        done = true;
+                        break;
+                    }
+                    if (feed.settled.length > settledBefore) {
+                        done = true;
+                        break;
+                    }
+                }
+            }
+            return { approved, polls: feed.polls.slice(startedAt), done, driveError: null };
         },
         async screenshot(path, full = false) {
             await page.screenshot({ path, fullPage: full });

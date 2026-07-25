@@ -497,4 +497,26 @@ describe("evaluate() — an empty capture is not blamed on the agent", () => {
     expect(ev.verdict).toBe("FAIL (no-investigation)");   // graded on merits, not drive
     expect(ev.driveError).toBe(false);
   });
+
+  test("approvalDriveError → drive error, not a missing-deliverable verdict", () => {
+    // The turn streamed and gated correctly, but the driver's Approve click
+    // never registered, so the post-gate half never ran. Grading these frames
+    // on merit would blame the agent for a manual_input card the driver
+    // prevented it from ever emitting.
+    const ev = evaluate([card("approval_request"), end()],
+      { kind: "ztpf", expectedCards: ["approval_request", "manual_input"],
+        minTools: 1, errBudget: 1, submitConfirmed: true,
+        approvalDriveError: 'the "approve" click never registered' });
+    expect(ev.verdict).toBe("FAIL (no turn captured)");
+    expect(ev.driveError).toBe(true);
+    expect(ev.why).toMatch(/never registered/);
+  });
+
+  test("a decided approval that reaches the post-gate card grades on merit", () => {
+    const ev = evaluate([use("run_playbook"), card("approval_request"), card("manual_input"), end()],
+      { kind: "ztpf", expectedCards: ["approval_request", "manual_input"],
+        minTools: 1, errBudget: 1, submitConfirmed: true, approvalDriveError: null });
+    expect(ev.driveError).toBe(false);
+    expect(ev.verdict).toMatch(/^PASS/);
+  });
 });
