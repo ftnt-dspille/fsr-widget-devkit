@@ -370,6 +370,15 @@ servers**, surfaced **per page**, proven live.
   from the box.
 
 ### M2 — Per-page MCP surfacing (folds into Phase 2 frontier)
+> **Live test-bed (2026-07-26):** FortiSIEM (`10.99.248.120`) is now on 159 BOTH
+> ways — the `fortinet-fortisiem` REST connector (v6.0.0, healthcheck Available)
+> AND its native MCP server wired into `fsrpb-41mini`'s `mcp_allowlist` (agent
+> called `mcp_fortisiem__get_incidents_by_entity` live). Both surfaces are
+> advertised at once with no arbitration → the exact overlap M2 must resolve.
+> Repeatable scripts: `configure_fortisiem.py` + `wire_fortisiem_mcp.py`. Working
+> recommendation: connector = default frontier (typed args, tier-gated writes,
+> approval cards); MCP = additive/on-ask breadth; connector wins for mutations.
+> See memory `fortisiem_dual_surface_159`.
 - [ ] Make materialized MCP tools flow through `afforded_tools(state)` instead of
   being unconditionally in-REGISTRY: tag each MCP server/tool with a page/affordance
   hint (e.g. `soc` → alert/incident; `modules` → generic record; `connector:<x>`
