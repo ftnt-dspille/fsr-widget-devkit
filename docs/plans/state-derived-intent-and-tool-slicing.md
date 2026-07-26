@@ -379,15 +379,75 @@ servers**, surfaced **per page**, proven live.
 > recommendation: connector = default frontier (typed args, tier-gated writes,
 > approval cards); MCP = additive/on-ask breadth; connector wins for mutations.
 > See memory `fortisiem_dual_surface_159`.
-- [ ] Make materialized MCP tools flow through `afforded_tools(state)` instead of
-  being unconditionally in-REGISTRY: tag each MCP server/tool with a page/affordance
-  hint (e.g. `soc` → alert/incident; `modules` → generic record; `connector:<x>`
-  → wherever that connector's data lives) so the page prior seeds which MCP tools
-  appear. Allowlisted-but-off-page tools stay reachable on ask (prior, not wall).
-- [ ] Optional: a **list-servers** discovery so the admin config can enumerate
-  what's available instead of hand-typing keys (check whether the gateway/AIApi
-  exposes a servers endpoint; the agent noted an `AIApi` path for external-server
-  registration worth probing).
+**Design decision (user, 2026-07-26): optimize for DETERMINISTIC + demo-ready.**
+Two pure `state → set` filters over the materialized surface, both computed in
+the `_advertised_tools` seam so the per-page tool set is repeatable and testable
+offline (a "surfacing oracle", same discipline as `test_interleave_oracle`). No
+prompt-hope, no model-dependent arbitration.
+
+#### The model: the per-module persona IS the per-page config
+
+`page` and "which persona is active" are the same signal — `_resolve_profile(
+module, session)` already maps the mounted module → its persona every turn. So
+per-page surfacing needs **no new page-tag field**; it falls out of persona
+resolution. Two config layers ("both", via existing machinery):
+
+- **Static defaults (connector, versioned)** — an *affordance-class* map keyed by
+  `triage/hunt | author | record | device` → `{curated tools, MCP servers
+  surfaced, curated↔MCP capability map}`. Lives next to `SOURCE_TOOLS`
+  (`fsr_soc_triage/triage_sources.py`). Covers modules with NO custom persona
+  (built-in triage/build still get the right default surface). The affordance
+  taxonomy reuses the Phase-1 page-prior classes.
+- **Key Store persona override** — extend the existing per-module persona schema
+  (`fsr_assistant_profile:<module>`) with an optional `mcp` / `capabilities`
+  block; a custom persona overrides/extends the static default. Same
+  `_resolve_profile` read already done per turn, same upsert scripts operators
+  already use. **The `mcp_allowlist` connector config keeps holding _what's
+  connected + creds_; the Key Store holds _how it surfaces per module_** — clean
+  split, no second secret-bearing config surface.
+
+#### The two deterministic filters (run after materialization)
+
+- [ ] **Server surfacing** — keep only MCP servers in the active surface (from the
+  persona/affordance default). Off-surface servers are dropped. *Page-determined
+  now; on-ask reach is a fast-follow (Phase-M2.1) — page tags are generous enough
+  (e.g. fortisiem → all triage/hunt contexts) that the long tail lives on-page.*
+- [ ] **Capability-dedup** — collect capabilities covered by the CURATED tools on
+  this surface; drop any MCP tool sharing a capability (**curated wins by
+  construction**). MCP tools with no mapped capability = MCP-only → always kept
+  (fail-open toward reach). The curated↔MCP capability map is static (base) +
+  Key-Store override.
+
+Worked example (FortiSIEM test-bed):
+
+| Page (module→persona) | Curated | MCP kept | MCP dropped |
+|---|---|---|---|
+| Alert / incident | `siem_search_host/ip/user`, `faz_*` | `query_fsm_postgres` (no curated peer) | `get_incidents_by_entity` (dedup'd) |
+| Playbook | authoring tools | — | fortisiem not in this surface |
+| Generic record | — | `modules` MCP | fortisiem not in this surface |
+
+#### The one real code fork — persona allowlist: replace → COMPOSE
+
+Today `_tools_for_persona` returns ONLY the persona's `tools_allow` and skips the
+frontier entirely (allowlist WINS). For MCP surfacing to work under a persona, the
+persona path must **compose** `tools_allow ∪ afforded-MCP-for-this-surface`
+instead of replacing — so a persona doesn't have to re-list every MCP tool by
+name. Decision: **compose.** (Preserve the existing safety: writes stay tier-3/
+approve; the compose only widens the READ/afforded MCP surface.)
+
+#### Deliverables
+- [ ] Affordance-class static map + curated↔MCP capability map (connector,
+  beside `SOURCE_TOOLS`).
+- [ ] Persona schema `mcp`/`capabilities` block + `_resolve_profile` plumbing;
+  `_tools_for_persona` compose (not replace).
+- [ ] `_advertised_tools` gains the two filters (server-surface + capability-dedup),
+  keyed on the resolved persona/affordance — pure functions of state.
+- [ ] **Surfacing oracle** (`test_surfacing_oracle.py`): per-module advertised set
+  is pinned; assert no capability appears twice (curated + MCP) on any surface.
+- [ ] Demo: drive one session per page type on 159, show the surface differs.
+- [ ] *(fast-follow M2.1)* on-ask reach for off-surface servers; **list-servers**
+  discovery so the admin config enumerates what's available instead of hand-typing
+  keys (probe whether the gateway/`AIApi` exposes a servers endpoint).
 
 ### M3 — The proof (demo-grade, on a box)
 - [x] **External path proven end-to-end with editable code through the REAL
