@@ -432,7 +432,8 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 > + `suspended_sessions` (HITL-parked) -- never a stored column, so it can't
 > drift. The platform `/api/3/llm_activity_logs` module is **not** involved
 > (per user direction: the live-sessions panel reads only the connector's own
-> session stores). Phase 1 (tool-call detail) and Phases 3/4 remain open.
+> session stores). Phase 1 (tool-call detail) and Phase 3 (Turn Detail
+> overlay) are live-verified. Phase 4 (interactive filters) remains open.
 
 ### 10.1 Richer audit trail -- per-tool-call detail
 
@@ -553,17 +554,53 @@ chat" deep-link. Connector op: `list_active_sessions`.
 
 ### 10.3 Audit deep-dive -- agent narrative + tool chain view
 
+> **Phase 3 -- IMPLEMENTED + LIVE-VERIFIED .206 (conn 0.5.45, widget 1.0.6).**
+> No new table needed: enriched `agent_usage` with `agent_thinking` +
+> `approvals_count` columns (additive ALTER migration) + populated the
+> existing `response` column from buffered `TextEvent` frames. Widget
+> gains a Turn Detail overlay panel. Also fixed the cost-over-time chart
+> (hourly fallback when daily returns 1 bucket).
+
 Beyond per-row drill-down, the user wants a full **session audit view**:
-the complete agent run from prompt → tool calls → approvals → final response,
+the complete agent run from prompt -> tool calls -> approvals -> final response,
 as a timeline. Currently the connector stores each turn's JSONL but no
 queryable per-turn narrative.
 
 **Fix**: New `agent_turns` table: `(id, usage_id, session_id, turn, user_prompt,
 agent_thinking, tool_calls_array, final_response, approvals_count, status, ts)`.
 Wired at `_log_llm_activity()` from the existing transcript frames. Widget adds
-a "Turn Detail" overlay: click any audit row → opens a timeline showing the full
-agent execution: user prompt → tool call sequence (with expand params/output) →
-approvals → final text. This is the "what did the agent do?" view.
+a "Turn Detail" overlay: click any audit row -> opens a timeline showing the full
+agent execution: user prompt -> tool call sequence (with expand params/output) ->
+approvals -> final text. This is the "what did the agent do?" view.
+
+**Implemented (Phase 3):**
+
+- **Enriched `agent_usage`** (`storage.py`) -- added `agent_thinking TEXT` +
+  `approvals_count INTEGER DEFAULT 0` columns. Additive `ALTER TABLE`
+  migration in `_ensure_schema` so pre-existing DBs get the columns on the
+  next open. No new table: the plan's `agent_turns` was 1:1 with `agent_usage`
+  and its `tool_calls_array` was redundant with Phase 1's `agent_tool_calls`.
+  The genuinely missing fields (narrative + approval count) are the new
+  columns; the existing `response` column (previously always empty) is now
+  populated too.
+- **Capture** (`operations.py`, `chat_turn`'s `_on_event`) -- `TextEvent`
+  frames are buffered into `_text_buffer`; `ApprovalRequestEvent` frames
+  increment `_approval_count`. On each `UsageEvent`, the buffer flushes
+  `response`/`approvals_count` into the `log_llm_activity` call alongside
+  the tool-call buffer, then clears. Best-effort throughout.
+- **Widget Turn Detail overlay** -- a "Detail" button on every audit row
+  opens a fixed-position overlay panel (no `$uibModal` dependency): user
+  prompt, agent thinking (if present), tool call chain (reuses Phase 1's
+  `tool_call_detail`), approval gate count, final agent response, and a
+  meta row (timestamp, intent, model, tokens, cost, status).
+- **Cost-over-time chart fix** -- the chart was blank when all turns fell on
+  the same day (daily summary = 1 bucket, and the code bailed on <2 points).
+  Now: daily returns 1 bucket -> fall back to hourly bucketing; single-bucket
+  renders a flat line instead of an empty panel; axis label positioning
+  fixed for the single-bucket case.
+- **Tests** -- 3 new connector tests (enriched fields roundtrip, defaults,
+  migration on old schema); 3 new widget tests (turn detail toggle, audit
+  row carries new fields, hourly fallback); e2e smoke green.
 
 ### 10.4 Interactive dashboard -- pivots and filters
 
