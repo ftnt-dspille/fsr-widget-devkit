@@ -433,7 +433,7 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 > drift. The platform `/api/3/llm_activity_logs` module is **not** involved
 > (per user direction: the live-sessions panel reads only the connector's own
 > session stores). Phase 1 (tool-call detail) and Phase 3 (Turn Detail
-> overlay) are live-verified. Phase 4 (interactive filters) remains open.
+> overlay) are live-verified. All v2 follow-ups done.
 
 ### 10.1 Richer audit trail -- per-tool-call detail
 
@@ -603,6 +603,12 @@ approvals -> final text. This is the "what did the agent do?" view.
   row carries new fields, hourly fallback); e2e smoke green.
 
 ### 10.4 Interactive dashboard -- pivots and filters
+
+> **Phase 4 -- IMPLEMENTED + LIVE-VERIFIED .206 (conn 0.5.45, widget 1.0.7).**
+> Shared `activeFilters` state; click-to-filter on KPI cards, status badges,
+> user rows, intent badges; filter chip bar with clear; `loadAudit` passes
+> filters to the connector op. Live-verified: `status=success` + `intent=triage`
+> filtering return correctly filtered rows.
 
 The current KPI cards are static summaries. Make them into
 **click-to-filter** elements: click a model in the per-model chart filters the
