@@ -18,7 +18,7 @@ summary: Design for a separate dashboard-style widget monitoring the SOC
   and per-tool-call drill-down.
 ---
 
-# SOC Assistant Monitor — design plan
+# SOC Assistant Monitor -- design plan
 
 A separate dashboard widget for monitoring the SOC Assistant agent: usage /
 tokens / cost over time, pending (HITL-parked) tasks, per-user activity, and an
@@ -26,14 +26,14 @@ auditable LLM call trail. Companion to the scheduled-tasks feature
 (`docs/plans/scheduled-agent-tasks.md`) and the existing
 `fortiaiAgenticAssistant` chat widget.
 
-## 1. Findings — audit/telemetry stores (live-verified on 8.0.0)
+## 1. Findings -- audit/telemetry stores (live-verified on 8.0.0)
 
 There are **two** distinct `llm_activity_log` stores on FortiSOAR 8.0. The
 distinction is the crux of the path-into-the-log decision.
 
-### 1.1 `llm_activity_log` — fsr-ai's internal sealab-DB table (NOT our target)
+### 1.1 `llm_activity_log` -- fsr-ai's internal sealab-DB table (NOT our target)
 
-- `/opt/fsr-ai/database/schema.py:92` — `LLMActivityLogs(Base, Auditable)`,
+- `/opt/fsr-ai/database/schema.py:92` -- `LLMActivityLogs(Base, Auditable)`,
   in fsr-ai's own `ai_metadata` Postgres DB (`setting.py:15`).
 - Written only by fsr-ai's own LLM client: `provider.prepare_log_data()` →
   `LLMClient.persist_log()` (`/opt/fsr-ai/llm/base.py:57`) →
@@ -45,12 +45,12 @@ distinction is the crux of the path-into-the-log decision.
   table requires either an fsr-ai code change (new POST endpoint) or a direct
   DB connection the connector doesn't have. **Out of scope.**
 
-### 1.2 `llm_activity_logs` — the platform `/api/3/` module (OUR target)
+### 1.2 `llm_activity_logs` -- the platform `/api/3/` module (OUR target)
 
 This is the native platform-wide audit module (entity
 `App\Entity\Ai\LLMActivityLog`, the one STATUS.md session-B flagged). It is a
-**standard `/api/3` CRUD route** — hydra envelope, `@id`, `@type`,
-`createUser`/`createDate`, the works — NOT the sealab-DB table.
+**standard `/api/3` CRUD route** -- hydra envelope, `@id`, `@type`,
+`createUser`/`createDate`, the works -- NOT the sealab-DB table.
 
 **Live-verified on .206 (8.0.0):**
 - `GET /api/3/llm_activity_logs` → 102 rows, standard hydra collection.
@@ -71,13 +71,13 @@ crudhub transport the connector already uses for `/api/3` CRUD, queryable
 through the standard module API (so the monitor widget can read it without a
 new connector op), and the audit home FortiAI itself uses.
 
-### 1.3 Transport — `/api/3/` works via crudhub (verified)
+### 1.3 Transport -- `/api/3/` works via crudhub (verified)
 
 crudhub `make_request` is a service-token loopback to `https://localhost`
 that nginx routes to PHP for `/api/3/`. The connector already uses this for
 its platform-side ops (`push_playbook`, `dry_run_playbook`, `render_jinja`,
 all `/api/3/workflows/*`). Writing to `/api/3/llm_activity_logs` is the same
-pattern — zero new transport. (Note: the `/api/ai/*` routes that hit fsr-ai
+pattern -- zero new transport. (Note: the `/api/ai/*` routes that hit fsr-ai
 directly are gated by PHP RBAC and 403 most crudhub service-account calls;
 `/api/3/` has no such gate for module CRUD. See the probe log in §7.)
 
@@ -107,11 +107,11 @@ round-trip with a **richer** schema than `llm_activity_logs:
 
 The connector's `_usage_cost_usd()` (`operations.py:1279`) computes USD cost
 from tokens with **correct** cached-token semantics per provider (OpenAI nests
-cached inside `prompt_tokens`; Anthropic reports them disjoint — the function
+cached inside `prompt_tokens`; Anthropic reports them disjoint -- the function
 handles both). Per-model pricing tables at `operations.py:1194+` cover
 OpenAI, GPT-5 family, Anthropic, with input/output/cached rates.
 
-So the data needed for usage/tokens/cost graphs **already exists** per turn —
+So the data needed for usage/tokens/cost graphs **already exists** per turn --
 it just lands in a file, not a queryable store. The plan: persist it to the
 native `/api/3/llm_activity_logs` module (the audit source of truth) AND to a
 connector sqlite `agent_usage` table (for the richer tool-call/cache/tags
@@ -134,7 +134,7 @@ connector-fsr-soc-assistant (new monitoring ops)
   ├─ get_audit_trail   → per-LLM-call records (prompt/response/tokens/cost/status) for audit
   └─ get_usage_summary → aggregated buckets (per hour/day, per user, per model)
 
-DATA FLOW (existing — no new telemetry to build):
+DATA FLOW (existing -- no new telemetry to build):
   chat_turn (every LLM round-trip)
     └─ UsageEvent (provider.py:109)  ← input/output/cache tokens + tags
          └─ usage_log.log_turn()       ← already writes JSONL today
@@ -145,7 +145,7 @@ DATA FLOW (existing — no new telemetry to build):
 
 Two stores, one write per turn:
 
-1. **`/api/3/llm_activity_logs`** (the native platform module, §1.2) — the
+1. **`/api/3/llm_activity_logs`** (the native platform module, §1.2) -- the
    audit source of truth. Written via crudhub `POST /api/3/llm_activity_logs`
    alongside the existing JSONL write, using the same transport the
    connector already uses for `/api/3/workflows/*`. Carries the fields the
@@ -154,7 +154,7 @@ Two stores, one write per turn:
    correlationID`. This is what makes the connector's calls visible in
    FortiAI's native audit view + queryable by any `/api/3` client (including
    the monitor widget, without a connector op).
-2. **Connector sqlite `agent_usage`** — the richer fields the platform module
+2. **Connector sqlite `agent_usage`** -- the richer fields the platform module
    lacks: `tool_calls`, `cache_read`, `cache_write`, `tags`, `session_id`,
    `intent`, `user_iri`. Powers the monitor widget's per-session/per-user
    drill-downs that the platform module can't express.
@@ -168,23 +168,23 @@ ops for the drill-down detail.
 
 The user explicitly asked for a separate widget. It also fits the
 architecture: a dashboard widget is `standalone:true`, mounts on a dashboard
-context, and renders charts/tables — a different lifecycle + template pattern
+context, and renders charts/tables -- a different lifecycle + template pattern
 than the drawer-mounted chat widget. The existing `datavisualization` and
 `counter` widgets are the pattern templates.
 
-## 3. The dashboard — panels
+## 3. The dashboard -- panels
 
 ### 3.1 Usage over time (line chart)
 
 - X-axis: time (hour/day, configurable bucket).
-- Y-axis: turn count / token count / USD cost — toggle.
+- Y-axis: turn count / token count / USD cost -- toggle.
 - Series: per-model or per-intent (`triage`/`build`).
 - Data: `get_usage_summary(bucket=hour, metric=tokens|cost|turns, group_by=model|intent)`.
 
 ### 3.2 Tokens over time (stacked area)
 
 - Input vs output vs cache-read tokens stacked, per day.
-- Cache-read is the prompt-cache hit — surface it so users see caching value.
+- Cache-read is the prompt-cache hit -- surface it so users see caching value.
 
 ### 3.3 Cost over time (line chart)
 
@@ -210,7 +210,7 @@ than the drawer-mounted chat widget. The existing `datavisualization` and
 
 - Per-user: turn count, token total, cost total, last-active, intent split.
 - Data: `agent_usage` has `author` (the connector already records the acting
-  user per turn — `operations.py:3532` `_actor`).
+  user per turn -- `operations.py:3532` `_actor`).
 - Bar chart: top users by cost or turn count.
 
 ### 3.7 Audit trail (searchable table)
@@ -219,7 +219,7 @@ than the drawer-mounted chat widget. The existing `datavisualization` and
   (truncated, expandable), response (truncated), tokens, cost, latency,
   status, error.
 - Filter by user / session / model / status / time range.
-- This is the "auditable capabilities" requirement — a full per-call record,
+- This is the "auditable capabilities" requirement -- a full per-call record,
   queryable, exportable.
 - Data: `get_audit_trail(filters)` from sqlite `agent_usage` (the prompt +
   response are already in the JSONL + transcript; persist them to sqlite).
@@ -233,7 +233,7 @@ module API (the monitor widget can read it directly, no connector op needed).
 
 ### Write path (per LLM turn, alongside the existing JSONL write)
 
-`_log_llm_activity(record)` — one helper called from the existing per-turn
+`_log_llm_activity(record)` -- one helper called from the existing per-turn
 telemetry call site. Two writes, both best-effort (telemetry never breaks
 chat):
 
@@ -252,7 +252,7 @@ chat):
 | `get_usage_summary` | `bucket=hour\|day, metric=tokens\|cost\|turns, group_by=model\|intent\|user, from?, to?` | `[{bucket, group, value}]` (sqlite) |
 | `list_pending` | (none) | `[{session_id, parked_at, intent, action_summary, user, age_seconds}]` (storage) |
 | `get_audit_trail` | `from?, to?, user?, session_id?, model?, status?, limit` | `[{ts, session_id, user, model, intent, prompt, response, input_tokens, output_tokens, cost_usd, latency_ms, status, error}]` (sqlite join, or proxy `/api/3/llm_activity_logs` reads) |
-| `list_sessions` | `user?, limit` | existing — extend with usage rollup |
+| `list_sessions` | `user?, limit` | existing -- extend with usage rollup |
 
 ### sqlite `agent_usage` table
 
@@ -286,7 +286,7 @@ CREATE INDEX idx_usage_user ON agent_usage(user_iri);
 ```
 
 Populated by a one-line addition to the existing per-turn telemetry path
-(the same place `usage_log.log_turn()` is called today) — same data, second
+(the same place `usage_log.log_turn()` is called today) -- same data, second
 write target. Failures swallowed (telemetry never breaks chat).
 
 ## 5. Widget structure
@@ -313,7 +313,7 @@ widgets-src/socAssistantMonitor/
 - Edit mode: pick time range (last 24h / 7d / 30d / custom), refresh interval
   (30s / 1m / 5m), which panels to show.
 - The widget calls the connector via `fsrPbAgent.service.js`'s
-  `executeAction` pattern (same as the chat widget) — the connector config
+  `executeAction` pattern (same as the chat widget) -- the connector config
   is the same `fsr-soc-assistant` instance.
 
 ## 6. Relationship to the scheduled-tasks plan
@@ -321,12 +321,12 @@ widgets-src/socAssistantMonitor/
 - The monitor widget's "Scheduled tasks status" panel (§3.5) reads the
   `list_scheduled_tasks` op from the scheduled-agent-tasks plan. Build the
   connector ops first; the monitor widget consumes them.
-- The "Pending tasks" panel (§3.4) shows HITL-parked sessions — these include
+- The "Pending tasks" panel (§3.4) shows HITL-parked sessions -- these include
   sessions parked by scheduled tasks (§6 of the scheduled-tasks plan: "park +
   notify"). So the monitor widget is the natural place to see and resume
   them, not just the chat widget's History panel.
 
-## 7. Audit capability — the path into the log (live-probed)
+## 7. Audit capability -- the path into the log (live-probed)
 
 The user asked for "auditable capabilities" + a way to write to
 `llm_activity_log`. Probing on .159 + .206 settled the answer.
@@ -376,7 +376,7 @@ module's camelCase fields (`inputTokens` etc.).
 
 ### 7.4 Recommendation (flipped from the earlier draft)
 
-**Write to `/api/3/llm_activity_logs` as the primary audit path** — it's the
+**Write to `/api/3/llm_activity_logs` as the primary audit path** -- it's the
 platform's audit home, visible in FortiAI's native view, queryable by any
 `/api/3` client (including the monitor widget's standard module reads), and
 reachable through the connector's existing crudhub transport. The connector
@@ -384,7 +384,7 @@ adds one `POST` per LLM turn alongside the existing JSONL write.
 
 The connector sqlite `agent_usage` table stays as the **secondary** store for
 the richer fields the platform module lacks (tool calls, cache stats, tags,
-session_id, intent, user) — powering the monitor widget's drill-downs.
+session_id, intent, user) -- powering the monitor widget's drill-downs.
 
 What's NOT viable (ruled out by the probes): writing to fsr-ai's
 `llm_activity_log` sealab table (no route, no DB access), routing the
@@ -393,24 +393,24 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 
 ## 8. Phased build order
 
-1. **Connector: dual-write path** — `_log_llm_activity(record)` helper at
+1. **Connector: dual-write path** -- `_log_llm_activity(record)` helper at
    the existing per-turn telemetry call site. Two best-effort writes: `POST
    /api/3/llm_activity_logs` (camelCase field map) via crudhub + sqlite
    `agent_usage` insert. Reuse `_usage_cost_usd()` for `costUSD`. Unit tests
    stub crudhub (the `/api/3/` POST is the new surface).
-2. **Connector: monitoring ops** — `list_usage`, `get_usage_summary`,
+2. **Connector: monitoring ops** -- `list_usage`, `get_usage_summary`,
    `list_pending`, `get_audit_trail`, `list_sessions` (extend). Unit tests
    stub crudhub.
-3. **Widget: skeleton** — `socAssistantMonitor`, standalone, dashboard
+3. **Widget: skeleton** -- `socAssistantMonitor`, standalone, dashboard
    context. Edit config (time range, refresh). Mirror `counter`/`datavisualization`.
-4. **Widget: charts** — usage/tokens/cost over time (c3charts). Data from
+4. **Widget: charts** -- usage/tokens/cost over time (c3charts). Data from
    `get_usage_summary` (sqlite) + `/api/3/llm_activity_logs` reads (platform).
-5. **Widget: tables** — pending tasks, scheduled tasks status, user
+5. **Widget: tables** -- pending tasks, scheduled tasks status, user
    activity, audit trail. The audit trail reads `/api/3/llm_activity_logs`
    directly via the standard module API (FormEntityService) for the
    platform-wide view, joined with sqlite for tool-call/session drill-down.
    Filter + export.
-6. **Tests** — hermetic mock e2e (`FSR_HERMETIC=1`); live-sweep that runs a
+6. **Tests** -- hermetic mock e2e (`FSR_HERMETIC=1`); live-sweep that runs a
    chat turn and confirms it lands in BOTH `/api/3/llm_activity_logs` and
    sqlite `agent_usage`. Makefile flow
    (`make ship-verify WIDGET=socAssistantMonitor`).
@@ -418,7 +418,7 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 ## 9. Out of scope for v1
 
 - Writing to fsr-ai's sealab `llm_activity_log` table (no route, no DB
-  access — ruled out by probe, §7.3). The `/api/3/llm_activity_logs` module
+  access -- ruled out by probe, §7.3). The `/api/3/llm_activity_logs` module
   is the audit source.
 - Real-time streaming updates (use polling refresh interval for v1).
 - Alerting / thresholds ("notify when cost exceeds $X").
@@ -426,20 +426,26 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 
 ## 10. v2 follow-ups (from session G live review)
 
-> **Phase 2 — Live Sessions: IMPLEMENTED (code-side, pending live-verify).**
+> **Phase 2 -- Live Sessions: IMPLEMENTED (code-side, pending live-verify).**
 > `list_active_sessions` op + `chat_sessions` table + a "Sessions" tab in the
 > widget. Status is **derived at read time** from `turn_progress` (in-flight)
-> + `suspended_sessions` (HITL-parked) — never a stored column, so it can't
+> + `suspended_sessions` (HITL-parked) -- never a stored column, so it can't
 > drift. The platform `/api/3/llm_activity_logs` module is **not** involved
 > (per user direction: the live-sessions panel reads only the connector's own
-> session stores). Phases 1/3/4 remain open.
+> session stores). Phase 1 (tool-call detail) and Phases 3/4 remain open.
 
-### 10.1 Richer audit trail — per-tool-call detail
+### 10.1 Richer audit trail -- per-tool-call detail
+
+> **Phase 1 -- IMPLEMENTED (code-side, pending live-verify).** `agent_tool_calls`
+> table + per-tool-call capture in `chat_turn`'s `_on_event` + expandable audit
+> rows in the widget. Per-call tokens/cost are intentionally absent (the framework
+> reports totals per round-trip, not per call); the expandable chain shows name,
+> params, status, latency, and result summary.
 
 Today the audit trail shows one row per LLM turn: timestamps, token counts, cost,
 status. It does **not** show:
 - **What tools the agent called** (tool name, params, success/failure, output)
-- **What the agent actually did** — the narrative reasoning, containment decisions,
+- **What the agent actually did** -- the narrative reasoning, containment decisions,
   playbook authoring steps, record mutations
 - Prompt/response full text (currently stored in sqlite but not surfaced in the
   monitor UI)
@@ -450,13 +456,49 @@ aggregate JSON blob). New `agent_tool_calls` table: `(id, usage_id, turn,
 tool_call_index, tool_name, params_json, result_status, result_summary,
 input_tokens, output_tokens, cost_usd, latency_ms)`. The agent's `tool_use`
 frames in the LLM transcript already carry `name`, `input`, `output`, and per-call
-token accounting — wire them through `_log_llm_activity()`. Widget audit trail
+token accounting -- wire them through `_log_llm_activity()`. Widget audit trail
 gains expandable rows that show the tool call chain with params, status badges,
 and inline cost/latency.
 
+**Implemented (Phase 1):**
+
+- **`agent_tool_calls` table** (`storage.py`) -- `(id PK, usage_id FK→agent_usage.id
+  ON DELETE CASCADE, turn, tool_call_index, tool_name, params_json, result_status,
+  result_summary, latency_ms, created_at)`. Linked to its parent round-trip via the
+  row id `record_agent_usage` now returns. `record_agent_tool_calls` inserts the
+  rows; `list_agent_usage` nests them per row via one batched fetch (no N+1) as
+  `tool_call_detail`. Per-call `input_tokens/output_tokens/cost_usd` from the
+  original spec are **omitted** -- the framework's `UsageEvent` reports totals per
+  round-trip, not per call, so storing per-call tokens would be fabricated; the
+  round-trip totals stay on the parent `agent_usage` row (the honest attribution
+  available today).
+- **Capture** (`operations.py`, `chat_turn`'s `_on_event`) -- the actual params +
+  result live on `ToolUseEvent`/`ToolResultEvent` frames, which precede the
+  `UsageEvent` in the stream. A per-turn `_tool_buffer` keyed by `call_id`
+  accumulates them; on each `UsageEvent` (one per LLM round-trip) the buffer is
+  flushed to `record_agent_tool_calls` linked to that round-trip's `usage_id`, then
+  cleared -- so each round-trip's tool calls attribute to THAT round-trip's audit
+  row. Status is derived (`_tool_result_status`: `{"error":…}` / `{"ok":False}` →
+  `error`, else `success`); result is summarized + capped (`_summarize_result`).
+  Best-effort throughout -- telemetry never breaks chat.
+- **Widget** -- the Audit Trail table gains an expand toggle (▸/▾) + a tool-count
+  badge per row. Expanding reveals a sub-table: the tool call chain in order -- #,
+  tool name, status badge, latency (ms/s), params (pretty-printed JSON in a
+  scrollable `<pre>`), result summary. Rows with no tool calls show no toggle.
+- **Tests** -- `tests/test_audit_tool_calls.py` (14 cases: storage FK link +
+  cascade, per-round-trip scoping, ordering, empty, no-op guards; plus the pure
+  `_tool_result_status`/`_summarize_result` helpers -- `operations.py` is imported
+  with a stubbed `connectors` module so the helper tests run off-box). Widget
+  `view.controller.test.js` gains 6 audit cases; e2e smoke asserts the audit tab +
+  empty state render.
+- **Scope note** -- the resume path (`chat_resume`'s `_on_resume_event`) does not
+  yet write `agent_usage` or tool calls (a pre-existing gap: resumed turns don't
+  reach the audit trail at all). Wiring it is a small follow-up for parity; it's
+  not a Phase 1 regression.
+
 ### 10.2 Active agentic sessions widget
 
-The monitor is static — KPIs and historical tables only. No visibility into
+The monitor is static -- KPIs and historical tables only. No visibility into
 what's **running right now**. The user wants to see:
 - Currently active agentic chat sessions (which users have open turns, what
   prompts they're running)
@@ -474,25 +516,25 @@ chat" deep-link. Connector op: `list_active_sessions`.
 
 **Implemented (Phase 2):**
 
-- **`chat_sessions` table** (`storage.py`) — descriptive metadata only:
+- **`chat_sessions` table** (`storage.py`) -- descriptive metadata only:
   `session_id (PK), record_uuid, record_module, current_prompt, started_at,
-  updated_at`. UPSERTed at one hook — the top of `chat_turn` (after
+  updated_at`. UPSERTed at one hook -- the top of `chat_turn` (after
   `reserve_next_turn` + the entity is parsed). `started_at` is first-writer-
   wins; the record/prompt/`updated_at` are last-writer-wins. No `status` column
   by design.
-- **`list_active_sessions(limit)`** (`storage.py` + op) — derives status at
+- **`list_active_sessions(limit)`** (`storage.py` + op) -- derives status at
   read time:
-  - `active` — the session's highest `turn_progress` turn has no terminal
+  - `active` -- the session's highest `turn_progress` turn has no terminal
     frame (a turn is streaming right now).
-  - `waiting_approval` — the session is in `suspended_sessions` (parked at a
+  - `waiting_approval` -- the session is in `suspended_sessions` (parked at a
     HITL gate). Wins over `active`.
-  - `idle` — otherwise.
+  - `idle` -- otherwise.
   `last_activity`/`turn_count` come from the `turn_progress` watermark (so
   resume turns, which write frames but skip the `chat_turn` hook, stay fresh);
   the acting user is JOINed from `session_initiator`. The platform
-  `/api/3/llm_activity_logs` module is **not** read — this panel is connector-
+  `/api/3/llm_activity_logs` module is **not** read -- this panel is connector-
   store-only (per user direction).
-- **Widget** — a "Sessions" tab between Overview and Pending; a table with a
+- **Widget** -- a "Sessions" tab between Overview and Pending; a table with a
   status pip (active = pulsing teal, waiting = amber, idle = faint), the
   session id, user, mounted-record module, the latest prompt (truncated),
   turn count, a relative last-activity ("2m ago"), and a best-effort "Open in
@@ -502,14 +544,14 @@ chat" deep-link. Connector op: `list_active_sessions`.
   future chat-widget listener; sessions with no mounted record are honestly
   disabled (the chat widget is drawer-mounted on a record, so a dashboard-
   originated session can't be reopened from here yet).
-- **Tests** — `tests/test_active_sessions.py` (9 cases: status derivation
+- **Tests** -- `tests/test_active_sessions.py` (9 cases: status derivation
   across idle/active/waiting, waiting-wins-over-active, ordering, first-
   writer-wins `started_at`, user/record/turn-count surface, limit, empty);
   widget `view.controller.test.js` gains 6 cases (tab load, status class,
   relative age, `canOpenInChat`, the openSession broadcast); the e2e smoke
   spec asserts the Sessions tab + empty state render.
 
-### 10.3 Audit deep-dive — agent narrative + tool chain view
+### 10.3 Audit deep-dive -- agent narrative + tool chain view
 
 Beyond per-row drill-down, the user wants a full **session audit view**:
 the complete agent run from prompt → tool calls → approvals → final response,
@@ -523,7 +565,7 @@ a "Turn Detail" overlay: click any audit row → opens a timeline showing the fu
 agent execution: user prompt → tool call sequence (with expand params/output) →
 approvals → final text. This is the "what did the agent do?" view.
 
-### 10.4 Interactive dashboard — pivots and filters
+### 10.4 Interactive dashboard -- pivots and filters
 
 The current KPI cards are static summaries. Make them into
 **click-to-filter** elements: click a model in the per-model chart filters the
@@ -535,7 +577,7 @@ only failed turns; click again to clear).
 
 ### 10.5 Real audit logs integration
 
-The monitor currently reads from the connector's sqlite `agent_usage` — not
+The monitor currently reads from the connector's sqlite `agent_usage` -- not
 from the platform's `/api/3/llm_activity_logs` module directly. This means the
 monitor only shows the SOC Assistant connector's own calls, not the platform-wide
 FortiAI audit trail. **Fix**: For the "Audit Trail" tab, option to switch to
