@@ -5,7 +5,33 @@ widgets work. The detailed plans live in their own docs (linked below); this fil
 is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-23 (session 4i — 🟢 ZTPF tool-robustness SHIPPED to .206. Framework **0.4.47** (list-form filters + name-list relationships) → connector **0.5.12** → widget **1.2.36**; 3 ztpf personas upserted (device/metadata/authoring). **Live-proven:** `list_module_playbooks` returns 6 device playbooks; **actual `run_playbook` execution** — "Synch Device DVMDB info from FMG" on FG1 triggered → `status: finished` (workflow pk 5671). Closes the ztpf Track-1 ship + the "run not verified live" gap. UI scenario pass pending box login.)_
+_Last updated: 2026-07-27 (session C — 🟢 **Scheduled Agent Tasks + SOC Assistant Monitor — BUILT, COMMITTED, SHIPPED to .159.** Both features from the session-C plans are now implemented, gated green, and deployed: **Connector v0.5.36** (6 workers recycled + verified; 10 new ops: 6 scheduled-task ops + 4 monitor ops; dual-write telemetry hook to `/api/3/llm_activity_logs` + sqlite `agent_usage`), **fortiaiAgenticAssistant v1.2.44** (Scheduled Tasks panel: create/edit/run-now/delete with cron→human preview), **socAssistantMonitor v1.0.1** (new standalone dashboard: glassy KPI cards w/ SVG sparklines, gradient area chart, per-user rollup, tabbed overview/usage/audit/pending views). All tests green (893 widget + 57 connector). Both widget repos committed; connector committed `97366ff`. The two session-C Open rows are closed — see Done.
+
+_Prior (same session): 🔵 **Two feature plans written + platform probed on .159/.206.** Authored `docs/plans/scheduled-agent-tasks.md` (recurring agent tasks inside `fortiaiAgenticAssistant`) + `docs/plans/soc-assistant-monitor.md` (a separate `socAssistantMonitor` dashboard widget: usage/tokens/cost over time, pending HITL tasks, per-user activity, auditable LLM-call trail). Both grounded in live-verified platform facts, not assumptions. **Key probe results:** (1) the scheduler is django-celery-beat at `/api/wf/api/scheduled/` — `id` is a rotating Fernet token (key by `name`), `kwargs` carries only `wf_iri` (no free-form payload → **the playbook IS the task**), full create/get/trigger/disable/delete cycle confirmed on .159; the connector already reaches `/api/wf/` via crudhub (`operations.py:6583,6610,6963`) so zero new transport. (2) **`/api/3/llm_activity_logs` is the audit home** — a real platform module (102 rows on .206, `App\Entity\Ai\LLMActivityLog`), writable by the crudhub service account via standard `POST /api/3/llm_activity_logs` (proven end-to-end on .206). This **flips the earlier draft**: the connector writes here per LLM turn (camelCase field map) as the primary audit path; sqlite `agent_usage` is the secondary store for the richer fields the module lacks (tool_calls, cache stats, tags, session_id, intent). Do NOT confuse with fsr-ai's internal `llm_activity_log` sealab-DB table (no route, fsr-ai-only writer — ruled out). (3) Transport probe: `/api/3/*` works via crudhub (same as `push_playbook`); `/api/ai/*` is RBAC-gated by PHP (403s the service account on most routes); `/ai/*` direct to fsr-ai:8001 403s (HMAC key mismatch). See the two new Plan-docs rows.)_
+
+_Prior: 2026-07-27 (session B — 🟢 **GA demo prep on .206 + .159 recovery.** Seeded 3 indicator-rich demo alerts on .206 (ransomware precursor / SSH brute-force / C2 beacon); configured all three response connectors on .206 (FortiGate `fortigate-lab`, FortiEDR `fortiedr-lab`, **FortiSIEM auto-installed v6.1.1 from Content Hub** + `fortisiem-lab`) — containment now executes live on .206. Enhanced `configure_fortisiem.py` to auto-install a missing connector from Content Hub. **.159 fixed**: UI `alerts metadata not found` was post-reimage stale client metadata (server-side fully intact) — republish + clean browser context cleared it (user-confirmed); the connector 0.5.34/fw 0.5.7 mismatch self-healed (0.5.7 now installed AND on public PyPI, health_check clean). Discovered the native `llm_activity_logs` module + an MCP tooling gap. See the session-B banner for follow-ups.)_
+
+_Prior: 2026-07-27 (session — 🟡 **run-vs-author mis-routing fixed in the framework (3 commits, 2135 offline-green); NOT released, NOT shipped, NOT live-proven.** Levers 1+2 landed on framework `main`; fw 0.5.7 was un-published at the time — **now published to public PyPI** (0.5.7 is the current latest). Connector 0.5.34 on .159 pins 0.5.7 and imports it cleanly. See the 2026-07-27 banner for the remaining open items.)_
+>
+> _**Tracker reorg, same day:** follow-ups from sessions 4g → 07-27 lived only inside the
+> banners and were invisible from the Open table — they are now rows in **🔴 Open / next up**
+> (newest-first, above a divider). The three plans written since the last index audit
+> (`state-derived-intent-and-tool-slicing`, `assistant-skills-learned-house-rules`,
+> `connector-install-wizard-api-map`) are now in **Plan docs**, which is 1:1 with `docs/plans/`.
+> **🟡 Built but uncommitted** gained a current table (its only note was a stale 2026-07-05
+> all-clean sweep). Convention going forward: a banner records what happened; anything still
+> owed must also get an Open row, and a new plan is only tracked once it has a Plan-docs row._
+>
+> _**⚠️ The 2026-07-27 banner below is partly STALE — verified against the repos during the reorg.**
+> It says fw 0.5.7 is unpublished and Lever 2 is dead code; **both are closed**: 0.5.7 is on PyPI,
+> connector **0.5.34** pins it, and `classify_run_or_author` is wired at `operations.py:2362`.
+> The banners are append-only history and were not rewritten — **the Open table is the authority
+> on what is still owed.** Assistant Skills went further than any banner records: live-proven
+> end-to-end on .159 the same day, though its code is still uncommitted._
+
+_Prior: 2026-07-26 (session — 🟡 **M2 per-page MCP surfacing BUILT + SHIPPED conn 0.5.25 to 159, offline-green (549 passed); LIVE DEMO BLOCKED by a 159 box outage.** Deterministic core (a) + persona composition (step 4): affordance-class + curated↔MCP capability maps in `triage_sources.py`; persona `jSONValue.mcp` block (`PersonaMcp`) in `profiles.py`; `_tools_for_persona` COMPOSE-not-replace; two pure filters in `_advertised_tools` threaded at all 3 turn-like callsites; `test_surfacing_oracle.py` (14 tests, grounded in live inventory deepwiki 3 / fortisiem 20 / soc 9). **⚠️ Code still UNCOMMITTED in the connector `main` worktree.** **⚠️ 159 outage:** FortiSOAR frontend down — ports **13000 (API) + 11000 (admin-SSH) both refuse**, VM up on stock 22/443 → fresh workers can't materialize external MCP nor reach the LLM. Plan: [state-derived-intent-and-tool-slicing.md](docs/plans/state-derived-intent-and-tool-slicing.md) §M2. Memory: `resume_2026_07_26_fortisiem_and_m2`.)_
+
+_Prior: 2026-07-23 (session 4i — 🟢 ZTPF tool-robustness SHIPPED to .206. Framework **0.4.47** (list-form filters + name-list relationships) → connector **0.5.12** → widget **1.2.36**; 3 ztpf personas upserted (device/metadata/authoring). **Live-proven:** `list_module_playbooks` returns 6 device playbooks; **actual `run_playbook` execution** — "Synch Device DVMDB info from FMG" on FG1 triggered → `status: finished` (workflow pk 5671). Closes the ztpf Track-1 ship + the "run not verified live" gap. UI scenario pass pending box login.)_
 
 _Prior: 2026-07-23 (session 4h — 🟢 TWO model-agnostic tool fixes shipped to GA. (1) output-binding: `get_op_schema` teaches `.data.<field>`; haiku S3 0/5 → 5/5 (fw 0.4.45/conn 0.5.10). (2) config-less verify false-positive on cyops_utilities fixed (fw 0.4.46/conn 0.5.11). Direction set: support MOST models, harden the tool, Frank-local primary loop; dropped 4g #2/#3. See [[model_agnostic_tool_robustness_direction]].)_
 
@@ -20,6 +46,130 @@ _Prior: 2026-07-20 (session 3q — **FULL-LLM `chat_turn` integrated proof CLOSE
 > _Prior: 2026-07-20 (session 3p — **soc-401 fix completed via API-KEY path + BOX-PROVEN on 206.** Read the gateway source on-box (`/opt/mcp-server`): `FortiSOARApp` replays the `Authorization` header **verbatim** on downstream `/api/3`; `auth_service.py` accepts "Bearer OR **API-KEY**". So the fix is any non-URI-bound, user-mapped credential — shipped an **API-KEY** path (preferred over bearer: static `Authorization: API-KEY <key>`, no minting) `soar_api_key` field, priority api_key>bearer>hmac. Added diagnostic op **`probe_native_mcp`**. Created a FortiSOAR api-key user (SOC Analyst) + a fresh `fsrpb-apikey-proof` config via pyfsr (no clobber). **A/B on 206 through the real gateway (worker context): HMAC → `get_indicators` 401; API-KEY → `status:success` real data.** connector **0.4.91** on 206. Api-key auth 400s on 159 (per-box URL-scoping) so proof ran on 206. Prior session 3o below.)_
 
 > **🎯 TOP PRIORITY (user): make the SOC assistant look great in a GA demo.**
+>
+> **▶ 2026-07-27 (session B) — 🟢 GA demo prep on .206 + .159 recovery + tooling finds.**
+> Driven by a live-demo crunch; demo pivoted from .159 → **.206**.
+> - 🟢 **3 demo alerts seeded on .206** (indicator-rich so triage/hunt ground on real data):
+>   `Ransomware Precursor: vssadmin Delete Shadows on WIN-DC01` (Critical, id 90,
+>   uuid `7c9045a1-853c-4cbb-912a-2dc1c1e4100d`) · `Brute-Force: 47 Failed SSH Logons on
+>   bastion-prod-01 from 203.0.113.66` (High, id 91, `61ad5575-…`) · `C2 Beaconing to
+>   45.155.205.233 from finance-ws-12` (Critical, id 92, `24fc81b2-…`). Each carries host/IP/
+>   user/hash/JA3/MITRE in the description. Created via `create_record` (MCP), instance 206.
+> - 🟢 **All 3 response connectors configured + Available on .206** via the commit-safe scripts
+>   in `…/ConnectorsV2/fsr-playbook-builder/scripts/` (creds in gitignored `.env.fortigate/
+>   .fortiedr/.fortisiem`; box env `…/fortisoar-widget-harness/.env.206`):
+>   FortiGate `fortigate-lab` (block IP, cfg `315e75ea`), FortiEDR `fortiedr-lab` (isolate,
+>   org **Palm Labs**, cfg `d1a91b44`), **FortiSIEM auto-installed v6.1.1 from Content Hub**
+>   then `fortisiem-lab` (cfg `223a41de`). Containment now EXECUTES live on .206 (was card-only).
+> - 🟢 **`configure_fortisiem.py` enhanced** — new `_ensure_installed()` installs a missing
+>   connector from Content Hub (`connectors.install(name, version, wait=True)`; version
+>   auto-discovered via `content_hub.find_uninstalled_connector`) before configuring.
+>   Flags: `--install-version <v>` to pin, `--no-install` to opt out. Proven: it installed
+>   fortinet-fortisiem 6.1.1 on .206 → `Import Complete` → configured → Available.
+> - 🟢 **.159 UI `alerts metadata not found` FIXED** (user-confirmed). NOT data loss: server-side
+>   `alerts` intact in `/api/3/modules` (67), `model_metadatas` (45), `attribute_metadatas`,
+>   `staging_model_metadatas`, and the UI mmd locales — all carry alerts. Root cause = the SPA's
+>   client metadata store (`u.get("metadata.alerts")`, localStorage `cs.metadata.*`) held a
+>   **stale/partial copy from the reimage window**; a hard reload keeps localStorage so it
+>   persisted. Fix = `publish` (regenerated ModelMetadata + cleared caches) **+ a clean browser
+>   context** (Clear site data / fresh Incognito *after* the publish). The earlier Incognito test
+>   predated the publish, which is why it looked server-side.
+> - 🟢 **.159 connector self-healed.** The `fsr_playbooks version mismatch: worker imported
+>   '0.5.6', connector pinned '0.5.7'` error class stopped after 0.5.7 finished installing
+>   (~18:38); **fw 0.5.7 is now on public PyPI** (latest) AND installed on-box. Live `health_check`
+>   on `fsrpb-41mini` (connector 0.5.34) returns clean: `ok, llm_reachable (125 models),
+>   fsr_soc_triage_pkg ok, live_crudhub_available, NO mismatch`.
+> - 🆕 **Native `llm_activity_logs` module discovered** (entity `App\Entity\Ai\LLMActivityLog`,
+>   endpoint `/api/3/llm_activity_logs`; 96 rows on .206). It's the platform-wide per-LLM-call
+>   audit — DISTINCT from the connector's agent-session transcripts (`list_agent_sessions`/
+>   Widget History). It does NOT appear in `list_modules` (AI/system module, not CRUD).
+>
+> **🔵 FOLLOW-UPS from session B:**
+> 1. 🟠 **MCP `fortisoar` tooling gap** — `list_modules`/`describe_module` present an
+>    incomplete list as complete, hiding AI/system modules (`llm_activity_logs`, `assistant_skills`)
+>    and the `describe_module` error even ships a misleading `available[]`. Proposed fixes:
+>    `list_modules include_system=true` sourced from `/api/3/model_metadatas`; on a name miss,
+>    probe `/api/3/<module>` before failing; reword `available` as "standard CRUD (not exhaustive)".
+>    (User asked whether to improve this — not yet implemented.)
+> 2. 🟠 **`scenarios.local.159.json` authored, never run.** Built a 5-row demo-verification
+>    matrix for .159 (T1 triage / T2 hunt / TB block-IP approval / B1 explain-playbook /
+>    B2 add-error-handling) on real .159 records (alert `e94dc2dc` IPS exploit; playbooks
+>    `0d0a1c8b` Hunt Indicators, `20f32ef0` Link Similar Alerts). Run via
+>    `make test-matrix-live MATRIX_ENV=.env.159` (headed). Not executed this session.
+> 3. 🟡 **.206 containment is now LIVE-EXECUTABLE** — a demo "block that IP" / "isolate that host"
+>    will push to a real device. Decide whether to actually approve-and-execute on stage
+>    (FortiEDR isolate is reversible via `unisolate_collector`; FortiGate block persists).
+> 4. 🟡 **Confirm the .159 fix holds** through a real alert-open + widget drawer mount (the
+>    demo pivoted to .206 before this was rehearsed on .159).
+>
+> **▶ 2026-07-27 (session) — 🟡 run-vs-author mis-routing FIXED offline; release + ship + live proof ALL still open.**
+> Defect (from the ZTPF thumbs-down sessions): asking to **run an already-deployed playbook by name**
+> got treated as an *authoring* task — the model called `verify_playbook`/`validate_yaml`/`compile_yaml`
+> with a playbook NAME and blank `yaml_text`, fabricated YAML, and never triggered anything. Live on 8.0
+> this was **0/3**. Three commits on framework `main`, full suite **2135 passed / 9 skipped**:
+> - `af77ef6` — build system prompt: route "run the existing playbook X" to `run_playbook` **first**;
+>   `run_playbook`'s docstring restated in run/execute/trigger terms so it's selectable from wording alone.
+> - `f5cf78c` — **Lever 1 (dispatch forcing-redirect).** Authoring tool + playbook name + blank YAML is
+>   nonsensical for authoring and unambiguous for "run it" ⇒ `dispatch()` **re-dispatches `run_playbook`
+>   itself** rather than returning an advisory the model can ignore (a passive tool_result was unreliable —
+>   gpt-4.1-mini reads it and wanders back into authoring). Keyed on **call shape, never on the analyst's
+>   words**, so it holds in any language. Goes **through the same tier gate** — tier-3 still yields the
+>   approval envelope, nothing runs un-approved. Mutation-checked: disabling the guard turns 6 tests red.
+> - `c398026` — **Lever 2 (run-mode slice + run/author classifier).** Covers the case Lever 1 can't see:
+>   the model fabricating *full* YAML with no name to key on. A run-classified turn collapses the advertised
+>   slice to a strict allowlist — **`run_playbook` alone**, no authoring terminal, no discovery to wander into.
+>   Classifier takes an injected `complete(system, user)` (provider-agnostic), fails **open** to `other`.
+>
+> **⚠️ OPEN — nothing below is done:**
+> 1. **fw 0.5.7 UNPUBLISHED.** `make release` is blocked by the sandbox classifier (public PyPI publish);
+>    needs a human to run it. An earlier attempt failed the **clean-tree gate**, not the publish — tree is
+>    clean now. Until this lands, items 2–4 cannot start.
+> 2. **Connector not bumped/shipped.** Still pins `fsr-playbooks==0.5.6`; connector sits at **0.5.32**
+>    (uncommitted `info.json`/`requirements.txt`). Then `make bump-framework VERSION=0.5.7` → `make ship ENV=…/.env.206`.
+> 3. **No live proof on .206.** Repro is the original thumbs-down ask ("run these steps") against the ZTPF
+>    persona/records. **Grading note:** the expected pass is `unknown_playbook` + the real candidate list **only
+>    when the name doesn't resolve**. A playbook that *does* resolve still returns an **approval card** — that's
+>    Lever 1 routing through the tier gate by design, NOT a failed fix. Don't read a correct card as a regression.
+> 4. **Lever 2 is UNWIRED.** `classify_run_or_author` / `tools_for_run_mode` have **zero callers** — dead code
+>    until the connector threads the classifier into its turn path and picks the run-mode slice. Only Lever 1
+>    is actually live-effective after the ship.
+> 5. **Connector release notes are placeholders** — `0.5.30`/`0.5.31`/`0.5.32` all say "_TODO: describe this release._".
+> 6. **Pre-existing red, unrelated:** `tooling/tests/integration/test_e2e_runs.py::test_stage4_manual_input_resume`
+>    and `::test_stage5_manual_input_multi_field` fail against box .205 — `'FortiSOAR' object has no attribute
+>    'system_settings'` (pyfsr API drift). Predates this session; not a gate on the ship.
+>
+> _Hygiene: an untracked `build/` artifact dir in the framework repo trips the release clean-tree gate and is
+> not gitignored — moved aside this session; consider adding it to `.gitignore`._
+>
+> **▶ 2026-07-26 (session, cont.) — 🟢 M2 per-page MCP surfacing LIVE-VERIFIED on 159 (conn 0.5.28).**
+> 159 fully recovered (license lockout + egress gone): `health_check` → `0.5.28, llm_reachable=true
+> (125 models)`. M2.1 dispatch bug fixed (`d8f712e`: `list_mcp_servers` was in info.json/operations
+> but not `_LIVE_OPERATIONS` → `unknown operation`; + `test_every_info_json_operation_has_a_handler`
+> guard). **Per-page surface PROVEN live** via `list_mcp_servers`: module=None→all; alerts(soc_triage)
+> →[fortisiem,soc]; workflows(authoring)→[deepwiki] — exactly the spec. Servers wired into `fsrpb-41mini`
+> (deepwiki3/fortisiem17/soc9); cold workers return `servers:[]` (process-global materializer, warm first).
+> Code committed on `main` (d8a6e44/b6adbfb/d8f712e), tree clean. ⚠️ Minor follow-up: `allowlist_keys`
+> always `[]` (bare-op config doesn't carry `mcp_allowlist`; only a real `chat_turn` hydrates it — cosmetic).
+> ⏳ Remaining: (1) confirm widget emits `module=workflows` from a playbook page; (2) widget-tier in-browser
+> rehearsal of the per-page surface (the money demo). Memory `resume_2026_07_26_fortisiem_and_m2`.
+>
+> **▶ 2026-07-26 (session) — 🟡 M2 per-page MCP surfacing BUILT + SHIPPED (conn 0.5.25 on 159); live demo blocked by box outage.**
+> Problem M2 fixes: every page advertised the SAME materialized MCP surface (all servers in `mcp_allowlist`),
+> regardless of what the analyst is looking at (live-confirmed: identical 29 MCP tools across triage/build and
+> module=None). M2 makes the advertised surface a deterministic function of the page (module).
+> - **(a) Deterministic core** — `fsr_soc_triage/triage_sources.py`: `AFFORDANCE_SERVERS` (soc_triage→{fortisiem,soc},
+>   noc_device→{fortisiem}, authoring→{deepwiki}) + `MODULE_AFFORDANCE` (unmapped ⇒ unrestricted/fail-open) +
+>   `CAPABILITY_DEDUP` (curated `siem_events_for_incident`/`siem_raw_query` win over their `mcp_fortisiem__*` dupes).
+>   Two pure filters `apply_server_surfacing` + `apply_capability_dedup` → `surface_page_tools`.
+> - **(step 4) Persona composition** — `profiles.py` `PersonaMcp` (`servers`, `capability_dedup`) parsed from
+>   `jSONValue.mcp` (fail-open) + lint; `_tools_for_persona` COMPOSE-not-replace (`tools_allow ∪ afforded MCP`);
+>   `_advertised_tools` gains `module=` + persona overrides, threaded at chat_turn/resume/list_agent_tools.
+> - **Tests:** `test_surfacing_oracle.py` (14, grounded in live inventory) + 5 profiles parse/validate. Full suite
+>   **549 passed / 1 skipped**, no regressions. Shipped **connector 0.5.25** to 159 (5 workers recycled).
+> - **⚠️ OPEN:** (1) code **UNCOMMITTED** in connector `main` worktree; (2) **live per-page demo BLOCKED** — 159
+>   FortiSOAR frontend down (13000 API + 11000 SSH refuse; VM up on 22/443); (3) when box back: verify one
+>   unreachable server doesn't poison on-box `soc`/internal `fortisiem` materialization; fill real authoring
+>   module name in `MODULE_AFFORDANCE` (guessed `workflows`). Plan §M2, memory `resume_2026_07_26_fortisiem_and_m2`.
 >
 > **▶ 2026-07-23 (session 4i cont.) — 🟢 Multi-gate manual-input CHAIN fixed + live-proven (connector 0.5.13 on .206).**
 > A playbook that paused on a SECOND `manual_input` after the first was submitted dead-ended in the widget:
@@ -1539,8 +1689,31 @@ credentials") — env, not a widget bug; connector test env-skips it cleanly.
 
 ## 🔴 Open / next up
 
+_Ordered newest-first. Rows above the `───` divider were opened by sessions
+2026-07-23 → 07-27 and had lived only in the banners until the 2026-07-27
+tracker reorg; rows below it are the older standing threads._
+
 | Thread | Next action | Blocker | Doc |
 |---|---|---|---|
+| 🟢 **Manual-input FORM renders in the widget — FIXED + live-verified .206 (conn 0.5.37)** | A record-action `run_playbook` that pauses on a `manual_input` step never showed its fillable form — the agent only narrated "what value?" and the run sat paused. **Root cause:** `run_playbook` is tier-3 approval-gated, so its `tool_use` is in the PRIOR turn; the resume turn's transcript opens with an ORPHAN `tool_result` whose tool name can't resolve in the current turn, and the `manual_input` card synthesis in `_wire_transcript` was gated on that name → skipped the orphan → no form card. **Fix:** allow an orphan (unknown-name) `tool_result` through to `_manual_input_card_from_awaiting` (self-validates on `code==awaiting_input` + fillable fields); plus a bounded `_pending_input` poll in `_awaiting_or_slow` for form-lag. ✅ **Live-verified .206**: 1-gate + 2-gate → `tool_use→approval_request→tool_result→manual_input→stream_end`, card carries the real fillable fields (`note`/`approver`) wired to the run IRI; connector-level fill→resume drives to `finished`. Repro playbooks seeded via `scripts/seed_manual_input_playbook.py`. ✅ **COMMITTED** `a62b7a7`; 4 regression tests. **Along the way:** .206 was found running the OLD connector **0.5.29** (skills read-path + record-binding fix were never deployed there) → deployed **0.5.34→0.5.37**; this is what actually made skills fire on .206 and fixed `record_required`. | none — fixed | connector `release_notes.md` 0.5.37; memory `manual_input_chain_resume` |
+| 🟢 **Scheduled Agent Tasks — SHIPPED to .159 (conn 0.5.36, widget 1.2.44)** | ✅ **BUILT + COMMITTED + SHIPPED.** Connector: 6 ops (`create_/list_/get_/update_/delete_/run_scheduled_task_now`) reusing `push_playbook` + crudhub `/api/wf/api/scheduled/`; runner-playbook YAML compiler (SetVariable prompt/intent/session_id + Connectors chat_turn, compiles 0-error); `storage.scheduled_tasks` table + CRUD. Widget: Scheduled Tasks panel (overflow-menu → list/create-edit form with cron→human-readable preview, run-now, delete) + 10 op wrappers in `fsrPbAgent.service.js`. 12 unit tests. **The playbook IS the task** (schedule `kwargs` carry only `wf_iri`). | ✅ done | `docs/plans/scheduled-agent-tasks.md` |
+| 🟢 **SOC Assistant Monitor widget — SHIPPED to .159 (conn 0.5.36, widget 1.0.1)** | ✅ **BUILT + COMMITTED + SHIPPED.** Connector: 4 monitor ops (`list_usage`, `get_usage_summary`, `list_pending`, `get_audit_trail`) + `storage.agent_usage` table (per-turn telemetry w/ bucket/metric/group_by aggregation) + `log_llm_activity()` dual-write (POST `/api/3/llm_activity_logs` + sqlite) wired into the `chat_turn` telemetry hook. Widget: standalone dashboard — glassy KPI cards w/ SVG sparklines, gradient area chart, per-user rollup, tabbed overview/usage/audit/pending views, `fsrMonitorAgent.service.js`. 5 unit + 1 e2e smoke test. | ✅ done | `docs/plans/soc-assistant-monitor.md` |
+| 🟠 **Run-vs-author mis-routing — live-verify on .206** | ⚠️ _The 2026-07-27 banner below is STALE on this. Verified 07-27: framework **0.5.7 IS published on PyPI**, connector **0.5.34** pins it, and **Lever 2 IS wired** (`classify_run_or_author` called at `operations.py:2362`) — the banner's "unpublished / dead code" items are **closed**._ What genuinely remains: the **live repro on .206** with the original ZTPF thumbs-down ask (the .159 work proved skills, not this). **Grading note:** an approval card for a playbook that *resolves* is Lever 1 working through the tier gate — not a regression; the pass signal is `unknown_playbook` + a real candidate list only when the name does NOT resolve. | none | 2026-07-27 banner (stale); connector `operations.py:2353-2362` |
+| 🔴 **Dep-upgrade gotcha — `make ship` does NOT install a bumped framework pin** | **Root-caused 2026-07-27, affects every future pin bump.** FortiSOAR sets `requirements_installed` per connector (migration 0012) and **skips the pip step on a `$replace` install** — so a bump ships the new wheel to `<install_dir>/wheels/` but never installs it into runtime `conn_pkgs`; workers keep importing the old version and `verify` 400s "version mismatch". Uninstalling would **drop the config** (LLM keys + MCP allowlist). Config-preserving heal: `pip install --prefix <integrations_env>/conn_pkgs --no-index --no-deps --upgrade --find-links <install_dir>/wheels fsr-playbooks==<pin>` **then republish** (`make ship BUMP=none`) — `systemctl restart cyops-integrations-agent` alone does **not** recycle exec workers. `--no-index` uses the bundled wheel, so no pip index is needed (the pip.conf/PyPI theory was a red herring). **A `deploy.sh` auto-heal (`heal_runtime_dep` on verify-mismatch) is DESIGNED but not applied** — the classifier blocks writing the embedded remote sudo, so a human must apply it to make future bumps self-heal. | 🔴 auto-heal needs a human to apply | memory `assistant_skills_learned_house_rules`; connector `scripts/deploy.sh` |
+| 🟠 **Connector release notes are placeholders** | **Six** releases — `0.5.29` … `0.5.34`, all dated 2026-07-27 — read "_TODO: describe this release._". Backfill before the next ship. | none | connector `release_notes.md` |
+| 🟠 **GA demo box 159 provisioning RESET by reimage** | Software tier is GREEN (conn 0.5.28, M2 surfacing live), but the **box** lost its demo state: the seeded demo alert is gone and **FortiEDR + FortiGate are unconfigured**, so beat 5 (containment) cannot run. Re-seed the demo record (`scratchpad/seed_demo_alert.py`, must name a REAL collector — `The-Flame`) and re-configure both connectors — **commit-safe config helpers for exactly this now exist** (connector `c490bbe`). | credential-gated (needs the user) | memory `ga_demo_reimage_regression_159`, `ga_demo_must_be_real_collector`; `docs/plans/ga-demo-soc-investigation.md` |
+| 🟠 **M2 per-page surfacing — widget-tier proof remains** | Connector tier is live-verified on 159 (`list_mcp_servers`: alerts→[fortisiem,soc], workflows→[deepwiki], None→all). Remaining: (a) confirm the **widget actually emits `module=workflows`** from a playbook page — `MODULE_AFFORDANCE`'s authoring module name was **guessed**; (b) in-browser rehearsal of the per-page surface (the money demo); (c) verify one unreachable server doesn't poison on-box `soc`/`fortisiem` materialization. 🟡 Cosmetic: `allowlist_keys` always `[]` on a bare-op call (only a real `chat_turn` hydrates `mcp_allowlist`). | none — needs a box + browser window | `docs/plans/state-derived-intent-and-tool-slicing.md` §M2; memory `resume_2026_07_26_fortisiem_and_m2` |
+| 🟠 **State-derived intent — Phase 1 / Phase 3 open** | Phase 0 + Phase 2 (state-derived frontier) and M1/M3 (external MCP) are SHIPPED + live-proven on 159. Still open: **Phase 1** (demote the page latch to a page *prior* in the widget) and **Phase 3** (derive disposition from state, not just intent). This plan supersedes 4f follow-up #2 below. | none | `docs/plans/state-derived-intent-and-tool-slicing.md` |
+| 🟢 **Assistant Skills — ROLLED OUT + read-path TESTED on BOTH .159 and .206** | Per-module house rules as records in a custom `assistant_skills` module — **tools stay generic; skills shape how tools are used** (a preference like "hide deprecated-named playbooks" is a skill line, never a tool filter). ✅ **Rolled out to BOTH boxes 2026-07-27** via a new idempotent, pyfsr-typed script `scripts/setup_assistant_skills.py` (creates the module, upserts the `ztpf_automation_actions` authoring persona, grants skill-capture on the ztpf personas, seeds the 8 FIXME skills). On each box: module (camelCase fields; `instruction` is **Long Text** — the script self-heals a pre-existing varchar(255) column via `set_field_type`), `ztpf_automation_actions` persona (NO build/containment tools — the absence that stops the "Build playbook" leak), `ztpf_devices`/`ztpf_metadata_sources` personas granted `may_write:assistant_skills` + write tools, all 8 skills seeded. ✅ **Live read-path test passed on BOTH** (`skills_for_prompt` against real data): `ztpf_devices`→5 (priority-sorted p60→p30), `ztpf_automation_actions`→2, `ztpf_metadata_sources`→1, `alerts`→0 on .206 (correctly scoped; .159 `alerts`→1 = last session's proof-marker). Read path = `skills.py` `load_skills`/`render_skills_block`, folded at `_resolve_profile`→`_apply_skills`, fail-open, 15 offline tests. Write path needs **no new tool** — a skill is a record captured via the persona-gated tier-3 `create_record`. ✅ **COMMITTED**: code `3477626` (0.5.34 read-path + Lever 2; 398 offline pass); docs+script `e402357` (README Personas&Skills + config/ops refresh, `docs/SKILLS_AUTHORING.md`, `setup_assistant_skills.py`). ✅ **BEHAVIOR now confirmed HONORED on .206 in the widget** (after deploying current code — see below): live matrix turns show skills 1,2,3,4,6,7,8 honored (e.g. refuses to "build a playbook" on an automation-action page; computes run-group relative time; hide-deprecated; pending-steps semantics). ⚠️ **Correction to the earlier claim:** .206 was running the OLD connector **0.5.29** — the skills read-path (`_apply_skills`, 0.5.34) was NEVER deployed there this session; only the DATA (module/personas/skills) was seeded. Skill 2 "failed" purely because the code was absent. Deploying **0.5.34→0.5.37** to .206 this session is what made skills actually fire (`.159` had 0.5.34 all along). | none | `docs/plans/assistant-skills-learned-house-rules.md`; memory `assistant_skills_learned_house_rules` |
+| 🟡 **Skills — open design questions** | (a) Should a **global** (blank-scope) skill apply to plain triage turns with **no persona**? Today `_apply_skills` only runs when a persona resolves, so house rules can't reach alert/incident pages. (b) Positive `_PROFILE_CACHE` is process-life, so a **newly-added skill needs a worker recycle** to take effect (same property personas already have) — accepted for v1. (c) 8.0 organizational-context module considered as the substrate for tenant-scoped skills, deferred (its semantics = facts about the org, not assistant behavior) — revisit for MSSP. | none | plan §"Follow-ups / open questions" |
+| 🟡 **Two live-found tool fixes not on any box** | (1) **`run_op` rejects stringified params** — the model sends `params='{"indicator":…}'`; dispatch now JSON-parses string→dict before the gate + tier check (framework fix + 4 tests). (2) **SIEM search string-limit crash** — `siem_search_ip` / `siem_events_for_incident` died on `limit="25"` (`'<' int vs str` in `min()`); fixed with `_as_int` + a regression test, verified live. Both ride the next framework release/ship. | fw 0.5.7 release | memories `run_op_stringified_params_fix`, `siem_search_string_limit_crash` |
+| 🟡 **Guards render as red ERROR badges (uncommitted)** | An `ok:false` + `error` result is addressed to the **model**, not the analyst — the widget paints it as a failure. Fix shows an amber **skipped** chip instead. Code exists in the tree and is **uncommitted**. | none — just commit + ship | memory `guards_render_as_errors_in_widget` |
+| 🟡 **4g follow-ups still open (3 of 6)** | Closed: #1 (haiku S3 output-binding → 4h), #2/#3 (per-intent model routing + a stronger GA config — **dropped by the user** in favour of model-agnostic tool hardening). Still open: **#4** gpt-4.1-mini create→enhance mode confusion (drift smell); **#5** harness commit `87ba27d` is local-only (65 ahead, no upstream configured); **#6** no widget DOM / live-sweep tier for the enhancement offer card. | none | 4g banner; memory `resume_2026_07_23_enhance_delivery_ship`, `model_agnostic_tool_robustness_direction` |
+| 🟡 **Manual-input caveat (post-0.5.13)** | The multi-gate CHAIN is fixed and live-proven, but a **MANUAL-trigger** (non record-action) playbook that pauses still returns `not_finished_awaiting_or_slow` with **no form** — only record-action-triggered playbooks get the clean `awaiting_input` seam. | none | 4i-cont banner; memory `manual_input_chain_resume` |
+| 🟡 **Pre-existing red, unrelated to any current thread** | `tooling/tests/integration/test_e2e_runs.py::test_stage4_manual_input_resume` and `::test_stage5_manual_input_multi_field` fail against box .205 — `'FortiSOAR' object has no attribute 'system_settings'` (pyfsr API drift). Predates 2026-07-27; **not a ship gate**. Also: an untracked `build/` dir in the framework repo trips the release clean-tree gate and is **not gitignored** — add it. | none | 2026-07-27 banner |
+| 🔵 **Connector install/configure/ingestion wizard — drive it headlessly** | The full UI construct → HTTP call map is written and partly live-verified on 8.0/159 (§7a). Next: settle §8's open questions against a live box, then implement the pyfsr end-to-end sequence (§7). Unblocks re-provisioning a reimaged box (see the 159 row above) from code instead of by hand. | none — spec ready | `docs/plans/connector-install-wizard-api-map.md`; memory `connector_data_ingest_wizard_pyfsr` |
+| 🔵 **Four connector fixes landed but never written up** | Committed on connector `main` after the last banner was written, so no tracker row or release note describes them: `4455282` harden SIEM/enrichment tools vs model arg shapes + steer the FortiGate block method; `d1c6684` refuse un-runnable playbooks pre-card, sort deliverables, name fields; `7f59335` no unprompted playbook offer off an alert/case/war-room page; `c490bbe` commit-safe FortiEDR + FortiGate config helper scripts. Confirm each is live-verified or still only offline-green, and fold them into the release-notes backfill above. | none | connector `main` git log |
+| — ─────────────── | ─── _older standing threads below_ ─── | — | — |
 | **Catalog freshness — snapshot model unchanged (4f follow-up 1)** | 0.4.42 makes a stale-catalog miss HONEST (`stale_catalog` via the on-miss probe) but does NOT auto-warm. Installing a connector still leaves `fsr_reference.db` wrong until a re-ship force-warms it. Decide: add a cheap box-vs-catalog drift check (connector count/name diff) to `_warmup_needed()`'s existing trigger sites, OR have the probe auto-trigger a re-warm on a confirmed miss. Cost of a live list call was ~0.4-0.5s on 159. | none — design decision | 4f banner above; memory `catalog_snapshot_hides_new_connectors`; connector `fsr_soc_triage/catalog_probe.py`, framework `_shared.stale_catalog_hint` |
 | **Intent model is too coarse (4f follow-up 2)** | Two disjoint tool slices + a one-way latch don't match how analysts work — read record → hunt → author → tweak record. `sess-v6uv6x15` died exactly at an interleave point. 4f made the latch escapable (widget resets intent on new/switched conversation) but the trap itself remains: a build turn still cannot read the record it's mounted on. Consider a single spine with additive capability rather than two mutually-exclusive slices. | none — larger design item | `fsr_playbooks/llm/intents.py` (`TRIAGE_ONLY_TOOLS`/`BUILD_ONLY_TOOLS`), connector `_intent_drop_set`; memory `persona_spine_unification_plan` |
 | **Alert-scenario test matrix (4f follow-up 3)** | 🔴 **The existing suites could not have caught any of 4f's four defects.** All 7 rows in `scripts/scenarios.json` + the T1 set are clean single-purpose arcs on a healthy box. Missing: (a) the interleave — triage → build playbook → then a record question; (b) asking for a connector the box does NOT have; (c) editing the record (`update_record`, now reachable); (d) follow-ups after a playbook save. Grade how each is handled, not just that a turn completes. | none — highest-value testing work | `docs/plans/widget-capability-test-and-persona-rollout.md`; `scripts/scenarios.json`, `scripts/t1_scenarios.py` |
@@ -1711,7 +1884,20 @@ same vision for historical detail.
 
 ## 🟡 Built but uncommitted / unpushed
 
-_2026-07-05 sweep: verified all 5 working repos (fsr_all_widgets, the real
+**Current (2026-07-27) — check these before starting anywhere:**
+
+| What | State |
+|---|---|
+| **Assistant-skills read path** — `fsr_soc_triage/skills.py` + `tests/test_skills.py` | 🔴 **UNTRACKED** (never `git add`ed) despite being **live-proven on .159**. Highest-risk row here: this code is running on a box but exists only in one working tree |
+| Connector `operations.py` (`_apply_skills` + the Lever-2 classifier call), `tools_playbook.py`, `info.json` (0.5.34), `requirements.txt` (pin 0.5.7), `release_notes.md` | Modified, **uncommitted** — this is the diff that is actually deployed on .159 |
+| `scripts/session_analyze.py` (`--replay` / `--defects`) | Modified, **uncommitted** — the diagnostic that produced the 8 FIXMEs |
+| Guards-render-as-errors widget fix (amber **skipped** chip) | Built, **uncommitted** — see the Open row |
+| `run_op` stringified-params fix + SIEM `limit` string crash fix | In framework **0.5.7 (published)**; reach a box only via a connector ship |
+| `deploy.sh` `heal_runtime_dep` auto-heal | **Designed, not applied** — classifier blocks writing the embedded remote sudo; needs a human |
+| Harness `87ba27d` (matrix driver enhancement-offer cards) | Local-only — the harness repo has **no upstream configured**, 65 commits ahead |
+| Framework untracked `build/` dir | Trips the release clean-tree gate; **not gitignored** — add it |
+
+_Historical sweep — 2026-07-05: verified all 5 working repos (fsr_all_widgets, the real
 in-repo `fortisoar-widget-harness`, `widgets-src/fortiaiAgenticAssistant`,
 `fsr-playbook-framework`, `ConnectorsV2/fsr-playbook-builder`) are clean —
 no uncommitted source changes anywhere except stray untracked build
@@ -1766,15 +1952,23 @@ with this repo's nested `fortisoar-widget-harness/`._
 
 ## Plan docs (canonical detail)
 
-> _Index audited 2026-07-22. Every plan doc across the three repos is listed
-> below; previously this section covered only the harness/widget-src ones, so
-> `docs/plans/` and the framework/connector repos were invisible from here._
+> _Index audited 2026-07-22, re-audited 2026-07-27. Every plan doc across the
+> three repos is listed below; previously this section covered only the
+> harness/widget-src ones, so `docs/plans/` and the framework/connector repos
+> were invisible from here. The 07-27 pass added the three plans written since
+> (state-derived, assistant-skills, connector-install-wizard) — `docs/plans/`
+> and this table are now 1:1, so a new plan is only "tracked" once it has a row._
 
 ### `docs/plans/` — this repo (the active workstreams)
 
 | plan | state |
 |---|---|
-| `ga-demo-soc-investigation.md` | 🔵 **TOP PRIORITY** — beat 5 closed, widget rehearsal remains |
+| `scheduled-agent-tasks.md` | 🟢 **2026-07-27, implemented + shipped** — recurring agent tasks inside `fortiaiAgenticAssistant`. Platform-verified on .159: scheduler = django-celery-beat `/api/wf/api/scheduled/`, `id` rotates (key by `name`), `kwargs` carries only `wf_iri` → **playbook IS the task** (one generated runner + one schedule row per task). Connector already reaches `/api/wf/` via crudhub. **Shipped**: conn 0.5.36 (6 ops + runner-playbook compiler), widget 1.2.44 (Scheduled Tasks panel). |
+| `soc-assistant-monitor.md` | 🟢 **2026-07-27, implemented + shipped** — separate `socAssistantMonitor` dashboard widget (usage/tokens/cost over time, pending HITL tasks, per-user activity, auditable LLM-call trail). **Audit path**: write to the native `/api/3/llm_activity_logs` module (POST proven via crudhub) as primary; sqlite `agent_usage` for the richer fields the module lacks. Do NOT target fsr-ai's internal `llm_activity_log` sealab table (no route, ruled out). **Shipped**: conn 0.5.36 (4 monitor ops + dual-write telemetry hook), widget 1.0.1 (standalone dashboard). |
+| `state-derived-intent-and-tool-slicing.md` | 🔵 **most active** — Phase 0/2 + M1/M3 SHIPPED & live-proven on 159; **Phase 1, Phase 3, M2 widget-tier open**. Supersedes 4f follow-up #2 |
+| `assistant-skills-learned-house-rules.md` | 🟢 **2026-07-27, LIVE-PROVEN on .159** (conn 0.5.34 / fw 0.5.7) — `assistant_skills` custom module; ⚠️ code **uncommitted**; **.206 ztpf rollout deferred** by the user. ⚠️ The plan's "Remaining work (box DATA)" section predates the .159 proof — steps 1/2 are done there, and it still reads as if nothing is deployed |
+| `connector-install-wizard-api-map.md` | 🆕 **2026-07-26** — UI construct → HTTP call map for the whole install/configure/ingest path; partly live-verified on 8.0 (§7a); §8 questions open, pyfsr sequence unimplemented |
+| `ga-demo-soc-investigation.md` | 🔵 **TOP PRIORITY** — beat 5 closed in software; **159 reimage wiped the box-side provisioning**, so the demo needs re-seeding + FortiEDR/FortiGate reconfigured |
 | `widget-capability-test-and-persona-rollout.md` | 🔵 next-phase index (C1–C5 + persona rollout) |
 | `agentic-tooling-best-practices-alignment.md` | 🟡 **P0 prerequisite** — three turn-drive harnesses have drifted; unify before comparing results across areas. _Was missing from this index._ |
 | `live-chat-eval-and-build-flow-fixes.md` | 🟡 Phases 1/0/2/4 done; 4 harness fixes + Phase 3 connector open. _Was missing from this index._ |
