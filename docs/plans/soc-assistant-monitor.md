@@ -426,6 +426,14 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 
 ## 10. v2 follow-ups (from session G live review)
 
+> **Phase 2 — Live Sessions: IMPLEMENTED (code-side, pending live-verify).**
+> `list_active_sessions` op + `chat_sessions` table + a "Sessions" tab in the
+> widget. Status is **derived at read time** from `turn_progress` (in-flight)
+> + `suspended_sessions` (HITL-parked) — never a stored column, so it can't
+> drift. The platform `/api/3/llm_activity_logs` module is **not** involved
+> (per user direction: the live-sessions panel reads only the connector's own
+> session stores). Phases 1/3/4 remain open.
+
 ### 10.1 Richer audit trail — per-tool-call detail
 
 Today the audit trail shows one row per LLM turn: timestamps, token counts, cost,
@@ -463,6 +471,43 @@ status, turn_count, started_at, last_activity)`. Status values: `active`
 already in `suspended_sessions`), `idle` (completed, recent). Widget shows
 a real-time table with status pips, last-activity countdown, and "View in
 chat" deep-link. Connector op: `list_active_sessions`.
+
+**Implemented (Phase 2):**
+
+- **`chat_sessions` table** (`storage.py`) — descriptive metadata only:
+  `session_id (PK), record_uuid, record_module, current_prompt, started_at,
+  updated_at`. UPSERTed at one hook — the top of `chat_turn` (after
+  `reserve_next_turn` + the entity is parsed). `started_at` is first-writer-
+  wins; the record/prompt/`updated_at` are last-writer-wins. No `status` column
+  by design.
+- **`list_active_sessions(limit)`** (`storage.py` + op) — derives status at
+  read time:
+  - `active` — the session's highest `turn_progress` turn has no terminal
+    frame (a turn is streaming right now).
+  - `waiting_approval` — the session is in `suspended_sessions` (parked at a
+    HITL gate). Wins over `active`.
+  - `idle` — otherwise.
+  `last_activity`/`turn_count` come from the `turn_progress` watermark (so
+  resume turns, which write frames but skip the `chat_turn` hook, stay fresh);
+  the acting user is JOINed from `session_initiator`. The platform
+  `/api/3/llm_activity_logs` module is **not** read — this panel is connector-
+  store-only (per user direction).
+- **Widget** — a "Sessions" tab between Overview and Pending; a table with a
+  status pip (active = pulsing teal, waiting = amber, idle = faint), the
+  session id, user, mounted-record module, the latest prompt (truncated),
+  turn count, a relative last-activity ("2m ago"), and a best-effort "Open in
+  chat" action. "Open in chat" navigates to the session's mounted record
+  (where the chat drawer mounts) via `$state.go` + `appModulesService`, and
+  broadcasts an `fsrSocAssistant:openSession` event as the forward seam for a
+  future chat-widget listener; sessions with no mounted record are honestly
+  disabled (the chat widget is drawer-mounted on a record, so a dashboard-
+  originated session can't be reopened from here yet).
+- **Tests** — `tests/test_active_sessions.py` (9 cases: status derivation
+  across idle/active/waiting, waiting-wins-over-active, ordering, first-
+  writer-wins `started_at`, user/record/turn-count surface, limit, empty);
+  widget `view.controller.test.js` gains 6 cases (tab load, status class,
+  relative age, `canOpenInChat`, the openSession broadcast); the e2e smoke
+  spec asserts the Sessions tab + empty state render.
 
 ### 10.3 Audit deep-dive — agent narrative + tool chain view
 
