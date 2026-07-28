@@ -25,14 +25,15 @@ the remaining step (R1-gated). Prior sessions A–D → `STATUS_ARCHIVE.md`._
 
 ## 🔥 This week — critical
 
-The four threads to push on, ordered so the highest-risk one is cleared first.
+The threads to push on, ordered so the highest-risk one is cleared first.
+
+> ✅ **Former #1 "Commit the uncommitted box code" — RESOLVED / was a false alarm (2026-07-28).** Verified against git: the .159/.206 running code was already committed on `main` — assistant-skills read-path (`3477626`, 0.5.34), skills guide + setup (`e402357`), connector 0.5.37 (`a62b7a7`). No orphaned box code existed. The only actually-loose work was session tooling, now committed in the builder tree: `a265410` (config-helper consolidation) + `64a9b9a` (`session_analyze --replay`). See the corrected "Built but uncommitted" section below.
 
 | # | Thread | Why now | First concrete action | Doc / detail |
 |---|---|---|---|---|
-| 1 | **Commit the uncommitted box code** | HIGHEST RISK — code is *running on boxes* but exists in one working tree only. A disk loss = silent regression with no source of truth. | `git add` the assistant-skills read path (`fsr_soc_triage/skills.py` + `tests/test_skills.py`, **untracked**) and commit the deployed connector diff (`operations.py` `_apply_skills`+Lever-2, `tools_playbook.py`, `info.json` 0.5.37, `requirements.txt`, `release_notes.md`). Then reconcile the guards-amber-chip widget fix + harness `87ba27d`. | Built-but-uncommitted table below |
-| 2 | **GA demo on .206** | Top standing priority: make the SOC assistant demo great. Box is live (conn 0.5.37, all connectors configured, 3 seeded alerts). | Resolve the **Z5 scenario** decision (retarget vs flip to `manual_input` — one-line edit), then an in-browser rehearsal of the triage→contain arc on .206. | `docs/plans/ga-demo-soc-investigation.md`; Open rows Z5 / SKL-MI2 |
-| 3 | **State-derived intent — P1 / P3 + M2 widget-tier** | The most-active plan; Phase 0/2 + M1/M3 already shipped & live. | Phase 1 (demote the page latch to a page *prior*); Phase 3 (derive disposition from state); confirm the widget emits `module=workflows` for the M2 per-page surface proof. | `docs/plans/state-derived-intent-and-tool-slicing.md` |
-| 4 | **Compiler fidelity — option (a)** | The gate mechanism is built + green on 5 synthesized fixtures; the real 178/400 metric needs a clean box pull. | Do the R1 licensing/PII review on stock content, then a fresh `?$relationships=true` pull of CLEAN playbooks → `make corpus-gate CORPUS_DIR=… MIN_PASS=178`. | `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.1b; memory `roundtrip_fidelity_gate_built` |
+| 1 | **GA demo on .206** | Top standing priority: make the SOC assistant demo great. Box is live (conn 0.5.37, all connectors configured, 3 seeded alerts). | Resolve the **Z5 scenario** decision (retarget vs flip to `manual_input` — one-line edit), then an in-browser rehearsal of the triage→contain arc on .206. | `docs/plans/ga-demo-soc-investigation.md`; Open rows Z5 / SKL-MI2 |
+| 2 | **State-derived intent — P1 / P3 + M2 widget-tier** | The most-active plan; Phase 0/2 + M1/M3 already shipped & live. | Phase 1 (demote the page latch to a page *prior*); Phase 3 (derive disposition from state); confirm the widget emits `module=workflows` for the M2 per-page surface proof. | `docs/plans/state-derived-intent-and-tool-slicing.md` |
+| 3 | **Compiler fidelity — option (a)** | The gate mechanism is built + green on 5 synthesized fixtures; the real 178/400 metric needs a clean box pull. | Do the R1 licensing/PII review on stock content, then a fresh `?$relationships=true` pull of CLEAN playbooks → `make corpus-gate CORPUS_DIR=… MIN_PASS=178`. | `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.1b; memory `roundtrip_fidelity_gate_built` |
 
 ---
 
@@ -85,13 +86,13 @@ tracker reorg; rows below it are the older standing threads._
 
 ## 🟡 Built but uncommitted / unpushed
 
-**Current (2026-07-27) — check these before starting anywhere:**
+**Current (2026-07-28, git-audited) — check these before starting anywhere:**
 
 | What | State |
 |---|---|
-| **Assistant-skills read path** — `fsr_soc_triage/skills.py` + `tests/test_skills.py` | 🔴 **UNTRACKED** (never `git add`ed) despite being **live-proven on .159**. Highest-risk row here: this code is running on a box but exists only in one working tree |
-| Connector `operations.py` (`_apply_skills` + the Lever-2 classifier call), `tools_playbook.py`, `info.json` (0.5.34), `requirements.txt` (pin 0.5.7), `release_notes.md` | Modified, **uncommitted** — this is the diff that is actually deployed on .159 |
-| `scripts/session_analyze.py` (`--replay` / `--defects`) | Modified, **uncommitted** — the diagnostic that produced the 8 FIXMEs |
+| ~~**Assistant-skills read path** — `fsr_soc_triage/skills.py` + `tests/test_skills.py`~~ | ✅ **Was already committed — the "UNTRACKED" claim was stale (verified 2026-07-28).** Landed in `3477626` (0.5.34 read-path + Lever 2). Not orphaned. |
+| ~~Connector `operations.py` (`_apply_skills` + Lever-2), `tools_playbook.py`, `info.json`, `requirements.txt`, `release_notes.md`~~ | ✅ **Committed** — the deployed diff rode `3477626` (0.5.34) → `a62b7a7` (0.5.37). The running .159/.206 code is in version control. |
+| ~~`scripts/session_analyze.py` (`--replay` / `--defects`)~~ | ✅ **Committed 2026-07-28** as `64a9b9a` (builder tree). Config-helper consolidation committed alongside as `a265410`. |
 | Guards-render-as-errors widget fix (amber **skipped** chip) | Built, **uncommitted** — see the Open row |
 | ~~`run_op` stringified-params fix + SIEM `limit` string crash fix~~ | ✅ **Live on .206** (fw 0.5.7 via connector 0.5.37; SIEM fix in 0.5.29→0.5.37). Resolved 2026-07-28 — see Open. |
 | `deploy.sh` `heal_runtime_dep` auto-heal | **Designed, not applied** — classifier blocks writing the embedded remote sudo; needs a human |
