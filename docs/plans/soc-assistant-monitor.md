@@ -426,7 +426,7 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 
 ## 10. v2 follow-ups (from session G live review)
 
-> **Phase 2 -- Live Sessions: IMPLEMENTED (code-side, pending live-verify).**
+> **Phase 2 -- Live Sessions: LIVE-VERIFIED .206 (conn 0.5.43, widget 1.0.5).**
 > `list_active_sessions` op + `chat_sessions` table + a "Sessions" tab in the
 > widget. Status is **derived at read time** from `turn_progress` (in-flight)
 > + `suspended_sessions` (HITL-parked) -- never a stored column, so it can't
@@ -436,7 +436,7 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 
 ### 10.1 Richer audit trail -- per-tool-call detail
 
-> **Phase 1 -- IMPLEMENTED (code-side, pending live-verify).** `agent_tool_calls`
+> **Phase 1 -- IMPLEMENTED + LIVE-VERIFIED .206 (conn 0.5.43).** `agent_tool_calls`
 > table + per-tool-call capture in `chat_turn`'s `_on_event` + expandable audit
 > rows in the widget. Per-call tokens/cost are intentionally absent (the framework
 > reports totals per round-trip, not per call); the expandable chain shows name,
