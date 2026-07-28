@@ -1,7 +1,7 @@
 ---
 title: SOC Assistant Monitor Widget
 category: plans
-status: plan
+status: done-v1
 source: hand-written
 topics:
   - feature-design
@@ -13,7 +13,9 @@ topics:
 summary: Design for a separate dashboard-style widget monitoring the SOC
   Assistant agent: usage/tokens/cost over time, pending tasks, user activity,
   and an audit trail. Includes findings on how FortiSOAR 8.0's llm_activity_log
-  is written and the connector's existing per-turn telemetry.
+  is written and the connector's existing per-turn telemetry. V1 shipped and
+  live-verified; v2 follow-ups track richer audit trail, interactive sessions,
+  and per-tool-call drill-down.
 ---
 
 # SOC Assistant Monitor — design plan
@@ -421,3 +423,77 @@ hitting `/api/ai/*` (PHP RBAC 403s the service account on most routes).
 - Real-time streaming updates (use polling refresh interval for v1).
 - Alerting / thresholds ("notify when cost exceeds $X").
 - Cross-instance aggregation.
+
+## 10. v2 follow-ups (from session G live review)
+
+### 10.1 Richer audit trail — per-tool-call detail
+
+Today the audit trail shows one row per LLM turn: timestamps, token counts, cost,
+status. It does **not** show:
+- **What tools the agent called** (tool name, params, success/failure, output)
+- **What the agent actually did** — the narrative reasoning, containment decisions,
+  playbook authoring steps, record mutations
+- Prompt/response full text (currently stored in sqlite but not surfaced in the
+  monitor UI)
+- Per-tool-call cost attribution (which tool call drove the expensive turn)
+
+**Fix**: Extend `agent_usage` schema with per-tool-call rows (not the current
+aggregate JSON blob). New `agent_tool_calls` table: `(id, usage_id, turn,
+tool_call_index, tool_name, params_json, result_status, result_summary,
+input_tokens, output_tokens, cost_usd, latency_ms)`. The agent's `tool_use`
+frames in the LLM transcript already carry `name`, `input`, `output`, and per-call
+token accounting — wire them through `_log_llm_activity()`. Widget audit trail
+gains expandable rows that show the tool call chain with params, status badges,
+and inline cost/latency.
+
+### 10.2 Active agentic sessions widget
+
+The monitor is static — KPIs and historical tables only. No visibility into
+what's **running right now**. The user wants to see:
+- Currently active agentic chat sessions (which users have open turns, what
+  prompts they're running)
+- In-flight tool calls (agent is mid-loop, not yet done)
+- Session state: `streaming` / `waiting_approval` / `idle` / `suspended`
+
+**Fix**: Add a "Live Sessions" panel that reads from `storage.py`'s
+`suspended_sessions` (for parked HITL) + adds a `chat_sessions` table that
+tracks active sessions: `(session_id, user, record_uuid, current_prompt,
+status, turn_count, started_at, last_activity)`. Status values: `active`
+(LLM streaming), `waiting_approval` (HITL gate), `suspended` (HITL parked,
+already in `suspended_sessions`), `idle` (completed, recent). Widget shows
+a real-time table with status pips, last-activity countdown, and "View in
+chat" deep-link. Connector op: `list_active_sessions`.
+
+### 10.3 Audit deep-dive — agent narrative + tool chain view
+
+Beyond per-row drill-down, the user wants a full **session audit view**:
+the complete agent run from prompt → tool calls → approvals → final response,
+as a timeline. Currently the connector stores each turn's JSONL but no
+queryable per-turn narrative.
+
+**Fix**: New `agent_turns` table: `(id, usage_id, session_id, turn, user_prompt,
+agent_thinking, tool_calls_array, final_response, approvals_count, status, ts)`.
+Wired at `_log_llm_activity()` from the existing transcript frames. Widget adds
+a "Turn Detail" overlay: click any audit row → opens a timeline showing the full
+agent execution: user prompt → tool call sequence (with expand params/output) →
+approvals → final text. This is the "what did the agent do?" view.
+
+### 10.4 Interactive dashboard — pivots and filters
+
+The current KPI cards are static summaries. Make them into
+**click-to-filter** elements: click a model in the per-model chart filters the
+audit trail; click a user in the user activity table filters to that user's
+sessions. The audit trail and other panels respond to the active filters via
+a shared `$scope.activeFilters` state object (time range, user, session, model,
+intent, status). Status pill badges become filter chips (click "error" → show
+only failed turns; click again to clear).
+
+### 10.5 Real audit logs integration
+
+The monitor currently reads from the connector's sqlite `agent_usage` — not
+from the platform's `/api/3/llm_activity_logs` module directly. This means the
+monitor only shows the SOC Assistant connector's own calls, not the platform-wide
+FortiAI audit trail. **Fix**: For the "Audit Trail" tab, option to switch to
+"Platform audit" mode that reads `/api/3/llm_activity_logs` via the standard
+module API (FormEntityService), showing all AI agent activity across instances
+not just the SOC Assistant connector.
