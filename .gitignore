@@ -16,7 +16,7 @@ widgets/
 widgets-extracted/
 templates-extracted/
 
-# FortiSOAR platform assets — proprietary Fortinet JS, NOT redistributed.
+# FortiSOAR platform assets -- proprietary Fortinet JS, NOT redistributed.
 # Each developer fetches their own from a licensed box via `make assets`
 # (scripts/fetch-soar-assets.sh). Only the extractor tooling + docs are tracked.
 fsr_src/app_min/app.unmin.js
@@ -34,12 +34,12 @@ widgets-src/*/
 # widget repo) and must ship with it.
 !widgets-src/_template/
 !widgets-src/_template/**
-# NOTE: fortisoar-widget-harness/ is NO LONGER ignored — the harness is now
+# NOTE: fortisoar-widget-harness/ is NO LONGER ignored -- the harness is now
 # folded into this repo as plain files (was a separate nested git repo). Its own
 # nested .gitignore still applies (node_modules, .env, the widgets-src symlink,
 # the dev-guide PDF, etc.).
 
-# Personal session handoff — local scratch, not part of the kit.
+# Personal session handoff -- local scratch, not part of the kit.
 HANDOFF.md
 # One-off debug scratch (kept local, never shipped).
 test-filter-issue.mjs
@@ -64,7 +64,7 @@ Thumbs.db
 test-results/
 playwright-report/
 
-# Proprietary Fortinet platform artifacts — NOT tracked/redistributed.
+# Proprietary Fortinet platform artifacts -- NOT tracked/redistributed.
 # Re-fetchable: theme CSS via `make assets` (scripts/fetch-soar-assets.sh);
 # the dev-guide PDF from Fortinet docs (see ONBOARDING.md).
 FortiSOAR-*.pdf
@@ -72,5 +72,8 @@ scripts/steel.*.css
 scripts/dark.*.css
 scripts/light.*.css
 
-# WIP typing plan — kept local, not tracked
+# WIP typing plan -- kept local, not tracked
 fortisoar-widget-harness/docs/TYPING_ELIMINATE_ANY_PLAN.md
+
+# Local-only planning docs (may hold box IPs/dates) -- never track (global policy)
+docs/plans/
