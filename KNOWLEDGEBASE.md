@@ -1,12 +1,12 @@
 ---
-title: "FortiSOAR AngularJS Widget Development — Knowledgebase"
+title: "FortiSOAR AngularJS Widget Development -- Knowledgebase"
 topics: [angularjs, forti soar, widget, knowledgebase]
 category: widget-dev
 status: canonical
 summary: "Index + conceptual core for building FortiSOAR 7.x AngularJS widgets. Deep reference topics (services, directives, drawer, connector-action-UI, platform-source) live in fortisoar-widget-harness/docs/kb/."
 ---
 
-# FortiSOAR AngularJS Widget Development — Knowledgebase
+# FortiSOAR AngularJS Widget Development -- Knowledgebase
 
 Comprehensive reference for building FortiSOAR 7.x widgets. Derived from:
 
@@ -20,46 +20,46 @@ Comprehensive reference for building FortiSOAR 7.x widgets. Derived from:
 
 ## Table of Contents
 
-1. [Mental model](#1-mental-model) — Where widgets live: edit-time vs run-time, host module `cybersponse`.
-2. [Widget anatomy](#2-widget-anatomy) — Widget folder layout: info.json, view.html, view.controller.js, edit.*, assets.
-3. [`info.json` schema](#3-infojson-schema) — Complete info.json schema (config, enableFor, contexts, permissions, deps).
-4. [Page contexts](#4-page-contexts) — Page contexts: Dashboard, View Panel, Listing, Drawer — where a widget can mount.
-5. [Controllers](#5-controllers) — View controller vs edit controller: roles, injection, lifecycle hooks.
-6. [Edit form (`edit.html`) patterns](#6-edit-form-edithtml-patterns) — edit.html form patterns: config collection, $uibModal close, validation.
-7. [View template (`view.html`) patterns](#7-view-template-viewhtml-patterns) — view.html template patterns: rendering config, host scope, common directives.
-8. [Services catalog](#8-services-catalog) — Platform services catalog. → full ref in docs/kb/services-catalog.md
-9. [Directives catalog](#9-directives-catalog) — Platform directives catalog. → full ref in docs/kb/directives-catalog.md
-10. [Filters](#10-filters) — AngularJS filters the platform provides.
-11. [Querying data](#11-querying-data) — Querying data: Query, PagedCollection, Entity, Modules.
-12. [Current record (View Panel context)](#12-current-record-view-panel-context) — Accessing the current record in View Panel context.
-13. [`config.mapping` convention](#13-configmapping-convention) — The config.mapping field-mapping convention.
-14. [Theme awareness](#14-theme-awareness) — Theme awareness ($rootScope.theme) + CSS variables.
-15. [WebSocket subscriptions](#15-websocket-subscriptions) — WebSocket subscriptions for real-time updates.
-16. [AngularJS events](#16-angularjs-events) — AngularJS events: $emit/$broadcast/$on contract.
-17. [Wizards (`WizardHandler`)](#17-wizards-wizardhandler) — Wizard / multi-step widgets (WizardHandler).
-18. [Drawer / non-modal widgets](#18-drawer-non-modal-widgets) — Drawer / non-modal widgets (contexts, enableFor). → full ref in docs/kb/drawer-widgets.md
-19. [Triggering playbooks](#19-triggering-playbooks) — Triggering playbooks from a widget.
-20. [Connectors](#20-connectors) — Connector-driven data: connectorService, modelMetadatasService.
-21. [Permissions](#21-permissions) — Permissions: currentPermissionsService.
-22. [External assets](#22-external-assets) — External CDN / JS / CSS loading.
-23. [Internationalisation (7.5.0+)](#23-internationalisation-750) — Internationalisation: widgetUtility.service.js + locales/.
-24. [Widget-to-widget communication](#24-widget-to-widget-communication) — Widget-to-widget communication (broadcast events).
-25. [Recipes](#25-recipes) — Recipes — scaffolds per widget type.
-26. [Widget catalog](#26-widget-catalog) — Widget catalog (60 certified widgets).
-27. [Cheatsheets](#27-cheatsheets) — Cheatsheets: what to reach for.
-28. [Pitfalls](#28-pitfalls) — Common pitfalls.
-29. [Platform source references (host UI code)](#29-platform-source-references-host-ui-code) — Platform source references (host UI code). -> full ref in docs/kb/platform-source-refs.md
-30. [Building widgets that reuse SOAR's connector-action UI](#30-building-widgets-that-reuse-soars-connector-action-ui) — Reusing SOAR's connector-action UI. → full ref in docs/kb/connector-action-ui.md
-31. [Adding a custom theme to the SOAR system-settings dropdown](#31-adding-a-custom-theme-to-the-soar-system-settings-dropdown) — Adding a custom theme to the SOAR system-settings dropdown.
-32. [Harness gaps from the stripped SOAR bundle](#32-harness-gaps-from-the-stripped-soar-bundle) — Harness gaps from the stripped SOAR bundle.
-33. [Harness surfaces widget render errors (view + edit modal)](#33-harness-surfaces-widget-render-errors-view-edit-modal) — Harness surfaces widget render errors (view + edit modal).
-34. [Diagnosing "edit.html (or the whole widget) won't render" — checklist](#34-diagnosing-edithtml-or-the-whole-widget-wont-render-checklist) — Diagnosing 'edit.html won't render' checklist.
-35. [Releasing a widget (GitHub release flow)](#35-releasing-a-widget-github-release-flow) — Releasing a widget (GitHub release flow).
-36. [Troubleshooting widget mount & render (harness + e2e)](#troubleshooting-widget-mount--render) — Troubleshooting widget mount & render (harness + e2e).
+1. [Mental model](#1-mental-model) -- Where widgets live: edit-time vs run-time, host module `cybersponse`.
+2. [Widget anatomy](#2-widget-anatomy) -- Widget folder layout: info.json, view.html, view.controller.js, edit.*, assets.
+3. [`info.json` schema](#3-infojson-schema) -- Complete info.json schema (config, enableFor, contexts, permissions, deps).
+4. [Page contexts](#4-page-contexts) -- Page contexts: Dashboard, View Panel, Listing, Drawer -- where a widget can mount.
+5. [Controllers](#5-controllers) -- View controller vs edit controller: roles, injection, lifecycle hooks.
+6. [Edit form (`edit.html`) patterns](#6-edit-form-edithtml-patterns) -- edit.html form patterns: config collection, $uibModal close, validation.
+7. [View template (`view.html`) patterns](#7-view-template-viewhtml-patterns) -- view.html template patterns: rendering config, host scope, common directives.
+8. [Services catalog](#8-services-catalog) -- Platform services catalog. → full ref in docs/kb/services-catalog.md
+9. [Directives catalog](#9-directives-catalog) -- Platform directives catalog. → full ref in docs/kb/directives-catalog.md
+10. [Filters](#10-filters) -- AngularJS filters the platform provides.
+11. [Querying data](#11-querying-data) -- Querying data: Query, PagedCollection, Entity, Modules.
+12. [Current record (View Panel context)](#12-current-record-view-panel-context) -- Accessing the current record in View Panel context.
+13. [`config.mapping` convention](#13-configmapping-convention) -- The config.mapping field-mapping convention.
+14. [Theme awareness](#14-theme-awareness) -- Theme awareness ($rootScope.theme) + CSS variables.
+15. [WebSocket subscriptions](#15-websocket-subscriptions) -- WebSocket subscriptions for real-time updates.
+16. [AngularJS events](#16-angularjs-events) -- AngularJS events: $emit/$broadcast/$on contract.
+17. [Wizards (`WizardHandler`)](#17-wizards-wizardhandler) -- Wizard / multi-step widgets (WizardHandler).
+18. [Drawer / non-modal widgets](#18-drawer-non-modal-widgets) -- Drawer / non-modal widgets (contexts, enableFor). → full ref in docs/kb/drawer-widgets.md
+19. [Triggering playbooks](#19-triggering-playbooks) -- Triggering playbooks from a widget.
+20. [Connectors](#20-connectors) -- Connector-driven data: connectorService, modelMetadatasService.
+21. [Permissions](#21-permissions) -- Permissions: currentPermissionsService.
+22. [External assets](#22-external-assets) -- External CDN / JS / CSS loading.
+23. [Internationalisation (7.5.0+)](#23-internationalisation-750) -- Internationalisation: widgetUtility.service.js + locales/.
+24. [Widget-to-widget communication](#24-widget-to-widget-communication) -- Widget-to-widget communication (broadcast events).
+25. [Recipes](#25-recipes) -- Recipes -- scaffolds per widget type.
+26. [Widget catalog](#26-widget-catalog) -- Widget catalog (60 certified widgets).
+27. [Cheatsheets](#27-cheatsheets) -- Cheatsheets: what to reach for.
+28. [Pitfalls](#28-pitfalls) -- Common pitfalls.
+29. [Platform source references (host UI code)](#29-platform-source-references-host-ui-code) -- Platform source references (host UI code). -> full ref in docs/kb/platform-source-refs.md
+30. [Building widgets that reuse SOAR's connector-action UI](#30-building-widgets-that-reuse-soars-connector-action-ui) -- Reusing SOAR's connector-action UI. → full ref in docs/kb/connector-action-ui.md
+31. [Adding a custom theme to the SOAR system-settings dropdown](#31-adding-a-custom-theme-to-the-soar-system-settings-dropdown) -- Adding a custom theme to the SOAR system-settings dropdown.
+32. [Harness gaps from the stripped SOAR bundle](#32-harness-gaps-from-the-stripped-soar-bundle) -- Harness gaps from the stripped SOAR bundle.
+33. [Harness surfaces widget render errors (view + edit modal)](#33-harness-surfaces-widget-render-errors-view-edit-modal) -- Harness surfaces widget render errors (view + edit modal).
+34. [Diagnosing "edit.html (or the whole widget) won't render" -- checklist](#34-diagnosing-edithtml-or-the-whole-widget-wont-render-checklist) -- Diagnosing 'edit.html won't render' checklist.
+35. [Releasing a widget (GitHub release flow)](#35-releasing-a-widget-github-release-flow) -- Releasing a widget (GitHub release flow).
+36. [Troubleshooting widget mount & render (harness + e2e)](#troubleshooting-widget-mount--render) -- Troubleshooting widget mount & render (harness + e2e).
 
 **Appendices:**
-- [Appendix A — `API` constants](#appendix-a-api-constants)
-- [Appendix B — Field `formType` values](#appendix-b-field-formtype-values)
+- [Appendix A -- `API` constants](#appendix-a-api-constants)
+- [Appendix B -- Field `formType` values](#appendix-b-field-formtype-values)
 
 ---
 
@@ -71,7 +71,7 @@ Comprehensive reference for building FortiSOAR 7.x widgets. Derived from:
 A FortiSOAR widget is a **registered AngularJS controller + HTML template pair** that the platform instantiates inside a configurable slot. There are two lifecycles:
 
 - **Edit-time** (`edit.html` + `edit.controller.js`): opened as a `$uibModal` when a user adds/edits the widget on a dashboard, Report, Listing, View Panel, etc. Collects a `config` object and closes with `$uibModalInstance.close($scope.config)`.
-  - **Dual-mode edit controllers** (widget also renders its settings as an inline ng-include overlay, not only a `$uibModal`) must NOT list `config` in the static `$inject` array — the `config` local only exists under `$uibModal`, so a static inject throws `unknownProvider` in overlay mode. Pull the saved config dynamically instead: `try { var c = $injector.get('config'); if (c) $scope.config = c; } catch(e){}`. The harness `edit-config-inject` lint recognizes this `$injector.get('config')` form as satisfying the persist requirement (`lib/harnessUtils.ts`); a controller that binds `ng-model="config.…"` but neither statically injects nor dynamically-gets `config` is still (correctly) blocked.
+  - **Dual-mode edit controllers** (widget also renders its settings as an inline ng-include overlay, not only a `$uibModal`) must NOT list `config` in the static `$inject` array -- the `config` local only exists under `$uibModal`, so a static inject throws `unknownProvider` in overlay mode. Pull the saved config dynamically instead: `try { var c = $injector.get('config'); if (c) $scope.config = c; } catch(e){}`. The harness `edit-config-inject` lint recognizes this `$injector.get('config')` form as satisfying the persist requirement (`lib/harnessUtils.ts`); a controller that binds `ng-model="config.…"` but neither statically injects nor dynamically-gets `config` is still (correctly) blocked.
 - **Run-time** (`view.html` + `view.controller.js`): rendered in-place on the host page. Receives `config` via injection and has access to the host's `$state`, `$rootScope`, the parent form (`FormEntityService`), the WebSocket, and all platform services.
 
 You are working inside the host module:
@@ -80,7 +80,7 @@ You are working inside the host module:
 angular.module("cybersponse").controller("myWidget101Ctrl", ...);
 ```
 
-Every non-trivial widget version embeds the `version` in the controller name (`myWidget101Ctrl` for version 1.0.1) so multiple versions of the same widget can coexist in one install. **This is a hard convention — follow it.**
+Every non-trivial widget version embeds the `version` in the controller name (`myWidget101Ctrl` for version 1.0.1) so multiple versions of the same widget can coexist in one install. **This is a hard convention -- follow it.**
 
 The platform loads the widget via its name + version path:
 
@@ -90,7 +90,7 @@ widgets/installed/<name>-<version>/widgetAssets/...
 
 Asset references in `view.html` must use this prefix (see §7).
 
-> **Gotcha — harness lint blocks bootstrap on ANY stale version-string literal in the controller, including comments.** After bumping `info.json` (e.g. 1.0.47→1.0.48), the dev/test harness runs a `stale-version-ref` lint and *refuses to mount the widget* if `view.controller.js` contains the old `M.m.p` string anywhere — even an example URL in a code comment. Symptom: every Playwright e2e times out at `waitForFunction(() => window.__<widget>__)` because the controller never boots; the harness error panel shows `Lint blocked widget bootstrap … [stale-version-ref] references stale version(s): 1.0.47`. The jest bootstrap slug test (`fsrSocAssistant1048DevCtrl`) does NOT catch this — it only checks `…NNNNCtrl` tokens, not literal `1.0.47` dotted strings. Fix: grep the controller for the old dotted version and update every hit (comments included) in the same bump. **Better: never write the dotted version in the controller at all** — derive it from the served script URL (`fortiaiAgenticAssistant` does this via `WIDGET_VERSION`) and use a `<version>` placeholder in comments. A jest guard (`triageDraft.export.test.js`: "controller never hardcodes the info.json WIDGET version") asserts `info.json.version` never appears literally in `view.controller.js`, so the footgun can't recur.
+> **Gotcha -- harness lint blocks bootstrap on ANY stale version-string literal in the controller, including comments.** After bumping `info.json` (e.g. 1.0.47→1.0.48), the dev/test harness runs a `stale-version-ref` lint and *refuses to mount the widget* if `view.controller.js` contains the old `M.m.p` string anywhere -- even an example URL in a code comment. Symptom: every Playwright e2e times out at `waitForFunction(() => window.__<widget>__)` because the controller never boots; the harness error panel shows `Lint blocked widget bootstrap … [stale-version-ref] references stale version(s): 1.0.47`. The jest bootstrap slug test (`fsrSocAssistant1048DevCtrl`) does NOT catch this -- it only checks `…NNNNCtrl` tokens, not literal `1.0.47` dotted strings. Fix: grep the controller for the old dotted version and update every hit (comments included) in the same bump. **Better: never write the dotted version in the controller at all** -- derive it from the served script URL (`fortiaiAgenticAssistant` does this via `WIDGET_VERSION`) and use a `<version>` placeholder in comments. A jest guard (`triageDraft.export.test.js`: "controller never hardcodes the info.json WIDGET version") asserts `info.json.version` never appears literally in `view.controller.js`, so the footgun can't recur.
 
 ---
 
@@ -132,7 +132,7 @@ Packaging is a tar-gzip: `<widgetName>-<version>.tgz` built over that directory.
 
 ## 3. `info.json` schema
 
-This file drives **everything** — where the widget is shown, whether it's modal, what compatibility banner it gets, and which controller the platform registers. Every field seen across the 60 certified widgets:
+This file drives **everything** -- where the widget is shown, whether it's modal, what compatibility banner it gets, and which controller the platform registers. Every field seen across the 60 certified widgets:
 
 ```jsonc
 {
@@ -140,8 +140,8 @@ This file drives **everything** — where the widget is shown, whether it's moda
   "title": "My Widget",            // Shown in widget catalogs
   "subTitle": "One-line pitch.",   // Short description (note casing: subTitle)
   "version": "1.0.0",              // MAJOR.MINOR.PATCH (drives controller suffix: myWidget100Ctrl)
-  "published_date": 1706787666,    // Unix seconds. Integer or numeric string — both are accepted
-  "releaseNotes": "available",     // "available" | "unavailable" — hints UI to show the tab
+  "published_date": 1706787666,    // Unix seconds. Integer or numeric string -- both are accepted
+  "releaseNotes": "available",     // "available" | "unavailable" -- hints UI to show the tab
   "development": false,            // Set true while iterating in Content Hub; false when shipping
 
   "metadata": {
@@ -163,7 +163,7 @@ This file drives **everything** — where the widget is shown, whether it's moda
 
     // ── Widget sizing / modal behavior ─────────────────────────────────
     "standalone":  true,           // Can be launched on its own (not embedded in a dashboard cell)
-    "windowClass": "Full Width",   // "Full Width" | "Half Width" — modal/drawer size
+    "windowClass": "Full Width",   // "Full Width" | "Half Width" -- modal/drawer size
     "size":        "lg",           // Legacy: large widget grid cell
 
     // ── Drawer / non-modal contexts ────────────────────────────────────
@@ -193,8 +193,8 @@ This file drives **everything** — where the widget is shown, whether it's moda
 
 - **`pages` vs. `contexts`.** A widget is placed on a dashboard/Report/View Panel/Listing through `pages`. It floats as a drawer/launcher through `contexts`. A widget can use both (e.g., show on View Panel *and* have a drawer icon).
 - **`compatibility`** is a *list*, not a range. Include each supported major.minor you've tested.
-- **`subTitle`** — note the capital `T`. A lowercase `subtitle` is silently ignored.
-- **`published_date`** — integer seconds. Some older widgets store it as a numeric string; both work.
+- **`subTitle`** -- note the capital `T`. A lowercase `subtitle` is silently ignored.
+- **`published_date`** -- integer seconds. Some older widgets store it as a numeric string; both work.
 - **`name`** must match the top-level folder name inside the tarball. The platform uses `name-version` as the path.
 - **Controller suffix convention.** `name: "myWidget"`, `version: "1.0.0"` → register `myWidget100Ctrl` and `editMyWidget100Ctrl`. The platform expects this naming.
 - **No `pages` at all** = widget isn't selectable in widget pickers. Settings-page widgets, drawer-only widgets, and widgets launched programmatically typically use `"pages": []`.
@@ -233,12 +233,12 @@ This file drives **everything** — where the widget is shown, whether it's moda
 
 | Value | Where it appears | `config.module` meaning | Record access |
 |---|---|---|---|
-| `Dashboard` | Dashboard grid cell | Chosen by user at edit time | n/a — widget loads its own data |
+| `Dashboard` | Dashboard grid cell | Chosen by user at edit time | n/a -- widget loads its own data |
 | `Reports` | Report templates | Chosen by user | n/a |
 | `View Panel` | Record details pane | Record's own module (implicit) | `$state.params.module` / `$state.params.id` |
 | `Listing` | Module list page header/footer | Module being listed | n/a (use PagedCollection on that module) |
 | `Add Form` | Create-record dialog | Record being created | `FormEntityService.get()` |
-| `Settings` | System Settings pane | — | `$http`/`$resource` on system endpoints |
+| `Settings` | System Settings pane | -- | `$http`/`$resource` on system endpoints |
 
 ### 4.2 `contexts` values
 
@@ -280,7 +280,7 @@ Chart widgets commonly branch their header CSS on `page === 'dashboard'` (see `r
 
 ## 5. Controllers
 
-### 5.1 Skeleton — view controller
+### 5.1 Skeleton -- view controller
 
 ```js
 /* Copyright start
@@ -293,7 +293,7 @@ Chart widgets commonly branch their header CSS on `page === 'dashboard'` (see `r
     .module("cybersponse")
     .controller("myWidget100Ctrl", myWidget100Ctrl);
 
-  // Explicit DI is mandatory — minification will otherwise break the widget.
+  // Explicit DI is mandatory -- minification will otherwise break the widget.
   myWidget100Ctrl.$inject = [
     '$scope', '$rootScope', '$state', '$timeout',
     'config', 'PagedCollection', 'Query',
@@ -305,7 +305,7 @@ Chart widgets commonly branch their header CSS on `page === 'dashboard'` (see `r
     config, PagedCollection, Query,
     appModulesService, currentPermissionsService
   ) {
-    $scope.config = config;       // Always keep config on $scope — the template binds to it.
+    $scope.config = config;       // Always keep config on $scope -- the template binds to it.
     $scope.processing = true;
     $scope.getList   = getList;   // Functions the template can call.
 
@@ -331,7 +331,7 @@ Chart widgets commonly branch their header CSS on `page === 'dashboard'` (see `r
 })();
 ```
 
-### 5.2 Skeleton — edit controller
+### 5.2 Skeleton -- edit controller
 
 ```js
 "use strict";
@@ -389,12 +389,12 @@ Chart widgets commonly branch their header CSS on `page === 'dashboard'` (see `r
 })();
 ```
 
-> **⚠️ Gotcha — the edit modal MUST inject `config`; `$scope.config` is not it.**
+> **⚠️ Gotcha -- the edit modal MUST inject `config`; `$scope.config` is not it.**
 > The host passes the *saved* widget config into the edit modal as the **injected
 > `config` dependency**, not via `$scope` inheritance. If the edit controller reads
 > `$scope.config` (or `$scope.config = $scope.config || {}`) instead of injecting
 > `config`, the bug is **silent**: the modal shows stale defaults every time it
-> reopens, and `close($scope.config)` returns a fresh object — so the user's saved
+> reopens, and `close($scope.config)` returns a fresh object -- so the user's saved
 > choices never round-trip ("I changed the setting, saved, and it reverted").
 > Always: inject `config` → `$scope.config = angular.extend({}, defaults, config || {})`
 > → `close($scope.config)`. The harness lint rule **`edit-config-inject`** fails the
@@ -412,12 +412,12 @@ Group | Typical for | Injectables
 **Connectors** | Enrichment widgets | `connectorService`, `modelMetadatasService`
 **UX** | Notifications | `toaster`, `ModalService`, `$uibModal`
 
-### 5.4 Adding a service to an existing controller — beware positional-locals tests
+### 5.4 Adding a service to an existing controller -- beware positional-locals tests
 
 If a controller is invoked in jest with a **positional** locals array (some of
 this repo's suites do `$controller(name, [a, b, c, …])` rather than a named
 `{ $scope }` map), then changing the controller function's **parameter list**
-shifts every later argument by one — e.g. inserting `$interval` before `$window`
+shifts every later argument by one -- e.g. inserting `$interval` before `$window`
 makes `$window` resolve to the old `$sce` slot, and construction throws a
 baffling `Cannot read properties of undefined (reading 'search')` deep in
 unrelated code. Symptom: one small DI add turns ~20 controller-instantiating
@@ -446,7 +446,7 @@ Every edit form follows this scaffold. It's what the user sees when clicking the
       data-ng-class="{ 'state-wait': processing }" novalidate>
 
   <div class="modal-header">
-    <h3 class="modal-title col-md-9">My Widget — Edit View</h3>
+    <h3 class="modal-title col-md-9">My Widget -- Edit View</h3>
     <button type="button" class="close" data-ng-click="cancel()" aria-label="Close"
             id="close-edit-widget-form-btn">
       <div aria-hidden="true" class="version-button">+</div>
@@ -546,9 +546,9 @@ if ($scope.form.$invalid) {
 
 ### 6.2 Module list filters
 
-- `modules | playbookModules` — excludes system modules the user can't create workflows against.
-- `fields | filter: { type: 'picklist' }` — field-type filter.
-- `fieldsArray | orderBy: 'title'` — alphabetize the dropdown.
+- `modules | playbookModules` -- excludes system modules the user can't create workflows against.
+- `fields | filter: { type: 'picklist' }` -- field-type filter.
+- `fieldsArray | orderBy: 'title'` -- alphabetize the dropdown.
 
 ### 6.3 Stubbed edit for "no configuration" widgets
 
@@ -578,7 +578,7 @@ $scope.save   = () => $uibModalInstance.close(config || {});
 
 ## 7. View template (`view.html`) patterns
 
-### 7.0 In-widget detail modal (self-contained overlay — not `$uibModal`)
+### 7.0 In-widget detail modal (self-contained overlay -- not `$uibModal`)
 
 For a "click element → popup with details + an action button" flow, prefer a
 **widget-scoped CSS overlay** over the platform's `$uibModal`/dialog service:
@@ -593,30 +593,30 @@ record (`$window.open("/modules/view-panel/<module>/<id>", "_blank")`), honoring
 a `config.openInNewTab` toggle. Reference impl: `ztpAutomationGraph` view
 (`onNodeTap` → `selectedStep` → modal markup; node tap shows step status/error/
 run-group before navigating). **E2e note:** if the trigger is a `<canvas>`
-(Cytoscape etc.) there's no DOM node to click — expose the instance
+(Cytoscape etc.) there's no DOM node to click -- expose the instance
 (`$window.__ztpCy = cy`) and emit the event (`cy.nodes()[0].emit('tap')`); and
 stub `window.open` in an init script to capture the URL instead of navigating a
 real popup, or the hermetic tier flags the platform route as an un-snapshotted
 leak.
 
-**Stacking-context trap — `backdrop-filter`/`filter`/`transform` on a header
+**Stacking-context trap -- `backdrop-filter`/`filter`/`transform` on a header
 TRAPS its descendant dropdowns.** A high `z-index` on an absolutely-positioned
 menu only wins *within its nearest stacking-context ancestor*. If that ancestor
 (e.g. a `.topbar` with `backdrop-filter: blur()`) is itself painted at
 `z-index: auto`, a **later-in-DOM sibling** (the message feed / a card) paints on
-top of the whole context — so the "open" dropdown renders *behind* the card and
+top of the whole context -- so the "open" dropdown renders *behind* the card and
 its items aren't clickable where they overlap (Playwright reports the click
 intercepted). `backdrop-filter`/`filter`/`transform`/`opacity<1` all create a
 stacking context AND (for filter/transform) a containing block that also breaks
 `position:fixed` descendants (a full-widget backdrop shrinks to the header). Fix:
 give the header its own `position: relative; z-index: N` above the feed but below
-your modals — or move the dropdown out of the filtered ancestor. Reference:
+your modals -- or move the dropdown out of the filtered ancestor. Reference:
 `fortiaiAgenticAssistant` `.topbar` overflow menu over a `manual-input-card`
 (regression test `manualInputForm.spec.js` "overflow menu is clickable…").
 
 ### 7.1 Asset paths
 
-Reference your own assets with the `<name>-<version>` prefix — this is what the platform serves them under:
+Reference your own assets with the `<name>-<version>` prefix -- this is what the platform serves them under:
 
 ```html
 <link rel="stylesheet" type="text/css"
@@ -709,20 +709,20 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
   `if (isUndefined(pc.list) || pc.list.length===0) gridOptions.data=[]; else gridOptions.data=pc.keyPairs;`
   So if you build a static `PagedCollection` and set only
   `.data['hydra:member']`, csGrid takes the empty branch and renders the **column
-  headers but zero body rows** (a very confusing symptom — columns appear, data
+  headers but zero body rows** (a very confusing symptom -- columns appear, data
   is "there", but no rows). The base `PagedCollection.convertToKeyPairs` iterates
   `this.list` (it never reads `data['hydra:member']`), and nothing calls it for a
   hand-built static collection. Fix: set `pc.list = rows`, `pc.keyPairs = rows`,
   and `pc.visited = true` directly (see `widget-json-to-grid`
   `view.controller.js`). Corollary: if your widget already renders rows via its
   own `gridOptions.data` (no pagedCollection), do **not** also attach a
-  pagedCollection unless you populate `.list`/`.keyPairs` — an empty-`list`
+  pagedCollection unless you populate `.list`/`.keyPairs` -- an empty-`list`
   collection will override `gridOptions.data` to `[]`.
-- **csGrid sort/filter/column-order are SERVER-backed — they do nothing for an
+- **csGrid sort/filter/column-order are SERVER-backed -- they do nothing for an
   in-memory (playbook-result) grid unless you intercept.** Concretely (verified
   in `app.unmin.js`):
   - `orderByColumnDefs` and `viewType:'staticGrid'` have **0 references** in the
-    bundle — both are dead/cosmetic flags. Don't rely on them.
+    bundle -- both are dead/cosmetic flags. Don't rely on them.
   - `enableSorting` defaults to **false** at the grid level; you must set it
     explicitly or header sorting never turns on.
   - On sort, csGrid calls `pagedCollection.buildSortQuery(cols)` then
@@ -730,22 +730,22 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
     `filterChanged` builds `query.filters` from each column's `filters[0].field`
     expecting a **SOAR field-metadata object** (`.name`/`.type`); plain string
     `field`s yield no filters, then it still calls `loadGridRecord`.
-  - ui-grid binds cells from `field`, not `name` — copy `name`→`field`.
+  - ui-grid binds cells from `field`, not `name` -- copy `name`→`field`.
   - **Fix for static grids (verified live):** set
     `gridOptions.useExternalSorting = false` and
     `gridOptions.useExternalFiltering = false`. The widget's gridOptions win over
-    csGrid's defaults — the merge is
-    `angular.extend(gridOptions, angular.extend(defaults, gridOptions))` — so
+    csGrid's defaults -- the merge is
+    `angular.extend(gridOptions, angular.extend(defaults, gridOptions))` -- so
     these stick, and ui-grid's NATIVE client-side engine sorts/filters
     `gridOptions.data` in memory (numeric-aware sort + per-column substring
     filter, no server query). Also set `enableSorting: true` (grid default is
     false). Belt-and-suspenders: stub the collection's `loadGridRecord` to
     `return $q.when()` so any stray csGrid reload can't query the dead endpoint.
-    `viewType:'staticGrid'`/`orderByColumnDefs` do nothing — don't rely on them.
+    `viewType:'staticGrid'`/`orderByColumnDefs` do nothing -- don't rely on them.
     See `widget-json-to-grid` `view.controller.js` (`normalizeColumns`,
     `setGridOptions`).
   - **FortiSOAR-style per-column filters (custom `filterHeaderTemplate`):**
-    ui-grid's native per-column filter is a plain text box — and even its
+    ui-grid's native per-column filter is a plain text box -- and even its
     `SELECT` type is a bare dropdown, nothing like FortiSOAR's metadata-driven
     grid filters (picklist multi-select, boolean Not Set/Yes/No, datetime
     relative-range presets). A static widget grid (synthetic `dummy_module`, no
@@ -757,7 +757,7 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
     each colDef's `condition(term, cellValue)` over the in-memory rows, so the
     term can be any shape (a preset key, an array of picklist values, a tri-state
     string). The dropdown menu must `dropdown-append-to-body` (uib) to escape the
-    clipped grid header — style it with globally-unique classes since it lives
+    clipped grid header -- style it with globally-unique classes since it lives
     outside `.widget`. **Infer the column type from the data** when
     `grid_columns` omits it (the platform's own "JSON to Grid" example emits NO
     `type`, so without inference every column falls back to plain text). Auto-
@@ -767,7 +767,7 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
     clobber an explicit `filter`/`filters`, and skip when `enableFiltering:false`.
     NOTE: if you still use `uiGridConstants` anywhere, resolve it as a **soft**
     dependency (`$injector.has('uiGridConstants') ? $injector.get(...) : null`),
-    NOT a hard `$inject` entry — the hermetic e2e harness loads ui-grid's CSS/JS
+    NOT a hard `$inject` entry -- the hermetic e2e harness loads ui-grid's CSS/JS
     but doesn't reliably register `uiGridConstants` as an injectable, so a hard
     dependency aborts controller instantiation and the whole widget fails to
     mount (zero `.widget h5`, no rows).
@@ -779,14 +779,14 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
     `colMovable.on.columnPositionChanged`) and re-apply on load. This mirrors how
     a native SOAR module grid POSTs column state (it uses
     `/api/views/1/grid_columns`, which is module-scoped and not available to a
-    synthetic widget grid) — POST on change, read from the settings cache, no GET
+    synthetic widget grid) -- POST on change, read from the settings cache, no GET
     afterward, and never re-run the data playbook on a column change.
   - **Discovering a playbook's output schema at CONFIG time:** the edit modal
     has no runtime result, but you can run the data-provider playbook *from
     edit.html* to discover its columns. Use the same chain the view uses:
     fetch the playbook (`$relationships:true`), ensure the
     `SystemWaitForCompletion` recordTag, POST to `API.ACTION_TRIGGER + route +
-    '?force_debug=true'` with `records:[]` (record-less — no selection in edit),
+    '?force_debug=true'` with `records:[]` (record-less -- no selection in edit),
     then `playbookService.checkPlaybookExecutionCompletion` →
     `getExecutedPlaybookLogData` and read `data.result`. Gate on
     `currentPermissionsService.availablePermission(FIXED_MODULE.PLAYBOOK,'read')`
@@ -796,10 +796,10 @@ Reference your own assets with the `<name>-<version>` prefix — this is what th
     `widget-json-to-grid` `edit.controller.js` `runProviderForColumns` +
     `view.controller.js` `applyColumnPrefs`.
 
-### 7.5 Widget CSS — what to write, what to leave to the platform
+### 7.5 Widget CSS -- what to write, what to leave to the platform
 
 Widget CSS is injected into the SOAR document AFTER platform CSS loads. Because of
-this, widget selectors win over platform selectors at equal specificity — which is
+this, widget selectors win over platform selectors at equal specificity -- which is
 both the power and the footgun.
 
 **Cascade order at runtime** (last loaded = highest priority for equal specificity):
@@ -816,17 +816,17 @@ both the power and the footgun.
 - Per-theme colour swaps for things the widget owns (backgrounds it draws, borders it controls)
 
 **What does NOT belong in widget CSS:**
-- `csGrid` / `csChart` / `csField` look and feel — the platform theme CSS owns this.
+- `csGrid` / `csChart` / `csField` look and feel -- the platform theme CSS owns this.
   Writing widget CSS to fix grid row colours means your overrides break when the theme
   changes. If grid rows look wrong in the harness, the cause is harness CSS ordering,
   not the widget (see §9.4.1 gotchas).
-- Dark/light mode body-level colours — those come from the platform theme and the
+- Dark/light mode body-level colours -- those come from the platform theme and the
   `settingsService` lightMode path.
 
 **Two loading patterns used in the wild:**
 
 ```js
-// Pattern A — single file, theme-neutral layout rules
+// Pattern A -- single file, theme-neutral layout rules
 $scope.widgetCSS = widgetBasePath + 'widgetAssets/css/myWidget.css';
 ```
 ```html
@@ -834,7 +834,7 @@ $scope.widgetCSS = widgetBasePath + 'widgetAssets/css/myWidget.css';
 ```
 
 ```js
-// Pattern B — per-theme file (controller picks based on current theme ID)
+// Pattern B -- per-theme file (controller picks based on current theme ID)
 const themeMap = { dark: 'myWidget-dark.css', light: 'myWidget-light.css', steel: 'myWidget-steel.css' };
 $scope.themeCSS = widgetBasePath + 'widgetAssets/css/' + themeMap[themeId];
 // themeId comes from settingsService.getSystem().publicValues (same value csGrid reads)
@@ -846,17 +846,17 @@ Pattern B is used when the widget draws its own backgrounds or text colours that
 track dark/light/steel themes. `configureIndicatorExtraction` and `multiTableView` are
 canonical examples from the platform widget library.
 
-**Scoping — mandatory, enforced by lint:**
+**Scoping -- mandatory, enforced by lint:**
 
 SOAR renders multiple widgets on the same dashboard page; there is no CSS isolation
 between them. Every selector in a widget CSS file MUST be prefixed with the widget's
 root class to prevent bleeding into sibling widgets:
 
 ```css
-/* WRONG — leaks to every widget on the page */
+/* WRONG -- leaks to every widget on the page */
 .card-title { color: red; }
 
-/* RIGHT — scoped to this widget's DOM subtree */
+/* RIGHT -- scoped to this widget's DOM subtree */
 .widget.widget-container .card-title { color: red; }
 ```
 
@@ -867,7 +867,7 @@ The harness lint blocks a push if any selector lacks this prefix.
 | Selector | Specificity | Beats? |
 |---|---|---|
 | `.widget.widget-container .my-el` | (0,2,0) | Most platform structural rules |
-| `.widget.widget-container .parent .my-el` | (0,3,0) | Matches platform's (0,3,0) — loads later so wins |
+| `.widget.widget-container .parent .my-el` | (0,3,0) | Matches platform's (0,3,0) -- loads later so wins |
 | Platform theme `.ui-grid-row:nth-child(odd) .ui-grid-cell` | (0,3,0) | Wins over widget selectors with < 3 classes |
 | Anything `!important` | overrides specificity | Use only when the platform uses `!important` that you must counter |
 
@@ -881,7 +881,7 @@ The harness lint blocks a push if any selector lacks this prefix.
 
 ## 8. Services catalog
 
-Platform services widget controllers can inject — `FormEntityService`, `$state`, `$rootScope`, `websocketService`, `Query`, `Entity`, `Modules`, and the rest — with inject names and usage notes.
+Platform services widget controllers can inject -- `FormEntityService`, `$state`, `$rootScope`, `websocketService`, `Query`, `Entity`, `Modules`, and the rest -- with inject names and usage notes.
 
 > **Full reference:** [`docs/kb/services-catalog.md`](fortisoar-widget-harness/docs/kb/services-catalog.md)
 ## 9. Directives catalog
@@ -919,7 +919,7 @@ angular.module('cybersponse')
 
 Three ways to talk to the FortiSOAR data plane. **Use `PagedCollection` for lists, `Entity` for single-record work with relationships, and raw `$http.post(API.QUERY + module)` for aggregates.**
 
-### 11.1 `Query` — the query object builder
+### 11.1 `Query` -- the query object builder
 
 ```js
 const q = new Query({
@@ -947,7 +947,7 @@ q.getFlatQuery();       // flat k=v form for URL
 q.updateFilter(newFilterObject);
 ```
 
-### 11.2 `PagedCollection` — grids & card lists
+### 11.2 `PagedCollection` -- grids & card lists
 
 ```js
 const coll = new PagedCollection(
@@ -966,7 +966,7 @@ coll.loadByPost(queryObj);
 
 Useful helpers: `gotoPage(n)`, `pageNext`, `pagePrevious`, `pageFirst`, `pageLast`, `setPage`, `sortColumnsByFieldName`, `extendFilter`, `loadDefaultColumns`, `convertToKeyPairs(collection)`.
 
-### 11.3 `Entity` — single records & relationships
+### 11.3 `Entity` -- single records & relationships
 
 ```js
 const entity = new Entity('alerts');
@@ -989,7 +989,7 @@ entity.get($state.params.id, { $relationships: true }).then(() => {
 entity.save();
 ```
 
-### 11.4 `Modules` — direct REST resource
+### 11.4 `Modules` -- direct REST resource
 
 ```js
 Modules.get({
@@ -1037,7 +1037,7 @@ new Query({
 
 ## 12. Current record (View Panel context)
 
-Four ways to get the viewed record — pick based on what you need.
+Four ways to get the viewed record -- pick based on what you need.
 
 ### 12.1 `$state.params` (always available on View Panel)
 
@@ -1049,7 +1049,7 @@ $state.params.id       // UUID (NOT the IRI)
 Use with any loader:
 
 ```js
-// Via Entity (richest — gives you fields, relationships, helpers)
+// Via Entity (richest -- gives you fields, relationships, helpers)
 const e = new Entity($state.params.module);
 e.get($state.params.id, { $relationships: true }).then(() => { /* e.fields.* */ });
 
@@ -1095,7 +1095,7 @@ Widget | Method used
 `fieldsOfInterest`, `picklistAsPhases`, `accessControl` | `FormEntityService.get()`
 `recordSummary`, `customPicklistMessage`, `slaCountDownClock`, `vtAugment` | `$state.params.module` + `$state.params.id`
 `incidentTimeline` | `$state.params.id` → `new Entity('incidents').get(id, {$relationships: true})`
-`recordCard`, `cardTiles`, `cardView` | Not "current record" — they query a module using `config.query`
+`recordCard`, `cardTiles`, `cardView` | Not "current record" -- they query a module using `config.query`
 `incidentCorrelations` | `$state.params.qparam` + `$interpolate`
 
 ---
@@ -1312,13 +1312,13 @@ Drawer / non-modal widget lifecycle: page contexts, `enableFor` mechanics, mount
 
 > **Full reference:** [`docs/kb/drawer-widgets.md`](fortisoar-widget-harness/docs/kb/drawer-widgets.md)
 
-> **Reference — the connector's stateful debug walker (`start_debug_session` family).** `start_debug_session(yaml_text, breakpoints?, execute_safe_ops, …)` returns `{ok, status}` and allocates a `session_id` in the connector's SessionStore; `step_debug_session`/`continue_debug_session`/`stop_debug_session` then drive it by id. `status` = `{session_id, playbook, done, paused_at, steps_advanced, trace_len, first_error, breakpoints[], last_step, trace[]}`; each trace record = `{step_id, name, type, rendered_args, output, output_top_keys, output_shape, status, note}`. A widget can build a full step/continue/breakpoint debugger on this (`fortiaiAgenticAssistant`'s YAML-pane Debug panel does). **Gotchas:** (1) it's stateful and live-only — route through `_executeReal('call_mcp_tool', {tool, args})`, never the mock track; (2) the session TTL-expires but a widget should `stop_debug_session` on close / on a YAML edit so stale sessions don't linger; (3) `continue` merges `add_breakpoints` but there's no remove — dropping a breakpoint only takes effect on a fresh `start`.
+> **Reference -- the connector's stateful debug walker (`start_debug_session` family).** `start_debug_session(yaml_text, breakpoints?, execute_safe_ops, …)` returns `{ok, status}` and allocates a `session_id` in the connector's SessionStore; `step_debug_session`/`continue_debug_session`/`stop_debug_session` then drive it by id. `status` = `{session_id, playbook, done, paused_at, steps_advanced, trace_len, first_error, breakpoints[], last_step, trace[]}`; each trace record = `{step_id, name, type, rendered_args, output, output_top_keys, output_shape, status, note}`. A widget can build a full step/continue/breakpoint debugger on this (`fortiaiAgenticAssistant`'s YAML-pane Debug panel does). **Gotchas:** (1) it's stateful and live-only -- route through `_executeReal('call_mcp_tool', {tool, args})`, never the mock track; (2) the session TTL-expires but a widget should `stop_debug_session` on close / on a YAML edit so stale sessions don't linger; (3) `continue` merges `add_breakpoints` but there's no remove -- dropping a breakpoint only takes effect on a fresh `start`.
 
-> **Reference — `validate_yaml`/`compile_yaml` return `corrected_yaml` + `auto_fixes[]`.** The FSR-playbook compiler auto-repairs known foot-guns (set_variable namespace refs, `vars.input.<p>` missing `.params.`, `stop`→`end`, …) and hands back the fully-corrected source text alongside a per-fix list (`[{code, line, message}]`) plus an `auto_fix_note`. This is a real, box-independent one-click apply-patch surface — a widget can offer "adopt corrected_yaml" without reimplementing YAML mutation. `fortiaiAgenticAssistant`'s YAML-pane "Check & fix" (`checkAndFix()` → `validateYamlLive` → `applyPatch()`) is built on it. **Gotcha:** the compiler only runs on the LIVE connector, so route this through the always-live path (`_executeReal`, not `executeAction`) — the mock track has no compiler and returns no fixes. Same reason `step_test`/`push_playbook` are live-only.
+> **Reference -- `validate_yaml`/`compile_yaml` return `corrected_yaml` + `auto_fixes[]`.** The FSR-playbook compiler auto-repairs known foot-guns (set_variable namespace refs, `vars.input.<p>` missing `.params.`, `stop`→`end`, …) and hands back the fully-corrected source text alongside a per-fix list (`[{code, line, message}]`) plus an `auto_fix_note`. This is a real, box-independent one-click apply-patch surface -- a widget can offer "adopt corrected_yaml" without reimplementing YAML mutation. `fortiaiAgenticAssistant`'s YAML-pane "Check & fix" (`checkAndFix()` → `validateYamlLive` → `applyPatch()`) is built on it. **Gotcha:** the compiler only runs on the LIVE connector, so route this through the always-live path (`_executeReal`, not `executeAction`) -- the mock track has no compiler and returns no fixes. Same reason `step_test`/`push_playbook` are live-only.
 
-> **Gotcha — a "record summary" composed for alerts/cases silently drops a record's nested collections, so a widget that *fetched* related rows can still ship none of them.** `fortiaiAgenticAssistant` resolved its entity with `GET <iri>?$relationships=true` — so the open playbook's **steps really were on the record** — and then rendered it through `_composeEntitySummary`, which reads a fixed alert/case-shaped field list (name/severity/status/source/type/description). Everything nested was dropped on the floor. The composer button was even labelled *"Pull in this playbook's steps"*: it pulled no steps. The mount looked correctly wired at every layer (state → iri → entityContext → `?$relationships=true` → summary), and the only symptom was the agent asking the analyst to paste in the record it already had. **Two rules.** (1) A summary composer written for one module is not reusable for another by default — a `workflows` record's payload is its `steps[]`, a `cases` record's is its fields; assert what a mount actually *sends* (`entity` on the chat_turn payload), never that it *fetched*. (2) If the consumer needs a nested collection, ship it as its own key (`entity.playbook_yaml`) rather than hoping it survives a generic field-flattener — and **do not truncate it** if the consumer edits and writes it back: the record-data block is capped (`_ENTITY_CONTEXT_MAX`), and a clipped playbook that gets edited and pushed returns as a playbook with the analyst's steps deleted. See `view.controller.js` `_seedPlaybookYaml()`/`_entityPayload()`, `fsrPbAgent.service.js#decompilePlaybook`, and `tests/playbook.yaml.seed.test.js`.
+> **Gotcha -- a "record summary" composed for alerts/cases silently drops a record's nested collections, so a widget that *fetched* related rows can still ship none of them.** `fortiaiAgenticAssistant` resolved its entity with `GET <iri>?$relationships=true` -- so the open playbook's **steps really were on the record** -- and then rendered it through `_composeEntitySummary`, which reads a fixed alert/case-shaped field list (name/severity/status/source/type/description). Everything nested was dropped on the floor. The composer button was even labelled *"Pull in this playbook's steps"*: it pulled no steps. The mount looked correctly wired at every layer (state → iri → entityContext → `?$relationships=true` → summary), and the only symptom was the agent asking the analyst to paste in the record it already had. **Two rules.** (1) A summary composer written for one module is not reusable for another by default -- a `workflows` record's payload is its `steps[]`, a `cases` record's is its fields; assert what a mount actually *sends* (`entity` on the chat_turn payload), never that it *fetched*. (2) If the consumer needs a nested collection, ship it as its own key (`entity.playbook_yaml`) rather than hoping it survives a generic field-flattener -- and **do not truncate it** if the consumer edits and writes it back: the record-data block is capped (`_ENTITY_CONTEXT_MAX`), and a clipped playbook that gets edited and pushed returns as a playbook with the analyst's steps deleted. See `view.controller.js` `_seedPlaybookYaml()`/`_entityPayload()`, `fsrPbAgent.service.js#decompilePlaybook`, and `tests/playbook.yaml.seed.test.js`.
 
-> **Gotcha — one `localStorage` key is shared across every mount of the same widget.** The same widget can be mounted in several contexts at once (dashboard, a record drawer, the playbook designer), and they all share the browser's `localStorage`. A single un-namespaced key (e.g. `fsrPbSession`) therefore *bleeds state across contexts*: `fortiaiAgenticAssistant` persisted its active chat session under one `fsrPbSession` key, so opening the widget on the playbook designer (build mode) rehydrated the analyst's last *dashboard investigation/triage* chat onto the playbooks page. Fix: **scope any persisted per-mount state by the mount's context** — key it by `uiIntent`/`inPlaybookEditor` (`fsrPbSession:build` vs `fsrPbSession:triage`), and migrate the legacy un-namespaced key into the default context only (never the other one). See `view.controller.js` `_sessionKey()`/`_ensureSessionId()` and `tests/sessionScope.controller.test.js`.
+> **Gotcha -- one `localStorage` key is shared across every mount of the same widget.** The same widget can be mounted in several contexts at once (dashboard, a record drawer, the playbook designer), and they all share the browser's `localStorage`. A single un-namespaced key (e.g. `fsrPbSession`) therefore *bleeds state across contexts*: `fortiaiAgenticAssistant` persisted its active chat session under one `fsrPbSession` key, so opening the widget on the playbook designer (build mode) rehydrated the analyst's last *dashboard investigation/triage* chat onto the playbooks page. Fix: **scope any persisted per-mount state by the mount's context** -- key it by `uiIntent`/`inPlaybookEditor` (`fsrPbSession:build` vs `fsrPbSession:triage`), and migrate the legacy un-namespaced key into the default context only (never the other one). See `view.controller.js` `_sessionKey()`/`_ensureSessionId()` and `tests/sessionScope.controller.test.js`.
 
 ## 19. Triggering playbooks
 
@@ -1339,7 +1339,7 @@ $scope.$on('$destroy', () => {
 });
 ```
 
-### 19.3 Direct trigger — pick the endpoint by trigger TYPE (live-verified)
+### 19.3 Direct trigger -- pick the endpoint by trigger TYPE (live-verified)
 
 There are **three** trigger endpoints and they take **different identifiers**.
 Using the wrong one is the classic `404 NotFoundHttpException "Resource Not
@@ -1353,22 +1353,22 @@ Found In Request"`. All three derive from the platform's own `playbookService` /
 | **External API/HMAC trigger** (`cybersponse.api_call`) | `API_HMAC_TRIGGER_URL` = `api/triggers/1/` | the api_call **route** | per-trigger, HMAC-signed |
 
 ```js
-// Universal "run this playbook" — works regardless of trigger type or whether
+// Universal "run this playbook" -- works regardless of trigger type or whether
 // the manual-action route is registered. This is what to use for a data-provider
 // playbook (e.g. jsonToGrid's grid source).
 //   POST api/triggers/1/notrigger/<playbookUuid>  ->  { task_id }   (HTTP 200, verified)
 $resource(API.MANUAL_TRIGGER + playbookUuid).save({}).$promise;
 
-// Record-context action trigger — needs the trigger step's ROUTE, not the uuid:
+// Record-context action trigger -- needs the trigger step's ROUTE, not the uuid:
 $resource(API.ACTION_TRIGGER + triggerStep.arguments.route)
   .save({ __uuid: playbookUuid, __resource: entity.module, records: [recordIri] });
 ```
 
 **Gotcha that bit jsonToGrid (and the misleading old text here):**
-`API.ACTION_TRIGGER + playbookUuid` is WRONG — the action endpoint keys off the
+`API.ACTION_TRIGGER + playbookUuid` is WRONG -- the action endpoint keys off the
 registered **route**, so passing a playbook UUID 404s. Worse, even with the
 correct route, `action/<route>` 404s when that manual-action route **isn't
-registered** in the box's trigger registry — which happens when the playbook
+registered** in the box's trigger registry -- which happens when the playbook
 lives in an **unpublished / "Drafts" collection** (playbook-level `isActive:true`
 is necessary but not sufficient; the *collection* must be active). For a
 no-record data-provider playbook, prefer `notrigger/<uuid>` and the whole class
@@ -1377,10 +1377,10 @@ of problem disappears. `action-renderer` already encodes this split
 `notrigger/<uuid>`, else `action/<route>`); **jsonToGrid does not yet** and so
 404s on a Drafts/no-route data provider.
 
-**Listing playbooks for a picker — don't `GET /api/3/workflows`.** That endpoint
+**Listing playbooks for a picker -- don't `GET /api/3/workflows`.** That endpoint
 returns EVERY workflow with its **full step bodies** even without `$relationships`
 (~700 playbooks → multiple MB → ~7 s), which a name/uuid dropdown doesn't need.
-Use `POST /api/query/workflows?$limit=1000` with a trimmed body instead — an
+Use `POST /api/query/workflows?$limit=1000` with a trimmed body instead -- an
 order-of-magnitude smaller/faster payload:
 ```js
 { logic: "AND",                                   // filters are SILENTLY dropped without explicit logic
@@ -1389,27 +1389,27 @@ order-of-magnitude smaller/faster payload:
   sort: [{ field: "name", direction: "asc" }] }
 ```
 Drive it via `$resource("/api/query/workflows?$limit=1000").save(body)` (`$limit`
-must be baked into the URL — Angular's param serializer drops `$`-prefixed params).
+must be baked into the URL -- Angular's param serializer drops `$`-prefixed params).
 The trimmed response may omit `@id`; reconstruct the IRI as `/api/3/workflows/<uuid>`.
-Fetch the picked playbook's trigger step (type + input vars) on demand — a ~5 KB,
-sub-second `GET /api/3/workflows/<uuid>?$relationships=true&$triggerOnly=true` —
+Fetch the picked playbook's trigger step (type + input vars) on demand -- a ~5 KB,
+sub-second `GET /api/3/workflows/<uuid>?$relationships=true&$triggerOnly=true` --
 so no fidelity is lost. `action-renderer`'s "Show all playbooks" branch
 (`loadAllPlaybooks`) does exactly this.
 
 After triggering, poll for output with `task_id`(s):
 `playbookService.checkPlaybookExecutionCompletion(taskIds, cb)` →
 `getExecutedPlaybookLogData(instance_ids)` → `{ status:'finished', result }`.
-See also the endpoint table in the "Two trigger endpoints — by trigger TYPE"
+See also the endpoint table in the "Two trigger endpoints -- by trigger TYPE"
 note (§ API constants, ~L3270).
 
-**The log payload also carries `data.env` — a flat namespace of EVERY variable
+**The log payload also carries `data.env` -- a flat namespace of EVERY variable
 set anywhere in the playbook, not just the final step's output.** Verified live
 (`GET /api/wf/api/workflows/<inst>/?format=json`, force_debug run): top-level
 keys are `{ result, env, steps, status, debug, … }`. A variable assigned in *any*
 step (e.g. a "Set Variable" or connector step) appears as a top-level key in
 `env` (alongside system keys `input`/`request`/`route`/`resources`/`task_id`/
-`auth_info`/`currentUser`/…). `steps[]` carries only `name`/`status`/timing —
-**no per-step `result`** — so you cannot attribute a var to a step, but you don't
+`auth_info`/`currentUser`/…). `steps[]` carries only `name`/`status`/timing --
+**no per-step `result`** -- so you cannot attribute a var to a step, but you don't
 need to: `env` is the merged final variable space. `data.result` is only what the
 playbook's output/Return-Output step populated. Practical consequence: a widget
 can source two independent values (e.g. jsonToGrid's `grid_data` rows and
@@ -1417,7 +1417,7 @@ can source two independent values (e.g. jsonToGrid's `grid_data` rows and
 playbook author to assemble both in one final step. jsonToGrid's
 `resolveGridPayload` does exactly this with precedence `result.<x>` → named
 `env.<x>` → shape-sniff of `env` (rows = longest array-of-objects; columns = a
-`{columns:[…]}`-shaped value; system keys excluded). No extra API call — `env` is
+`{columns:[…]}`-shaped value; system keys excluded). No extra API call -- `env` is
 in the same response.
 
 ### 19.4 Conditional button display
@@ -1472,35 +1472,35 @@ websocketService.subscribe('runningworkflow', data => {
 });
 ```
 
-### 20.4 Shipping a connector — stale in-memory workers (CRITICAL)
+### 20.4 Shipping a connector -- stale in-memory workers (CRITICAL)
 
 FortiSOAR runs each connector's `execute` calls across a pool of long-lived
-integration-agent worker processes (gunicorn `fsr-integrations-agent`, ~7–10
+integration-agent worker processes (gunicorn `fsr-integrations-agent`, ~7-10
 procs). **A worker imports the connector module ONCE and caches it in
 `sys.modules`; it only recycles onto new code when you publish with a NEWER
 version.** Consequences:
 
 - Copying new files into the on-disk connector dir (or reinstalling the *same*
-  version) does **not** reload the running workers — they keep executing the old
+  version) does **not** reload the running workers -- they keep executing the old
   bytecode. The live behavior is stale even though the disk is fresh.
 - Symptom seen on 8.0/159: every agentic-triage hunt returned
   `no_fsr_configured: No module named 'probes'` because the crudhub/probes
   bridge (`operations._ensure_probes_bridge` → `fsr_soc_triage._live_crudhub`)
   lived only in the new on-disk code; the cached workers predated it. On-disk
-  `lc.available()` was `True` the whole time — the workers just never reloaded.
+  `lc.available()` was `True` the whole time -- the workers just never reloaded.
 - **Always ship via a version-bumped publish.** For the agentic connector that
   is `make ship` in the connector repo (bump → build → install → `verify_workers`
   gate that asserts every pid reports the new version). Never hand-copy files or
   do a same-version reinstall and expect the change to be live.
 - Diagnose in the *worker context* (cwd `/opt/cyops-integrations/integrations`,
   `DJANGO_SETTINGS_MODULE=integrations.settings`, the `integrations_env`
-  interpreter) — a bare `python` from the connector dir can't import
+  interpreter) -- a bare `python` from the connector dir can't import
   `integrations.crudhub` and will falsely read `available() == False`. `make
   bridge-check` runs this correctly over SSH.
 
 The standardized command set for connector/widget shipping + box diagnosis is
 the connector-repo Makefile (`make ship` / `ship-widget` / `verify` /
-`bridge-check` / `matrix`). Use it — do not hand-run `deploy.sh`, `ssh`, or
+`bridge-check` / `matrix`). Use it -- do not hand-run `deploy.sh`, `ssh`, or
 ad-hoc `pyfsr`.
 
 ---
@@ -1524,7 +1524,7 @@ if (currentPermissionsService.isAdmin()) { /* ... */ }
 
 **Harness stub (gotcha):** the harness overrides `currentPermissionsService`
 with a grant-all stub (`harness.module.js`). It must expose **every** method a
-platform directive calls during `$digest`, not just the ones widgets use — e.g.
+platform directive calls during `$digest`, not just the ones widgets use -- e.g.
 `csGrid`'s link calls `isAdmin()` (to set `restrictPermanentDelete`). A missing
 method throws `isAdmin is not a function` and the grid never links (jsonToGrid).
 When a built-in directive errors with `<method> is not a function` on a stubbed
@@ -1542,7 +1542,7 @@ Always guard the view with an `unauthorized` branch:
 
 ## 22. External assets
 
-### 22.1 Bundled — ship inside the `.tgz`
+### 22.1 Bundled -- ship inside the `.tgz`
 
 ```html
 <script src="widgets/installed/myWidget-1.0.0/widgetAssets/js/lib.js"></script>
@@ -1550,7 +1550,7 @@ Always guard the view with an `unauthorized` branch:
       href="widgets/installed/myWidget-1.0.0/widgetAssets/css/style.css">
 ```
 
-### 22.2 CDN — loaded on demand
+### 22.2 CDN -- loaded on demand
 
 ```js
 function loadJsAsync(src) {
@@ -1733,8 +1733,8 @@ Scenario: group Alerts by Severity, show a pie chart.
 })();
 ```
 
-**`edit.html`** — title + `cs-conditional` filter builder (see §6 skeleton).
-**`edit.controller.js`** — loads modules, fields, closes modal with config.
+**`edit.html`** -- title + `cs-conditional` filter builder (see §6 skeleton).
+**`edit.controller.js`** -- loads modules, fields, closes modal with config.
 
 ### 25.2 View-Panel "current record" widget
 
@@ -1798,16 +1798,16 @@ function Ctrl($scope, config, PagedCollection, Query,
 
 ### 25.4 Drawer (FortiAI-style) widget
 
-**`info.json`** — see §18.
+**`info.json`** -- see §18.
 
-**`view.html`** — standard drawer chrome (search, refresh, content panel). Handle drawer lifecycle:
+**`view.html`** -- standard drawer chrome (search, refresh, content panel). Handle drawer lifecycle:
 
 ```js
 $scope.$on('popupOpened', refresh);
 $scope.$on('popupClosed', cancelInFlight);
 ```
 
-**`edit.html`** — "no configuration" stub (see §6.3).
+**`edit.html`** -- "no configuration" stub (see §6.3).
 
 ### 25.5 Wizard configuration widget
 
@@ -1828,7 +1828,7 @@ $scope.$on('popupClosed', cancelInFlight);
 </wizard>
 ```
 
-### 25.6 Settings (admin) widget — no edit form
+### 25.6 Settings (admin) widget -- no edit form
 
 `"pages": ["Listing"]` or `[]`; `edit.html` is a stub. Fetch system state via `$http` / `settingsService`, update via `$resource.update` / `settingsService.set`.
 
@@ -1988,31 +1988,31 @@ State name | URL-ish | Use for
 1. **Wrong controller name.** `name: "fooBar"` + `version: "1.0.0"` must register `fooBar100Ctrl` / `editFooBar100Ctrl`. Mismatched names = silent failure with a blank cell.
 2. **Missing `$inject`.** Minification strips parameter names. Without the explicit `$inject` array, the widget breaks in production.
 3. **Missing copyright header.** Content Hub submission linter rejects files without the MIT block.
-4. **Forgetting `data-` prefixes.** Raw `cs-field` often works in dev but some HTML parsers strip unknown attributes — always use `data-cs-*`.
+4. **Forgetting `data-` prefixes.** Raw `cs-field` often works in dev but some HTML parsers strip unknown attributes -- always use `data-cs-*`.
 5. **Absolute CSS paths.** Using `/widgetAssets/...` breaks when the platform mounts under a sub-path. Always use relative or `widgets/installed/<name>-<version>/...`.
 6. **Destroying charts / websockets on `$destroy`.** Omit this and you leak across dashboard refreshes. `chart.destroy()`, `websocketService.unsubscribe`, `$interval.cancel`.
 7. **Theme map uses three IDs.** `light`, `steel`, `dark`. Don't branch on just light/dark.
 8. **`published_date` type drift.** Unix seconds. Integers are preferred; strings work but some tooling sorts them lexicographically.
 9. **`subTitle` vs `subtitle`.** Capital T.
 10. **AMD conflict on CDN libs.** d3-sankey, c3, cytoscape all detect AMD and refuse to attach to `window`. Temporarily null out `window.define.amd`.
-11. **`__selectFields` is essential for big modules.** Without it every record comes back with its full payload — your dashboard will crawl.
+11. **`__selectFields` is essential for big modules.** Without it every record comes back with its full payload -- your dashboard will crawl.
 12. **Using `$state.params.id` for an IRI.** It's a UUID. Build IRIs with `/api/3/<module>/<id>`.
-13. **Relying on the widget to run on every page.** The platform caches config. Write the controller idempotently — re-entry must reset `processing`, unsubscribe old websockets, and destroy old chart instances.
+13. **Relying on the widget to run on every page.** The platform caches config. Write the controller idempotently -- re-entry must reset `processing`, unsubscribe old websockets, and destroy old chart instances.
 14. **Stale file permissions in the tarball.** Content Hub rejects files not readable by other. Run `chmod -R a+r .` before packing.
 15. **Missing `compatibility` entry for the target version.** If `compatibility` doesn't list the user's FortiSOAR version, Content Hub won't let them install it.
 16. **Drawer widgets need `standalone: true`.** Without it the modal renders but can't be launched from the drawer rail.
-17. **Localized widgets before 7.4.1.** Preview is silently broken in older versions — degrade gracefully by falling back to English on translation errors.
+17. **Localized widgets before 7.4.1.** Preview is silently broken in older versions -- degrade gracefully by falling back to English on translation errors.
 18. **Validation bypass.** Remember to `$setTouched()` and return early in `save()` when `$invalid`; otherwise users submit empty configs.
 19. **Circular `$broadcast`.** Widgets broadcasting events on `$rootScope` can cascade into infinite loops if two widgets subscribe to each other's events with the same namespace.
 20. **Connector calls without `configId`.** `executeConnectorAction` silently picks a random config if you pass `null`. Always resolve the config first.
 21. **Deploy "publish" that only registers a draft.** Shipping a widget is two
     steps: `POST /api/3/solutionpacks/install?$type=widget&$replace=true` (tgz
     upload) **then** `PUT /api/3/widgets/<uuid>` to publish. The PUT must send
-    **`draft: false`** to actually publish — `PUT … {draft:true}` returns **200
+    **`draft: false`** to actually publish -- `PUT … {draft:true}` returns **200
     yet leaves the widget a DRAFT** (stays out of widget pickers, the Dev-strip
     publish pipeline may not run), forcing a manual publish from the UI.
     Verified on 205: published built-ins are `draft:false`; dev-pushed drafts are
-    `draft:true`. **A 2xx is NOT proof of publish** — validate the PUT response
+    `draft:true`. **A 2xx is NOT proof of publish** -- validate the PUT response
     (or a follow-up GET) shows `draft === false` before declaring success. The
     harness `POST /_fsr/install/:id` now does this (`server.ts` `widgetIsPublished`).
 
@@ -2020,10 +2020,10 @@ State name | URL-ish | Use for
 
 ## 29. Platform source references (host UI code)
 
-How to locate and read the host UI's templates, directives, and services when a widget must mirror platform behavior — grep recipes for walking the stripped SOAR bundle.
+How to locate and read the host UI's templates, directives, and services when a widget must mirror platform behavior -- grep recipes for walking the stripped SOAR bundle.
 
 > **Full reference:** [`docs/kb/platform-source-refs.md`](fortisoar-widget-harness/docs/kb/platform-source-refs.md)
-## Appendix A — `API` constants
+## Appendix A -- `API` constants
 
 Injected via the `API` / `Constants` provider (see §8.1). Verbatim from the PDF / source.
 
@@ -2103,7 +2103,7 @@ PLAYBOOK_STEP_TYPES.MANUAL_INPUT_STEP_TYPE   = '/api/3/workflow_step_types/fc040
 
 ---
 
-## Appendix B — Field `formType` values
+## Appendix B -- Field `formType` values
 
 Supported by the `data-cs-field` directive (from PDF p. 34-36):
 
@@ -2143,12 +2143,12 @@ Field-Options (passed via `data-field-options` on `cs-field`):
 
 ## 30. Building widgets that reuse SOAR's connector-action UI
 
-Reusing the platform's connector-action rendering (`cs-connector-actions`, `connectorActionListing`) inside a custom widget — scope contract and how configured connectors are surfaced.
+Reusing the platform's connector-action rendering (`cs-connector-actions`, `connectorActionListing`) inside a custom widget -- scope contract and how configured connectors are surfaced.
 
 > **Full reference:** [`docs/kb/connector-action-ui.md`](fortisoar-widget-harness/docs/kb/connector-action-ui.md)
 ## 31. Adding a custom theme to the SOAR system-settings dropdown
 
-This is a SOAR appliance modification, not a widget — but it's grouped here
+This is a SOAR appliance modification, not a widget -- but it's grouped here
 because the discovery path uses the same de-min / grep techniques as §29.
 
 ### How themes work in SOAR
@@ -2161,11 +2161,11 @@ because the discovery path uses the same de-min / grep techniques as §29.
 - `cindex.html` always loads `css/themes/steel.<hash>.css` as a baseline,
   then layers the selected theme on top via
   `<link rel="stylesheet" data-ng-href="{{theme.path}}">`. Switching themes
-  just rebinds `theme.path` — no reload required.
+  just rebinds `theme.path` -- no reload required.
 - `themesService` (factory in `app.unmin.js` ~ line 45470) loads
   `themes.json`, runs each `name` through `translationService.instantTranslate`,
   caches via `localStorageService` + `PromiseQueue`, and exposes
-  `get()` / `applyTheme()`. **There is no filter** — every entry in the JSON
+  `get()` / `applyTheme()`. **There is no filter** -- every entry in the JSON
   is shown. The three consumers (`GeneralCtrl` ~42377, `UserCtrl` ~41136,
   `UserPreferenceSettingsCtrl` ~64097) just bind the full array. If a theme
   appears in the JSON but not in the dropdown, it's stale browser/local
@@ -2184,7 +2184,7 @@ because the discovery path uses the same de-min / grep techniques as §29.
               /opt/cyops-ui/css/themes/mytheme.css
    ```
 
-   Use an unhashed filename — SOAR upgrades re-hash the stock files but
+   Use an unhashed filename -- SOAR upgrades re-hash the stock files but
    leave unknown ones alone.
 
 2. **Edit the colors.** A useful diff to see the surface area:
@@ -2209,14 +2209,14 @@ because the discovery path uses the same de-min / grep techniques as §29.
    {"id":"mytheme","name":"My Theme","path":"css/themes/mytheme.css","type":"dark"}
    ```
 
-   `name` can be a literal string — angular-translate falls back to the
+   `name` can be a literal string -- angular-translate falls back to the
    key when no locale entry exists. If you want a real translation, add
    `"SETTINGS.GENERAL_CONFIG.THEME_MYTHEME": "My Theme"` to each
    `/opt/cyops-ui/locales/<lang>.json` you care about and use that key in
    `name` instead.
 
 4. **Hard-refresh the browser** (cache + local storage). No `cyops-ui`
-   service restart required — `themes.json` is fetched at runtime and
+   service restart required -- `themes.json` is fetched at runtime and
    the CSS is loaded by the `<link>` swap.
 
 5. **Verify** in DevTools: switching to your theme should change the
@@ -2235,7 +2235,7 @@ upgrade.
 
 ### Why this is not a widget
 
-There is no widget hook for system-level theming — themes are loaded
+There is no widget hook for system-level theming -- themes are loaded
 before the Angular app's widget system bootstraps. A widget can inject
 its own `<link>` and toggle a class on `<body>`, but it can't add an
 option to the system-settings dropdown. If you don't have shell access
@@ -2247,7 +2247,7 @@ shell access, edit `themes.json` directly as above.
 ## 32. Harness gaps from the stripped SOAR bundle
 
 The harness loads `fsr_src/app.unmin.js` (the full SOAR app), but that bundle
-has angular-ui-bootstrap and a few sibling vendor modules **stripped out** —
+has angular-ui-bootstrap and a few sibling vendor modules **stripped out** --
 their directive/factory registrations live in separate vendor scripts in real
 SOAR. Anything in SOAR templates that depends on those vendors (`uib-popover`,
 `uib-tooltip`, `uib-popover-template`, `uib-modal`, `uib-typeahead`, etc.)
@@ -2256,24 +2256,24 @@ silently no-ops in the harness because the directive simply isn't registered.
 ### Symptom pattern
 
 A SOAR-rendered control looks correct (button labels, placeholders, structure
-all there) but **clicking does nothing** — no popover, no dropdown, no modal,
+all there) but **clicking does nothing** -- no popover, no dropdown, no modal,
 no console error. The directive attribute (`data-uib-popover-template=...`)
 sits inert on the element because Angular found no matching directive and
 therefore wired up no event handler.
 
 This is distinct from the "literal `{{ ... }}` in the DOM" symptom, which is
 caused by translation strings missing param interpolation (see harness
-`translate` filter — must call `$interpolate(str)(params)` not just look up
+`translate` filter -- must call `$interpolate(str)(params)` not just look up
 the key).
 
 ### Diagnosis
 
-1. `grep -c "directiveName" fsr_src/app.unmin.js` — if matches are only
+1. `grep -c "directiveName" fsr_src/app.unmin.js` -- if matches are only
    *usages* (`uib-popover-template="..."`) and zero *registrations*
    (`directive("uibPopoverTemplate", ...)` or
    `module("ui.bootstrap").directive(...)`), the vendor module is stripped.
 2. Cross-check by grepping the harness for that vendor module's name in
-   `HARNESS_VENDOR_DEPS` (server.js) — if it's not listed, cybersponse
+   `HARNESS_VENDOR_DEPS` (server.js) -- if it's not listed, cybersponse
    doesn't pull it in either.
 
 ### Fix recipe (the picklist popover case, applies generally)
@@ -2305,25 +2305,25 @@ shape.
 ### Known stripped vendors (load these in the harness)
 
 Loaded from CDN + listed in `HARNESS_VENDOR_DEPS` (server.js):
-- `ui.bootstrap` — uib-popover, uib-tooltip, uib-modal, uib-dropdown,
+- `ui.bootstrap` -- uib-popover, uib-tooltip, uib-modal, uib-dropdown,
   uib-tabset, uib-accordion, uib-collapse, uib-progressbar, uib-pagination,
   uib-btn-checkbox/radio, etc. (~1000 attribute uses across SOAR templates)
-- `ui.select` — the `<ui-select>` element used by csMultiselect for
+- `ui.select` -- the `<ui-select>` element used by csMultiselect for
   `in`/`nin` operators (~150 uses)
-- `ngSanitize` — `$sanitize` for `ng-bind-html` safe content
-- `angularMoment` — `amTimeAgo` etc. date filters (requires `moment` first)
-- `ngFileUpload` — `Upload` service injected by file-picker controllers
+- `ngSanitize` -- `$sanitize` for `ng-bind-html` safe content
+- `angularMoment` -- `amTimeAgo` etc. date filters (requires `moment` first)
+- `ngFileUpload` -- `Upload` service injected by file-picker controllers
 
 Skipped on purpose (would clash with harness stubs or need extra setup;
 add only if a feature actually requires the real implementation):
-- `angular-local-storage` — `localStorageService` is stubbed in
+- `angular-local-storage` -- `localStorageService` is stubbed in
   harness.module.js
-- `angular-toaster` — `toaster` is stubbed; real one needs a
+- `angular-toaster` -- `toaster` is stubbed; real one needs a
   `<toaster-container>` mount point
-- `angular-ui-router` — `$state` is stubbed; real one would try to route
+- `angular-ui-router` -- `$state` is stubbed; real one would try to route
   away from the harness shell
 
-Expect more discoveries — every `grep -c 'directive("X"' fsr_src/app.unmin.js`
+Expect more discoveries -- every `grep -c 'directive("X"' fsr_src/app.unmin.js`
 that returns 0 for a directive used in stock SOAR templates is a candidate.
 
 ### Bonus gotcha: SOAR's templates bundle has broken expressions
@@ -2347,7 +2347,7 @@ Suspect a stripped vendor any time SOAR's stock UI renders but doesn't react.
 The fix is almost always: declare the missing module in `HARNESS_VENDOR_DEPS`,
 load the vendor lib + any required templates before bootstrap, and remove
 manual shims that are now redundant. Plan B (when loading the real lib is too
-disruptive) is a one-directive shim — only worth it for tightly-scoped
+disruptive) is a one-directive shim -- only worth it for tightly-scoped
 features.
 
 ---
@@ -2357,7 +2357,7 @@ features.
 A widget controller that throws synchronously during construction or its first
 `$digest` (e.g. dereferencing an unconfigured config field like
 `config.actionButtons[0].uuid`) is routed to AngularJS's `$exceptionHandler`,
-which **swallows it** — `angular.bootstrap` never rejects. The result is a
+which **swallows it** -- `angular.bootstrap` never rejects. The result is a
 **blank/empty render** (`#widget-host` shows the bare `ng-controller` div, or the
 edit-config modal is empty) with the error visible only in DevTools.
 
@@ -2365,14 +2365,14 @@ The harness now closes that hole. During the mount window it sets
 `window.__HARNESS_MOUNTING` around `angular.bootstrap`; `harness.module.js`'s
 `$exceptionHandler` stashes the **first** error on `window.__HARNESS_RENDER_ERROR`
 (`{controller, message, stack}`), and `public/index.html` renders a visible red
-panel (controller name + message + stack) into the host — for **both** the view
+panel (controller name + message + stack) into the host -- for **both** the view
 mount and the edit-config modal. The global is also a machine-readable signal for
 e2e/automation, mirroring `window.__HARNESS_LINT_BLOCKED__`.
 
 So: if a widget mounts blank in the harness, you'll now see the throw inline. The
 full error (with `$q` creation stack) is also in the Debug drawer → Errors tab.
 
-## 34. Diagnosing "edit.html (or the whole widget) won't render" — checklist
+## 34. Diagnosing "edit.html (or the whole widget) won't render" -- checklist
 
 Blank modal / empty widget with no obvious error. Causes, ordered by where they
 bite:
@@ -2383,10 +2383,10 @@ bite:
    the numeric version (`1.3.1`→`131`) must match the suffix registered in
    `view.controller.js` **and** `edit.controller.js` (plus any `ng-controller`/CSS
    href in templates). Mismatch → SOAR can't instantiate → **blank, no error.**
-   **Never hand-edit `info.json` version** — only the CLI bump rewrites the names
+   **Never hand-edit `info.json` version** -- only the CLI bump rewrites the names
    in lockstep (`node scripts/widget.js push <id> --bump patch`, which fast-fails
    on desync). A blank modal on the box with *consistent source* almost always
-   means the **installed** package predates the sync — just re-push.
+   means the **installed** package predates the sync -- just re-push.
 2. **`moduleAttribute` registry empty (harness only).** Field value inputs render
    as empty `<div>`s. Not a box cause. See "moduleAttribute registry" memory.
 3. **csField `$parent.value` misbind (harness only).** Inputs show
@@ -2395,7 +2395,7 @@ bite:
    stays empty until the controller `$broadcast('conditional:fieldListChanged')`
    after an async field load.
 5. **Stripped `uib-*` vendors (harness only).** `uib-*` directives no-op silently
-   — see "Harness gaps from the stripped SOAR bundle" above.
+   -- see "Harness gaps from the stripped SOAR bundle" above.
 
 Note the **bump now also rewrites the widget's sibling `tests/` tree** (controller
 names + versioned IDs, skipping `node_modules`), so a version bump no longer reds
@@ -2405,12 +2405,12 @@ the widget's own unit/e2e suite with a stale hardcoded controller name.
 
 Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-json-to-grid`),
 with a single GitHub Actions workflow that publishes a downloadable `.tgz` on
-every version bump. The flow is **bump → commit → push to `develop`** — nothing
+every version bump. The flow is **bump → commit → push to `develop`** -- nothing
 else. No manual tagging, no manual `gh release`.
 
 ### 30.1 How to cut a release
 
-1. **Bump the version through the CLI/packager — never hand-edit `info.json`.**
+1. **Bump the version through the CLI/packager -- never hand-edit `info.json`.**
    The controller name embeds the numeric version (`jsonToGrid131DevCtrl` →
    `jsonToGrid132DevCtrl`); hand-editing desyncs it and trips the stale-version
    lint. Use `widget bump <id> --bump patch`, or call the packager's
@@ -2422,20 +2422,20 @@ else. No manual tagging, no manual `gh release`.
    (must emit `dist/<name>-<version>.tgz`).
 3. **Commit and push to `develop`.** If you split into multiple commits, the
    commit that bumps `info.json` must be **HEAD** (or at least the version at
-   HEAD must differ from HEAD~1) — the workflow compares `HEAD` vs `HEAD~1`
+   HEAD must differ from HEAD~1) -- the workflow compares `HEAD` vs `HEAD~1`
    `info.json` and skips if unchanged.
 
 The workflow then tags `v<version>`, packages, and publishes a GitHub Release
 with two assets:
-- `<name>-<version>.tgz` — the versioned artifact
-- `<name>-latest.tgz` — a version-agnostic copy, so there is a **permanent
+- `<name>-<version>.tgz` -- the versioned artifact
+- `<name>-latest.tgz` -- a version-agnostic copy, so there is a **permanent
   latest-download URL**:
   `https://github.com/<owner>/<repo>/releases/latest/download/<name>-latest.tgz`
 
 ### 30.2 Two hazards the pipeline design avoids (don't reintroduce them)
 
 - **One workflow, not two.** A tag pushed by a separate job using the default
-  `GITHUB_TOKEN` does **not** trigger a tag-keyed workflow — GitHub suppresses
+  `GITHUB_TOKEN` does **not** trigger a tag-keyed workflow -- GitHub suppresses
   workflow runs from `GITHUB_TOKEN` events to prevent recursion. A split
   `tag.yml` (push tag) → `release.yml` (on `v*` tag) chain therefore never hands
   off and silently produces zero releases. Keep tagging + releasing in the
@@ -2450,7 +2450,7 @@ The canonical example is `widget-json-to-grid/.github/workflows/release.yml`
 (`on: push: branches:[develop], paths:[widget/info.json]` + `workflow_dispatch`;
 detect version change → install → test → package + latest copy → tag → release).
 
-(Deploying to a live FortiSOAR box is a **separate** path — see §19.3 and the
+(Deploying to a live FortiSOAR box is a **separate** path -- see §19.3 and the
 harness `make ship-verify` / `widget push` flow, which uploads the tgz via
 `solutionpacks/install` then publishes with `draft:false`. GitHub release ≠ box
 deploy.)
@@ -2464,25 +2464,25 @@ MIT License
 Copyright (c) <year> Fortinet Inc
 ```
 
-Third-party libraries (d3, c3, echarts, vis, etc.) retain their original licenses — ship them under `widgetAssets/js/` or load from a CDN as described in §22.
+Third-party libraries (d3, c3, echarts, vis, etc.) retain their original licenses -- ship them under `widgetAssets/js/` or load from a CDN as described in §22.
 
 ---
 
 ## 36. Troubleshooting widget mount & render (harness + e2e) {#troubleshooting-widget-mount--render}
 
-Distilled from building `ztpAutomationGraph` — a Cytoscape.js node-graph panel
+Distilled from building `ztpAutomationGraph` -- a Cytoscape.js node-graph panel
 widget on `ztpf_devices` (`widgets-src/ztpAutomationGraph/`). Most of these are
 non-obvious and cost real debugging time; check here before grepping.
 
-### 32.1 The render-state machine — read it first
+### 32.1 The render-state machine -- read it first
 The harness exposes `window.__HARNESS_RENDER_STATE = { phase, lastError, ... }`.
 `phase` cycles `idle → mounting → rendered | error`. `waitForRender()`
 (`fortisoar-widget-harness/tests/e2e/_render.js`) waits for `rendered`/`error`
 and THROWS on `lastError` (a swallowed controller/digest throw the harness
-captured). A `waitForRender` TIMEOUT means phase is stuck at `mounting` — the
-widget didn't finish booting (usually a settle block, §32.4 — NOT a throw).
+captured). A `waitForRender` TIMEOUT means phase is stuck at `mounting` -- the
+widget didn't finish booting (usually a settle block, §32.4 -- NOT a throw).
 
-Diagnostic that won't itself time out — add a temporary test that `page.route`s
+Diagnostic that won't itself time out -- add a temporary test that `page.route`s
 + `addInitScript`s (seed `harness.widget`/`ctx`/`module`/`id`) + `goto('/')` +
 `waitForTimeout(3000)` + `page.evaluate(() => ({ renderState, renderError,
 libsLoaded, rootCount, cyCanvasCount, ... }))` (do NOT call `waitForRender`):
@@ -2494,17 +2494,17 @@ page.on('requestfailed', r => console.log('[REQFAIL]', r.url(), r.failure()?.err
 The swallowed digest error may not surface on the console, but library/cytoscape
 errors do.
 
-### 32.2 Widget discovered but won't mount (`widget: —` in the harness UI)
+### 32.2 Widget discovered but won't mount (`widget: --` in the harness UI)
 - A `<script src>` in view.html that 404s or throws during parse aborts mount.
   Check `requestfailed` + the in-page Debug panel.
 - A controller throw in the synchronous `init()` body → captured as
   `__HARNESS_RENDER_ERROR` → phase `error` → `waitForRender` THROWS (with the
   message), it does NOT time out. **A timeout (stuck `mounting`) is almost never
-  a controller throw** — it's a settle block (§32.4) or an unsatisfied $http.
+  a controller throw** -- it's a settle block (§32.4) or an unsatisfied $http.
 
 ### 32.3 Vendored JS library load order (Cytoscape / dagre / extensions)
 The harness auto-injects EVERY `widgetAssets/**/*.js` in **lexical (filesystem)
-order** — NOT the order of `<script>` tags in view.html (Angular `$compile`
+order** -- NOT the order of `<script>` tags in view.html (Angular `$compile`
 doesn't execute `<script>` tags in templates). So `cytoscape-dagre.js` (c) loads
 before `cytoscape.min.js` + `dagre.min.js` → the extension fails to register →
 `Error: No such layout `dagre` found` at render time.
@@ -2526,7 +2526,7 @@ function layoutFor(els) {
 }
 ```
 
-#### 32.3.1 SOAR (the real box) loads widgetAssets JS in ARRIVAL order, not lexical — and it is an AMD/RequireJS env
+#### 32.3.1 SOAR (the real box) loads widgetAssets JS in ARRIVAL order, not lexical -- and it is an AMD/RequireJS env
 **The numeric-prefix fix above is a harness-only fix. On the real box it does
 NOT work**, and applying it blindly (as `ztpAutomationGraph` first did) produces
 "Cytoscape failed to load." with no other clue. Two platform facts, both
@@ -2534,19 +2534,19 @@ confirmed live on FortiSOAR 7.6.5 (box 168) by driving the page with Playwright
 and probing `window`:
 
 1. **SOAR auto-injects `widgetAssets/**/*.js` in PARALLEL and executes each on
-   arrival — NOT document/`<script>` order, NOT lexical order.** Six files with
+   arrival -- NOT document/`<script>` order, NOT lexical order.** Six files with
    `1-`/`2-`/`3-` prefixes were observed executing in network-arrival order
    (`0-noamd → 3-cytoscape-dagre → 9-restore → ztpGraph → 1-dagre → 2-cytoscape`).
    The `<script src>` tags in view.html are ignored on SOAR (Angular `$compile`
-   doesn't run them) — certified widgets like `cyberThreatWorldMap` ship NO
+   doesn't run them) -- certified widgets like `cyberThreatWorldMap` ship NO
    `<script>` tags and still get `d3` as a bare global, proving auto-injection.
    So per-file prefix ordering is meaningless on SOAR; it only helps the harness.
 2. **SOAR's app shell is an AMD/RequireJS environment** (`typeof window.define
    === 'function' && define.amd === true`, `define` writable). A vendored **UMD**
    lib loaded via auto-injection sees `define.amd`, takes its AMD branch, and
-   calls anonymous `define([...], factory)`. RequireJS rejects that — page error
+   calls anonymous `define([...], factory)`. RequireJS rejects that -- page error
    **"Can only have one anonymous define call per script file"** (once per UMD
-   file) — and the lib **never attaches its global** (`window.cytoscape` stays
+   file) -- and the lib **never attaches its global** (`window.cytoscape` stays
    `undefined`). The widget then hits its own `if (!window.cytoscape)` guard and
    shows "Cytoscape failed to load." `dagre` happens to set `window.dagre` from
    both branches so it survives; `cytoscape` and `cytoscape-dagre` do not.
@@ -2579,7 +2579,7 @@ no-ops and lexical order still works; on SOAR the single-file execution makes
 order deterministic. The bundle is idempotent, so it's safe if the platform
 loads it more than once. Assemble with a tiny node script (cat prelude + `;\n` +
 files + `;\n` + postlude); the min.js files end in `});` so `;` joins are safe.
-**Do not try to "shim" with separate `0-noamd.js` / `9-restore.js` files** —
+**Do not try to "shim" with separate `0-noamd.js` / `9-restore.js` files** --
 because of fact (1) they execute in arrival order, so `9-restore` can run before
 `2-cytoscape` arrives and re-enable AMD mid-load (observed). One file, or
 nothing.
@@ -2590,7 +2590,7 @@ refresh reschedules) → the harness `settle()` (drains digests/$http/$timeout t
 quiescence) never reaches idle → phase stuck at `mounting` → `waitForRender`
 timeout. Symptom: widget renders fine (rootText has your data) but the test times
 out at `waitForFunction`.
-Fix: poll with **raw `setTimeout`** (outside Angular's `$timeout` queue — settle
+Fix: poll with **raw `setTimeout`** (outside Angular's `$timeout` queue -- settle
 ignores it) + `$scope.$applyAsync(refresh)` to re-enter a digest:
 ```js
 function schedulePoll(seconds) {
@@ -2599,28 +2599,28 @@ function schedulePoll(seconds) {
   pollTimer = $window.setTimeout(function () { $scope.$applyAsync(refresh); }, ms);
 }
 function cancelPoll() { if (pollTimer) { $window.clearTimeout(pollTimer); pollTimer = null; } }
-// $scope.$on("$destroy", cancelPoll) — also stops pulse animations + cy.destroy()
+// $scope.$on("$destroy", cancelPoll) -- also stops pulse animations + cy.destroy()
 ```
 In jest, mock `$window.setTimeout`/`clearTimeout` (delegate to the globals) and
 call `$scope.$destroy()` at the end of the success test to cancel the open timer
 (otherwise jest hangs on an open handle).
 
-### 32.4.1 Inline-SVG node icons squash on zoom — give the SVG intrinsic width/height
+### 32.4.1 Inline-SVG node icons squash on zoom -- give the SVG intrinsic width/height
 A cytoscape node `background-image` set to an inline `data:image/svg+xml` glyph
 with only a `viewBox="0 0 24 24"` and **no `width`/`height` attributes** has no
 intrinsic size. Browsers rasterize such an SVG at the CSS default replaced-element
 size of **300×150** (a 2:1 aspect). `background-fit: contain` masks it at rest,
 but as you zoom in cytoscape redraws the raster and the 2:1 intrinsic ratio bleeds
-through — the glyph gets horizontally **squashed** (observed in `ztpAutomationGraph`).
+through -- the glyph gets horizontally **squashed** (observed in `ztpAutomationGraph`).
 Fix: add explicit square `width="24" height="24"` (matching the viewBox) to each
 SVG root so the intrinsic aspect is locked 1:1:
 ```js
 svgUri('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">…</svg>')
 ```
 
-### 32.4.2 cytoscape `.animation()` has NO loop/alternate — chain on the completion promise
+### 32.4.2 cytoscape `.animation()` has NO loop/alternate -- chain on the completion promise
 `ele.animation({ style, duration, alternate: true, loop: true })` looks like it
-pulses, but **cytoscape silently ignores `alternate`/`loop`** — the animation runs
+pulses, but **cytoscape silently ignores `alternate`/`loop`** -- the animation runs
 ONCE (e.g. border-width 5→10) and freezes at the end frame. Symptom: a "blinking
 current step" ring that grows once and never breathes (hit in `ztpAutomationGraph`).
 Drive a real loop by chaining grow→shrink on each animation's completion promise,
@@ -2647,7 +2647,7 @@ where a live run's ring color + "current" highlight stayed frozen at the first
 render (all "Added") while the queueStatus grid advanced:
 1. **Update the class list, not just `data`.** Status lives in BOTH `node.data`
    (e.g. `border-color: data(color)`) AND the class string (`status-running`,
-   `current`, mode). `node.data(nd.data)` alone leaves classes frozen — the pulse
+   `current`, mode). `node.data(nd.data)` alone leaves classes frozen -- the pulse
    and any class-keyed style stick to whichever node was current at first render.
    Re-apply: `node.classes(nd.classes)` (replaces the whole set).
 2. **A mapped style may not re-run on a whole-object `.data()` swap.** Replacing a
@@ -2655,19 +2655,19 @@ render (all "Added") while the queueStatus grid advanced:
    the live cytoscape build, so the ring keeps its old color. Force it with a
    direct per-element **bypass**, applied AFTER `cy.style().json(...)` so the sheet
    reset can't clear it: `node.style("border-color", nd.data.color)`.
-Also note: `deviceArtifact` (used to pick the run group) is read ONCE at init — a
+Also note: `deviceArtifact` (used to pick the run group) is read ONCE at init -- a
 poll reuses it, so it can't chase a brand-new run group without a re-read.
 
-### 32.5 CSS isn't auto-loaded — inline it
+### 32.5 CSS isn't auto-loaded -- inline it
 The harness auto-injects `widgetAssets/**/*.js` only, **not `.css`**. A
 `<link rel=stylesheet>` in view.html is NOT applied (Angular `$compile` doesn't
 load `<link>` in templates; c3charts works around it by injecting a `<link>`
 from JS at runtime). A 0-height cytoscape container → canvas at 0 size →
 `toBeVisible` fails.
-Fix: inline the CSS in a `<style>` tag in view.html — the browser applies
+Fix: inline the CSS in a `<style>` tag in view.html -- the browser applies
 `<style>` in the DOM. Keep an external `widgetAssets/css/*.css` too if you want
 a `<link>` path for SOAR, but the inline `<style>` is what makes the harness
-render correctly. (Lint `unscoped-generic-css` wants it scoped — prefix classes,
+render correctly. (Lint `unscoped-generic-css` wants it scoped -- prefix classes,
 e.g. `.ztp-ag`.)
 
 ### 32.6 ng-if container + $timeout render race
@@ -2685,14 +2685,14 @@ function renderGraph(steps, mode, retries) {
 }
 ```
 
-### 32.7 Cytoscape renders to `<canvas>` — assert node DATA in jest, not Playwright
+### 32.7 Cytoscape renders to `<canvas>` -- assert node DATA in jest, not Playwright
 Cytoscape draws nodes/edges to a `<canvas>`; they are NOT DOM elements, so
 `getByTestId`/CSS selectors can't reach individual nodes. Split the assertions:
 - **jest (pure logic):** test the element-builder (`ztpGraph.toElements(steps)`)
-  — node color/icon/`isCurrent`, edge chaining, `grabbable` per mode.
+  -- node color/icon/`isCurrent`, edge chaining, `grabbable` per mode.
 - **e2e (Playwright):** assert the widget mounts, `#ztp-cy canvas` exists with a
   non-zero boundingBox, the mode-badge class, legend item count, run-group text.
-Cytoscape creates **multiple** canvases (data/user/viewer) — use
+Cytoscape creates **multiple** canvases (data/user/viewer) -- use
 `page.locator('#ztp-cy canvas').first()` to avoid strict-mode violations.
 
 ### 32.8 Related-record COLLECTION fetch has no harness route
@@ -2702,7 +2702,7 @@ The NS1 layer serves `GET /api/3/<module>/<id>` (single record, from
 `globalTeardown` fails the run.
 Fix: `page.route('**/api/3/<related_module>**', r => r.fulfill({ json: fixture }))`
 in the e2e spec (NS1 philosophy: stub only what's unique to your scenario).
-Also: crudhub rejects unknown query params as field filters — `?_limit=` and
+Also: crudhub rejects unknown query params as field filters -- `?_limit=` and
 `?itemsPerPage=` both 400 (`Field:X does not exist in module definition`).
 Filter by the relation field instead: `?ztpfDevices=<deviceUuid>`. The
 related-collection path `/api/3/<parent>/<id>/<related>` also 400s.
@@ -2710,7 +2710,7 @@ related-collection path `/api/3/<parent>/<id>/<related>` also 400s.
 ### 32.9 Stale embedded summary vs. canonical records
 A parent record's embedded relationship summary (e.g.
 `ztpf_devices.ztpfArtifact.steps[].ztpf_status`) is a **denormalized snapshot**
-— it goes stale and won't reflect live state (observed: summary said `Pending`
+-- it goes stale and won't reflect live state (observed: summary said `Pending`
 while the canonical record was `Failed` + `stepDone:true`). Always fetch the
 canonical child records (the real `queueStatus` on the full record) separately
 and poll THEM. Don't trust the embedded summary for anything that changes.
@@ -2725,25 +2725,71 @@ Two layers, both build-honored:
 - **Typed logic module** (`widgetAssets/js/<name>.ts` → `.js`). Author as a
   `namespace` + compile with `module:"none"` + `declaration:true`. UMD's browser
   branch never runs the factory for named exports (no global is created) and
-  CommonJS breaks `<script>` loading — `module:"none"` + a `namespace` + an
+  CommonJS breaks `<script>` loading -- `module:"none"` + a `namespace` + an
   in-source footer `if (typeof module !== "undefined" && module.exports)
   module.exports = <ns>;` gives BOTH a browser global AND a `require()`-able
   object for jest. Compile with
   `node ../fortisoar-widget-harness/node_modules/typescript/bin/tsc -p tsconfig.json`
   (the `.bin/tsc` is the `tsc` trap package that prints "this is not the tsc
-  command you are looking for" — NOT the compiler).
+  command you are looking for" -- NOT the compiler).
 Avoid the fortiai trap: don't hand-patch the emitted `.js` and then re-emit over
-it — keep the `.ts` the sole source and re-emit cleanly.
+it -- keep the `.ts` the sole source and re-emit cleanly.
 
 ### 32.11 Lint/gate checklist before shipping a widget
 From the dev-kit root:
-- `make test-unit WIDGET=<name>` — jest (controller + pure logic).
-- `make test-e2e-widget WIDGET=<name>` — Playwright hermetic.
-- `cd fortisoar-widget-harness && node scripts/typecheck-widgets.js <name>` —
+- `make test-unit WIDGET=<name>` -- jest (controller + pure logic).
+- `make test-e2e-widget WIDGET=<name>` -- Playwright hermetic.
+- `cd fortisoar-widget-harness && node scripts/typecheck-widgets.js <name>` --
   tsc checkJs gate.
-- `node scripts/lint-angular.js <name>` — AngularJS lint (ng-model-dot,
+- `node scripts/lint-angular.js <name>` -- AngularJS lint (ng-model-dot,
   websocket-no-destroy, missing-inject, ...).
-- `npx oxlint -c .oxlintrc.json <abs paths to widget .js>` — JS lint
-  (excludes `*.min.js`; pass absolute paths — oxlint rejects `..`).
+- `npx oxlint -c .oxlintrc.json <abs paths to widget .js>` -- JS lint
+  (excludes `*.min.js`; pass absolute paths -- oxlint rejects `..`).
 The full `make ship-verify WIDGET=<name> [BUMP=patch]` runs
 lint→unit→mock-e2e→deploy→live-sweep.
+
+### 32.12 Python closure variables and the silent `try/except: pass` trap (connector-side)
+
+**The bug**: a counter declared in an outer function and modified inside a
+nested callback (`_on_event`) silently breaks if the nested function reads
+the counter before it's assigned:
+
+```python
+def chat_turn(config, params):
+    _approval_count = 0
+    def _on_event(ev):
+        # _approval_count += 1  <-- makes Python treat this as a LOCAL var
+        if isinstance(ev, ApprovalRequestEvent):
+            _approval_count += 1       # UnboundLocalError!
+        if isinstance(ev, UsageEvent):
+            record = {"approvals_count": _approval_count}  # reads local -> BOOM
+    # ...
+```
+
+`_approval_count += 1` anywhere in `_on_event` makes Python scope
+`_approval_count` as local to `_on_event`. The first read (in the
+UsageEvent branch) raises `UnboundLocalError: cannot access local variable
+'_approval_count'` -- but the surrounding `try: ... except: pass` (best-effort
+telemetry) silently swallows it, so `log_llm_activity` never executes and
+**no `agent_usage` rows are written**. The symptom is a dashboard that
+shows stale data only -- no error, no traceback.
+
+**Fix**: `nonlocal _approval_count` at the top of `_on_event`.
+
+**Lesson**: any connector callback that mutates an outer-scope variable
+needs `nonlocal`. And `try/except: pass` is a **telemetry black hole** --
+when the except is the only error path, a bug in the try block is invisible.
+For diagnostic builds, temporarily replace `except: pass` with
+`except Exception as e: print(...); raise` or accumulate into a module-level
+list exposed through a read op (`list_usage` returned `"_diag": [...]`) so
+the error surfaces without box SSH access.
+
+**Widget-side parallel**: AngularJS `$rootScope:infdig` (infinite digest) is
+the JS equivalent of a silent failure. A function that returns a NEW array
+every call (`$scope.users = function() { return [...]; }`) trips the 10-iter
+digest limit when the template binds it via `ng-repeat`. Fix: cache the
+result keyed on the source array's reference so AngularJS sees a stable
+value across digest cycles.
+
+- Connector: `operations.py:3923` (`_on_event` / `nonlocal _approval_count`)
+- Widget: `view.controller.js:217` (`users()` caching)
