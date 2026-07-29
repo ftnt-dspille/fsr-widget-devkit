@@ -64,6 +64,15 @@ interface LiveWidget {
    *  DomCapture that `fidelity()` diffs against the harness report's `dom`. */
   domRoot?: string;
 }
+interface LiveDashboardWidget {
+  id: string;
+  title: string;
+  dashboardName: string;
+  testId: string;
+}
+const LIVE_DASHBOARD_WIDGETS: LiveDashboardWidget[] = [
+  { id: "socAssistantMonitor", title: "SOC Assistant Monitor", dashboardName: "socAssistantMonitor", testId: "soc-monitor-root" },
+];
 const LIVE_WIDGETS: LiveWidget[] = [
   { id: "fortiaiAgenticAssistant", title: "FortiAI Agentic Assistant", module: "alerts", mode: "drawer", domRoot: "[data-testid=fsr-pb-root]" },
 ];
@@ -282,6 +291,169 @@ function fidelity(harness: RenderReport | null, soar: RenderReport): FidelityDif
 
 function kb(b: number): string { return (b / 1024 / 1024).toFixed(2) + " MB"; }
 
+/** Create (or find) a minimal test dashboard with the given widget cell, return its URL. */
+async function ensureDashboardUrl(env: ReturnType<typeof soarEnv.resolveSoarEnv>, dwd: LiveDashboardWidget): Promise<string> {
+  const base = soarBrowser.baseUrl(env);
+  // Re-use the soarClient path for auth + dashboard CRUD
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
+  const { makeClient } = require("../tests/live/lib/soarClient") as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c: any = await makeClient();
+
+  const dashRes = await c.get("/api/3/dashboard");
+  const members: any[] = dashRes["hydra:member"] || [];
+  const dashName = `${dwd.title} Test`;
+  const existing = members.find((d: any) => d.displayName === dashName);
+  if (existing) {
+    return `${base}/?qid=${existing.uuid}`;
+  }
+
+  const { randomUUID } = require("crypto");
+  const widgetType = `${dwd.id}-${getWidgetVersion(dwd.id)}`;
+  const body = {
+    displayName: dashName,
+    type: "rows",
+    templateType: "dashboard",
+    config: {
+      rows: [{
+        columns: [{
+          widgets: [{ type: widgetType, config: { wid: randomUUID() } }],
+        }],
+      }],
+    },
+  };
+  // POST via HTTP (soarClient doesn't support generic post, only exec/get/del)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { json: created }: any = await (require("https") as typeof import("https")).request;
+  // Use raw request for the POST
+  const https = require("https");
+  const agent = new https.Agent({ rejectUnauthorized: false });
+  const resp = await new Promise<{ status: number; json: any }>((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const req = https.request({
+      method: "POST",
+      hostname: new URL(base).hostname,
+      port: new URL(base).port || 443,
+      path: "/api/3/dashboard",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+        Authorization: `Bearer ${c.token}`,
+      },
+      agent,
+    }, (res: import("http").IncomingMessage) => {
+      let data = "";
+      res.on("data", (chunk: Buffer) => (data += chunk));
+      res.on("end", () => {
+        let json: any = null;
+        try { json = JSON.parse(data); } catch (_) {}
+        resolve({ status: res.statusCode!, json });
+      });
+    });
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`create dashboard failed: HTTP ${resp.status}`);
+  }
+  return `${base}/?qid=${resp.json.uuid}`;
+}
+
+/** Resolve the installed widget version from SOAR. */
+function getWidgetVersion(widgetId: string): string {
+  // Check the widget's info.json for current version
+  const fs = require("fs");
+  const path = require("path");
+  const widgetsSrc = path.resolve(__dirname, "..", "..", "widgets-src");
+  const infoPath = path.join(widgetsSrc, widgetId, "widget", "info.json");
+  if (fs.existsSync(infoPath)) {
+    return JSON.parse(fs.readFileSync(infoPath, "utf8")).version;
+  }
+  // Fallback to harness widget dir
+  const harnessInfoPath = path.join(__dirname, "..", "widget-src", widgetId, "widget", "info.json");
+  if (fs.existsSync(harnessInfoPath)) {
+    return JSON.parse(fs.readFileSync(harnessInfoPath, "utf8")).version;
+  }
+  return "1.0.0";
+}
+
+/** Render one deployed dashboard widget on the box. */
+async function introspectSoarDashboard(dwd: LiveDashboardWidget): Promise<RenderReport> {
+  const env = soarBrowserEnv();
+  const base = soarBrowser.baseUrl(env);
+  const dashUrl = await ensureDashboardUrl(env, dwd);
+
+  // Force headed, WAF-safe browser
+  const { browser, context } = await soarBrowser.launchContext({ headless: false });
+  const page = await context.newPage();
+
+  const consoleErrors: string[] = [];
+  let warningCount = 0;
+  page.on("console", (msg: { type(): string; text(): string }) => {
+    const t = msg.type();
+    if (t === "error") consoleErrors.push(msg.text().slice(0, 240));
+    else if (t === "warning") warningCount++;
+  });
+  page.on("pageerror", (e: { message: string }) =>
+    consoleErrors.push(`[pageerror] ${e.message}`.slice(0, 240)));
+
+  const t0 = Date.now();
+  await soarBrowser.login(page, base, env);
+  await page.goto(dashUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.waitForTimeout(20000); // dashboard + widgets render
+
+  const mounted = !!(await page.$(`[data-testid="${dwd.testId}"]`));
+  const mountState: RenderReport["mountState"] = mounted ? "mounted" : "no-mount";
+  const wallMs = Date.now() - t0;
+
+  const resources: ResourceEntry[] = (await page.evaluate(() => {
+    return (performance.getEntriesByType("resource") as PerformanceResourceTiming[]).map((r) => ({
+      name: r.name,
+      size: r.transferSize || 0,
+      start: Math.round(r.startTime),
+      dur: Math.round(r.duration),
+      type: (r.initiatorType as ResourceEntry["type"]) || "other",
+    }));
+  })) as any;
+  for (const r of resources) {
+    r.name = r.name.replace(/^https?:\/\/[^/]+/, "");
+    r.type = classifyResource(r.name, r.type);
+  }
+
+  const boot: BootTimeline = await page.evaluate(() => {
+    const n = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    return { domContentLoaded: Math.round(n?.domContentLoadedEventEnd || 0) };
+  });
+
+  const correctness: RenderCorrectness = {
+    errorCount: consoleErrors.length,
+    warningCount,
+    consoleErrors: consoleErrors.slice(0, 12),
+    sceFallbacks: 0,
+  };
+
+  const dom: DomCapture | undefined = await domCapture.captureDom(page, `[data-testid="${dwd.testId}"]`);
+
+  await browser.close().catch(() => {});
+
+  const totalBytes = resources.reduce((s, r) => s + r.size, 0);
+  return {
+    widgetId: dwd.id,
+    source: "soar",
+    wallMs,
+    totalBytes,
+    resourceCount: resources.length,
+    resources,
+    boot,
+    correctness,
+    mounted,
+    mountState,
+    ...(dom ? { dom } : {}),
+  };
+}
+
 function loadHarnessReport(id: string): RenderReport | null {
   // Reports are versioned (<id>-<version>.json); take the newest match for <id>.
   if (!fs.existsSync(REPORT_DIR)) return null;
@@ -296,9 +468,15 @@ function loadHarnessReport(id: string): RenderReport | null {
 
 async function main(): Promise<void> {
   const arg = process.argv.slice(2).find((a) => !a.startsWith("--"));
-  const targets = arg ? LIVE_WIDGETS.filter((w) => w.id === arg) : LIVE_WIDGETS;
+  const allTargets = [...LIVE_WIDGETS, ...LIVE_DASHBOARD_WIDGETS.map((d) => ({
+    ...d,
+    mode: "dashboard" as const,
+    module: "dashboard" as string,
+  }))];
+  const targets = arg ? allTargets.filter((w) => w.id === arg) : allTargets;
+  const knownIds = allTargets.map((w) => w.id);
   if (arg && !targets.length) {
-    console.error(`introspectSoar: "${arg}" is not a live-renderable widget. Known: ${LIVE_WIDGETS.map((w) => w.id).join(", ")}`);
+    console.error(`introspectSoar: "${arg}" is not a live-renderable widget. Known: ${knownIds.join(", ")}`);
     process.exit(2);
   }
   fs.mkdirSync(SOAR_DIR, { recursive: true });
@@ -308,28 +486,31 @@ async function main(): Promise<void> {
   // (no box drive) — use it to re-diff after refreshing the harness baseline.
   const offline = process.argv.includes("--offline");
 
-  for (const lw of targets) {
+  for (const target of targets) {
+    const isDashboard = target.mode === "dashboard";
     let soar: RenderReport;
     if (offline) {
-      const saved = path.join(SOAR_DIR, `${lw.id}.json`);
-      if (!fs.existsSync(saved)) { console.error(`  ✗ --offline: no saved SOAR report for ${lw.id}`); continue; }
+      const saved = path.join(SOAR_DIR, `${target.id}.json`);
+      if (!fs.existsSync(saved)) { console.error(`  ✗ --offline: no saved SOAR report for ${target.id}`); continue; }
       soar = JSON.parse(fs.readFileSync(saved, "utf8")) as RenderReport;
-      console.log(`\n▶ ${lw.id} — re-diffing saved SOAR report (offline)`);
+      console.log(`\n▶ ${target.id} — re-diffing saved SOAR report (offline)`);
     } else {
-      console.log(`\n▶ ${lw.id} — rendering live via ${lw.mode} on ${lw.module}…`);
+      console.log(`\n▶ ${target.id} — rendering live via ${target.mode}${isDashboard ? ` on dashboard` : ` on ${target.module}`}…`);
       try {
-        soar = await introspectSoar(lw);
+        soar = isDashboard
+          ? await introspectSoarDashboard(target as LiveDashboardWidget)
+          : await introspectSoar(target as LiveWidget);
       } catch (e) {
         console.error(`  ✗ live render failed: ${e instanceof Error ? e.message : String(e)}`);
         continue;
       }
-      fs.writeFileSync(path.join(SOAR_DIR, `${lw.id}.json`), JSON.stringify(soar, null, 2));
+      fs.writeFileSync(path.join(SOAR_DIR, `${target.id}.json`), JSON.stringify(soar, null, 2));
     }
-    console.log(`  ${soar.mounted ? "✓" : "✗"} ${lw.id} — ${soar.mountState} — ${soar.resourceCount} res / ${kb(soar.totalBytes)} / ${soar.wallMs}ms / ${soar.correctness.errorCount} err`);
+    console.log(`  ${soar.mounted ? "✓" : "✗"} ${target.id} — ${soar.mountState} — ${soar.resourceCount} res / ${kb(soar.totalBytes)} / ${soar.wallMs}ms / ${soar.correctness.errorCount} err`);
 
-    const harness = loadHarnessReport(lw.id);
+    const harness = loadHarnessReport(target.id);
     const diff = fidelity(harness, soar);
-    fs.writeFileSync(path.join(FIDELITY_DIR, `${lw.id}.json`), JSON.stringify(diff, null, 2));
+    fs.writeFileSync(path.join(FIDELITY_DIR, `${target.id}.json`), JSON.stringify(diff, null, 2));
     console.log("  fidelity:");
     for (const n of diff.notes) console.log(`    • ${n}`);
   }

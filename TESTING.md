@@ -108,12 +108,39 @@ make ship-verify WIDGET=fortiaiAgenticAssistant [BUMP=patch]
 
 runs, in order, failing fast:
 
-1. **lint** — `widget.js lint` (controller naming / stale-version guards)
+1. **lint + typecheck** — four gates, because there are **two different linters**:
+   `widget.js lint` (the harness-server `HU.lintWidget`: controller naming /
+   stale-version / required-files) **and** the standalone `lint-angular.js`
+   (config-defaults, drawer-standalone, copyright-header, enableFor state-match…)
+   **and** `lint-testids.js`, then `typecheck-widgets.js` (checkJs). The two
+   standalone linters used to be reachable *only* via `pnpm lint` (no make target,
+   no CI, no git-hook ran them) — they're now wired here so their rules actually
+   enforce on every ship. Don't "simplify" by dropping back to just `widget.js lint`.
 2. **unit** — `make test-unit` (jest; must exit 0 — see "trustworthy green" below)
 3. **e2e (mock)** — `make test-e2e-widget` (all non-live specs; `[Ll]ive` excluded)
-4. **deploy** — `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
+4. **introspect-gate** — hermetic DOM/payload/console regression vs baseline,
+   **scoped to the shipped widget** (`GATE_WIDGET=<w>`) so an unrelated widget's
+   stale baseline can't block your ship. It still *renders* the whole fleet
+   (~2.8 min); set `SKIP_INTROSPECT=1` to bypass when box-time is tight. Re-baseline
+   an intended DOM/payload change with `make introspect`.
+5. **deploy** — `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
    at the **harness `.env`** so it deploys to the *same* box the tests hit
-5. **live-sweep** — `make test-live-sweep` (real UI vs the real connector)
+6. **live-sweep** — `make test-live-sweep` (real UI vs the real connector)
+
+> **Which box does `ship-verify` deploy to?** It **hardcodes `FSR_ENV_FILE=…/fortisoar-widget-harness/.env`**
+> (the Makefile `ship-verify` recipe) — it does **not** read the `.env.<box>` sidecar
+> files or honor a `FSR_ENV_FILE=` override on the command line. To ship to a specific
+> box, point `.env` at it first (`cp .env.159 .env`), then restore afterward. (The
+> connector's own `make ship` is different — it defaults `ENV=.env.159` and takes
+> `ENV=<path>`.) ship.sh's target-mismatch guard will abort if a stale
+> `.harness-active-env` disagrees with `.env`.
+>
+> **Hermetic-tier specs must self-skip in the mock gate.** `make test-e2e-widget`
+> globs *all* of a widget's e2e specs, but specs that need the **Seam C hermetic
+> sidecar** (e.g. `*.seamHermetic.spec.js`) only work under `make turn-hermetic`
+> (which starts the sidecar and sets `FSRPB_SEAMC_URL`). Guard them with
+> `test.skip(!process.env.FSRPB_SEAMC_URL, …)` so they run under `turn-hermetic` and
+> skip in ship-verify — otherwise they red every ship with `seamc_sidecar_unreachable`.
 
 Sub-commands you'll also use directly:
 

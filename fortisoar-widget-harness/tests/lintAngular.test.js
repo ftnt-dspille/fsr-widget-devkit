@@ -97,3 +97,101 @@ describe("WIDGETS_SRC override + severity contract", () => {
     expect(out).not.toMatch(/copyright-header-missing/);
   });
 });
+
+// R2: $scope.config defaults. Ordering ('config-access-before-defaults') is a
+// synchronous-construction hazard judged per function scope via a real AST; the
+// missing-guard hazard is nesting-independent. See checkConfigDefaultsBeforeAccess.
+describe("config-defaults (AST scope-aware)", () => {
+  const ctl = (body) =>
+    `${HEADER}\nangular.module('cybersponse').controller('x', function($scope){\n${body}\n});\n`;
+
+  test("flags a synchronous read before the guard in construction flow", () => {
+    writeWidget("beforeGuard", {
+      "view.controller.js": ctl(
+        "  var t = $scope.config.title;\n" +
+        "  $scope.config = $scope.config || {};\n"),
+    });
+    const { code, out } = runLint("beforeGuard");
+    expect(out).toMatch(/view\.controller\.js:\d+\s+config-access-before-defaults/);
+    expect(code).toBe(0); // warning, non-blocking
+  });
+
+  test("does NOT flag a read inside a later-invoked function above the guard (the false positive the AST kills)", () => {
+    writeWidget("laterInvoked", {
+      "view.controller.js": ctl(
+        "  $scope.onClick = function(){ return $scope.config.title; };\n" +
+        "  $scope.config = $scope.config || {};\n"),
+    });
+    const { out } = runLint("laterInvoked");
+    expect(out).not.toMatch(/config-access-before-defaults/);
+    expect(out).not.toMatch(/config-defaults-missing/);
+  });
+
+  test("does NOT flag a read after the guard", () => {
+    writeWidget("afterGuard", {
+      "view.controller.js": ctl(
+        "  $scope.config = $scope.config || {};\n" +
+        "  var t = $scope.config.title;\n"),
+    });
+    const { out } = runLint("afterGuard");
+    expect(out).not.toMatch(/config-access-before-defaults/);
+  });
+
+  test("flags a missing guard regardless of nesting", () => {
+    writeWidget("noGuard", {
+      "view.controller.js": ctl(
+        "  $scope.render = function(){ return $scope.config.title; };\n"),
+    });
+    const { out } = runLint("noGuard");
+    expect(out).toMatch(/view\.controller\.js:\d+\s+config-defaults-missing/);
+  });
+
+  test("ignores a $scope.config.X in a comment (AST sees no such read)", () => {
+    writeWidget("commented", {
+      "view.controller.js": ctl(
+        "  // legacy: $scope.config.title was read here\n" +
+        "  $scope.config = $scope.config || {};\n" +
+        "  var t = $scope.config.title;\n"),
+    });
+    const { out } = runLint("commented");
+    expect(out).not.toMatch(/config-access-before-defaults/);
+    expect(out).not.toMatch(/config-defaults-missing/);
+  });
+});
+
+// enableFor entries are UI-Router state names; entries that can never match a
+// state make the drawer icon appear nowhere. KB §18.4.
+describe("enablefor state-match", () => {
+  const drawerInfo = (enableFor) => JSON.stringify({
+    name: "d", version: "1.0.0",
+    metadata: { contexts: ["drawer"], standalone: true, view: { enableFor } },
+  });
+
+  test("flags a marketplace page label and a space-containing entry", () => {
+    writeWidget("badLabel", { "info.json": drawerInfo(["Dashboard", "View Panel"]) });
+    const { code, out } = runLint("badLabel");
+    expect(out).toMatch(/info\.json:1\s+enablefor-page-label/);
+    expect(code).toBe(1); // page-label is severity 'error' → blocks the run
+  });
+
+  test("warns on a bare (dot-less) state and stays non-blocking", () => {
+    writeWidget("bareState", { "info.json": drawerInfo(["dashboard"]) });
+    const { code, out } = runLint("bareState");
+    expect(out).toMatch(/info\.json:1\s+enablefor-bare-state/);
+    expect(code).toBe(0);
+  });
+
+  test("flags a non-string entry", () => {
+    writeWidget("nonString", { "info.json": drawerInfo(["main.dashboard", 42]) });
+    const { out } = runLint("nonString");
+    expect(out).toMatch(/info\.json:1\s+enablefor-entry-not-string/);
+  });
+
+  test("accepts valid namespaced state names", () => {
+    writeWidget("goodStates", {
+      "info.json": drawerInfo(["main.dashboard", "viewPanel.modulesDetail", "main.playbookDetail"]),
+    });
+    const { out } = runLint("goodStates");
+    expect(out).not.toMatch(/enablefor-/);
+  });
+});

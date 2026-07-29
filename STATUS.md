@@ -1,600 +1,109 @@
-# STATUS — master tracker
+# STATUS -- master tracker
 
 Single source of truth for what's open, in progress, and done across the FSR
-widgets work. The detailed plans live in their own docs (linked below); this file
-is the index. Update it when a thread changes state; move finished items to
+widgets work. The detailed plans live in their own docs (linked below); this
+file is the index. Update it when a thread changes state; move finished items to
 **Done / archived** rather than deleting them.
 
-_Last updated: 2026-07-14 (Module-scoped ZTPF authoring persona: v1 COMPLETE — built, full agentic turn LIVE-PASSED on 8.0 box 206, merged to default branches + pushed to origin)_
+> **Reorganized 2026-07-28.** The append-only session-banner history and the
+> superseded detail blocks (widget live-validation pass, prompt+flow matrix,
+> local-dev-loop) moved to **[`STATUS_ARCHIVE.md`](STATUS_ARCHIVE.md)** so this
+> file stays a focused, actionable index. Convention unchanged: a plan is only
+> "tracked" once it has a **Plan docs** row; anything still owed also gets an
+> **Open / next up** row.
 
-> **✅ 2026-07-14 — Module-scoped assistant personas + ZTPF authoring: v1 COMPLETE,
-> LIVE-VERIFIED, MERGED + PUSHED.** Plan:
-> `docs/plans/module-scoped-assistant-personas.md` (§7c = the authoring capability
-> spec + live findings); memory `custom_module_agentic_assistant_plan` +
-> `ztpf_authoring_persona_next_direction`. A per-module persona (own system prompt +
-> tool subset + write scope) is defined by ONE Key Store record
-> (`fsr_assistant_profile:<module>`) — no connector edit to add one. Phases 0–4 all
-> DONE + live-passed on box 206 (has the ztpf_* modules; connector 0.4.50). What's
-> shipped end-to-end:
-> - **Persona resolution + tool narrowing + record writes** (`profiles.py`,
->   `_resolve_profile`/`_tools_for_turn`, `tools_records.py` tier-3 approval-carded
->   `create_record`/`update_record` `may_write`-gated) and **widget framing**
->   (`resolvePersona` → `personaUi` → greeting/placeholder/quick-action deck).
-> - **`test_template` tool** (`tools_ztpf.py`) — the authoring spine: reads a
->   `ztpf_templates` record (its own `script` + `exampleJinjaVars` fixture), lints
->   the Jinja (`do`-extension-aware syntax + unknown-filter warnings), and RENDERS
->   through FSR's live jinja-editor on-box (`render_via:"live"` — resolves `do`,
->   `regex_replace`, `ipaddr`, and the seeded `record`). Read-only tier-1,
->   persona-allowlist-only, also callable via `call_mcp_tool`.
-> - **Transient-None cache bug FIXED** (`resolve_profile_status` → `(profile,
->   definitive)`; only definitive results cached).
-> - **FULL AGENTIC TURN LIVE-PASSED** (gpt-4o via `fsrpb-live`): "test render this"
->   → LLM calls `test_template` → live-rendered config; "fix the typo + save" →
->   `get_record` → `test_template` on the drafted script → `update_record` (tier 3)
->   → `stop=approval_required` with a formed approval card; left unapproved, real
->   record byte-unchanged.
-> - Suites green: connector fsr_soc_triage **172**, widget **611 unit + e2e**.
-> - **MERGED + PUSHED to origin** (2026-07-14): connector→`main` (gitlab) @ b4b4e03,
->   widget→`master` (gitlab) @ aef8ef1, dev-kit→`main` (GitHub) @ ca31056. (The
->   `fndn` remotes on connector+widget were intentionally NOT pushed.)
->
-> **Key Store:** only `fsr_assistant_profile:ztpf_templates` exists/needed (on 206);
-> modules without a record fall back to default triage/build (unchanged). Extending
-> to sibling ztpf_* modules is future scope (see NEXT below).
->
-> **NEXT (open, when picked up):** (1) **action-creation persona** — the
-> step→action→flow write model for `ztpf_automation_actions`/`_profile_steps`
-> (deliberately deferred §7c.2; needs the domain map before scoping a write tool).
-> (2) Optionally extend the authoring persona to sibling ztpf_* modules via
-> `bind_modules` or a new Key Store record. (3) Cleanup: box 159 still has an inert
-> spike key `fsr_assistant_profile:__phase0_spike__` (remove via Key Store UI).
-
-> **2026-07-13 — C5 fully live + release process standardized (connector 0.4.47).**
-> Released framework **fsr-playbooks 0.4.22 to PyPI** the standard way
-> (`make release VERSION=0.4.22` → GitHub Release → OIDC publish CI), bumped the
-> connector pin 0.4.19→0.4.22, shipped. Live-verified on-box:
-> `health_check.c5_build_scoping = {symbol_present: true, triage_only_count: 19}`
-> (register_triage_tools extended the set) → **C5 build-slice tool scoping ACTIVE**,
-> and `update_playbook` via platform execute still `method="put"`.
-> **New guardrails (so the 0.4.43-class skew can't recur):** framework
-> `make release` (guarded: on-main/clean/version>PyPI/tag-new/tests, then tag+push
-> +gh release — fixes the tag-without-release drift that stranded v0.4.21); connector
-> `build.sh` runs `preflight_framework.py` (static AST check that the pinned wheel
-> defines every symbol the connector imports — fails the BUILD on skew), hard-errors
-> on an un-fetchable pin, and uses a pip-capable interpreter (the uv venv has no pip,
-> which had silently skipped bundling the wheel). Process doc:
-> [[fsr_framework_release_process]].
-
-> **2026-07-13 — C2 SHIPPED to box (connector 0.4.46) + live-verified through the
-> platform, AND fixed a self-inflicted live-surface regression.** After the C2
-> rework (below), shipping surfaced that `update_playbook` (and `push_playbook`)
-> returned `crudhub_unavailable` via `/api/integration/execute` — the path the
-> widget's save button uses. Added a `crudhub_transport` diag to `health_check`
-> which pinpointed the cause: C5's hard `from fsr_playbooks.llm.intents import
-> TRIAGE_ONLY_TOOLS` in `fsr_soc_triage/registry.py` raised ImportError against the
-> pinned **fsr-playbooks 0.4.19** wheel (the symbol lives in the unshipped ~0.4.20),
-> breaking the WHOLE `fsr_soc_triage` import → the crudhub bridge went unbound →
-> every live op failed. Introduced by shipping 0.4.43 (first build with C5).
-> **Fix (0.4.46): defensive import** — C5 scoping degrades to dormant instead of
-> nuking the surface. Live-verified: `update_playbook` via `connectors.execute`
-> now edits in place (`method="put"`, `live_crudhub_available: true`).
-> Details: [[crudhub_unavailable_via_integration_execute]].
-> **⚠️ FOLLOW-UP (C5 not fully live):** build the framework as **0.4.20** (adds
-> `TRIAGE_ONLY_TOOLS`, commit `f55f396`) + bump the connector `requirements.txt`
-> pin 0.4.19→0.4.20 + re-ship, or build-intent still sees the triage tools C5 means
-> to exclude.
-
-> **2026-07-13 — C2 RESOLVED: `update_playbook` reworked + LIVE-VERIFIED on 8.0
-> (box 159).** Found the real in-place-update mechanism by inspecting the designer's
-> beautified app JS (`app.beautified.js` — canvas Save `ye()` → `Modules` $resource
-> `update` PUT) and confirmed it end-to-end with self-cleaning throwaway probes:
-> - **The designer Save is `PUT /api/3/workflows/<uuid>?$relationships=true&$versions=true`**
->   with a `preparePlaybookForSave`-shaped body. The **`$relationships=true` query is
->   load-bearing** — it cascades the PUT into the nested step/route/group records.
->   The pre-rework bare `PUT` (no query) 409'd because the platform treated the body's
->   steps as create attempts (`UniqueConstraintViolationException` on a step uuid).
-> - **Fix (connector `operations.py`):** inline the query into the URL (the on-platform
->   crudhub PUT bridge ignores a params dict), add `_prepare_workflow_for_save`
->   (strip `versions`, flatten `stepType`→IRI, stamp `lastModifyDate`). import_jobs
->   `merge_replace` fallback kept as a safety net.
-> - **Live-verified on 8.0:** both a GET-modify-PUT round-trip AND a fresh-compiled
->   body (aligned wf uuid) 200 → replace steps in place, cascade to nested records,
->   preserve the workflow uuid. End-to-end through the REAL `operations.update_playbook`
->   via the crudhub bridge: `method="put"`, edit landed. Details:
->   [[fortisoar_workflow_update_endpoint]]. Unit tests updated (8/8), full connector
->   suite green (290 passed / 21 skipped). Committed (branch
->   `dynamic-tool-surface-connector`); **NOT yet shipped to the box** (needs the
->   `release_notes.md` WIP call before a build-path ship — see live-test note below).
-> - **Unaffected by this finding:** C4 + Track B remain testable NOW on the deployed
->   stack (1.2.13 ships the editor tailoring + always-allow checkbox). C1/C5 are
->   unaffected (prompt/tool-slicing, no playbook mutation). C3 (debug UI) is
->   unblocked and box-independent.
-
-> **2026-07-13 — live-test session (partial; box 159 window open):** Box 159 up +
-> healthy: connector `0.4.42` (anthropic reachable, 10 models, crudhub bridge ok,
-> contract 2.8.0), deployed widget `fortiaiAgenticAssistant v1.2.13` (44 widgets).
-> **What this means for the tracks:**
-> - **C4 (playbook-editor mount) + Track B (Always-allow checkbox) are testable
->   NOW on the deployed stack** — 1.2.13 already ships the editor tailoring
->   (`d2741b0`) and the always-allow checkbox (`cdb4788`); only the live drive
->   remains.
-> - **C1 / C2 / C5 are NOT live-verified yet** — they're committed locally but
->   unshipped; box still runs pre-C5/C2/C1 0.4.42. Shipping them = connector bump
->   0.4.42→0.4.43 (+ widget bump for C1). **Caveat:** `make ship`→`deploy.sh`
->   auto-mutates + packages `release_notes.md`, which has unrelated mid-flight
->   WIP on `dynamic-tool-surface-connector` — needs a user call (stash? commit
->   separately? ship from a clean branch?) before a build-path ship.
-> - `make health`/`make bridge-check`/`make matrix` all operational against 159.
-
-> **2026-07-12 (later) — drawer-widget rig-mount DONE, stub-vs-real map works:**
-> `introspect.ts` now reads `introspection-profiles.json` (harness-side, keyed by
-> widget id: config + ctx + urlParams + mountProbe) so drawer/standalone widgets
-> mount for real instead of hitting the config-prompt gate. `fortiaiAgenticAssistant`
-> now mounts in-harness (56→128 resources) and its `runtime.stubHits` populate →
-> the fidelity diff reports the exact stubs the harness fakes that are real on the
-> box: `$exceptionHandler, localStorageService, $state, toaster, $translate,
-> config, $uibModal`. Validated my seeding change is harmless (counter/myWidget
-> mount unchanged); the hermetic-sweep tail failures were the non-hermetic
-> introspect server's box-proxy hanging on the last widgets (env flake, not a
-> regression); `funnelChart`/`fsocFieldsOfInterest` are pre-existing no-mounts.
->
-> **2026-07-12 — Introspection Phase 2 DOM/applied-style diffing DONE:**
-> New `lib/domCapture.ts` (`captureDom` + `normalizeSkeleton` + `summarizeDomDiff`,
-> 17 jest cases) captures a widget's own subtree (depth-4/child-32 cap, ng-* classes
-> stripped) + an intrinsic computed-style whitelist (color/font/display/etc — NOT
-> layout-resolved width/margins/position, which would mismatch between `#widget-host`
-> and the SOAR drawer). Two hashes per capture: `skeletonHash` (tag+static classes)
-> and `tagHash` (tag only) → distinguishes a real branch divergence (tagHash
-> differs, likely mock-vs-real viewState) from a class-level ng-class toggle.
-> `fidelity()` now populates `FidelityDiff.domMismatch`/`styleMismatches` for real
-> (was stubs). Hermetic gate gained **Check 6** (`dom.skeletonHash` vs baseline) —
-> `make introspect-gate` fails on a rendered-DOM change (re-baseline if intended);
-> verified load-bearing (a class flip trips it). **Bug fixed along the way:** the
-> rig looked up `introspection-profiles.json` by the *versioned* widget id but
-> profile keys are *unversioned* → the profile was silently missed → rig fell back
-> to the generic config + generic `ng-scope` sentinel, which **falsely reported
-> "mounted"** (config-prompt carries ng-scope + >200 chars). The widget had
-> *never actually mounted* in prior rig runs. Fix: `PROFILES[widget.id] ||
-> PROFILES[widget.name]`; for domRoot widgets the mount signal is now the view root
-> attaching (`waitForSelector(state:"attached")`), not the controller-global probe.
-> Verified end-to-end on `fortiaiAgenticAssistant` (16 nodes, stable skeletonHash,
-> Check 6 trips on a class change). Baseline `tests/introspect/baseline/
-> fortiaiAgenticAssistant-1.2.13.json` added. **Live SOAR diff DONE** —
-> `make introspect-soar ENV=.env.159 ARGS=fortiaiAgenticAssistant` captured the
-> soar-side `dom` (16 nodes) and produced the first real harness↔SOAR fidelity
-> diff. Result: **tagHash matches** (identical element tree — strong fidelity), but
-> `0/1/0/1` is `div.build-hint` (harness, mock `capability_gap`/`build` config) vs
-> `div.quick-actions` (soar, real alert) — a data-driven branch, surfaced as an
-> *element-identity divergence* (not a style mismatch). Style parity ok on
-> same-identity paths. Refined `summarizeDomDiff` to separate "same element,
-> different CSS" (real fidelity signal) from "different elements at same path"
-> (data branch) so the style-signal isn't muddied (18→19 jest cases, 339 green).
->
-> **2026-07-12 — Introspection Phase 2 rig built + first live fidelity diff:**
-> `scripts/introspectSoar.ts` (+ `make introspect-soar ENV=.env.<box>
-> [ARGS='--offline']`) renders a deployed widget on a live box via the record
-> drawer (WAF-safe headed Chrome), captures a `source:"soar"` RenderReport, and
-> diffs it against the harness baseline → `FidelityDiff`. First run
-> (`fortiaiAgenticAssistant` on 159/8.0): widget renders **clean** (0 errors
-> attributable to it; the 3 captured are shell/other-widget noise). **Key finding:**
-> the Phase-1 introspect rig renders drawer/standalone widgets as `no-mount` (config
-> gate) — so they have no true harness baseline, and the stub-vs-real service map
-> needs a rig-mount follow-up. Details in the introspection plan Phase 2 section.
-> **Side note:** a stray tsc clobber of `tests/live/lib/soarClient.js` (a broken
-> `.ts` sibling not in the build) was caught + restored; the rig now `require()`s
-> that .js at runtime to keep it out of tsc's program.
->
-> **2026-07-10 — box connectivity confirmed:** all three lab boxes (159/8.0,
-> 168, 205) reachable; box 159 authenticates + serves authenticated reads via the
-> harness client (`tests/live/lib/soarClient.js` `makeClient()`, loads `.env.159`)
-> — 44 widgets, 67k alerts. So the box-dependent threads below (**Introspection
-> Phase 2**, **live prompt/flow matrix run**, **playbook-editor live verify**) are
-> unblocked network-wise; they just need a run window. Gotcha captured (raw curl to
-> `/auth/authenticate` 405s on a header quirk — auth via `makeClient()`/pyfsr, not
-> curl): memory `deploy_159_fortisoar_8`.
->
-> **2026-07-10 — harness housekeeping:** (a) Introspection backlog #4 confirmed
-> DONE (`module is not defined` render noise eliminated via `harnessUtils.js`
-> IIFE wrap, `758cbaa`) — verified by a full `make introspect` sweep: errorCount
-> 0 / empty `consoleErrors` on all 15 widget reports; baselines regenerated, 3
-> orphaned stale-version reports pruned. Introspection plan now has only Phase 2
-> (real-SOAR fidelity baseline) open. (b) Confirmed the 8.0 live-UI driver fixes
-> (`soarBrowser` SIGN-IN label, `openWidgetDrawer` by-title, mock-only probe) are
-> committed (`5d29ad4`) — the `live_ui_driver_8_0_fixes` memory's "UNCOMMITTED"
-> note was stale.
-
-> **2026-07-05 — commit/push sweep + new public repo:** (a) pushed the
-> `triage-firewall-noc-investigation` branch (connector 0.4.37, already
-> committed, just unpushed) to origin/fndn. (b) `fsr_all_widgets` main repo:
-> committed the `fsrSocAssistant`→`fortiaiAgenticAssistant` e2e-fixture rename,
-> local-dev sidecar scripts, and matrix-live-infra plumbing; pushed to
-> `live-matrix-infra`. (c) `widgets-src/fortiaiAgenticAssistant` (separate repo):
-> pushed the pending commit (card attribution + S1–S6/R7 security hardening +
-> playbook-editor tailoring, `d2741b0`) to `origin/master`. (d)
-> `fsr-playbook-framework` confirmed already clean/pushed — the stale
-> `b2_hunt_depth_offline`/`noc_fortimanager_tools_plan` memories (24–26 days
-> old) no longer reflect uncommitted state; treat those two memories as
-> historical only. (e) **New: `ztpAutomationGraph` widget promoted to its own
-> public repo** — `https://github.com/ftnt-dspille/widget-ztp-automation-graph`,
-> scaffolded to match `widget-action-renderer` (package.json, packager
-   scripts, version-triggered `.github/workflows/release.yml`, README), added
-   to `widgets.manifest`. See memory `ztpautomation-graph-widget`.
-
-> **2026-07-02 ship + live-verify DONE:** widget `fortiaiAgenticAssistant-1.2.8`
-> + connector `0.4.13` (both version-bumped to dodge FortiSOAR same-version
-> cache) deployed to 159. Live jest verified on 159: `chat.live.test.js` (real
-> `chat_turn`→`end_turn` on v0.4.13 + mock parity) and `widgetUi.live.test.js`
-> (drawer renders, `chat_poll` streams live frames) both PASS. Required two
-> live-UI-driver fixes (run headed + drawer-icon-by-title) — see memory
-> `live_ui_driver_8_0_fixes` + KB §18.7. Driver fixes UNCOMMITTED in harness `lib/`.
->
-> **2026-07-02 also DONE (offline, UNCOMMITTED):** (a) **Pydantic Stage 3** —
-> params+response models for the 14 remaining connector ops + 7 storage-row
-> models in `pydantic_models.py`, `tests/test_pydantic_stage3.py` (32 tests),
-> full connector suite **176 passed**. run_op/emit_* left ungated (deliberate).
-> (b) **entityContext seeding** — the widget seeds the open playbook as its entity
-> on `main.playbookDetail` (no misfit seed card), `playbook.editor.entity.test.js`
-> (5 tests), widget suite **492 passed**. **SHIPPED 1.2.9 + LIVE-VERIFIED on 159's
-> designer:** "Explain this playbook" fires a chat_turn carrying the full playbook
-> in `entity` (iri+fields). Both in resume `resume_2026_07_02_contract_parity`.
->
-> **2026-07-02 (later) — agentic workflow hardening, ALL offline-green, UNCOMMITTED,
-> one vendor bump ships it:** (a) coherence-review **decisions LOCKED** (spine first /
-> one build path / router deferred) — `AGENTIC_WORKFLOW_COHERENCE_REVIEW.md`;
-> (b) **§G jinja catalog** (Ansible namespace + advisory wording + `find_jinja_filter`
-> never-`[]`) and **§A build Deploy button** (`emit_playbook_offer(yaml=…)` + connector
-> accept prefers card `final_yaml`) built + tested; (c) **case-state spine P1+P2 BUILT**
-> per `CASE_STATE_SPINE_DESIGN.md` (framework `case_state.py`, seeded TriageDiscipline +
-> `guard_redirect`, connector `session_case_state` + grounding cache + resume parity) —
-> framework 624 / connector 169 passed (4 pre-existing fails unrelated).
-> **SHIPPED + LIVE-VERIFIED (same day):** fsr-playbooks **v0.4.14 on PyPI**, connector
-> **0.4.22 live** (0.4.20 briefly broke chat via a hard case_state import vs the old
-> pinned wheel — fail-open hotfix 0.4.21). Live drive PASSED all 4: §G clean validate,
-> §4.6 gap-resume = 0 tool calls, §4.7 block-ip = card only (zero re-hunt), §A build →
-> `awaiting_playbook_offer` → accept → pushed. Next: spine P3/P4. Memory:
-> `hardening_g_a_built`.
->
-> **2026-07-02 (latest) — spine P3+P4 BUILT offline, UNCOMMITTED:** P3 capability
-> facts (capability guard + `note_result` learning + `forget_connector_availability`
-> cache-bust; framework 632 passed) and the **capability-gap "Re-check & continue"
-> made deterministic** (clears learned facts + availability caches + explicit
-> re-check instruction — closes the user-reported dead-button gap). P4 phase
-> transitions at the persist chokepoint + §A build-terminal eval + re-triage
-> transcript-scan eval. Connector 184 passed (+15 new tests), same 4 pre-existing
-> fails (now fixed — 188 passed, fully green). **SHIPPED + LIVE-VERIFIED same
-> day:** fsr-playbooks **v0.4.15 on PyPI** (framework 7c0a895), connector
-> **0.4.23 live** on all 8 workers (6892f3d). Live drive: servicenow gap card →
-> "Re-check & continue" → live re-probe, zero re-hunt, guard doesn't block the
-> retry. Memory: `hardening_g_a_built`.
-
-> **2026-07-02 (session: §F/§B + matrix run 5 + case_state tag) — COMMITTED offline,
-> NOT shipped:** (a) **§F build-authoring efficiency** (framework `0721e14`):
-> `validate_yaml` returns `corrected_yaml`+`auto_fixes` (source_fixer wired into
-> the tool via new `apply_fixes`); parameters shape error carries examples + the
-> mapping equivalent of a list-of-dicts; **§B** verify_playbook slimmed (no
-> duplicated compile evidence, lean typed_walk = counts, warnings/fixes deduped
-> by (code,message) with count). (b) **Matrix run 5 executed** (`make matrix`,
-> T1): FAIL, but diagnosis says the blocker is a **stale framework gate model**
-> — `tool_models.GetRecordArgs` required module+record_id(str) and bounced
-> iri-only / module+uuid / int-record_id (3 of 4 "errors"); fixed (framework
-> `2ad99de`) + eval false-positive fixed (`ok:true` payloads with nested
-> "status":"error" no longer count as tool errors, matrixDriver.js) + connector
-> Makefile→widgets Makefile MATRIX_ENV abs-path handoff fixed. **Matrix re-run
-> gated on shipping framework fix: tag v0.4.16 → PyPI → pin bump → `make ship`
-> → `make matrix`.** (c) **case_state envelope tag built** (connector `94be9f1`):
-> chat_turn/chat_resume tags carry `{phase, record_key, scenario, searched,
-> enriched, unavailable_connectors}` for a widget status strip (widget-side strip
-> NOT built yet — needs the connector shipped first). Suites: framework 1757,
-> connector 192, matrixEval 15 — all green.
->
-> **2026-07-02 (SHIPPED + matrix run 6):** framework **v0.4.16 on PyPI**,
-> connector **0.4.24 live on all 6 workers** (pin bump `fe9d30c`), provider
-> anthropic. `make matrix` run 6: **infra fully healthy** — get_record errors
-> gone, guard redirects now excluded from the eval (`da2ee3f`). T1's remaining
-> FAIL is one precise gap: **`fortinet-fortiguard-ioc` missing from the
-> reference catalog** → discovery's tier≤2 filter drops it AND the dispatch
-> tier gate stages an approval card for its read-only `ip_reputation`, so the
-> turn ends `awaiting_approval` with no info_card. Fix next: ingest
-> live-configured connectors into a warmed per-install DB, or tier-gate
-> fallback to live op metadata (see memory `matrix_run1_findings` RUN 6).
->
-> **2026-07-02 (latest) — run 6 T1 gap DIAGNOSED + FIXED + SHIPPED (0.4.25):**
-> NOT a DB-location bug — the site-packages slim DB is writable + persists. Real
-> root cause: **stale catalog**. `_warmup_needed` only re-warmed when
-> `connectors`/`modules` are *empty*, so after the first partial warmup (12
-> connectors, `op_safety=0` from an older connector version preserved across the
-> `$replace` upgrade) it **always skipped** → the 20 connectors configured since
-> (incl. `fortinet-fortiguard-ioc`) were never ingested. A forced warmup ingests
-> all 32 + `op_safety` (357 rows) in ~7s. Fix: (a) `_warmup_needed` now also
-> re-warms when `op_safety` is empty with `operations>0` (version-skew
-> staleness); (b) `make ship` force-warms after `verify` (operational guarantee).
-> `fortinet-fortiguard-ioc` 1.1.0 has NO `ip_reputation` op (the agent
-> hallucinated it) — its real ops (`ioc_search` etc.) are investigation/safe/
-> tier-2, so discovery surfaces them `requires_approval:false`. **SHIPPED +
-> LIVE-VERIFIED on 8.0:** connector `0.4.25` on all 6 workers (commit `efb545f`,
-> unpushed). `make matrix` T1 now **DEGRADED** (was FAIL): `info_card` delivered,
-> `find_enrichment_actions` returns fortiguard-ioc tier-2, agent runs real
-> `ioc_search` via `run_op` (auto-allowed, no approval card). Suite: connector
-> **195 passed** (run with `FSRPB_DEV=1`; +3 staleness tests in
-> `test_warmup_hooks.py`). Known gap: a connector configured via UI between
-> ships isn't auto-detected — run `make warmup` after adding connectors.
->
-> **2026-07-02 — emit_action_card gate drift FIXED + SHIPPED (framework v0.4.17 /
-> connector 0.4.26):** the `emit_action_card`/`emit_choice_card` pydantic gate
-> models required `title` (a field neither registered tool accepts) while
-> omitting the real required params — every staged card bounced "title: Field
-> required". Same drift class as GetRecordArgs (run 5). Fix: gate models now
-> mirror the real signatures + a signature-sync guard test keeps them aligned.
-> Released framework **v0.4.17 on PyPI** (tag `v0.4.17`, bundled 2
-> conditional_refetch probe commits), connector pin bumped 0.4.16→0.4.17,
-> shipped 0.4.26. `make matrix` T1: **PASS** (toolErrors 0, info_card delivered).
-> Framework commit `afdfea0` (unpushed past the tag); connector `80b287e`+`0591322`.
->
-> **2026-07-02 — triage flow FIXED + SHIPPED (connector 0.4.27):** the agent
-> opened triage turns with a full structured "Triage Summary" (indicator/
-> confidence/action table, MITRE, prioritized next-actions) from the raw record
-> BEFORE any lookup — presenting a plan as a conclusion, then a second summary
-> once findings landed. Root cause: the prompt's Quick-action intents section
-> licensed record-only structured answers and the agent over-generalized it to
-> the default opening; no ordering rule existed. Fix: new "Order of operations"
-> section in `system_prompt_triage.md` (lookups before verdict; one summary at
-> the end; one-line plan orientation allowed, structured verdict not) +
-> Quick-action intents marked opt-in. `make matrix` T1: **PASS** — opens with a
-> plan, runs 10 tools, then surfaces the verdict (no premature summary). The 1
-> minor error is the pre-existing whois-rdap-not-configured env gap, handled
-> gracefully (wider enrichment fan-out is better, not a regression). Connector
-> `d26cd35`+`5cda516` (unpushed). Quick-action path not matrix-covered (T1 is
-> default triage). See memory `matrix_run1_findings` RUN 8.
-
-> **2026-07-02 (matrix run 9 — EXPANDED to 7 rows; ONE real defect found):**
-> Wired T2/T3/T4/T7/P1 + a new T11 quick-action row into gitignored
-> `tests/live/scenarios.local.json` (recorded UUIDs). `make matrix`: **T1 PASS,
-> T11 PASS** (opt-in IOC table confirms the 0.4.27 investigate-first/opt-in
-> split); **T3 DEGRADED** (FMG/FAZ `unknown_connector` — env gap, RFC1918
-> acceptance met); **T2/T4/T7 FAIL** are box-159 env / scenario-design limits
-> where the agent behaved correctly (T2: alert's indicator is reserved
-> `203.0.113.66` + `expectedCards:["ioc_card"]` typo — connector emits
-> `info_card` variant `ioc_enrichment`, widget normalizes ioc_card→info_card;
-> T4: no containment connector → agent correctly emits `capability_gap`; T7:
-> "delete alert" isn't a tier-gatable op). **P1 FAIL is the ONE real defect:**
-> on a "save as playbook" ask the agent over-reaches into `find_containment_actions`
-> → `capability_gap` truncates the turn before `emit_playbook_offer` fires (HARD
-> RULE violation). **P1 prompt fix APPLIED (UNCOMMITTED)** in
-> `system_prompt_triage.md` (save-as-playbook → enrichment + offer, no
-> containment hunt). **NEXT (needs user call):** ship the P1 fix + re-run
-> matrix; AND re-scope T2/T4/T7 to box-159 reality (or stand up FMG/FAZ/FortiGate
-> /whois-rdap). Artifacts in `tests/live/_artifacts/`. See memory
-> `matrix_run1_findings` RUN 9.
->
-> **2026-07-04 — SECOND real defect FIXED + SHIPPED (framework v0.4.18 / connector
-> 0.4.35):** `list_configured_connectors` advertised inactive-config connectors as
-> `Available` (whois-rdap on 159 had a config record but no active config → listed
-> `Available`, then `run_op` rejected it `connector_not_configured` — agent wasted a
-> turn, run 9 P1). Root cause: the listing used pyfsr's `list_configured()` (any
-> config record) while `run_op`'s preflight uses `_configured_rows` (active-only);
-> the two disagreed. Fix (framework `d2ff950`): `list_configured_connectors` now
-> filters through `_configured_rows` (fail-open if unreachable). Also cleans
-> `find_enrichment_actions`/`find_containment_actions`. +3 regression tests. Released
-> **framework v0.4.18 on PyPI** (tag → `publish.yml` → Trusted Publishing). Connector
-> pin 0.4.17→0.4.18, shipped **0.4.35** on all 7 workers (anthropic). Both repos
-> pushed to main (framework `github/main`, connector `origin/main`). Matrix run 10
-> validating the fix in flight. Note: the P1 prompt fix from run 9 was already
-> shipped by the user as connector 0.4.32; this 0.4.35 is the framework-side
-> discovery fix on top.
+_Last updated: 2026-07-28 (session E). Reorganized the tracker + corrected a
+stale row: the two "live-found tool fixes" (`run_op` stringified params, SIEM
+`limit` string crash) are **done and live on .206** -- `run_op` fix is in
+released fw 0.5.7 (pinned by connector 0.5.37, all 9 workers verified on .206),
+SIEM fix shipped in connector 0.5.29→0.5.37. Also: the **playbook round-trip
+fidelity gate is BUILT + committed** (framework `d76d180`) -- `make corpus-gate`,
+5/5 synthesized fixtures clean, RED-proof green; option (a) real-corpus pull is
+the remaining step (R1-gated). Prior sessions A-D → `STATUS_ARCHIVE.md`._
 
 ---
 
-## 🎯 Widget live-validation pass (action-renderer + json-to-grid)
+## 🔥 This week -- critical
 
-Goal: validate **all configurable options** for both widgets — live against the
-box where the box adds signal, hermetic (mountWidget kit / stubbed grid) for
-config-driven render options.
+The threads to push on, ordered so the highest-risk one is cleared first.
 
-**✅ Done & pushed**
-- **action-renderer — complete.**
-  - Live (vs box): playbook listing (show-all/search/pick/classify), JSON-to-Grid
-    flow (notrigger→grid_data→table), **connector flow** (connector→op→config→run→table,
-    env-aware `[[AR-ENV-SKIP]]`). Targets: `make test-ar-playbook-live`,
-    `test-ar-jtg-flow-live`, `test-ar-connector-live`.
-  - Hermetic output matrix: raw, table styles ×5, sticky, auto+explicit alignment,
-    custom columns, empty message, sandboxed-iframe jinja (11 assertions).
-    `widgets-src/widget-action-renderer/tests/e2e/actionRenderer.outputRender.spec.js` + `applyOutput()` seam.
-- **json-to-grid — filter matrix complete.** boolean/enum/date (pre-existing) +
-  **number, string, column sort** (new). All 10 e2e green.
-- **Harness fixes** (both unblocked the above): app-shell path now probes
-  `fsr_src/app_min/`; `dollar-param-drop` lint downgraded error→advisory warning
-  (was darking the whole JTG hermetic tier; single-`$` query params verified safe —
-  KB updated).
+> ✅ **Former #1 "Commit the uncommitted box code" -- RESOLVED / was a false alarm (2026-07-28).** Verified against git: the .159/.206 running code was already committed on `main` -- assistant-skills read-path (`3477626`, 0.5.34), skills guide + setup (`e402357`), connector 0.5.37 (`a62b7a7`). No orphaned box code existed. The only actually-loose work was session tooling, now committed in the builder tree: `a265410` (config-helper consolidation) + `64a9b9a` (`session_analyze --replay`). See the corrected "Built but uncommitted" section below.
 
-**🔄 Continuing layer — remaining**
-| Widget | Item | Type | Notes |
-|---|---|---|---|
-| JTG | Column discovery (runs provider playbook) | live | edit-flow `discoverColumns()` |
-| JTG | Action buttons (with / without record) | live | execute selected playbooks |
-| JTG | Execution wizard launch | live | `showExecutionProgress` |
-| JTG | ✅ Card view, expandable rows | hermetic | **done** — 2 new e2e tests (see below) |
-| JTG | Column width + order persistence | hermetic→live | `settingsService` keys; restore path needs box-seeded user_settings, defer to live |
-| AR | Module-scoped playbook picker | ⛔ blocked | Application-Editor only, not harness-testable |
-
-**Card view / expandable rows (done 2026-06-28).** Two hermetic e2e tests added
-to `widget-json-to-grid/tests/e2e/jsonToGrid.spec.js` (12 green):
-- **Expandable rows** — per-row `ui-grid-icon-plus-squared` toggle renders (one
-  per row); clicking flips to `minus-squared` and mounts the `.expandableRow`
-  sub-row container. Two non-obvious findings recorded in KNOWLEDGEBASE.md:
-  (1) the detail body (`rowExpandable.html`) uses `cs-markdown-editor`, which the
-  harness only vendors when editor markers appear in `view.html`/`edit.html` —
-  **not** in `widgetAssets/` sub-templates — so the detail TEXT + row height are
-  **live-only** (deferred to box); (2) the platform binds expanded height to
-  `row.expandedRowHeight`, not `gridOptions.expandableRowHeight`.
-- **Card view** — the `#grid-card-view-btn`/`#grid-list-view-btn` toggle is
-  ng-show-gated on `allowGlobalFilter && allowCardView`; the widget disables
-  `allowGlobalFilter`, so the toggle is intentionally unreachable and the grid
-  always renders list view. Test pins that contract (a future `allowGlobalFilter`
-  flip would expose a half-wired card view — `cardView.html` binds
-  `record.name/image`, a collection shape, not arbitrary `grid_data`).
-
-**Env note:** lab **FortiGate connector config is down** ("invalid endpoint or
-credentials") — env, not a widget bug; connector test env-skips it cleanly.
+| # | Thread | Why now | First concrete action | Doc / detail |
+|---|---|---|---|---|
+| 1 | **GA demo on .206** | Top standing priority: make the SOC assistant demo great. Box is live (conn 0.5.37, all connectors configured, 3 seeded alerts). | Resolve the **Z5 scenario** decision (retarget vs flip to `manual_input` -- one-line edit), then an in-browser rehearsal of the triage→contain arc on .206. | `docs/plans/ga-demo-soc-investigation.md`; Open rows Z5 / SKL-MI2 |
+| 2 | **State-derived intent -- Phase 3 + M2 widget-tier** | Phase 0/1/2 + M1/M3 shipped & live (Phase 1 + persona P0 live-verified .206 2026-07-28). | Phase 3 (disposition from state) is **DEPRIORITIZED**; M2 widget-tier proof is now unblocked -- the widget sends page facts, so confirm it emits `module=workflows` from a playbook page + the in-browser per-page surface rehearsal. | `docs/plans/state-derived-intent-and-tool-slicing.md` |
+| 3 | **Compiler fidelity -- option (a)** | The gate mechanism is built + green on 5 synthesized fixtures; the real 178/400 metric needs a clean box pull. | Do the R1 licensing/PII review on stock content, then a fresh `?$relationships=true` pull of CLEAN playbooks → `make corpus-gate CORPUS_DIR=… MIN_PASS=178`. | `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.1b; memory `roundtrip_fidelity_gate_built` |
 
 ---
 
 ## 🔴 Open / next up
 
+_Ordered newest-first. Rows above the `───` divider were opened by sessions
+2026-07-23 → 07-27 and had lived only in the banners until the 2026-07-27
+tracker reorg; rows below it are the older standing threads._
+
 | Thread | Next action | Blocker | Doc |
 |---|---|---|---|
-| **Three-pillar demoable push (Investigation / Action-taking / Playbook-helper)** | Tracks A-E in `widgets-src/fortiaiAgenticAssistant/PLAN_demoable_three_pillars.md` (approved 2026-07-13). **C5 DONE+green 2026-07-13** - build intent now drops triage-only tools (`emit_action_card`/`run_op`/the fsr_soc_triage hunt set) via a framework `TRIAGE_ONLY_TOOLS` set the connector extends at import; framework 1805 / connector 204 / widget 549 passed. **C2 DONE offline 2026-07-13 BUT live-confirm FAILS on 8.0 — needs rework** - `update_playbook` op (pydantic `UpdatePlaybookParams/Response`, registered in `_LIVE_OPERATIONS`+`_MOCKABLE`+`info.json` (21 ops); widget `updatePlaybook()` + controller create-vs-update branch w/ module guard; 8 connector + 4 widget tests green) BUT the no-ship live probe on 159 (2026-07-13) showed **both** update paths fail: primary `PUT /api/3/workflows/<uuid>` (bare workflow record) → 409 `UniqueConstraintViolationException` on `uuid` (platform treats it as create-with-uuid, not in-place update); fallback `POST /api/3/import_jobs` `merge_replace` ��� 201 accepted but the ImportJob never completes (status null, pct 0, 40s) and the workflow name does NOT change. The committed "PUT = designer's Save path / import_jobs = verified upsert" claims are unverified-and-wrong. **NEXT:** find the real in-place-update mechanism (inspect the beautified designer app JS at `fsr_src/app_min/app.beautified.js` for the actual Save call — likely PATCH or a different body shape), fix `update_playbook`, re-probe, then ship. **C1 DONE+green 2026-07-13** - per-quick-action build-prompt tailoring: the 5 build chips (`explain`/`add_step`/`find_issues`/`add_error_handling`/`optimize`) each send a `quick_action` tag; widget `runQuickAction`→`_runTurn` threads it onto the `chat_turn` payload; connector `ChatTurnParams.quick_action` (typed field, not extra-passthrough) + `_resolve_system_prompt` appends a build-only `# Active quick-action` directive; framework `system_prompt_build.md` gains a "Quick-action modes" section routing each chip to its tools (Explain→analyze/step_through; Add a step→get_step_type+verify_enhancement; Find issues→analyze+diagnose_yaml_against_pb_execution; Add error handling→analyze+suggest_fix_for_diagnostic+verify_enhancement; Optimize→analyze+verify_enhancement). Triage chips carry the tag too (observability; connector ignores it for triage). Suites green: framework 680+2skip / connector 290+21skip / widget 552+3skip. **C3 DONE (local) 2026-07-14** — all three debug surfaces built in the widget YAML pane, box-independent: (1) **Step-test Verify** — per-step Verify control → live `step_test`, renders status/rendered_args/output_top_keys/note + `needs_confirm` confirm gate; `yamlSteps()` YAML parser + `stepTest` service. (2) **Apply-patch** — built on the REAL `corrected_yaml`/`auto_fixes` contract (`validate_yaml` already returns them; the planned `verify_enhancement`/`suggest_fix` proposals have no card emitter — noted as a framework follow-up): "Check & fix" button → `validateYamlLive` → reviewable before→after patch panel → one-click Apply. (3) **Debug-session drawer** — Debug panel drives the connector's stateful walker (`start_debug_session`→step/continue/stop, all live via `call_mcp_tool`): controls, per-step breakpoint toggles, live trace, status line, first_error, stale-session teardown. Suites: widget **50 jest suites / 588 passed** + verifyStep/applyPatch/debugSession/rendering/smoke e2e all green. Also fixed a reported bug: triage/investigation chats bleeding onto the playbooks page — session id was persisted under one un-namespaced `fsrPbSession` key shared across all mounts; now intent-scoped (`fsrPbSession:build`/`:triage`). KB updated (3 gotchas). **Unshipped/uncommitted.** **Track D1 DONE (local) 2026-07-14** — canonical seedable example-playbook fixture set committed at `widgets-src/fortiaiAgenticAssistant/tests/fixtures/playbooks/` (5 valid FSR YAML fixtures, one per authoring scenario, + `scenarios.json` acceptance manifest + gitignored `scenarios.local.json` overlay for box IRIs/exec-ids + a 7-test box-free guard). **Track A DONE (local) 2026-07-14 (box-independent parts)** — (1) hunt/pivot FortiSIEM/FAZ prompt guidance already landed+pushed on the connector `dynamic-tool-surface-connector` branch (commits `80f5abc`/`bba7561`/`bd79a43` — the "triage firewall/NOC investigation" work; `system_prompt_triage.md` now has full `siem_*`/`faz_*` source-aware hunt sections). (2) **Matrix scenario hygiene** fixed in the harness: `matrixDriver.js` now canonicalizes `ioc_card ≡ info_card` (`CARD_ALIAS`) in the expected-card gate — the widget renders both (+`status_card`) through one `normalizeInfoCard` path, so a hunt turn that emits `ioc_card` no longer FAILs a scenario expecting `info_card`; committed `scenarios.local.example.json` corrected (T2 `ioc_card`→`info_card`; T7 delete-ask is non-tier-gatable → `[]`/`minTools:0`/refusal, not a fabricated `action_card`); KB gotcha added (`docs/kb/drawer-widgets.md` §18.6). Harness jest **13 suites / 344 passed** (incl. 4 new normalization tests). Remaining Track A is box-dependent: run the T2–T11+P1 matrix live on 159. **Remaining:** Track D2–D4 (seed fixtures to box via push_playbook, extend matrixDriver + widget-driven UI scenarios — box-dependent); box follow-ups — richer value-level `suggest_fix` patch (needs a framework `emit_patch_proposal` card + apply tool), C4 live-verify, C2 update_playbook rework. **Live-test window open on 159:** C4 (playbook-editor mount) + Track B (always-allow checkbox) are testable NOW on the deployed 1.2.13/0.4.42 stack (code already shipped). C2 PUT endpoint (`PUT /api/3/workflows/<uuid>`) needs live-confirm — pyfsr probe written, run next session. C1/C2/C5 need a ship (0.4.42→0.4.43) — blocked on the `release_notes.md` foreign-WIP caveat (deploy.sh auto-mutates it). | live box window for ship + C4/B/matrix runs; C3/D/A are box-independent | `widgets-src/fortiaiAgenticAssistant/PLAN_demoable_three_pillars.md`; `ROADMAP.md` sections 3-4; memories `fortisoar_workflow_update_endpoint`, `feedback_typing_pydantic_solidify_structure` |
-| **Auto-approve safe / read-only actions** | **Mostly DONE.** (1) explicit policy is already built: `FSR_AUTO_APPROVE_READONLY` env var + `_readonly_auto_approve()`/`_approval_floor()` in `fsr_playbooks/llm/tools.py` (default on, tier 1–2 auto-run, tier ≥3 gated) — memory `readonly_auto_approve_flag`. (2) **"allow once / always-allow per tool" BUILT 2026-07-05** (offline, committed, not pushed): `grant_tool_approval()`/`_consume_grant()`/`clear_session_grants()` in framework `tools.py` (commit `4356e2b`), `dispatch()` takes an optional `session_id` and checks/consumes a per-(session,tool,op_key) grant before staging the approval envelope (audited `auto_allow_grant`); connector `_resume_action_card_execute` threads an optional `grant: "once"\|"always"` resume param + `session_id` into dispatch (commit `413a1c3`). In-memory only, backward compatible (no session_id/grant = unchanged behavior). Framework 655 passed/2 skipped, connector 77 passed, 10 new grant tests. Playbook-read tools (`analyze_playbook` tier 0, `verify_playbook`/`verify_enhancement`/`diagnose_yaml_against_pb_execution` tier 1) confirmed already safe/never-prompt. **Widget UI also BUILT 2026-07-05** (`widgets-src/fortiaiAgenticAssistant` commit `cdb4788`): action card gained an "Always allow this action" checkbox that sends `grant: "always"` on `chat_resume` when checked (unchecked = today's one-shot behavior, unchanged). 3 new tests, full widget suite 521 passed/3 skipped/524 total. **Remaining (2026-07-06 update): all 3 commits are now pushed** — widget `cdb4788` (origin/master, pushed 07-06 under the e2e-migration push), framework `4356e2b` (on framework `github/main`), connector `413a1c3` (on `origin/triage-firewall-noc-investigation`). Only the **live-box verify** of the "Always allow this action" checkbox end-to-end remains (needs a box window + `make ship`; note the connector repo is currently mid-flight on `dynamic-tool-surface-connector` with unrelated WIP). | live verify only | memory `agent_mutating_op_approval_gate`, `readonly_auto_approve_flag`, `approval_grants_built`; `fsr_playbooks/llm/tools.py::dispatch`, `_consume_grant` |
-| **Local dev loop — prove full functionality** | P0/P2 DONE. **P1 DONE 2026-07-05** (harness was proxying to `.env.box`=205; flipped to `.env.159` via `POST /_fsr/soar-envs`, confirmed a real `/api/3/alerts` fetch from 159). **P3 triage-quality: re-checked, no longer reproduces** — a real triage turn against a live 159 alert ran 13 well-directed tool calls (record → connector discovery → enrichment/containment → IOC lookups on both IPs + host) and closed clean (`end_turn` + a real `ioc_enrichment` info_card); the old `max_tool_turns` complaint looks fixed by since-shipped prompt work (0.4.27 "investigate first, summarize once", etc.). **Real bug found + fixed along the way:** `_shared._live_client()` memoises the FSR session for the process lifetime with no re-auth on token expiry — a sidecar idle since 2026-07-01 failed every `get_record` call `http_401` (15 tool calls, every arg permutation, never succeeded) even though the record existed; fixed via `_invalidate_live_client()` (framework `295b2fc`) + a `_get_with_reauth()` retry wired into `get_record`'s two request sites (connector `7e6ac6c`). Other `client.session.get/post` call sites in `tools_triage.py` (search_module_records, tags, etc.) have the same latent bug — follow-up, not yet fixed. Remaining: P3 run the full PROMPT_FLOW_TEST_PLAN matrix locally. | none known | `LOCAL_DEV.md`; memory `local_dev_loop_next_steps`, `sidecar_fsr_soc_triage_import_fix` |
-| **Triage & playbook strategic vision** | Make the agent genuinely helpful: hunt/pivot via FortiSIEM/FAZ (already in ref DB — gap is prompt guidance, not data); turn-investigation-into-playbook (Track B4/B5 — **playbook-designer persona now partially built, see below**); pydantic strict-typing pass (connector's `chat_turn`/`chat_poll`/`chat_resume`/`chat_history` boundary + tool-arg models already done, commit `777bf58`); py3.12 modernization. See roadmap section below. | tune-able once local loop P0 lands | memory `triage_and_playbook_vision` |
+| 🟢 **GA-demo CONTAINMENT ARC -- FIXED + LIVE-VERIFIED on .206 (2026-07-28)** | ~~The triage→contain demo failed: `find_containment_actions` returned `count:0`, agent emitted a capability_gap card instead of a containment approval.~~ **RESOLVED** by shipping framework **0.5.8** + connector **0.5.45** to .206. Two fixes closed both halves: framework `8d01ff0` (a timed-out/failed warmup healthcheck no longer **caches** an unhealthy verdict that silently deleted the real containment ops -- the health-gate fail-open) + connector `45719ad` (mutating MCP tool → **tier-3 approval card** rather than advisory). **Live-verified** driving "block attacker IP 192.168.22.16 on the FortiGate (block_ip_new)": the agent ran its containment lookup, emitted an **`action_card`** (`id: block-attacker-ip-192.168.22.16`) -- not capability_gap -- and on `chat_resume … approve` returned `executed: True` (real tool_use, not advisory). Money beat is demo-ready. _(Residual, cosmetic: the live-probe read `card.tier`/`card.mutating` as `None` -- wrong key path for the emitted-card schema; wire the literal `tier:"tier3"` assertion into the eval harness with the correct field, not another live turn.)_ | none -- verified | connector `scratchpad/ga_demo_containment_diagnosis.md`; memory `ga_demo_containment_health_gate_drops_ops` |
+| 🟢 **ztpf Z5 scenario -- RESOLVED as a manual-input row (2026-07-28)** | User chose option (a) (retarget to an approval-only source), but a live box investigation proved it **INFEASIBLE**: the only analyst-facing metadata-source record-action playbook, 'Get Metadata Source Data on Device' (`d4f71a01`), contains an **unconditional `InputBased` step** ('pick a manager and device'), so **all 9** sources drive it to `manual_input` -- the gate is intrinsic to the playbook, not the source. No approval-only record-action playbook exists on `ztpf_metadata_sources` on .206 (others are automated `triggerOnSource` triggers, `>` sub-playbooks, or an inactive `#exchange`/alerts playbook). Fell back to (b): `expectedCards`=`manual_input`. Z5 keeps **distinct** coverage vs SKL-MI2 -- `run_playbook` on a record-**bound** source → tier-3 approval gate → approve → playbook then hits its intrinsic `manual_input` (that sequence; SKL-MI2 tests chain resume). | none -- resolved | scenario `_note` in `fortisoar-widget-harness/tests/live/scenarios.local.206.json` (gitignored) |
+| 🟡 **ztpf SKL-MI2 -- stochastic manual-input flake (watch)** | Manual-input-chain scenario graded **2 PASS / 1 FAIL** across the 07-28 RUNS=2 sweep (incl. the network-contaminated run 1's pass) -- a flake in the resume path 0.5.37 touched, not a confirmed defect. Per the stochastic-turn rule, grade the defect not the symptom: if it recurs, do a targeted repro of the manual_input deliverable on that chain. | none -- watch-item | memory `manual_input_chain_resume`; scenario SKL-MI2 |
+| 🟢 **Manual-input FORM renders in the widget -- FIXED + live-verified .206 (conn 0.5.37)** | A record-action `run_playbook` that pauses on a `manual_input` step never showed its fillable form -- the agent only narrated "what value?" and the run sat paused. **Root cause:** `run_playbook` is tier-3 approval-gated, so its `tool_use` is in the PRIOR turn; the resume turn's transcript opens with an ORPHAN `tool_result` whose tool name can't resolve in the current turn, and the `manual_input` card synthesis in `_wire_transcript` was gated on that name → skipped the orphan → no form card. **Fix:** allow an orphan (unknown-name) `tool_result` through to `_manual_input_card_from_awaiting` (self-validates on `code==awaiting_input` + fillable fields); plus a bounded `_pending_input` poll in `_awaiting_or_slow` for form-lag. ✅ **Live-verified .206**: 1-gate + 2-gate → `tool_use→approval_request→tool_result→manual_input→stream_end`, card carries the real fillable fields (`note`/`approver`) wired to the run IRI; connector-level fill→resume drives to `finished`. Repro playbooks seeded via `scripts/seed_manual_input_playbook.py`. ✅ **COMMITTED** `a62b7a7`; 4 regression tests. **Along the way:** .206 was found running the OLD connector **0.5.29** (skills read-path + record-binding fix were never deployed there) → deployed **0.5.34→0.5.37**; this is what actually made skills fire on .206 and fixed `record_required`. | none -- fixed | connector `release_notes.md` 0.5.37; memory `manual_input_chain_resume` |
+| 🟢 **Scheduled Agent Tasks -- LIVE-VERIFIED .159 (conn 0.5.39, widget 1.2.44)** | ✅ **SHIPPED + LIVE-VERIFIED (session G).** Connector: 6 ops + runner-playbook compiler + `storage.scheduled_tasks`. Widget: Scheduled Tasks panel via overflow menu. **Live results**: created "Daily alert review" (cron `0 9 * * 1`), verified `run_scheduled_task_now` triggers workflow, `update_scheduled_task` enable/disable, `get/list_scheduled_tasks`. Shows on monitor dashboard with status/runs/last-run. **The playbook IS the task** (`kwargs` carry only `wf_iri`). | ✅ done | `docs/plans/scheduled-agent-tasks.md` |
+| 🟡 **SOC Assistant Monitor v2 -- richer audit, active sessions, interactive dashboard** | User feedback from session G live review: v1 dashboard is **static and dry** -- KPI cards and historical tables, no pivoting. Four gaps: (1) **Audit trail lacks tool-call detail** -- can't see what tools the agent called, what params, what the agent actually did (only aggregate per-turn data). Need per-tool-call rows (`agent_tool_calls` table) + expandable audit rows showing the tool call chain with params/results/cost. (2) **No active sessions visibility** -- want to see what agentic chat sessions are running right now, who, on what record, in-flight tool calls (agent mid-loop), session state (`streaming`/`waiting_approval`/`idle`/`suspended`). (3) **No session audit deep-dive** -- want a timeline view: user prompt → tool call sequence → approvals → final response. (4) **Dashboard not interactive** -- KPI cards are static summaries, need click-to-filter: click a model/user/status filters the audit trail; status pills become filter chips; `shared activeFilters` state object. **Phase 1 + 2 + 3 + 4 ALL IMPLEMENTED + LIVE-VERIFIED .206 + .159 (conn 0.5.47, widget 1.0.7)**: Phase 2 = `chat_sessions` table + `list_active_sessions` op deriving status at read time from `turn_progress`/`suspended_sessions` (no stored status column; `/api/3/llm_activity_logs` not involved -- connector-store-only per user) + widget "Sessions" tab with status pips / open-in-chat. Phase 1 = `agent_tool_calls` table (FK→`agent_usage.id`, cascade) + per-tool-call capture in `chat_turn`'s `_on_event` (buffer ToolUse/ToolResult frames by `call_id`, flush+clear at each `UsageEvent` so each round-trip's calls attribute to that round-trip's audit row; `_tool_result_status`/`_summarize_result` helpers) + `list_agent_usage` nests `tool_call_detail` (one batched fetch) + widget expandable audit rows (▸/▾ toggle, tool-count badge, sub-table: #, name, status, latency, params `<pre>`, result). Per-call tokens/cost intentionally omitted (framework reports totals per round-trip, not per call). Tests: 14 storage + 14 widget + e2e smoke all green. Phase 3 = enriched `agent_usage` (`agent_thinking` + `approvals_count` + populated `response` from buffered TextEvent/ApprovalRequestEvent frames; additive ALTER migration; no new table needed) + widget Turn Detail overlay (prompt, thinking, tool chain, approvals, response) + cost-over-time chart fix (hourly fallback when daily=1 bucket, single-bucket flat line). Phase 4 = shared `activeFilters` state + click-to-filter on KPI cards, status badges, user rows, intent badges + filter chip bar with clear + `loadAudit` passes filters to the connector op. **All v2 follow-ups done.** Two post-deploy bug fixes (session H): (a) `nonlocal _approval_count` in `_on_event` closure -- `UnboundLocalError` silently swallowed by `try/except: pass` killed `agent_usage` writes for all turns after 0.5.47 deploy; (b) `users()` caching -- infinite `$rootScope:infdig` with live data (new array per call). Live e2e spec added (`socAssistantMonitor.live.spec.js`). | ✅ all live-verified .206 + .159 | `docs/plans/soc-assistant-monitor.md` §10 (v2 follow-ups) |
+| 🟢 **SOC Assistant Monitor v1 -- SHIPPED + LIVE-VERIFIED .159 (conn 0.5.39, widget 1.0.4)** | ✅ **SHIPPED + LIVE-VERIFIED (session G).** Connector: 4 monitor ops + `storage.agent_usage` + `log_llm_activity()` dual-write. Widget: glassy KPI cards, SVG sparklines, gradient area chart, segmented tabs, polished tables. **Live results**: 3 turns seeded, 16.6k tokens, $0.0038 cost, 3 pending HITL, 1 scheduled task; audit trail (3 entries), scheduled tab; all 10 ops green. Dashboard at `/?qid=80d9d1fc...`. | ✅ done | `docs/plans/soc-assistant-monitor.md` |
+| ~~Run-vs-author mis-routing -- live-verify on .206~~ | **LIVE-PROVEN on .206 2026-07-28 (conn 0.5.37, gpt-4.1-mini -- the model that was 0/3).** Build-intent turns mounted on a ztpf_devices record (FG1): (a) invented name + (b) the exact `d1c6684` step-label mis-route ("Create Next SingleLo Interface") both route to `run_playbook` and get refused pre-card with `unknown_playbook` + the REAL candidate list -- no fabricated YAML, no authoring tool (`verify/validate/compile`) touched, on both gpt-4.1-mini AND gpt-4o; (c) a resolving name ("Synch Device DVMDB info from FMG") → `run_playbook` → `approval_request`, `stop=approval_required` (gated, not executed) -- Lever 1 through the tier gate exactly per the grading note. Probe: `$CLAUDE_JOB_DIR/tmp/run_vs_author_probe.py`. Caveat: 1 run per model, not 2/2 same-model -- but the refusal is deterministic (pre-card validator), not model-judgment. | -- | memory `run_vs_author_misrouting_levers`; connector `operations.py:2363` (`_run_mode_active`) |
+| 🔴 **Dep-upgrade gotcha -- `make ship` does NOT install a bumped framework pin** | **Root-caused 2026-07-27, affects every future pin bump.** FortiSOAR sets `requirements_installed` per connector (migration 0012) and **skips the pip step on a `$replace` install** -- so a bump ships the new wheel to `<install_dir>/wheels/` but never installs it into runtime `conn_pkgs`; workers keep importing the old version and `verify` 400s "version mismatch". Uninstalling would **drop the config** (LLM keys + MCP allowlist). Config-preserving heal: `pip install --prefix <integrations_env>/conn_pkgs --no-index --no-deps --upgrade --find-links <install_dir>/wheels fsr-playbooks==<pin>` **then republish** (`make ship BUMP=none`) -- `systemctl restart cyops-integrations-agent` alone does **not** recycle exec workers. `--no-index` uses the bundled wheel, so no pip index is needed (the pip.conf/PyPI theory was a red herring). **A `deploy.sh` auto-heal (`heal_runtime_dep` on verify-mismatch) is DESIGNED but not applied** -- the classifier blocks writing the embedded remote sudo, so a human must apply it to make future bumps self-heal. | 🔴 auto-heal needs a human to apply | memory `assistant_skills_learned_house_rules`; connector `scripts/deploy.sh` |
+| ~~Connector release notes are placeholders~~ | **DONE 2026-07-28.** The two genuinely-bare TODOs (`0.5.29`, `0.5.35`) are now written; the rest already read "intermediate/superseded". `0.5.29` documents the four previously-unwritten fix commits (see the row below). | -- | connector `release_notes.md` |
+| 🟠 **GA demo box 159 provisioning RESET by reimage** | Software tier is GREEN (conn 0.5.28, M2 surfacing live), but the **box** lost its demo state: the seeded demo alert is gone and **FortiEDR + FortiGate are unconfigured**, so beat 5 (containment) cannot run. Re-seed the demo record (`scratchpad/seed_demo_alert.py`, must name a REAL collector -- `The-Flame`) and re-configure both connectors -- **commit-safe config helpers for exactly this now exist** (connector `c490bbe`). | credential-gated (needs the user) | memory `ga_demo_reimage_regression_159`, `ga_demo_must_be_real_collector`; `docs/plans/ga-demo-soc-investigation.md` |
+| 🟠 **M2 per-page surfacing -- widget-tier proof remains** | Connector tier is live-verified on 159 (`list_mcp_servers`: alerts→[fortisiem,soc], workflows→[deepwiki], None→all). Remaining: (a) confirm the **widget actually emits `module=workflows`** from a playbook page -- `MODULE_AFFORDANCE`'s authoring module name was **guessed**; (b) in-browser rehearsal of the per-page surface (the money demo); (c) verify one unreachable server doesn't poison on-box `soc`/`fortisiem` materialization. 🟡 Cosmetic: `allowlist_keys` always `[]` on a bare-op call (only a real `chat_turn` hydrates `mcp_allowlist`). | none -- needs a box + browser window | `docs/plans/state-derived-intent-and-tool-slicing.md` §M2; memory `resume_2026_07_26_fortisiem_and_m2` |
+| 🟢 **State-derived intent -- Phase 1 SHIPPED + live-verified .206 (2026-07-28)** | Phase 0/1/2 + M1/M3 all SHIPPED. **Phase 1** (page latch -> soft prior over ONE `classify_page` affordance taxonomy; `intent` a soft override; widget sends page facts + keys the session on the record/page = ONE thread) + a **persona substrate P0** (`assistant_personas` grid-editable module, module-first resolution, Key Store personas migrated on both boxes). Shipped conn .159 0.5.46 / .206 0.5.47, widget .206 1.2.46; merged to main/master locally. **Live on .206:** persona resolves from the module; an interleave on the GA beaconing alert drove triage->author in ONE session (reached `emit_playbook_offer`, no page flip). **Only Phase 3 remains (disposition from state) -- DEPRIORITIZED per user.** Supersedes 4f follow-up #2 below. | none -- Phase 3 parked | `docs/plans/state-derived-intent-and-tool-slicing.md`; memory `phase1_pageclass_and_persona_module_offline` |
+| 🟢 **Assistant Skills -- ROLLED OUT + read-path TESTED on BOTH .159 and .206** | Per-module house rules as records in a custom `assistant_skills` module -- **tools stay generic; skills shape how tools are used** (a preference like "hide deprecated-named playbooks" is a skill line, never a tool filter). ✅ **Rolled out to BOTH boxes 2026-07-27** via a new idempotent, pyfsr-typed script `scripts/setup_assistant_skills.py` (creates the module, upserts the `ztpf_automation_actions` authoring persona, grants skill-capture on the ztpf personas, seeds the 8 FIXME skills). On each box: module (camelCase fields; `instruction` is **Long Text** -- the script self-heals a pre-existing varchar(255) column via `set_field_type`), `ztpf_automation_actions` persona (NO build/containment tools -- the absence that stops the "Build playbook" leak), `ztpf_devices`/`ztpf_metadata_sources` personas granted `may_write:assistant_skills` + write tools, all 8 skills seeded. ✅ **Live read-path test passed on BOTH** (`skills_for_prompt` against real data): `ztpf_devices`→5 (priority-sorted p60→p30), `ztpf_automation_actions`→2, `ztpf_metadata_sources`→1, `alerts`→0 on .206 (correctly scoped; .159 `alerts`→1 = last session's proof-marker). Read path = `skills.py` `load_skills`/`render_skills_block`, folded at `_resolve_profile`→`_apply_skills`, fail-open, 15 offline tests. Write path needs **no new tool** -- a skill is a record captured via the persona-gated tier-3 `create_record`. ✅ **COMMITTED**: code `3477626` (0.5.34 read-path + Lever 2; 398 offline pass); docs+script `e402357` (README Personas&Skills + config/ops refresh, `docs/SKILLS_AUTHORING.md`, `setup_assistant_skills.py`). ✅ **BEHAVIOR now confirmed HONORED on .206 in the widget** (after deploying current code -- see below): live matrix turns show skills 1,2,3,4,6,7,8 honored (e.g. refuses to "build a playbook" on an automation-action page; computes run-group relative time; hide-deprecated; pending-steps semantics). ⚠️ **Correction to the earlier claim:** .206 was running the OLD connector **0.5.29** -- the skills read-path (`_apply_skills`, 0.5.34) was NEVER deployed there this session; only the DATA (module/personas/skills) was seeded. Skill 2 "failed" purely because the code was absent. Deploying **0.5.34→0.5.37** to .206 this session is what made skills actually fire (`.159` had 0.5.34 all along). | none | `docs/plans/assistant-skills-learned-house-rules.md`; memory `assistant_skills_learned_house_rules` |
+| 🟡 **Skills -- open design questions** | (a) Should a **global** (blank-scope) skill apply to plain triage turns with **no persona**? Today `_apply_skills` only runs when a persona resolves, so house rules can't reach alert/incident pages. (b) Positive `_PROFILE_CACHE` is process-life, so a **newly-added skill needs a worker recycle** to take effect (same property personas already have) -- accepted for v1. (c) 8.0 organizational-context module considered as the substrate for tenant-scoped skills, deferred (its semantics = facts about the org, not assistant behavior) -- revisit for MSSP. | none | plan §"Follow-ups / open questions" |
+| ~~Two live-found tool fixes not on any box~~ | **RESOLVED -- the row was stale (verified 2026-07-28).** (1) `run_op` stringified-params fix (`38dc2d5`) is in **released fw 0.5.7**; connector 0.5.37 pins 0.5.7 and all 9 workers on .206 verified on 0.5.37 → **live**. (2) SIEM `_as_int` fix shipped in connector 0.5.29→0.5.37 → **live**. Nothing rides a future release. | -- | memories `run_op_stringified_params_fix`, `siem_search_string_limit_crash` |
+| ~~Guards render as red ERROR badges~~ | **RESOLVED -- the row was stale.** The amber "skipped" guard chip IS committed (`view.html:706-707` `.tool-result-chip.guard`, in `b4ad285` "manual-input rendering + awaiting classification", 1.2.41) and shipped to .206 with widget 1.2.40/1.2.41. An `ok:false`+`error` guard result now paints amber, not red. Nothing to commit. | -- | memory `guards_render_as_errors_in_widget` |
+| 🟡 **4g follow-ups still open (3 of 6)** | Closed: #1 (haiku S3 output-binding → 4h), #2/#3 (per-intent model routing + a stronger GA config -- **dropped by the user** in favour of model-agnostic tool hardening). Still open: **#4** gpt-4.1-mini create→enhance mode confusion (drift smell); **#5** harness commit `87ba27d` is local-only (65 ahead, no upstream configured); **#6** no widget DOM / live-sweep tier for the enhancement offer card. | none | 4g banner; memory `resume_2026_07_23_enhance_delivery_ship`, `model_agnostic_tool_robustness_direction` |
+| 🟡 **Manual-input caveat (post-0.5.13)** | The multi-gate CHAIN is fixed and live-proven, but a **MANUAL-trigger** (non record-action) playbook that pauses still returns `not_finished_awaiting_or_slow` with **no form** -- only record-action-triggered playbooks get the clean `awaiting_input` seam. | none | 4i-cont banner; memory `manual_input_chain_resume` |
+| 🟡 **Pre-existing red, unrelated to any current thread** | `tooling/tests/integration/test_e2e_runs.py::test_stage4_manual_input_resume` and `::test_stage5_manual_input_multi_field` fail against box .205 -- `'FortiSOAR' object has no attribute 'system_settings'` (pyfsr API drift). Predates 2026-07-27; **not a ship gate**. Also: an untracked `build/` dir in the framework repo trips the release clean-tree gate and is **not gitignored** -- add it. | none | 2026-07-27 banner |
+| 🔵 **Connector install/configure/ingestion wizard -- drive it headlessly** | The full UI construct → HTTP call map is written and partly live-verified on 8.0/159 (§7a). Next: settle §8's open questions against a live box, then implement the pyfsr end-to-end sequence (§7). Unblocks re-provisioning a reimaged box (see the 159 row above) from code instead of by hand. | none -- spec ready | `docs/plans/connector-install-wizard-api-map.md`; memory `connector_data_ingest_wizard_pyfsr` |
+| ~~Four connector fixes landed but never written up~~ | **DOCUMENTED 2026-07-28** in the `0.5.29` release note (`4455282` SIEM/enrichment arg-shape hardening + FortiGate block-method steer; `d1c6684` refuse un-runnable playbooks pre-card + client-side sort + field naming; `7f59335` no unprompted playbook offer off alert/case/war-room; `c490bbe` commit-safe FortiEDR/FortiGate config helpers). `4455282`'s SIEM/enrichment fixes are the connector-side of the still-open "two live-found tool fixes" row (`run_op_stringified_params`, `siem_search_string_limit`) -- those are the *framework* halves and still ride a framework release. | -- | connector `release_notes.md` §0.5.29 |
+| -- ─────────────── | ─── _older standing threads below_ ─── | -- | -- |
+| **Catalog freshness -- snapshot model unchanged (4f follow-up 1)** | 0.4.42 makes a stale-catalog miss HONEST (`stale_catalog` via the on-miss probe) but does NOT auto-warm. Installing a connector still leaves `fsr_reference.db` wrong until a re-ship force-warms it. Decide: add a cheap box-vs-catalog drift check (connector count/name diff) to `_warmup_needed()`'s existing trigger sites, OR have the probe auto-trigger a re-warm on a confirmed miss. Cost of a live list call was ~0.4-0.5s on 159. | none -- design decision | 4f banner above; memory `catalog_snapshot_hides_new_connectors`; connector `fsr_soc_triage/catalog_probe.py`, framework `_shared.stale_catalog_hint` |
+| **Intent model is too coarse (4f follow-up 2)** | Two disjoint tool slices + a one-way latch don't match how analysts work -- read record → hunt → author → tweak record. `sess-v6uv6x15` died exactly at an interleave point. 4f made the latch escapable (widget resets intent on new/switched conversation) but the trap itself remains: a build turn still cannot read the record it's mounted on. Consider a single spine with additive capability rather than two mutually-exclusive slices. | none -- larger design item | `fsr_playbooks/llm/intents.py` (`TRIAGE_ONLY_TOOLS`/`BUILD_ONLY_TOOLS`), connector `_intent_drop_set`; memory `persona_spine_unification_plan` |
+| **Alert-scenario test matrix (4f follow-up 3)** | 🔴 **The existing suites could not have caught any of 4f's four defects.** All 7 rows in `scripts/scenarios.json` + the T1 set are clean single-purpose arcs on a healthy box. Missing: (a) the interleave -- triage → build playbook → then a record question; (b) asking for a connector the box does NOT have; (c) editing the record (`update_record`, now reachable); (d) follow-ups after a playbook save. Grade how each is handled, not just that a turn completes. | none -- highest-value testing work | `docs/plans/widget-capability-test-and-persona-rollout.md`; `scripts/scenarios.json`, `scripts/t1_scenarios.py` |
+| **FortiEDR `search_ioc` rejects a valid call (4f follow-up 4)** | Live on 159: HTTP 400 *"At least one fromTime or toTime required when the time property is custom"* for a call that **did** supply both `fromTime` and `toTime` (`fortinet-fortiedrV2.1.0`). Third-party connector bug, not ours -- reproduce cleanly and file it. | none | 4f banner; use the `fortisoar-bug-report` skill |
+| ~~harness `tests/server.test.ts` red~~ | **RESOLVED 2026-07-23 (two separate things).** (1) The originally-documented failure -- `GET /<widget-id>/view.html` 404 -- no longer reproduces at all; fixed at some point without this row being updated. (2) What remained was a *load* flake: the harness project set no `testTimeout`, so every test ran on jest's 5s default while that same project transforms TS via ts-jest and boots real servers. Standalone that's fine (30 tests, ~1.8s); under `make test-unit WIDGET=…` the harness and widget projects share workers and one test got starved past 5s -- it failed 1 run in 3. Fixed by an explicit `testTimeout: 30000` on the harness project (`jest.config.js`) -- headroom for contention, while a genuine hang still fails (30s later). **Evidence caveat:** 3/3 full runs clean afterwards, which is consistent but not proof on its own (at the old 1-in-3 rate, 3 clean runs happen ~30% of the time by chance); the confidence comes from the mechanism, not the run count. Re-open if it recurs. | -- | `fortisoar-widget-harness/jest.config.js` |
+| **Three-pillar demoable push (Investigation / Action-taking / Playbook-helper)** | Tracks A-E in `widgets-src/fortiaiAgenticAssistant/PLAN_demoable_three_pillars.md` (approved 2026-07-13). **C5 DONE+green 2026-07-13** - build intent now drops triage-only tools (`emit_action_card`/`run_op`/the fsr_soc_triage hunt set) via a framework `TRIAGE_ONLY_TOOLS` set the connector extends at import; framework 1805 / connector 204 / widget 549 passed. **C2 ✅ DONE + LIVE-VERIFIED (connector 0.4.68, current 0.4.78; fix `156db66`)** -- the in-place write path was fixed: `update_playbook` GETs the live workflow, grafts its record `@id`s onto the compiled body (`_graft_live_ids`), shapes it like the designer's `preparePlaybookForSave`, and PUTs to `/api/3/workflows/<uuid>?$relationships=true&$versions=true` -- the designer's own canvas Save call (confirmed against `app.beautified.js`); create-vs-update turns on `@id`, not uuid. Fail-closed pre-edit snapshot into the Versions tab; the phantom `import_jobs` fallback was deleted. See memory `update_playbook_write_path_at_identity`. _(historical, now resolved:_ **C2 DONE offline 2026-07-13 BUT live-confirm FAILED on 8.0** - `update_playbook` op (pydantic `UpdatePlaybookParams/Response`, registered in `_LIVE_OPERATIONS`+`_MOCKABLE`+`info.json` (21 ops); widget `updatePlaybook()` + controller create-vs-update branch w/ module guard; 8 connector + 4 widget tests green) BUT the no-ship live probe on 159 (2026-07-13) showed **both** update paths fail: primary `PUT /api/3/workflows/<uuid>` (bare workflow record) → 409 `UniqueConstraintViolationException` on `uuid` (platform treats it as create-with-uuid, not in-place update); fallback `POST /api/3/import_jobs` `merge_replace` ��� 201 accepted but the ImportJob never completes (status null, pct 0, 40s) and the workflow name does NOT change. The committed "PUT = designer's Save path / import_jobs = verified upsert" claims were unverified-and-wrong at the time._ **RESOLVED** by `156db66` as described above -- the real mechanism was the `$relationships=true&$versions=true` PUT with `@id`-grafting, not a PATCH/body-shape change.) **C1 DONE+green 2026-07-13** - per-quick-action build-prompt tailoring: the 5 build chips (`explain`/`add_step`/`find_issues`/`add_error_handling`/`optimize`) each send a `quick_action` tag; widget `runQuickAction`→`_runTurn` threads it onto the `chat_turn` payload; connector `ChatTurnParams.quick_action` (typed field, not extra-passthrough) + `_resolve_system_prompt` appends a build-only `# Active quick-action` directive; framework `system_prompt_build.md` gains a "Quick-action modes" section routing each chip to its tools (Explain→analyze/step_through; Add a step→get_step_type+verify_enhancement; Find issues→analyze+diagnose_yaml_against_pb_execution; Add error handling→analyze+suggest_fix_for_diagnostic+verify_enhancement; Optimize→analyze+verify_enhancement). Triage chips carry the tag too (observability; connector ignores it for triage). Suites green: framework 680+2skip / connector 290+21skip / widget 552+3skip. **C3 DONE (local) 2026-07-14** -- all three debug surfaces built in the widget YAML pane, box-independent: (1) **Step-test Verify** -- per-step Verify control → live `step_test`, renders status/rendered_args/output_top_keys/note + `needs_confirm` confirm gate; `yamlSteps()` YAML parser + `stepTest` service. (2) **Apply-patch** -- built on the REAL `corrected_yaml`/`auto_fixes` contract (`validate_yaml` already returns them; the planned `verify_enhancement`/`suggest_fix` proposals have no card emitter -- noted as a framework follow-up): "Check & fix" button → `validateYamlLive` → reviewable before→after patch panel → one-click Apply. (3) **Debug-session drawer** -- Debug panel drives the connector's stateful walker (`start_debug_session`→step/continue/stop, all live via `call_mcp_tool`): controls, per-step breakpoint toggles, live trace, status line, first_error, stale-session teardown. Suites: widget **50 jest suites / 588 passed** + verifyStep/applyPatch/debugSession/rendering/smoke e2e all green. Also fixed a reported bug: triage/investigation chats bleeding onto the playbooks page -- session id was persisted under one un-namespaced `fsrPbSession` key shared across all mounts; now intent-scoped (`fsrPbSession:build`/`:triage`). KB updated (3 gotchas). **Unshipped/uncommitted.** **Track D1 DONE (local) 2026-07-14** -- canonical seedable example-playbook fixture set committed at `widgets-src/fortiaiAgenticAssistant/tests/fixtures/playbooks/` (5 valid FSR YAML fixtures, one per authoring scenario, + `scenarios.json` acceptance manifest + gitignored `scenarios.local.json` overlay for box IRIs/exec-ids + a 7-test box-free guard). **Track A DONE (local) 2026-07-14 (box-independent parts)** -- (1) hunt/pivot FortiSIEM/FAZ prompt guidance already landed+pushed on the connector `dynamic-tool-surface-connector` branch (commits `80f5abc`/`bba7561`/`bd79a43` -- the "triage firewall/NOC investigation" work; `system_prompt_triage.md` now has full `siem_*`/`faz_*` source-aware hunt sections). (2) **Matrix scenario hygiene** fixed in the harness: `matrixDriver.js` now canonicalizes `ioc_card ≡ info_card` (`CARD_ALIAS`) in the expected-card gate -- the widget renders both (+`status_card`) through one `normalizeInfoCard` path, so a hunt turn that emits `ioc_card` no longer FAILs a scenario expecting `info_card`; committed `scenarios.local.example.json` corrected (T2 `ioc_card`→`info_card`; T7 delete-ask is non-tier-gatable → `[]`/`minTools:0`/refusal, not a fabricated `action_card`); KB gotcha added (`docs/kb/drawer-widgets.md` §18.6). Harness jest **13 suites / 344 passed** (incl. 4 new normalization tests). Remaining Track A is box-dependent: run the T2-T11+P1 matrix live on 159. **Remaining:** Track D2-D4 (seed fixtures to box via push_playbook, extend matrixDriver + widget-driven UI scenarios -- box-dependent); box follow-ups -- richer value-level `suggest_fix` patch (needs a framework `emit_patch_proposal` card + apply tool), C4 live-verify, C2 update_playbook rework. **Live-test window open on 159:** C4 (playbook-editor mount) + Track B (always-allow checkbox) are testable NOW on the deployed 1.2.13/0.4.42 stack (code already shipped). C2 PUT endpoint (`PUT /api/3/workflows/<uuid>`) needs live-confirm -- pyfsr probe written, run next session. C1/C2/C5 need a ship (0.4.42→0.4.43) -- blocked on the `release_notes.md` foreign-WIP caveat (deploy.sh auto-mutates it). | live box window for ship + C4/B/matrix runs; C3/D/A are box-independent | `widgets-src/fortiaiAgenticAssistant/PLAN_demoable_three_pillars.md`; `ROADMAP.md` sections 3-4; memories `fortisoar_workflow_update_endpoint`, `feedback_typing_pydantic_solidify_structure` |
+| **Auto-approve safe / read-only actions** | **Mostly DONE.** (1) explicit policy is already built: `FSR_AUTO_APPROVE_READONLY` env var + `_readonly_auto_approve()`/`_approval_floor()` in `fsr_playbooks/llm/tools.py` (default on, tier 1-2 auto-run, tier ≥3 gated) -- memory `readonly_auto_approve_flag`. (2) **"allow once / always-allow per tool" BUILT 2026-07-05** (offline, committed, not pushed): `grant_tool_approval()`/`_consume_grant()`/`clear_session_grants()` in framework `tools.py` (commit `4356e2b`), `dispatch()` takes an optional `session_id` and checks/consumes a per-(session,tool,op_key) grant before staging the approval envelope (audited `auto_allow_grant`); connector `_resume_action_card_execute` threads an optional `grant: "once"\|"always"` resume param + `session_id` into dispatch (commit `413a1c3`). In-memory only, backward compatible (no session_id/grant = unchanged behavior). Framework 655 passed/2 skipped, connector 77 passed, 10 new grant tests. Playbook-read tools (`analyze_playbook` tier 0, `verify_playbook`/`verify_enhancement`/`diagnose_yaml_against_pb_execution` tier 1) confirmed already safe/never-prompt. **Widget UI also BUILT 2026-07-05** (`widgets-src/fortiaiAgenticAssistant` commit `cdb4788`): action card gained an "Always allow this action" checkbox that sends `grant: "always"` on `chat_resume` when checked (unchecked = today's one-shot behavior, unchanged). 3 new tests, full widget suite 521 passed/3 skipped/524 total. **Remaining (2026-07-06 update): all 3 commits are now pushed** -- widget `cdb4788` (origin/master, pushed 07-06 under the e2e-migration push), framework `4356e2b` (on framework `github/main`), connector `413a1c3` (on `origin/triage-firewall-noc-investigation`). Only the **live-box verify** of the "Always allow this action" checkbox end-to-end remains (needs a box window + `make ship`; note the connector repo is currently mid-flight on `dynamic-tool-surface-connector` with unrelated WIP). | live verify only | memory `agent_mutating_op_approval_gate`, `readonly_auto_approve_flag`, `approval_grants_built`; `fsr_playbooks/llm/tools.py::dispatch`, `_consume_grant` |
+| **Local dev loop -- prove full functionality** | P0/P2 DONE. **P1 DONE 2026-07-05** (harness was proxying to `.env.box`=205; flipped to `.env.159` via `POST /_fsr/soar-envs`, confirmed a real `/api/3/alerts` fetch from 159). **P3 triage-quality: re-checked, no longer reproduces** -- a real triage turn against a live 159 alert ran 13 well-directed tool calls (record → connector discovery → enrichment/containment → IOC lookups on both IPs + host) and closed clean (`end_turn` + a real `ioc_enrichment` info_card); the old `max_tool_turns` complaint looks fixed by since-shipped prompt work (0.4.27 "investigate first, summarize once", etc.). **Real bug found + fixed along the way:** `_shared._live_client()` memoises the FSR session for the process lifetime with no re-auth on token expiry -- a sidecar idle since 2026-07-01 failed every `get_record` call `http_401` (15 tool calls, every arg permutation, never succeeded) even though the record existed; fixed via `_invalidate_live_client()` (framework `295b2fc`) + a `_get_with_reauth()` retry wired into `get_record`'s two request sites (connector `7e6ac6c`). Other `client.session.get/post` call sites in `tools_triage.py` (search_module_records, tags, etc.) had the same latent bug -- **RESOLVED (verified 2026-07-15):** the reauth wrapper was centralized into the framework as `_shared.live_request_with_reauth` (+`live_get_with_reauth`/`live_post_with_reauth`, self-heal once on 401/403) and threaded through every live request site in `tools_triage.py`/`tools_records.py`/`tools_ztpf.py`/`profiles.py`/`triage_preflight.py`; the one raw `client.session.get` left (triage_preflight.py) is a guarded fallback that prefers the wrapper. Remaining: P3 run the full PROMPT_FLOW_TEST_PLAN matrix locally. | none known | `LOCAL_DEV.md`; memory `local_dev_loop_next_steps`, `sidecar_fsr_soc_triage_import_fix` |
+| **Triage & playbook strategic vision** | Make the agent genuinely helpful: hunt/pivot via FortiSIEM/FAZ (already in ref DB -- gap is prompt guidance, not data); turn-investigation-into-playbook (Track B4/B5 -- **playbook-designer persona now partially built, see below**); pydantic strict-typing pass (Stage 1-2 done at the `chat_turn`/`chat_poll`/`chat_resume`/`chat_history` boundary + 6 tool-arg models, commit `777bf58` -- but **Stage 3 was authored and never wired**; the remaining ~2/3 of the surface is specced in `connector-fsr-soc-assistant/PLAN.md`, see the Open row above); py3.12 modernization. See roadmap section below. | tune-able once local loop P0 lands | memory `triage_and_playbook_vision` |
 | **Prompt + flow test matrix (triage & playbook creation)** | Author the live prompt/flow test plan, then execute it against the 8.0 box (proven render + live triage path). See section below + `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new) | none ��� 8.0 live path proven; needs the plan authored + a run window | this file; memory `deploy_159_fortisoar_8` |
-| **Chat Intelligence — Track B** | Live drive vs forticloud + re-capture 2 stale goldens, then start Track B | Phase 0 done offline; needs live | memory `chat_intelligence_plan` |
-| **Introspection Phase 2** | Live-fidelity rig (real-SOAR baseline diff vs harness) | **rig BUILT + live diff on 8.0 + drawer-mount DONE (2026-07-12)** — `scripts/introspectSoar.ts` + `make introspect-soar` render the deployed widget on the box and diff vs the harness report; `introspection-profiles.json` teaches the Phase-1 rig to mount drawer/standalone widgets (config + context + mount probe), so fortiai now mounts in-harness and the **stub-vs-real service map works** (harness fakes $state/$uibModal/toaster/$translate/localStorageService/$exceptionHandler/config; all real on box). Widget renders clean live. Remaining: DOM/applied-style diffing. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
-| ~~Introspection backlog #4 (`module is not defined` render noise)~~ | **DONE + verified 2026-07-10** — `harnessUtils.js` IIFE-wrapped when browser-served (`758cbaa`); `make introspect` sweep = errorCount 0 across all 15 widgets. Baselines refreshed, 3 orphan reports removed. Only Phase 2 remains open in the introspection plan. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
-| **Playbook-editor tailoring — verify on real box** | Widget now hard-forces build intent + shows playbook-authoring quick actions when mounted on `main.playbookDetail` (hermetic e2e proven). NOT yet confirmed against a real FortiSOAR box via Chrome — need to open the actual playbook designer, drop the widget in via the drawer, and confirm it mounts + shows the right intent/chips there (vs the harness's synthetic `$state` stub). | none — just needs a live Chrome pass | memory `playbook_editor_tailoring` |
+| **Chat Intelligence -- Track B** | Live drive vs forticloud + re-capture 2 stale goldens, then start Track B | Phase 0 done offline; needs live | memory `chat_intelligence_plan` |
+| **Introspection Phase 2** | Live-fidelity rig (real-SOAR baseline diff vs harness) | **rig BUILT + live diff on 8.0 + drawer-mount DONE (2026-07-12)** -- `scripts/introspectSoar.ts` + `make introspect-soar` render the deployed widget on the box and diff vs the harness report; `introspection-profiles.json` teaches the Phase-1 rig to mount drawer/standalone widgets (config + context + mount probe), so fortiai now mounts in-harness and the **stub-vs-real service map works** (harness fakes $state/$uibModal/toaster/$translate/localStorageService/$exceptionHandler/config; all real on box). Widget renders clean live. Remaining: DOM/applied-style diffing. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
+| ~~Introspection backlog #4 (`module is not defined` render noise)~~ | **DONE + verified 2026-07-10** -- `harnessUtils.js` IIFE-wrapped when browser-served (`758cbaa`); `make introspect` sweep = errorCount 0 across all 15 widgets. Baselines refreshed, 3 orphan reports removed. Only Phase 2 remains open in the introspection plan. | `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md` |
+| **Pydantic coverage across the connector** | **Plan written 2026-07-22, nothing implemented:** `connector-fsr-soc-assistant/PLAN.md`. The survey reframed the job -- **50 of 79 models are already authored AND unit-tested (27 tests) but wired to nothing**; Stage 3 was written and never connected, and the module docstring says so ("wiring those at the dispatch boundary is staged"). So this is mostly wiring, not authoring. Today: **7 of 25 ops** validate params, **3** validate responses, **6 of 17** triage tools have a strict arg gate, and **~30 hand-built `{"type": …}` frame dicts** remain -- one of which already shipped a defect (a hand-rolled `stream_end` dropped `last_assistant_yaml`; `StreamEndFrame` existed the whole time). Recommended first slice = **Phase 1 only** (construct frames through their models; non-breaking, prevents that defect class). Two decisions needed: whether op params should ever be `extra="forbid"` (recommend **no** -- widget and connector ship independently, so version skew would reject a newer widget's key), and whether Phase 5 (78 agent-visible tool envelopes) happens at all (recommend **pilot then default no**). | none -- spec only, ready to start | `connector-fsr-soc-assistant/PLAN.md`; memory `feedback_typing_pydantic_solidify_structure` |
+| **Playbook compiler fidelity + agent surface** | **Plan written 2026-07-22, nothing implemented:** `docs/plans/playbook-compiler-fidelity-and-agent-surface.md`. Phase 1 = a round-trip fidelity gate (decompile → compile → diff vs wire JSON, fail on any dropped field). The failure mode is **silent destruction**: the widget saves the agent's last ```yaml fence back OVER the record, so a field the decompiler can't read is deleted from the customer's playbook with no error and no visible diff. That has happened **twice** (`for_each`, then declared `parameters`), both found **by accident**, both invisible to every test tier -- unit fixtures are synthesized so they inherit the fix's blind spots, mock e2e is hermetic, the live sweep drives the UI not the compiler. The `parameters` bug meant **the compiler rejected its own decompiler's output**. F4 gave us a real metric (**142→178/400 clean**, shipped in 0.4.39) but it lives in a lost scratchpad probe and nobody owns it. Phase 2 = triage the 86 residual failures + make compile errors *affordances* (`value '/api/3/picklists/1c4d…' is not in picklist` hands an agent an opaque IRI). **✅ Phase 1 gate BUILT (framework `d76d180`, 2026-07-28):** `make corpus-gate`, a committed 5-fixture synthesized corpus, and a real-path RED-proof -- all green. **Remaining = option (a)**, a clean box pull for the real 178/400 metric (R1-gated). See This-week #4. | option (a) R1-gated | `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.1b; memory `roundtrip_fidelity_gate_built` |
+| **Playbook-editor tailoring -- verify on real box** | Widget now hard-forces build intent + shows playbook-authoring quick actions when mounted on `main.playbookDetail` (hermetic e2e proven). NOT yet confirmed against a real FortiSOAR box via Chrome -- need to open the actual playbook designer, drop the widget in via the drawer, and confirm it mounts + shows the right intent/chips there (vs the harness's synthetic `$state` stub). | none -- just needs a live Chrome pass | memory `playbook_editor_tailoring` |
 
-### Prompt + flow test matrix (triage & playbook creation)
-
-Proven so far on 8.0 (2026-07-01): the widget drawer renders and **one** triage
-chat turn streams to `done` with frames (9 polls, 7 frames). That proves the
-plumbing, not that every prompt/flow behaves. This matrix is the backlog of
-"various kinds of testing" to run later. Detail + acceptance signals live in
-`fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md`.
-
-**Runner (built, branch `live-matrix-infra`):** `make test-matrix-live` drives
-the whole matrix through the deployed widget and prints per-scenario digests +
-a summary table (`tests/live/matrix.live.test.js` + `tests/live/lib/matrixDriver.js`;
-eval engine unit-tested offline in `tests/matrixEval.test.js`). Scenario rows
-(box-specific record UUIDs) go in the gitignored `tests/live/scenarios.local.json`
-(template: `scenarios.local.example.json`). Only hard-FAIL verdicts red the run.
-**Current state (2026-07-02): the probes/crudhub bridge BLOCKER is RESOLVED.**
-Root cause was NOT a code bug — the box's connector *workers were stale in
-memory* (they only recycle on a version-bumped publish; dropping 0.4.13 on disk
-didn't reload them, so they kept returning `no_fsr_configured: No module named
-'probes'` while on-disk `lc.available()` was `True`). Fixed by shipping a bump
-(0.4.13 → 0.4.14) which recycled all 7 workers; `make bridge-check` confirms the
-live crudhub bridge (30k+ alerts, `available: True`). See memory
-`ship_via_connector_makefile` + KNOWLEDGEBASE §20.4.
-
-**STANDARDIZATION (enforced):** ship + diagnose ONLY through the connector-repo
-Makefile (`/Users/dylanspille/PycharmProjects/ConnectorsV2/fsr-playbook-builder/Makefile`):
-`make ship` (connector, bump→build→install→verify workers recycled),
-`make ship-widget` (widget ship-verify), `make verify`, `make bridge-check`,
-`make matrix`. Never hand-run `deploy.sh` / `ssh` / ad-hoc `pyfsr`.
-
-**Pick up here: re-run `make matrix` (T1 should now pass) → extend
-scenarios.local.json with the T2/T4/T7/T9/P1 rows.**
-
-**Triage flows**
-- Single-alert triage → `info_card` summary (severity, indicators, next steps).
-- Hunt chain: multi-pivot across indicators (`get_record` → `search_module_records`
-  → enrich) → consolidated `ioc_card`. (The `c2_hunt.json` fixture is the mock
-  golden; need a live equivalent vs a real 8.0 alert.)
-- Negative cases: RFC1918 IP deliberately NOT enriched; unlinked records
-  (pivot-by-search, not relationship-traversal).
-- Direct-containment ask → `action_card` (not a silent `run_op`).
-- Approval lifecycle: approve → `execute_action` → `end_turn` summary; reject →
-  logged, no action, `end_turn`.
-- Tier gating: mutating ops need human approval at the dispatch tier (≥3 →
-  `pending_approval` unless `_approved`).
-- Empty-opener / late-entity / bad-fetch races (render path, not prompt — but
-  drive them live too).
-- Triage prompt steering: fetch-by-IRI goes to `get_record`; never invents a
-  connector/op (connector 0.4.11 steering).
-- Provider parity: anthropic (8.0 default) vs openai/gpt-4o-mini terse-triage
-  hunt-depth guard (connector 0.4.10 guard) — run both if both configs reachable.
-
-**Playbook-creation flows**
-- "Build a playbook from this investigation" → `playbook_offer` → Create
-  Playbook → verify the compiled playbook on the box → delete (the
-  `liveSweep.spec.js` test-4 pattern).
-- Playbook draft branching; offer decline path.
-- `manual_input` stage handling (framework 0.4.10 hoist).
-- Rehydrate-build (resume a saved draft).
-
-**Harness gate — DONE (verified 2026-07-05):** the 3 8.0 harness fixes
-(`soarBrowser.js` login, `liveUiDriver.js` drawer-icon-by-title, Monaco
-`define.amd`) are committed + pushed (`5d29ad4`, `live-matrix-infra`), not just
-working-tree. Clear to drive the matrix.
-
-**Env notes:** 8.0 box has 25k+ real alerts (soc-simulator `create_simulated_alert`
-available for clean known records); FortiGate lab config is down (env, not a bug
-— containment `action_card` can still be offered/approved, but `execute_action`
-will env-skip). Run live turns on the gb200 box only for openai parity (per user).
-
-### Local dev loop — connector + LLM on laptop (BUILT + curl-verified 2026-07-01)
-
-Run the connector + LLM on the laptop; a FortiSOAR box (159) supplies SOAR data
-only (records + other connectors' ops via `run_op` to pyfsr). No redeploy, no
-credits, no sim/mock. **Full how-to + no-cache discipline: `LOCAL_DEV.md`.**
-
-- **Built:** sidecar (`scripts/local-connector-sidecar.py`), venv setup
-  (`scripts/setup-localdev-venv.sh` — editable fsr-playbooks+pyfsr + connectors
-  engine wheel + openai/httpx), harness `POST /api/integration/execute/` handler
-  gated by `FSR_LOCAL_CONNECTOR=1` (top-level, NOT in the HERMETIC block),
-  `connectors.json` fixture (advertises `fsrpb-live`), `operations.py`
-  `FSRPB_DEV=1` version-assert bypass.
-- **Verified via curl:** `list_models` to LLM models, `health_check` ok, full
-  `chat_turn` (231 events, 17 tool calls, `run_op` reached 159). Tests: connector
-  125 / framework 1010 / widget 481 green.
-- **P0 DONE (2026-07-01):** widget drives a real `chat_turn` in the browser
-  against the sidecar, both blocking and detached/`chat_poll`-streamed paths
-  proven, tool-call cards render live. Found + fixed a real bug along the way:
-  `local-connector-sidecar.py` wrapped every response as
-  `{"status": 200 (number), "data": ...}`; the widget's `_unwrapEnvelope` only
-  peels `.data` when `typeof status === 'string'` (the real SOAR envelope is
-  `{"status": "Success"|"Failed", "data": ...}`), so numeric status silently
-  broke every real-mode call with a false "connector too old" error. Fixed.
-- **push_playbook DONE (2026-07-01), live-verified end-to-end on 159 —
-  playbook actually created, confirmed via GET, then cleaned up.** Three real
-  bugs found + fixed chasing this down: (1) widget `pushPlaybook` did
-  `'Create failed: ' + (res.error || JSON.stringify(res))` — `res.error` is
-  an object `{code,message}`, truthy, so it never reached `JSON.stringify`
-  and coerced to `[object Object]`; now prefers `error.message`/`error.code`.
-  (2) connector `push_playbook`'s retry loop conflated "all 6 attempts
-  raised" with "the first attempt succeeded at the transport layer but
-  returned an empty body" — both left `resp is None`, producing a bogus
-  "could not create after 6 attempts: None" instead of the honest
-  `push_no_record` diagnosis one branch below; fixed by tracking
-  `call_succeeded` explicitly. (3) **the actual root cause**, initially
-  misdiagnosed as an RBAC/team-ownership gap (it was NOT — the admin user has
-  create rights, confirmed): `push_playbook`/`render_jinja`/`dry_run_playbook`
-  imported `integrations.crudhub.make_request` directly, which IS importable
-  off-platform (the connectors SDK dev package ships it) but is a **stub that
-  unconditionally `return None`** — meant to be shadowed by the real
-  implementation only at deploy time. A raw `pyfsr` POST to the identical
-  `/api/3/workflow_collections` endpoint succeeded immediately, proving the
-  box/creds/RBAC were fine all along. Fixed `_make_request()` (the shared
-  helper all three ops call) to resolve through `probes._env.get_client()` —
-  the same bridge `run_op`/`get_record`/every other live tool already uses —
-  instead of the dead crudhub stub. Live-verified: the widget now shows
-  "Created playbook in FortiSOAR: 00 - FSR Studio", confirmed via a direct
-  `GET /api/3/workflows/<uuid>` against 159, then deleted (hard-delete,
-  no orphan left).
-- **NOT yet proven:** `chat_resume` approval-card lifecycle, the PROMPT_FLOW
-  flows, triage quality (turn hit `max_tool_turns`). No known blocker on any
-  of these now — the crudhub/transport gap that blocked push is fixed.
-- The internal LLM gateway name is **never in tracked files** — public text
-  says "the LLM gateway"; real creds only in gitignored `scripts/localdev.env`.
-- **Full-chain inspection is built in:** `chat_history` (full transcript incl.
-  tool_use args + tool_result content per turn), `list_sessions`, and
-  `get_session_trace` (recorded skill trace + compiled playbook) — any agent can
-  pull a session's whole I/O chain to find optimizations. memory
-  `chat_history_full_chain_inspection`.
-
-### Triage & playbook roadmap (strategic vision)
-
-**Superseded by `widgets-src/fortiaiAgenticAssistant/ROADMAP.md`** (2026-07-03)
-— that file is now the single home for the two-sided (Investigate/Build)
-vision, current-state snapshot, and ordered next-actions. This section stays
-as a pointer; update the roadmap doc, not here, when the plan changes.
-memory `triage_and_playbook_vision` holds the pre-2026-07-03 version of this
-same vision for historical detail.
 
 ## 🟡 Built but uncommitted / unpushed
 
-_2026-07-05 sweep: verified all 5 working repos (fsr_all_widgets, the real
+**Current (2026-07-28, git-audited) -- check these before starting anywhere:**
+
+| What | State |
+|---|---|
+| ~~**Assistant-skills read path** -- `fsr_soc_triage/skills.py` + `tests/test_skills.py`~~ | ✅ **Was already committed -- the "UNTRACKED" claim was stale (verified 2026-07-28).** Landed in `3477626` (0.5.34 read-path + Lever 2). Not orphaned. |
+| ~~Connector `operations.py` (`_apply_skills` + Lever-2), `tools_playbook.py`, `info.json`, `requirements.txt`, `release_notes.md`~~ | ✅ **Committed** -- the deployed diff rode `3477626` (0.5.34) → `a62b7a7` (0.5.37). The running .159/.206 code is in version control. |
+| ~~`scripts/session_analyze.py` (`--replay` / `--defects`)~~ | ✅ **Committed 2026-07-28** as `64a9b9a` (builder tree). Config-helper consolidation committed alongside as `a265410`. |
+| Guards-render-as-errors widget fix (amber **skipped** chip) | Built, **uncommitted** -- see the Open row |
+| ~~`run_op` stringified-params fix + SIEM `limit` string crash fix~~ | ✅ **Live on .206** (fw 0.5.7 via connector 0.5.37; SIEM fix in 0.5.29→0.5.37). Resolved 2026-07-28 -- see Open. |
+| `deploy.sh` `heal_runtime_dep` auto-heal | **Designed, not applied** -- classifier blocks writing the embedded remote sudo; needs a human |
+| Harness `87ba27d` (matrix driver enhancement-offer cards) | Local-only -- the harness repo has **no upstream configured**, 65 commits ahead |
+| Framework untracked `build/` dir | Trips the release clean-tree gate; **not gitignored** -- add it |
+
+_Historical sweep -- 2026-07-05: verified all 5 working repos (fsr_all_widgets, the real
 in-repo `fortisoar-widget-harness`, `widgets-src/fortiaiAgenticAssistant`,
-`fsr-playbook-framework`, `ConnectorsV2/fsr-playbook-builder`) are clean —
+`fsr-playbook-framework`, `ConnectorsV2/fsr-playbook-builder`) are clean --
 no uncommitted source changes anywhere except stray untracked build
 artifacts (`.bak` images, gitignored scratchpad/fixture dirs). Follow-up audit
 (same day) resolved the 4 flagged rows via git history: openai-terse-triage
@@ -603,58 +112,107 @@ Done below); B2 hunt_depth is **confirmed genuinely still pending** (stuck on
 a stray branch, never merged to main); action-renderer is **partially
 stale** (infra shipped, AR-specific live test never built). See updated rows.
 Note: `~/WebstormProjects/fortisoar-widget-harness` (standalone, remote
-`fsr-widget-devkit`) is an **unrelated separate project** — do not confuse
+`fsr-widget-devkit`) is an **unrelated separate project** -- do not confuse
 with this repo's nested `fortisoar-widget-harness/`._
 
 | Thread | State | Doc |
 |---|---|---|
 | Widget rename → FortiAI Agentic Assistant + unblocking fixes | Rename + `fsrPbRender.js` `typeof module` guard **committed + pushed** (widget `feat`+`master`/`main` to gitea; connector 0.4.12 bump + triage-rehome to origin/main) + **deployed + live-verified on 8.0** (drawer mounts, one triage turn streamed `done`). Harness Monaco fix + 8.0 login/drawer fixes **uncommitted** (in working tree, deferred to the TS-migration pass). See "8.0 box live verification" in Done. | memory `fsrpb_renamed_to_soc_assistant`, `harness_monaco_toastui_define_conflict`, `deploy_159_fortisoar_8` |
-| B2 hunt_depth gate | **Confirmed genuinely still pending (2026-07-05 audit).** Commit `1911252` ("hunt-depth breadth floor") exists but only on stray branches `archive/full-history-pre-sanitize` / `fix/trigger-operator-autocorrect` in the connector repo, NOT on `main` — `test_hunt_depth.py` is absent from the current tree. The 26-day-old "live drive parked, gb200-only" memory looks like the work stalled, not shipped. **Next action: decide whether to revive `1911252` onto main + re-test, or drop it** — don't assume it's done. | memory `b2_hunt_depth_offline` |
-| action-renderer live-test on the 7.x box | **Confirmed DONE, not uncommitted (re-audited 2026-07-05 — a first pass missed the file path).** `soarBrowser.js`, `tests/live/lib/viewTemplate.js`, and the AR-specific `widgets-src/widget-action-renderer/tests/e2e/actionRenderer.liveTemplate.spec.js` are all committed+pushed under `5d29ad4`. Remaining is unchanged: fix #3 proven live on 205; #1/#2/#4 still blocked on real Application Editor access (not a commit gap). | memory `action_renderer_live_205` |
+| B2 hunt_depth gate | **Confirmed genuinely still pending (2026-07-05 audit).** Commit `1911252` ("hunt-depth breadth floor") exists but only on stray branches `archive/full-history-pre-sanitize` / `fix/trigger-operator-autocorrect` in the connector repo, NOT on `main` -- `test_hunt_depth.py` is absent from the current tree. The 26-day-old "live drive parked, gb200-only" memory looks like the work stalled, not shipped. **Next action: decide whether to revive `1911252` onto main + re-test, or drop it** -- don't assume it's done. | memory `b2_hunt_depth_offline` |
+| action-renderer live-test on the 7.x box | **Confirmed DONE, not uncommitted (re-audited 2026-07-05 -- a first pass missed the file path).** `soarBrowser.js`, `tests/live/lib/viewTemplate.js`, and the AR-specific `widgets-src/widget-action-renderer/tests/e2e/actionRenderer.liveTemplate.spec.js` are all committed+pushed under `5d29ad4`. Remaining is unchanged: fix #3 proven live on 205; #1/#2/#4 still blocked on real Application Editor access (not a commit gap). | memory `action_renderer_live_205` |
 | stop_reason contract fix (framework) | Committed `6c3afa0`, **not pushed, not deployed** (box runs 0.4.7) | memory `session_2026_06_23_handoff` |
-| pyfsr 8.0 `status`-shape fix | `f34d78e` committed, **not pushed** (remote ahead + foreign WIP — user reconciles) | memory `pyfsr_8_0_config_fixes` |
+| pyfsr 8.0 `status`-shape fix | `f34d78e` committed, **not pushed** (remote ahead + foreign WIP -- user reconciles) | memory `pyfsr_8_0_config_fixes` |
 | Harness full-TS migration | `b38e2a4`+`27b3e6a` green, **not pushed** | memory `session_2026_06_23_handoff` |
-| ~~Session 2026-07-02: sidecar fix + build-toggle removal + playbook-editor tailoring + harness `$state` stub~~ | **COMMITTED + PUSHED 2026-07-05**, both repos (fsr_all_widgets → `live-matrix-infra`; `widgets-src/fortiaiAgenticAssistant` → `origin/master` `d2741b0`). Still NOT yet verified against a real box (see "Playbook-editor tailoring — verify on real box" above). | memory `sidecar_fsr_soc_triage_import_fix`, `playbook_editor_tailoring`, `harness_state_stub` |
-| Dynamic tool-surface materializer — `configure()` merge fix (framework) | **LIVE-VERIFIED 2026-07-06.** Framework `fsr_playbooks` 0.4.19 (materializer) released to PyPI (commit `991d374`, tag `v0.4.19`); connector 0.4.42 deployed on 159 with the on-box CS-HMAC adapter (`_live_mcp.py`) + `mcp_allowlist` config field. Matrix T3/T7 confirmed the agent calls a materialized `mcp_soc__get_indicators` tool via the config-field path (real data returned) — the materializer is no longer dormant on-box. **One framework fix pending merge:** `materializer.configure()` clobbered `_client_factory` on the per-turn allowlist call (root cause of the earlier "0 mcp_soc__" runs) — fixed locally (merge semantics, +regression test, 17 green) on PR [#2](https://github.com/ftnt-dspille/fsr-playbook-framework/pull/2) (branch `fix/materializer-configure-merge`, commit `241cf73`, NOT yet merged/tagged v0.4.21). Connector 0.4.42 ships a workaround re-passing `client_factory` every turn; once the PR merges + 0.4.21 is pinned, drop the redundant kwarg. **OPEN — Phase 4:** the curated `faz_*`/`fmg_*`/`siem_*` wrappers (in `_TRIAGE_TOOL_NAMES`) still coexist with materialized `mcp_soc__*` tools, so the agent still calls them when FAZ/FMG are unconfigured → `unknown_connector` errors (DEGRADED verdicts, not hard-FAIL). Retire or config-gate the curated wrappers to make the structural-impossibility property cover them too. | memory `dynamic_tool_surface_materializer`; plan `continue-users-dylanspille-claude-plans-stateless-cupcake.md` |
+| ~~Session 2026-07-02: sidecar fix + build-toggle removal + playbook-editor tailoring + harness `$state` stub~~ | **COMMITTED + PUSHED 2026-07-05**, both repos (fsr_all_widgets → `live-matrix-infra`; `widgets-src/fortiaiAgenticAssistant` → `origin/master` `d2741b0`). Still NOT yet verified against a real box (see "Playbook-editor tailoring -- verify on real box" above). | memory `sidecar_fsr_soc_triage_import_fix`, `playbook_editor_tailoring`, `harness_state_stub` |
+| Dynamic tool-surface materializer -- `configure()` merge fix (framework) | **LIVE-VERIFIED 2026-07-06.** Framework `fsr_playbooks` 0.4.19 (materializer) released to PyPI (commit `991d374`, tag `v0.4.19`); connector 0.4.42 deployed on 159 with the on-box CS-HMAC adapter (`_live_mcp.py`) + `mcp_allowlist` config field. Matrix T3/T7 confirmed the agent calls a materialized `mcp_soc__get_indicators` tool via the config-field path (real data returned) -- the materializer is no longer dormant on-box. **One framework fix pending merge:** `materializer.configure()` clobbered `_client_factory` on the per-turn allowlist call (root cause of the earlier "0 mcp_soc__" runs) -- fixed locally (merge semantics, +regression test, 17 green) on PR [#2](https://github.com/ftnt-dspille/fsr-playbook-framework/pull/2) (branch `fix/materializer-configure-merge`, commit `241cf73`, NOT yet merged/tagged v0.4.21). Connector 0.4.42 ships a workaround re-passing `client_factory` every turn; once the PR merges + 0.4.21 is pinned, drop the redundant kwarg. **OPEN -- Phase 4:** the curated `faz_*`/`fmg_*`/`siem_*` wrappers (in `_TRIAGE_TOOL_NAMES`) still coexist with materialized `mcp_soc__*` tools, so the agent still calls them when FAZ/FMG are unconfigured → `unknown_connector` errors (DEGRADED verdicts, not hard-FAIL). Retire or config-gate the curated wrappers to make the structural-impossibility property cover them too. | memory `dynamic_tool_surface_materializer`; plan `continue-users-dylanspille-claude-plans-stateless-cupcake.md` |
 
 ## 🟢 In progress (multi-phase)
 
 | Thread | Where | Doc |
 |---|---|---|
-| **TypeScript** | Test infra + scripts + harness `lib/` converted (✅). ~33 jest specs still `.js` (deliberate). Widget *source* stays JS (AngularJS). **Phase 3 (checkJs gate) DONE** — noise-scoped + wired into `ship-verify` step 1. **Phase 4 (KB-gotcha rules) mostly DONE (2026-07-10):** audit found most rules already in `lint-angular.ts`; added `copyright-header-missing` (KB §25.8, warning-sev, 20 real gaps surfaced) + made `ROOT` honour `WIDGETS_SRC` for fixture testing + first jest coverage for the linter (`tests/lintAngular.test.js`, 4 cases). Remaining: `drawer`/`enableFor` state-match + config-defaults AST-accuracy (Effort S). Active front also has the last Phase-2 bundle-arity cross-check, **not** more file conversion. | `TYPESCRIPT_STATIC_ANALYSIS_PLAN.md` |
+| **TypeScript** | Test infra + scripts + harness `lib/` converted (✅). ~33 jest specs still `.js` (deliberate). Widget *source* stays JS (AngularJS). **Phase 3 (checkJs gate) DONE** -- noise-scoped + wired into `ship-verify` step 1. **Phase 4 (KB-gotcha rules) mostly DONE (2026-07-10):** audit found most rules already in `lint-angular.ts`; added `copyright-header-missing` (KB §25.8, warning-sev, 20 real gaps surfaced) + made `ROOT` honour `WIDGETS_SRC` for fixture testing + first jest coverage for the linter (`tests/lintAngular.test.js`, 4 cases). Remaining: `drawer`/`enableFor` state-match + config-defaults AST-accuracy (Effort S). Active front also has the last Phase-2 bundle-arity cross-check, **not** more file conversion. | `TYPESCRIPT_STATIC_ANALYSIS_PLAN.md` |
 | NOC FortiManager+FortiAnalyzer tools | Connector live on the 7.x box (0.4.7), committed not pushed | memory `noc_fortimanager_tools_plan` |
 
 ---
 
 ## ✅ Done / archived
 
-- **ztpAutomationGraph — 4 fixes shipped as 1.0.32, LIVE on box 168 (2026-07-10).** (a) inline-SVG node icons squashed on zoom → gave them explicit `width/height` (viewBox-only rasterizes 300×150=2:1); (b) added `blinkCurrent` edit-config flag (default on) AND fixed the pulse — cytoscape `animation()` ignores `loop`/`alternate` so the ring grew once and froze; now a real grow↔shrink loop chained on `.play().promise("complete")`; (c) added `nodeStyle` edit-config option (`chip`|`card`; card = wide rect, icon left, title inside); (d) live poll wasn't repainting status — in-place refresh updated node DATA only, leaving `status-*`/`current` classes + mapped `border-color` frozen at first render → now re-applies `node.classes()` + an explicit `border-color` bypass. 365 unit (incl. a stateful-cytoscape regression driving two polls) + 6 e2e green. Poll pipeline live-verified via API (created run group + 3 steps on FG1, advanced statuses, confirmed current-highlight moves + rings recolor; test records cleaned up). Committed `ztpAutomationGraph@main bbdaed9` + KB §32.4.1/2/3 (`fsr_all_widgets@main e3316b3`) — **NOT pushed**. Canvas pixels not yet human-eyeballed (agent can't do box login). memory `ztpautomation-graph-widget`.
-- **Widget e2e specs co-located with their widget repos (2026-07-06).** The 21 widget-specific e2e specs parked in the shared harness `tests/e2e/` moved into each widget's own repo under `tests/e2e/` (matching the c3charts / widget-action-renderer convention + the `widgets` Playwright project glob): 19 → `fortiaiAgenticAssistant@master` (`1a08b87`), `ztpAutomationGraph.spec.js` → `ztpAutomationGraph@main` (`7341135`, also fixed its `__dirname` fixture path), `actionRenderer.outputRender.spec.js` → `widget-action-renderer@develop` (`b588036`). Parent (`fsr-widget-devkit@main` `6ae56ac`) recorded the harness deletions + 2 doc SPEC= path fixups. `counter.spec.js` stayed (counter has no separate repo); `harness.spec.js`/`widgetHarness.spec.js` stayed (harness-generic). All 4 repos pushed. Verified: `make test-e2e-widget WIDGET=fortiaiAgenticAssistant` = 87 passed; ztp+action-renderer+smoke spot-run = 29 passed. Note discovered mid-task: `widgets-src/*/` is gitignored by the parent — each widget is its own repo (via `widgets.manifest`), so this was a multi-repo migration, not a parent-repo move.
-- **OpenAI terse-triage guard — confirmed SHIPPED (audited 2026-07-05, was mistakenly listed as uncommitted).** Hunt-floor + forbidden-pivot + call-once discipline (`TriageDiscipline` in `fsr_playbooks/llm/_loop_helpers.py`) landed on framework `main` via `7c0a895`, live-verified per `f547709`; pushed to `github/main`. No residual uncommitted diff anywhere. memory `openai_terse_triage_shallow`.
-- **Widget-harness inspect kit — confirmed SHIPPED (audited 2026-07-05, was mistakenly listed as uncommitted).** `_widgetHarness.js` mount+measure primitives + `widget-inspect.js` + `widgetHarness.spec.js` + the dropdown-clip fix landed on `main` via `a7e8931`. memory `widget_harness_inspect_kit`.
+- **ztpAutomationGraph -- 4 fixes shipped as 1.0.32, LIVE on box 168 (2026-07-10).** (a) inline-SVG node icons squashed on zoom → gave them explicit `width/height` (viewBox-only rasterizes 300×150=2:1); (b) added `blinkCurrent` edit-config flag (default on) AND fixed the pulse -- cytoscape `animation()` ignores `loop`/`alternate` so the ring grew once and froze; now a real grow↔shrink loop chained on `.play().promise("complete")`; (c) added `nodeStyle` edit-config option (`chip`|`card`; card = wide rect, icon left, title inside); (d) live poll wasn't repainting status -- in-place refresh updated node DATA only, leaving `status-*`/`current` classes + mapped `border-color` frozen at first render → now re-applies `node.classes()` + an explicit `border-color` bypass. 365 unit (incl. a stateful-cytoscape regression driving two polls) + 6 e2e green. Poll pipeline live-verified via API (created run group + 3 steps on FG1, advanced statuses, confirmed current-highlight moves + rings recolor; test records cleaned up). Committed `ztpAutomationGraph@main bbdaed9` + KB §32.4.1/2/3 (`fsr_all_widgets@main e3316b3`) -- **NOT pushed**. Canvas pixels not yet human-eyeballed (agent can't do box login). memory `ztpautomation-graph-widget`.
+- **Widget e2e specs co-located with their widget repos (2026-07-06).** The 21 widget-specific e2e specs parked in the shared harness `tests/e2e/` moved into each widget's own repo under `tests/e2e/` (matching the c3charts / widget-action-renderer convention + the `widgets` Playwright project glob): 19 → `fortiaiAgenticAssistant@master` (`1a08b87`), `ztpAutomationGraph.spec.js` → `ztpAutomationGraph@main` (`7341135`, also fixed its `__dirname` fixture path), `actionRenderer.outputRender.spec.js` → `widget-action-renderer@develop` (`b588036`). Parent (`fsr-widget-devkit@main` `6ae56ac`) recorded the harness deletions + 2 doc SPEC= path fixups. `counter.spec.js` stayed (counter has no separate repo); `harness.spec.js`/`widgetHarness.spec.js` stayed (harness-generic). All 4 repos pushed. Verified: `make test-e2e-widget WIDGET=fortiaiAgenticAssistant` = 87 passed; ztp+action-renderer+smoke spot-run = 29 passed. Note discovered mid-task: `widgets-src/*/` is gitignored by the parent -- each widget is its own repo (via `widgets.manifest`), so this was a multi-repo migration, not a parent-repo move.
+- **OpenAI terse-triage guard -- confirmed SHIPPED (audited 2026-07-05, was mistakenly listed as uncommitted).** Hunt-floor + forbidden-pivot + call-once discipline (`TriageDiscipline` in `fsr_playbooks/llm/_loop_helpers.py`) landed on framework `main` via `7c0a895`, live-verified per `f547709`; pushed to `github/main`. No residual uncommitted diff anywhere. memory `openai_terse_triage_shallow`.
+- **Widget-harness inspect kit -- confirmed SHIPPED (audited 2026-07-05, was mistakenly listed as uncommitted).** `_widgetHarness.js` mount+measure primitives + `widget-inspect.js` + `widgetHarness.spec.js` + the dropdown-clip fix landed on `main` via `a7e8931`. memory `widget_harness_inspect_kit`.
 
-- **`fortisoar-widget-harness/tests/e2e/harness.spec.js` — all 37 tests green (2026-07-05).** Turned out to be more than the suspected stale `#widget-select` locator: `selectWidget()` picked the widget but never saved a config, so it hit the "no saved configuration yet" prompt instead of mounting — that was the real cause of most of the 35 failures. Fixed by seeding `harness:config:<id>` in localStorage before the select-change reload (same key format `_widgetHarness.js`'s `mountWidget` uses). Also: the one true locator issue (`loads and shows the widget selector`) now asserts the visible `#widget-dd-btn` custom dropdown instead of the intentionally-hidden native `#widget-select`; the config-count assertion in "Cancel closes the modal" compares before/after instead of a literal 0; allowlisted the sandboxed HTML-preview iframe's expected "Blocked script execution ... sandboxed" console message in `_fixtures.js` (proof the sandbox works, not a bug). Committed+pushed `c669fe4`.
+- **`fortisoar-widget-harness/tests/e2e/harness.spec.js` -- all 37 tests green (2026-07-05).** Turned out to be more than the suspected stale `#widget-select` locator: `selectWidget()` picked the widget but never saved a config, so it hit the "no saved configuration yet" prompt instead of mounting -- that was the real cause of most of the 35 failures. Fixed by seeding `harness:config:<id>` in localStorage before the select-change reload (same key format `_widgetHarness.js`'s `mountWidget` uses). Also: the one true locator issue (`loads and shows the widget selector`) now asserts the visible `#widget-dd-btn` custom dropdown instead of the intentionally-hidden native `#widget-select`; the config-count assertion in "Cancel closes the modal" compares before/after instead of a literal 0; allowlisted the sandboxed HTML-preview iframe's expected "Blocked script execution ... sandboxed" console message in `_fixtures.js` (proof the sandbox works, not a bug). Committed+pushed `c669fe4`.
 
-- **TS static analysis Phase 3 (checkJs gate) — DONE.** AST noise-scoper in `lib/widgetTypecheck.ts` (`soarOnly`) keeps only diagnostics resolving to a `Soar.*` contract (TS2339/2551/2554/2345); 169 raw → 168 raw noise, **0 Soar-scoped** across 26 controllers. One real signal triaged to doc-lag (`ViewTemplateService.changeStructure` 4-param; bundle-verified) and closed via the `EXTRA_METHODS` overlay. CLI scoped by default (`--raw` for triage); **wired into `make ship-verify` step 1/5** — blocks the ship on a Soar-contract violation (planted null-config → exit 1). 7 jest cases. (`fortisoar-widget-harness/TYPESCRIPT_STATIC_ANALYSIS_PLAN.md`)
-- **Hermetic mock-e2e tier** — `FSR_HERMETIC` gate + local Monaco + boot stubs. (`fortisoar-widget-harness/HERMETIC_E2E_PLAN.md`)
-- **North Stars NS1–NS6** — fixture layer, atomic bump, `HARNESS_RENDERING.md`, spec-driven `make new-widget` generator. (NS7 introspect Phase 2 = open, see above)
-- **Harness rendering / render-error surfacing** — visible panel for swallowed controller throws.
-- **8.0 box live verification — DONE.** `fortiaiAgenticAssistant-1.2.7` (old `fsrSocAssistant` deleted) + connector `0.4.12` (anthropic, `health_check ok=true`) on FortiSOAR 8.0.0-6034. Widget drawer **renders + a live triage turn streams to `done`** (9 polls, 7 frames) via WAF-safe Playwright. Three 8.0 fixes landed in the harness working tree (uncommitted, deferred to the TS pass): (1) `soarBrowser.js` login selector adds "SIGN IN"/"Sign In" (8.0 button label); (2) `liveUiDriver.js` `openWidgetDrawer` targets the drawer icon by widget title (8.0 renders multiple drawer icons incl. the native AI Assistant — the blind `.sub-block` click-loop opened the wrong one); (3) the `__fortiaiAgenticAssistant__` probe is **mock/harness-only by design** (`if (_mockActive || _isHarness)`), so its absence in live mode is expected — the chat stream is the real proof of life. Box has 25k+ real alerts (soc-simulator active); no seeding needed. memory `deploy_159_fortisoar_8`.
-- **TS Phase 2** — SOAR platform `.d.ts` generator built + emitted.
+- **TS static analysis Phase 3 (checkJs gate) -- DONE.** AST noise-scoper in `lib/widgetTypecheck.ts` (`soarOnly`) keeps only diagnostics resolving to a `Soar.*` contract (TS2339/2551/2554/2345); 169 raw → 168 raw noise, **0 Soar-scoped** across 26 controllers. One real signal triaged to doc-lag (`ViewTemplateService.changeStructure` 4-param; bundle-verified) and closed via the `EXTRA_METHODS` overlay. CLI scoped by default (`--raw` for triage); **wired into `make ship-verify` step 1/5** -- blocks the ship on a Soar-contract violation (planted null-config → exit 1). 7 jest cases. (`fortisoar-widget-harness/TYPESCRIPT_STATIC_ANALYSIS_PLAN.md`)
+- **Hermetic mock-e2e tier** -- `FSR_HERMETIC` gate + local Monaco + boot stubs. (`fortisoar-widget-harness/HERMETIC_E2E_PLAN.md`)
+- **North Stars NS1-NS6** -- fixture layer, atomic bump, `HARNESS_RENDERING.md`, spec-driven `make new-widget` generator. (NS7 introspect Phase 2 = open, see above)
+- **Harness rendering / render-error surfacing** -- visible panel for swallowed controller throws.
+- **8.0 box live verification -- DONE.** `fortiaiAgenticAssistant-1.2.7` (old `fsrSocAssistant` deleted) + connector `0.4.12` (anthropic, `health_check ok=true`) on FortiSOAR 8.0.0-6034. Widget drawer **renders + a live triage turn streams to `done`** (9 polls, 7 frames) via WAF-safe Playwright. Three 8.0 fixes landed in the harness working tree (uncommitted, deferred to the TS pass): (1) `soarBrowser.js` login selector adds "SIGN IN"/"Sign In" (8.0 button label); (2) `liveUiDriver.js` `openWidgetDrawer` targets the drawer icon by widget title (8.0 renders multiple drawer icons incl. the native AI Assistant -- the blind `.sub-block` click-loop opened the wrong one); (3) the `__fortiaiAgenticAssistant__` probe is **mock/harness-only by design** (`if (_mockActive || _isHarness)`), so its absence in live mode is expected -- the chat stream is the real proof of life. Box has 25k+ real alerts (soc-simulator active); no seeding needed. memory `deploy_159_fortisoar_8`.
+- **TS Phase 2** -- SOAR platform `.d.ts` generator built + emitted.
 - Resolved defects: chat_poll turn-counter desync (`0.3.134`), live-sweep chat_poll classify, connector name-drift (widget 1.2.2), live triage failure sess-uq31go5p.
 
 ---
 
 ## Plan docs (canonical detail)
 
-- `LOCAL_DEV.md` — run the connector + LLM on the laptop (LLM gateway + 159 for SOAR data); the fast local-dev loop + no-cache discipline
-- `SHIP.md` — upload the widget (`scripts/ship.sh`/`make ship-verify`) + connector (`scripts/deploy.sh`) to a FortiSOAR box; point both at the same box
+> _Index audited 2026-07-22, re-audited 2026-07-27. Every plan doc across the
+> three repos is listed below; previously this section covered only the
+> harness/widget-src ones, so `docs/plans/` and the framework/connector repos
+> were invisible from here. The 07-27 pass added the three plans written since
+> (state-derived, assistant-skills, connector-install-wizard) -- `docs/plans/`
+> and this table are now 1:1, so a new plan is only "tracked" once it has a row._
+
+### `docs/plans/` -- this repo (the active workstreams)
+
+| plan | state |
+|---|---|
+| `scheduled-agent-tasks.md` | 🟢 **2026-07-27, implemented + shipped** -- recurring agent tasks inside `fortiaiAgenticAssistant`. Platform-verified on .159: scheduler = django-celery-beat `/api/wf/api/scheduled/`, `id` rotates (key by `name`), `kwargs` carries only `wf_iri` → **playbook IS the task** (one generated runner + one schedule row per task). Connector already reaches `/api/wf/` via crudhub. **Shipped**: conn 0.5.36 (6 ops + runner-playbook compiler), widget 1.2.44 (Scheduled Tasks panel). |
+| `soc-assistant-monitor.md` | 🟢 **V1 SHIPPED+LIVE (2026-07-27)**. 🟡 **V2 follow-ups: richer audit, active sessions, interactive dashboard.** See Open row. |
+| `state-derived-intent-and-tool-slicing.md` | 🔵 **most active** -- Phase 0/2 + M1/M3 SHIPPED & live-proven on 159; **Phase 1, Phase 3, M2 widget-tier open**. Supersedes 4f follow-up #2 |
+| `assistant-skills-learned-house-rules.md` | 🟢 **2026-07-27, LIVE-PROVEN on .159** (conn 0.5.34 / fw 0.5.7) -- `assistant_skills` custom module; ⚠️ code **uncommitted**; **.206 ztpf rollout deferred** by the user. ⚠️ The plan's "Remaining work (box DATA)" section predates the .159 proof -- steps 1/2 are done there, and it still reads as if nothing is deployed |
+| `connector-install-wizard-api-map.md` | 🆕 **2026-07-26** -- UI construct → HTTP call map for the whole install/configure/ingest path; partly live-verified on 8.0 (§7a); §8 questions open, pyfsr sequence unimplemented |
+| `ga-demo-soc-investigation.md` | 🔵 **TOP PRIORITY** -- beat 5 closed in software; **159 reimage wiped the box-side provisioning**, so the demo needs re-seeding + FortiEDR/FortiGate reconfigured |
+| `widget-capability-test-and-persona-rollout.md` | 🔵 next-phase index (C1-C5 + persona rollout) |
+| `agentic-tooling-best-practices-alignment.md` | 🟡 **P0 prerequisite** -- three turn-drive harnesses have drifted; unify before comparing results across areas. _Was missing from this index._ |
+| `live-chat-eval-and-build-flow-fixes.md` | 🟡 Phases 1/0/2/4 done; 4 harness fixes + Phase 3 connector open. _Was missing from this index._ |
+| `stability-and-scalability-plan.md` | 🟢 Phases 0/1/2 shipped; 3A in progress |
+| `module-scoped-assistant-personas.md` | 🏗️ Phases 1+2 done; LLM egress open |
+| `playbook-compiler-fidelity-and-agent-surface.md` | 🟢 **Phase 1 gate BUILT + committed 2026-07-28** (framework `d76d180`; `make corpus-gate` 5/5 + RED-proof). Remaining: option (a) clean box pull for the 178/400 metric (R1-gated); Phase 2 (residual triage + error affordances). |
+| `build-persona-validation-plan.md` | reference |
+| `soc-assistant-ui-gaps.md` | reference |
+
+### Cross-repo plans
+
+- `connector-fsr-soc-assistant/PLAN.md` -- **🆕 2026-07-22: broaden pydantic
+  coverage across the connector.** Spec only, nothing implemented. Key finding:
+  **50 of 79 models are already written AND unit-tested but wired to nothing**
+  (Stage 3 was authored, never connected), so this is mostly wiring, not
+  authoring. Phase 1 (construct wire frames through their models) is the
+  recommended first slice -- it prevents the defect class that already shipped
+  (a hand-rolled `stream_end` dropped `last_assistant_yaml`).
+- `connector-fsr-soc-assistant/STREAMING_TRANSPORT_ROADMAP.md` -- 8.0 `/mcp/` +
+  `/ai/` route roadmap.
+- `fsr-playbook-framework/docs/plans/` -- **23 plan docs, only 4 ever referenced
+  here.** Most are historical. The ones memory tracks as genuinely open:
+  `CHAT_INTELLIGENCE_PLAN.md` (Phase 0 built, Phase 1 pending),
+  `NOC_FORTIMANAGER_TOOLS_PLAN.md` + `NOC_SCENARIO_CATALOG.md` (A/B/C done,
+  catalog partial), `TRIAGE_BUILD_AUDIT_PLAN.md`.
+  A related **typing family** worth reading alongside the connector PLAN.md
+  above -- they cover the *compiler*, not the wire, so they complement rather
+  than overlap: `PLAYBOOK_PYDANTIC_TYPING_PLAN.md`,
+  `TYPING_GAP_IDENTIFICATION_PLAN.md`, and `WIRE_SHAPE_GAP_PLAN.md` (✅ complete).
+
+### Harness / widget-src
+
+- `LOCAL_DEV.md` -- run the connector + LLM on the laptop (LLM gateway + 159 for SOAR data); the fast local-dev loop + no-cache discipline
+- `SHIP.md` -- upload the widget (`scripts/ship.sh`/`make ship-verify`) + connector (`scripts/deploy.sh`) to a FortiSOAR box; point both at the same box
 - `fortisoar-widget-harness/TYPESCRIPT_STATIC_ANALYSIS_PLAN.md`
 - `fortisoar-widget-harness/HERMETIC_E2E_PLAN.md` (done)
 - `fortisoar-widget-harness/docs/HARNESS_RENDERING_PLAN.md`
 - `fortisoar-widget-harness/docs/INTROSPECTION_OPTIMIZATION_PLAN.md`
-- `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new — triage & playbook-creation prompt/flow test matrix)
+- `fortisoar-widget-harness/docs/PROMPT_FLOW_TEST_PLAN.md` (new -- triage & playbook-creation prompt/flow test matrix)
 - `widgets-src/fortiaiAgenticAssistant/PLAN_live_updates_and_error_hardening.md`
-- `widgets-src/fortiaiAgenticAssistant/PLAN_improvement_areas.md` (new 2026-07-02 — ranked widget+connector code-review findings: security → correctness → robustness → refactor)
+- `widgets-src/fortiaiAgenticAssistant/PLAN_improvement_areas.md` (new 2026-07-02 -- ranked widget+connector code-review findings: security → correctness → robustness → refactor)
 - `widgets-src/c3charts/ROADMAP.md`
-- `HANDOFF.md` — most recent session snapshot
+- `HANDOFF.md` -- most recent session snapshot

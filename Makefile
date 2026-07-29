@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget test-live-sweep test-matrix-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-live-sweep test-matrix-live test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -72,6 +72,32 @@ test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fre
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC) --reporter=list
 
+# Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
+# turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
+# fake LLM + cassette reads — no box, no LLM credits), then runs the Seam C e2e
+# spec whose route interception forwards /api/integration/execute to it. This is
+# the one tier that exercises the real widget controller against real connector
+# logic without a live appliance. Teardown always kills the sidecar.
+SEAMC_PORT   := 4778
+SEAMC_SIDECAR := $(HARNESS)/scripts/local-connector-sidecar.py
+SEAMC_PY     := $(HARNESS)/.venv-localdev/bin/python
+SEAMC_SPEC   := ../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.seamHermetic.spec.js
+turn-hermetic: ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
+	-lsof -ti:$(SEAMC_PORT) | xargs kill -9 2>/dev/null || true
+	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	FSRPB_DEV=1 FSRPB_SIDECAR_HERMETIC=1 FSRPB_SIDECAR_PORT=$(SEAMC_PORT) \
+		$(SEAMC_PY) $(SEAMC_SIDECAR) > /tmp/seamc-sidecar.log 2>&1 & echo $$! > /tmp/seamc-sidecar.pid
+	@echo "▶ waiting for hermetic sidecar on :$(SEAMC_PORT)…"
+	@for i in $$(seq 1 30); do \
+		curl -sf http://127.0.0.1:$(SEAMC_PORT)/health >/dev/null 2>&1 && break; \
+		sleep 0.5; \
+	done; curl -sf http://127.0.0.1:$(SEAMC_PORT)/health >/dev/null || \
+		{ echo "sidecar failed to start; log:"; cat /tmp/seamc-sidecar.log; exit 1; }
+	@echo "▶ sidecar up; running Seam C e2e"
+	cd $(HARNESS) && PORT=$(TEST_PORT) FSRPB_SEAMC_URL=http://127.0.0.1:$(SEAMC_PORT)/execute \
+		pnpm test:e2e $(SEAMC_SPEC) --reporter=list; \
+		rc=$$?; kill $$(cat /tmp/seamc-sidecar.pid) 2>/dev/null || true; exit $$rc
+
 # Ad-hoc one-shot widget inspector: mount a widget in the RUNNING dev harness and
 # answer a visual/DOM question as JSON (dropdown clipped? grid row count? size?).
 # Needs the dev server up (pnpm dev on :4401, or pass BASE=). Pass-through flags
@@ -82,19 +108,29 @@ widget-inspect: ## Mount a widget in the running harness + measure it as JSON (A
 	cd $(HARNESS) && $(if $(BASE),HARNESS_BASE=$(BASE) ,)node scripts/widget-inspect.js $(ARGS)
 
 BUMP ?= patch
+# Which box `ship-verify` deploys to. Defaults to the harness `.env`; the deploy
+# target used to be HARDCODED to it, so shipping the same build to a second box
+# meant editing shared state. `SHIP_ENV=.env.206` targets one box explicitly.
+SHIP_ENV ?= .env
+
 ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
-	@echo "▶ 1/5 lint";       cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
-	@echo "▶ 1/5 typecheck";  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
-	@echo "▶ 2/5 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
-	@echo "▶ 3/5 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
-	@echo "▶ 4/5 deploy ($(BUMP)) via ship.sh (bulletproof start+push, harness .env → same box tests hit)"; \
-	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/.env PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
+	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
+	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
+	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-testids.js $(WIDGET)
+	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
+	@echo "▶ 2/6 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
+	@echo "▶ 3/6 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
+	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline — scoped to $(WIDGET))"; \
+	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set — skipping; run 'make introspect-gate' separately)"; \
+	  else $(MAKE) introspect-gate GATE_WIDGET=$(WIDGET); fi
+	@echo "▶ 5/6 deploy ($(BUMP)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
+	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) --bump $(BUMP)
-	@echo "▶ 5/5 live-sweep"; \
+	@echo "▶ 6/6 live-sweep"; \
 	  if [ "$(WIDGET)" = "fsrSocAssistant" ]; then $(MAKE) test-live-sweep; \
 	  else echo "  (no live sweep defined for $(WIDGET) — skipping)"; fi
-	@echo "✅ ship-verify complete: $(WIDGET) gated, deployed, and live-verified."
+	@echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed, and live-verified."
 
 release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
@@ -113,16 +149,35 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 
 MATRIX_ENV ?= .env.159
 # MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
-# (the connector-repo Makefile passes one).
+# (the connector-repo Makefile passes one). Boxes: .env.159 (8.0 triage),
+# .env.206 (ZTPF + the build/authoring flows — where the P6 rows belong).
 MATRIX_ENV_PATH := $(if $(filter /%,$(MATRIX_ENV)),$(MATRIX_ENV),$(abspath $(HARNESS)/$(MATRIX_ENV)))
-test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P5) vs the deployed widget. HEADED (WAF blocks headless). Scenarios: tests/live/scenarios.local.json (gitignored). MATRIX_ENV=<envfile> to override creds file.
+# Scenario rows carry real record UUIDs, so they are BOX-SPECIFIC and must track
+# MATRIX_ENV — otherwise a 206 run drives 159's records. `.env.206` →
+# scenarios.local.206.json when present, else the plain scenarios.local.json.
+# MATRIX_SCENARIOS=<path> overrides. All are gitignored; the template is
+# scenarios.local.example.json.
+MATRIX_BOX := $(patsubst .env.%,%,$(notdir $(MATRIX_ENV)))
+MATRIX_SCENARIOS ?= $(if $(wildcard $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.json))
+# MATRIX_GATE filters rows by their `gate` field (see matrixDriver.gateRow).
+# Unset = every runnable row.
+test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
 	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
-	@if [ ! -f $(HARNESS)/tests/live/scenarios.local.json ]; then \
-	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(HARNESS)/tests/live/scenarios.local.json — copy tests/live/scenarios.local.example.json and fill in real record UUIDs (box-specific, gitignored)"; \
+	@if [ ! -f "$(MATRIX_SCENARIOS)" ]; then \
+	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(MATRIX_SCENARIOS) — copy tests/live/scenarios.local.example.json and fill in real record UUIDs for box '$(MATRIX_BOX)' (box-specific, gitignored)"; \
 	else \
+	  echo "▶ matrix: env=$(MATRIX_ENV) scenarios=$(notdir $(MATRIX_SCENARIOS)) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"; \
 	  cd $(HARNESS) && set -a && . "$(MATRIX_ENV_PATH)" && set +a && \
-	  FSRPB_LIVE=1 FSRPB_HEADED=1 pnpm test:live tests/live/matrix.live.test.js; \
+	  FSRPB_LIVE=1 FSRPB_HEADED=1 MATRIX_GATE="$(MATRIX_GATE)" MATRIX_IDS="$(MATRIX_IDS)" MATRIX_SCENARIOS="$(MATRIX_SCENARIOS)" \
+	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
+
+test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify — each row is a headed box turn (~2–4 min). MATRIX_ENV=.env.206 for build flows.
+	@$(MAKE) test-matrix-live MATRIX_GATE=strict,xfail MATRIX_ENV=$(MATRIX_ENV)
+
+grade-export: ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
+	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
+	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
 test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
@@ -159,9 +214,9 @@ introspect: ## Hermetic widget-render introspection (builds baseline reports; in
 	  cd $(HARNESS) && HARNESS_URL=http://localhost:$(INTROSPECT_PORT) pnpm node scripts/introspect.js; \
 	)
 
-introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors).
+introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors). GATE_WIDGET=<name> scopes the pass/fail to one widget.
 	@echo "▶ Checking regressions against baseline…"
-	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js
+	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js $(GATE_WIDGET)
 
 introspect-soar: ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. Source the box env first (e.g. `set -a; . .env.159; set +a`). ENV=.env.159 to point it; ARGS='--offline' to re-diff without driving the box.
 	@echo "▶ Rendering deployed widget(s) live + diffing vs harness baseline…"

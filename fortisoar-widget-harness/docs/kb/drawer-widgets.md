@@ -415,6 +415,29 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   `persona.resolve.service.test.js`, `persona.framing.controller.test.js`,
   `personaFraming.spec.js`, and fixture `persona_ztpf_author.json`.
 
+- **EVERY SOC-voiced label the drawer can show while a persona is active must go
+  through a persona-aware helper — the empty-hero and the build-hint were the
+  easily-missed ones.** The deck / handoff / placeholder are gated off or
+  overridden under a persona, but `heroHeading`/`heroSub` (the `empty-hero` card,
+  shown when `!messages.length`, e.g. `seedFromEntity:false`) and the build-hint
+  sub were hardcoded SOC copy ("Triaging …", "containment actions — block,
+  isolate, disable", "paste a FortiSOC summary") that leaked over a non-SOC
+  record. Fix: `heroHeading` routes through `_entityHeadline` (greeting → neutral
+  "Working on …" → SOC "Triaging …"); `heroSub` and `buildHintSub` follow the
+  same three-tier pattern as `composerPlaceholder` (persona override →
+  neutral persona line → SOC default), reading `ui.subtitle` / `ui.buildHint`.
+- **The persona `ui` object is WHITELISTED in `fsrPbAgent.service.js`
+  `_personaFromUi` — a field the controller reads but the shaper doesn't copy is
+  silently dropped, so its override never fires.** `pullLabel`/`pullHint` were
+  read by `pageDetailsLabel`/`pageDetailsTitle` but missing from the whitelist,
+  so a Key Store persona could never actually override the pull-context button
+  (the controller unit test only passed because it injects `resolvePersona`
+  directly, bypassing the shaper). When you add a new `ui.*` field, add it in
+  THREE places: `_personaFromUi`'s return, the connector-flattened signal check
+  in `_personaFromConnector`, and the consuming controller helper. Full field set:
+  `label, greeting, subtitle, placeholder, pullLabel, pullHint, buildHint,
+  quickActions, footer` (`footer` is defined but not yet consumed).
+
 - **The hand-rolled `renderMarkdown` mishandles nested + loose ordered lists —
   they renumber `1,2,1,2` instead of `1,2,3`.** The list block used to gather
   only *consecutive* list-marker lines into one `<ol>`/`<ul>`, decide ordered-vs-
@@ -488,6 +511,81 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   deliverable. Any new consumer that matches card frame types literally has the
   same latent bug: match the render family, not the frame name.
 
+- **A widget-driven tool surface reaches framework MCP tools through
+  `call_mcp_tool`, NOT the agent tool registry — and the two registries are
+  different.** The C3 debug/authoring surfaces (per-step Verify, debug session,
+  "Diagnose & fix") call framework tools directly (`fsrPbAgentService` →
+  `_executeReal('call_mcp_tool', {tool, args})`) instead of going through the
+  chat loop. The catch: `analyze_playbook`, `suggest_fix_for_diagnostic`,
+  `step_test`, `start_debug_session`, … are `@mcp.tool()`-decorated but are
+  **not** in the framework's `SAFE_TOOLS`/`TOOL_TIERS` (`fsr_playbooks/llm/tools.py`),
+  so the *agent* can't call them — they're advertised to no LLM. They're only
+  reachable because the connector's `call_mcp_tool` builds its registry
+  (`operations._get_mcp_registry`) from a fixed set of tool-module suffixes
+  (`tools_triage/discovery/execution/emit`, plus `fsr_soc_triage.tools_ztpf`) **and**
+  a fallback that harvests every tool registered on the shared FastMCP
+  `_tool_manager._tools`. So to expose a NEW framework tool to a widget panel you
+  need neither a SAFE_TOOLS entry nor a tier — just ensure its module is imported
+  (the `@mcp.tool()` decorator registers it on the shared `mcp`) so the fallback
+  picks it up; then call it by name via `call_mcp_tool`. This is why the
+  Diagnose & fix panel needed **zero** framework/connector ship — `analyze_playbook`
+  + `suggest_fix_for_diagnostic` were already registered and callable. Conversely,
+  a tier-3 WRITE (create_record/update_record) is deliberately kept OUT of
+  `call_mcp_tool` (it bypasses the approval-card machinery) and stays agent-only.
+
+- **Value-level patches apply client-side only when the `before` literal is
+  unique.** `suggest_fix_for_diagnostic` returns `{step_id, location, before,
+  after, …}` — a value-level edit, not whole-YAML like `validate_yaml`'s
+  `corrected_yaml`. The Diagnose & fix panel one-click-applies a patch by a plain
+  `String.replace(before, after)` on the YAML pane, which is only safe when
+  `before` occurs **exactly once** (`applyValuePatch` re-checks uniqueness at
+  apply time, since an earlier apply in the same batch can shift counts). Ambiguous
+  or non-literal fixes are shown read-only with a "Send to chat" escape hatch that
+  seeds the composer so the agent applies them with full structural context. The
+  self-apply must suppress the `currentYaml` `$watch` teardown (a guard flag) so
+  the panel survives to apply the batch's remaining proposals; an *external* edit
+  still drops the batch (the `before` literals may no longer match).
+
+- **Chat history shows the current viewer, not the real author/time.** The
+  connector runs under the FortiSOAR **service account**, so it cannot derive who
+  is chatting. If the widget doesn't send the acting user, `chat_history` replays
+  each user turn as just `{user: "<text>"}` — and the widget then fills the author
+  with `$scope.initiator` (the *current* viewer) and the timestamp with
+  `Date.now()`. So reopening a chat someone else started shows *you*, *now*. Fix
+  spans both sides: the widget stamps `actor: {name, iri}` (the current SOAR user
+  from `usersService.getCurrentUser`) onto every user-originated call in
+  `_withMode`; the connector persists it per user turn (`append_transcript_user`
+  `author=`) and once per session (`set_session_initiator`, first-writer-wins),
+  and returns `author` + the original `created_at` as `ts` (epoch **seconds** —
+  the widget ×1000 for its ms message clock) on `chat_history` turns, plus a
+  session `initiator`. On replay `_appendUserMessage(text, {author, ts})` renders
+  the stored values; live sends still default to the current user + now. The
+  change is **additive/back-compatible** — an old connector omits the fields and
+  the widget falls back — so **don't** bump the contract version for it (that
+  would false-trigger the minor-drift banner on older connectors). Existing chats
+  can't be back-filled for author (never stored); timestamps can (already stored).
+
+- **Record-scope the chat session, or a drawer shows the WRONG record's chat.**
+  A drawer stays mounted across UI-Router state changes (§18.4), so a chat session
+  persisted under an intent-only `localStorage` key (`fsrPbSession:triage`) is
+  shared by every record — opening the widget on alert B rehydrates alert A's last
+  conversation. Fix: key the *triage* session by the host record IRI
+  (`fsrPbSession:triage:<iri>`; `_sessionKey`), and make the `entityContext.iri`
+  `$watch` the single authority that re-points `_sessionId` to the new record's own
+  thread whenever the record changes — `_switchSessionForEntity` (mint-or-rehydrate
+  + reset the stream fence like `newConversation`). Three non-obvious pins:
+  (1) the host record is **not** reliably on `$state` at controller construction
+  (§18.6 init re-detect), so the construction-time `_sessionId` may be un-scoped —
+  the `$watch` re-points it once the record settles, and a **superseded-load guard**
+  (`if (_sessionId !== _capturedSession) return;` in every `chatHistory().then`)
+  stops a stale load from replaying the previous record's thread over the current
+  one. (2) **Exempt the playbook designer / build mode** — its entity is the open
+  playbook (a `workflows` IRI), one designer thread that must never be re-pointed by
+  an entity change (gate on `uiIntent==='build' || inPlaybookEditor || module==='workflows'`).
+  (3) Only adopt the legacy un-namespaced `fsrPbSession` key for the *un-scoped*
+  triage bucket — adopting it onto a specific record re-introduces the bleed.
+  Off-record (dashboard / list) keeps the bare `fsrPbSession:triage` bucket.
+
 ### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
 
 Two platform behaviors bite any live-UI Playwright drive against a FortiSOAR 8.0
@@ -507,5 +605,49 @@ box behind FortiGuard inline IPS (learned driving box 159; fixes in
   A blind `.sub-block` click-loop opens the wrong drawer and the composer never
   mounts. Target `img.logo-sm[title="<widget title>"]` first, fall back to the
   loop.
+
+### 18.8 Mounting a drawer on a NON-record surface (live, 8.0)
+
+Verified against a live 8.0 box. The drawer is **persistent across navigation**,
+so *where* it was opened decides the entity context the backend sees — which is
+what makes these paths test-relevant, not cosmetic.
+
+- **The drawer icon is in the DOM on EVERY page — but hidden where `enableFor`
+  doesn't match.** This is §18.4's `drawerVisibility` toggle seen from the test
+  side: `csDrawerWidgetGroup` flips visibility on `$stateChangeSuccess` when
+  `$state.current.name` isn't in `metadata.view.enableFor` — it does **not**
+  remove the icon. So `img.logo-sm[title="…"]` is present for every installed
+  drawer widget on every route, and on a non-`enableFor` route it is simply
+  **not visible** (`boundingBox()` → `null`, `isVisible()` → false).
+  A real click times out and the composer never mounts, which surfaces as a
+  generic "composer not found" and reads like a widget bug — when the widget is
+  simply **not available on that route**. Waiting longer or click-looping can
+  never fix it. `fortiaiAgenticAssistant`'s states are
+  `["main.modules.list", "viewPanel.modulesDetail", "main.playbookDetail"]` —
+  i.e. module list, record detail, playbook designer. **There is no dashboard
+  mount.**
+  - **Corollary — don't hand-verify a mount with devtools `element.click()`.**
+    A synthetic DOM click *does* fire on the hidden icon and the drawer *does*
+    open, so the mount looks fine by hand and fails under Playwright. Only a real
+    click (or an `isVisible()` check) tells the truth. This cost a full debug
+    cycle: the dashboard "worked" in devtools and failed every automated run.
+- **The drawer renders on `/not-found` too.** A wrong mount path still shows the
+  drawer icons, still opens a composer, and the chat turn still runs — just with
+  **no entity context**. A broken mount therefore reads as a *passing* test. The
+  SPA rewrites a bad route to `/not-found`, so assert on `location.pathname`
+  after navigating and fail loudly (`lib/liveUiDriver.ts` `goto()` throws).
+- **A bare `/dashboard` 404s** — the dashboard requires its uuid:
+  `/dashboard?module=<dashboard-uuid>`. (Moot for this widget per `enableFor`
+  above, but true of the route.)
+- **Playbook designer** is `/playbooks/<workflow-collection-uuid>`, not
+  `/playbooks`.
+- **Record deep-links** stay `/modules/<module>/<uuid>`; the SPA rewrites them to
+  `/modules/view-panel/<module>/<uuid>?previousState=…`. Both the original and
+  rewritten form work, so match on the module+uuid, not the whole path.
+- **Seeding a stale entity on purpose:** open the drawer on record A, then
+  navigate to surface B — the drawer carries A's entity into B. That is the
+  repro shape for the D1-class bug (a `keys` record's module leaking into a
+  playbook authored in the designer) and is what `openWidgetDrawer`'s
+  `visitFirst` option exists for.
 
 ---

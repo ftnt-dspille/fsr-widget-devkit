@@ -56,7 +56,7 @@ function arg(name: string, def?: string | boolean): string | boolean {
   await s.close();
 
   console.log("[drive] poll feed:", JSON.stringify(res.polls));
-  console.log(`[drive] sawStreamingTurn=${res.sawStreamingTurn} maxFrames=${res.maxFrames} done=${res.done}`);
+  console.log(`[drive] sawStreamingTurn=${res.sawStreamingTurn} maxFrames=${res.maxFrames} done=${res.done} submitConfirmed=${res.submitConfirmed}`);
   if (res.sawStreamingTurn) {
     console.log(`[drive] PASS: live messages streamed (screenshot: ${shot})`);
     process.exit(0);

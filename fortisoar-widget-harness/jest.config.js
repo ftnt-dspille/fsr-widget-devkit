@@ -113,6 +113,16 @@ module.exports = {
       displayName: "harness",
       rootDir: __dirname,
       testEnvironment: "node",
+      // Jest's default is 5s PER TEST, which is a tight budget for this project:
+      // it transforms TS through ts-jest, and several suites boot a real server
+      // or walk the widget roots on disk. Alone that is fine (server.test.ts is
+      // 30 tests in ~1.8s), but under `make test-unit WIDGET=…` the harness and
+      // widget projects compete for the same workers and a single test can be
+      // starved past 5s — observed as server.test.ts failing 1 run in 3 while
+      // passing standalone every time. The work is not slow, the slice is; give
+      // it headroom rather than let CPU contention read as a product failure.
+      // (A genuine hang still fails, just 30s later.)
+      testTimeout: 30000,
       transform: {
         "^.+\\.tsx?$": [require.resolve("ts-jest"), {
           tsconfig: {
