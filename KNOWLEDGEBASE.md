@@ -2546,6 +2546,45 @@ Distilled from building `ztpAutomationGraph` -- a Cytoscape.js node-graph panel
 widget on `ztpf_devices` (`widgets-src/ztpAutomationGraph/`). Most of these are
 non-obvious and cost real debugging time; check here before grepping.
 
+### 32.0 Three e2e failure modes that are NOT widget bugs
+
+Chased on `socAssistantMonitor`. All three present as "random test fails, a
+different one each run" -- the trap is treating them as a widget defect.
+
+**a) Another e2e run is on the same ports.** The mock servers are per-worker on
+`14401 + parallelIndex` with `reuseExistingServer: true`, so a second `make
+test-e2e-*` (yours, another agent's, a flake-detection loop) silently shares
+them and both runs go dirty. ALWAYS check before believing a failure:
+```
+pgrep -fl "test-e2e|playwright.*test " | grep -v grep
+```
+`E2E_BASE_PORT=14501 make test-e2e-spec SPEC=...` runs a second invocation
+without contending.
+
+**b) `ECONNRESET` on `GET /_fsr/widgets`.** Playwright's request context reuses
+keep-alive sockets; Node closes an idle one on its own timeout, so a request
+issued in that instant is reset by a perfectly healthy server -- before the
+widget ever mounts. `mountWidget` now replays it (`fetchWidgetList`,
+`_widgetHarness.js`). This is not a test retry: the request never reached a
+handler, and any HTTP response including 5xx is still returned as-is.
+
+**c) A DIFFERENT widget's lint banner is what you're looking at.**
+`public/index.html` falls back to `widgets[0]` when `localStorage['harness.widget']`
+is empty -- which it always is in a fresh Playwright context -- and
+`_widgetHarness.js`'s settle check accepts an error panel as terminal content
+(`if (!ctrl) return true`). So a lint-broken widget earlier in the list (today:
+`counter`, `edit-config-inject`) settles the mount and your spec times out
+blaming your widget. Seed the selection before first paint:
+```js
+await page.addInitScript(([id]) => {
+  localStorage.setItem('harness.widget', id);
+  localStorage.setItem('harness.ctx', 'dashboard');
+}, [WIDGET_ID]);
+```
+`mountWidget`/`resolveWidgetId` also match by NAME first, so several packaged
+builds sharing one name are ambiguous -- pin the id from the widget's own
+`info.json` rather than resolving it.
+
 ### 32.1 The render-state machine -- read it first
 The harness exposes `window.__HARNESS_RENDER_STATE = { phase, lastError, ... }`.
 `phase` cycles `idle → mounting → rendered | error`. `waitForRender()`
