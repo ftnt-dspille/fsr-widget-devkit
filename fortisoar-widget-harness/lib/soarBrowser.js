@@ -3,7 +3,7 @@
  * Reusable "real SOAR browser session" service.
  *
  * This is the ONE consistent, WAF-safe entry point for driving the deployed
- * FortiSOAR 7.x SPA from Playwright (the real app — NOT the local harness). Every
+ * FortiSOAR 7.x SPA from Playwright (the real app -- NOT the local harness). Every
  * widget's live-UI test should build on top of this instead of re-deriving the
  * UA / login / deep-link quirks. The hard-won invariants it owns:
  *
@@ -11,7 +11,7 @@
  *    Playwright/HeadlessChrome request returns a "Web Page Blocked!" interstitial
  *    (FortiGuard Attack ID 20000051) even though authenticated API POSTs pass.
  *    Presenting a real desktop Chrome User-Agent (+ Accept-Language) clears it.
- *    This is why the UI was historically "un-driveable" on forticloud — the WAF,
+ *    This is why the UI was historically "un-driveable" on forticloud -- the WAF,
  *    not SSO.
  *  - **csadmin is a LOCAL login, not SSO.** Login form is `#username` +
  *    `#login_password`; submit via `button[type=submit]` / "Login".
@@ -32,7 +32,7 @@
  */
 const test_1 = require("@playwright/test");
 const soarEnv = require("./soarEnv");
-// A real desktop Chrome UA — REQUIRED to get past the FortiGuard IPS. Single
+// A real desktop Chrome UA -- REQUIRED to get past the FortiGuard IPS. Single
 // source of truth: liveUiDriver re-exports THIS constant (do not fork it).
 const DESKTOP_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -50,9 +50,17 @@ function baseUrl(soar) {
 }
 /** Launch a Chrome context the box's WAF will accept (desktop UA + TLS allow). */
 async function launchContext({ headless = true } = {}) {
+    // The live sweep MUST run headed (the WAF fingerprints headless Chromium
+    // beyond the UA), but a headed window on macOS steals focus and covers the
+    // user's screen. Park it far off-screen so it renders for the WAF without
+    // interrupting -- set FSRPB_ONSCREEN=1 to see it (debugging a live driver).
+    const offscreen = !headless && process.env.FSRPB_ONSCREEN !== "1";
+    const args = ["--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"];
+    if (offscreen)
+        args.push("--window-position=-4000,-4000", "--window-size=1500,1100");
     const browser = await test_1.chromium.launch({
         headless,
-        args: ["--ignore-certificate-errors", "--disable-blink-features=AutomationControlled"],
+        args,
     });
     const context = await browser.newContext({
         ignoreHTTPSErrors: true,
@@ -95,7 +103,7 @@ function captureApiErrors(page) {
     page.on("pageerror", (e) => pageErrors.push(String(e && typeof e === "object" && "message" in e ? e.message : e)));
     return {
         apiErrors, consoleErrors, pageErrors,
-        /** Errors worth failing on — drops known-benign noise (favicon, ResizeObserver,
+        /** Errors worth failing on -- drops known-benign noise (favicon, ResizeObserver,
          *  and the box's pre-existing malformed-CSP referrer-policy warning). */
         meaningful() {
             const benign = /favicon|ResizeObserver|Non-Error promise rejection|referrer policy|about:srcdoc|frame is sandboxed/i;
