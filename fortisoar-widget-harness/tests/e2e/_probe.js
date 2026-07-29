@@ -2,7 +2,7 @@
 // Reusable widget probe: drive a widget through a named scenario, then dump
 // every console.error / unhandled rejection / Angular exception the harness
 // captured (with creation-site stacks for $q rejections, thanks to the
-// harness's $q decorator). Companion to _fixtures.js — use this when you
+// harness's $q decorator). Companion to _fixtures.js -- use this when you
 // want a single self-contained "open widget X, do thing Y, tell me what
 // went wrong" run instead of writing a full spec.
 //
@@ -27,7 +27,7 @@ async function selectWidget(page, widgetName) {
   // The harness chrome now drives widget choice through a custom picker button,
   // leaving the native #widget-select present-but-hidden. Playwright's
   // selectOption requires visibility, so set the value + dispatch `change`
-  // directly (the harness listens for change to remount) — robust to the hidden
+  // directly (the harness listens for change to remount) -- robust to the hidden
   // native control.
   await select.waitFor({ state: "attached", timeout: 10000 });
   const resp = await page.request.get("/_fsr/widgets");

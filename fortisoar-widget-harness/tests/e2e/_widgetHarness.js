@@ -1,7 +1,7 @@
 "use strict";
 // Reusable "mount a widget + ask a visual/DOM question about it" helper.
 //
-// This is Layer 2 of SOAR_TEST_KIT_DESIGN.md §4.2 — the piece that was designed
+// This is Layer 2 of SOAR_TEST_KIT_DESIGN.md §4.2 -- the piece that was designed
 // but never built. Before this, every spec (and every ad-hoc agent check)
 // re-derived the same harness-driving foot-guns:
 //   - the harness `#widget-select` is display:none (a custom dropdown drives it),
@@ -32,8 +32,33 @@
  * @param {{ navigate?: boolean, timeout?: number, config?: object }} [opts]
  *   config: seed the widget's saved config (localStorage `harness:config:<id>`)
  *   before mount, so a widget that would otherwise show the "configure me"
- *   prompt renders its real content deterministically — no live box needed.
+ *   prompt renders its real content deterministically -- no live box needed.
  */
+// GET /_fsr/widgets, retrying only transient socket errors.
+//
+// Playwright's request context keeps sockets alive between calls. Node's HTTP
+// server independently closes an idle keep-alive socket after its timeout, so a
+// request issued in that same instant is reset before a byte is written --
+// surfacing here as `read ECONNRESET` from a server that is perfectly healthy.
+// The request never reached a handler, so replaying it is safe and NOT a
+// flaky-test retry: an HTTP response of any status (including 5xx) is returned
+// as-is for the caller to fail on.
+async function fetchWidgetList(page, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const resp = await page.request.get("/_fsr/widgets");
+      return await resp.json();
+    } catch (e) {
+      // Only socket-level resets/aborts are replayable; anything else is real.
+      if (!/ECONNRESET|socket hang up|ECONNREFUSED|EPIPE/i.test(String(e && e.message))) throw e;
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function mountWidget(page, name, opts = {}) {
   const timeout = opts.timeout || 20000;
   if (opts.navigate !== false) {
@@ -42,8 +67,7 @@ async function mountWidget(page, name, opts = {}) {
   }
   // Resolve the versioned widget id (e.g. jsonToGrid-1.3.2) from the harness API
   // so callers pass the stable folder name, not a version that drifts on bump.
-  const resp = await page.request.get("/_fsr/widgets");
-  const { widgets } = await resp.json();
+  const { widgets } = await fetchWidgetList(page);
   const match = widgets.find((w) => w.name === name || w.id === name);
   if (!match) {
     const names = widgets.map((w) => w.name).join(", ");
@@ -60,7 +84,7 @@ async function mountWidget(page, name, opts = {}) {
   }
   // #widget-select is display:none (custom dropdown is the visible control), so
   // set the value + dispatch `change` directly. The harness change handler
-  // persists to localStorage and `location.reload()`s — wait for that nav so the
+  // persists to localStorage and `location.reload()`s -- wait for that nav so the
   // caller sees the mounted widget, not the pre-reload page.
   await Promise.all([
     page.waitForLoadState("domcontentloaded"),
@@ -72,13 +96,13 @@ async function mountWidget(page, name, opts = {}) {
   ]);
   // Settle on the harness's own mount signal. __HARNESS_MOUNTING flips true→false
   // around angular.bootstrap; we wait for "not mid-mount" (!== true) rather than
-  // "=== false" because an unconfigured widget never mounts — it renders a
+  // "=== false" because an unconfigured widget never mounts -- it renders a
   // "configure this widget" prompt and the flag stays undefined. The settled
   // states are: a mounted widget root ([ng-controller]), that config prompt
   // (.harness-config-prompt), or a render-error panel. We must explicitly
   // EXCLUDE the transient "loading…" placeholder (.harness-empty) the host shows
-  // between the select-change reload and mount — it has child content but isn't
-  // settled. Polling this state — not a fixed timeout — is what the design doc
+  // between the select-change reload and mount -- it has child content but isn't
+  // settled. Polling this state -- not a fixed timeout -- is what the design doc
   // mandates.
   await page.waitForFunction(
     () => {
@@ -90,7 +114,7 @@ async function mountWidget(page, name, opts = {}) {
       if (host.querySelector(".harness-config-prompt")) return true;
       const ctrl = host.querySelector("[ng-controller]");
       if (!ctrl) return true; // error panel / other terminal content
-      // The widget root is loaded via ng-include — until its template renders,
+      // The widget root is loaded via ng-include -- until its template renders,
       // the wrapper holds only a placeholder comment (childElementCount 0). Wait
       // for the view's actual element children to appear.
       return ctrl.childElementCount > 0;

@@ -8,11 +8,17 @@ import fs from "fs";
 import path from "path";
 import { defineConfig, devices } from "@playwright/test";
 
+// Base port for the per-worker mock servers (worker N → E2E_BASE_PORT + N).
+// Override with E2E_BASE_PORT to run a second e2e invocation concurrently
+// without contending on 14401/14402 (see _isolated.ts, which reads the same
+// var so baseURL and the booted servers agree). Default keeps 14401/14402.
+const E2E_BASE_PORT = Number(process.env.E2E_BASE_PORT) || 14401;
+
 dotenv.config();
 
 // In the monorepo, widgets-src is a SYMLINK to ../widgets-src. Playwright's
 // spec walker does not descend symlinked directories, so per-widget specs under
-// it (c3charts, widget-action-renderer, …) were silently skipped — discovery
+// it (c3charts, widget-action-renderer, …) were silently skipped -- discovery
 // found only the harness's own tests/e2e and the top-level examples. We resolve
 // the symlink to its real path and give it its own project testDir below so the
 // walker actually traverses it. In a standalone GitHub clone the symlink is
@@ -62,15 +68,19 @@ export default defineConfig({
   // recorded a 599 HERMETIC-MISS (a leak to the forticloud proxy). No-op on live
   // runs. See tests/e2e/_hermeticTeardown.ts.
   globalTeardown: require.resolve("./tests/e2e/_hermeticTeardown.ts"),
-  // By default the e2e suite runs FULLY LOCALLY against the mocked SOAR proxy —
+  // By default the e2e suite runs FULLY LOCALLY against the mocked SOAR proxy --
   // no FortiSOAR login required. Specs whose filename contains "Live"/"live"
   // drive a real box and are excluded unless E2E_LIVE=1 (see `test:e2e:live`).
   testIgnore: process.env.E2E_LIVE
     ? []
     : ["**/*[Ll]ive*.spec.js", "**/*[Ll]ive*.spec.ts"],
-  timeout: 45000,
+  // Per-test budget. The heavy AngularJS app-shell is served single-threaded
+  // per worker port, so under parallel load a widget's boot ready-probe can eat
+  // ~30s on its own; a 45s cap then squeezed slow-boot tests into intermittent
+  // timeouts (a load flake, not a defect). 90s gives comfortable headroom.
+  timeout: 90000,
   expect: { timeout: 10000 },
-  // NO retries — a retry masks a real failure as "flaky" (green-with-asterisk),
+  // NO retries -- a retry masks a real failure as "flaky" (green-with-asterisk),
   // which we explicitly reject: a test that fails once is a failure. Boot starves
   // under worker contention, so the fix is fewer workers + a longer boot wait,
   // not a retry that hides the symptom. `trace: "retain-on-failure"` captures the
@@ -90,7 +100,7 @@ export default defineConfig({
   // already serving (e.g. a previous test run left it running, or you have
   // another playwright watch running).
   use: {
-    baseURL: "http://localhost:14401",
+    baseURL: `http://localhost:${E2E_BASE_PORT}`,
     trace: "retain-on-failure",
   },
   // Two projects: the harness's own tests/e2e + examples (testDir __dirname),
@@ -100,7 +110,7 @@ export default defineConfig({
   projects,
   // One dev server PER WORKER (ports 14401, 14402) so the two workers never
   // share a Node process. parallelIndex → port mapping lives in _isolated.ts.
-  webServer: [14401, 14402].map((port) => ({
+  webServer: [E2E_BASE_PORT, E2E_BASE_PORT + 1].map((port) => ({
     command: `node server.js`,
     url: `http://localhost:${port}`,
     reuseExistingServer: true,

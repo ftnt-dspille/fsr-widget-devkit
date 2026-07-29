@@ -8,7 +8,7 @@ const { test, expect } = require("./_fixtures");
 // ---------------------------------------------------------------------------
 // Minimal Monaco stub injected before any page scripts run.
 // The harness's preloadMonaco() checks `if (window.monaco) return window.monaco;`
-// first — this satisfies that guard so it never tries to load from the proxy.
+// first -- this satisfies that guard so it never tries to load from the proxy.
 // ---------------------------------------------------------------------------
 const MONACO_STUB = `
 (function() {
@@ -158,7 +158,7 @@ async function selectWidget(page) {
   if (!jinja) throw new Error("jinjaEditorWidget not found in /_fsr/widgets");
   // Seed a saved config BEFORE the select-change reload so the fresh load
   // mounts the widget directly instead of showing the "no saved configuration
-  // yet" prompt (see _widgetHarness.js mountWidget — same key format,
+  // yet" prompt (see _widgetHarness.js mountWidget -- same key format,
   // `harness:config:<id>`). Mirrors editJinjaEditorWidget122DevCtrl's own
   // defaults (edit.controller.js) so it's a realistic saved config, not a bare stub.
   await page.evaluate(
@@ -170,13 +170,13 @@ async function selectWidget(page) {
       templateSourceField: "",
     }]
   );
-  // #widget-select is now display:none — the harness drives a custom dropdown
+  // #widget-select is now display:none -- the harness drives a custom dropdown
   // off the hidden native select as source of truth (see index.html ~L592).
   // Playwright's selectOption requires a visible control, so set the value and
   // dispatch `change` directly; the harness's existing change listener fires
   // exactly as a real pick would.
   // The widget-select `change` handler persists the pick to localStorage and
-  // does location.reload() — the widget mounts on the fresh load. Dispatch the
+  // does location.reload() -- the widget mounts on the fresh load. Dispatch the
   // change and wait for that navigation to settle so callers see the mounted
   // widget rather than the pre-reload page.
   await Promise.all([
@@ -213,12 +213,12 @@ async function setTemplate(page, text = "Hello World") {
 }
 
 // ---------------------------------------------------------------------------
-// Harness page — basic load
+// Harness page -- basic load
 // ---------------------------------------------------------------------------
 test.describe("harness page", () => {
   test("loads and shows the widget selector", async ({ page }) => {
     await setupPage(page);
-    // The native #widget-select is display:none by design — a custom
+    // The native #widget-select is display:none by design -- a custom
     // button+menu dropdown (#widget-dd-btn) is the visible control that
     // mirrors it (see index.html ~L611 + "Custom widget dropdown" comment
     // near syncWidgetDD). Assert the visible control, not the hidden source
@@ -288,7 +288,7 @@ test.describe("widget load", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Render — evaluateJinja happy path
+// Render -- evaluateJinja happy path
 // ---------------------------------------------------------------------------
 test.describe("render (evaluateJinja)", () => {
   test("clicking Render calls the Jinja eval endpoint", async ({ page }) => {
@@ -408,7 +408,7 @@ test.describe("filter palette", () => {
 });
 
 // ---------------------------------------------------------------------------
-// View Panel context — Load current record
+// View Panel context -- Load current record
 // ---------------------------------------------------------------------------
 test.describe("view panel context", () => {
   test("Load current record button appears in viewpanel context", async ({ page }) => {
@@ -521,7 +521,7 @@ test.describe("template examples", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Filter palette — insert filter into template
+// Filter palette -- insert filter into template
 // ---------------------------------------------------------------------------
 test.describe("filter palette insertion", () => {
   test.beforeEach(async ({ page }) => {
@@ -552,7 +552,7 @@ test.describe("filter palette insertion", () => {
     await item.click();
 
     // insertFilter calls templateEditor.executeEdits() which in the stub appends
-    // the snippet text to _val. Check the jinja editor's _val directly — this
+    // the snippet text to _val. Check the jinja editor's _val directly -- this
     // avoids the ng-include scope chain issue where two-way binding writes to the
     // child scope, not the controller scope that templateText reads from.
     const editorVal = await page.evaluate(() => {
@@ -564,7 +564,7 @@ test.describe("filter palette insertion", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Output pane — object result rendered as JSON
+// Output pane -- object result rendered as JSON
 // ---------------------------------------------------------------------------
 test.describe("output pane", () => {
   test("output displays in the JSON Monaco pane when result is an object", async ({ page }) => {
@@ -587,7 +587,7 @@ test.describe("output pane", () => {
     await page.locator(".render-btn").click();
 
     // Wait for the controller's output-kind detection to actually flip to
-    // 'html' before asserting on the iframe — under serial runs the eval
+    // 'html' before asserting on the iframe -- under serial runs the eval
     // request takes longer to settle and a fixed wait races the digest.
     await page.waitForFunction(() => {
       const el = document.querySelector("[data-ng-controller*='jinjaEditorWidget']") ||
@@ -624,7 +624,7 @@ test.describe("output pane", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Context switching — View Panel, Drawer, record fetch, edit modal
+// Context switching -- View Panel, Drawer, record fetch, edit modal
 // ---------------------------------------------------------------------------
 test.describe("context contexts", () => {
   test("dashboard is the default context (no record header)", async ({ page }) => {
@@ -651,7 +651,7 @@ test.describe("context contexts", () => {
     let lastUrl = null;
     await page.route(/\/api\/3\/(?!solutionpacks)/, (route) => {
       const url = route.request().url();
-      // Only capture the per-record fetch — other /api/3/* requests
+      // Only capture the per-record fetch -- other /api/3/* requests
       // (model_metadatas, picklists) fire concurrently and would otherwise
       // overwrite this assertion target.
       if (/\/api\/3\/alerts\//.test(url)) lastUrl = url;
@@ -739,7 +739,7 @@ test.describe("edit modal", () => {
     await page.locator("#edit-modal-body > [ng-controller]").waitFor({ state: "attached", timeout: 5000 });
 
     // Force a known shape onto the edit scope so the save path has something
-    // to snapshot — independent of whatever the real edit controller does.
+    // to snapshot -- independent of whatever the real edit controller does.
     await page.evaluate(() => {
       const wrap = document.querySelector("#edit-modal-body > [ng-controller]");
       if (!wrap) throw new Error("edit wrap not present");
@@ -762,7 +762,7 @@ test.describe("edit modal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Live squiggles — verify markers are set with messages and narrowed range
+// Live squiggles -- verify markers are set with messages and narrowed range
 // ---------------------------------------------------------------------------
 test.describe("live squiggles", () => {
   test("typing an unclosed expression sets a marker with hover message and narrowed range", async ({ page }) => {

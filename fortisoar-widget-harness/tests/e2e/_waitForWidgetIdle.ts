@@ -1,7 +1,7 @@
 "use strict";
 // Side-effect-free e2e helper (safe to require from any spec, regardless of
 // whether it uses the vanilla `@playwright/test` `test` or the extended one in
-// `_fixtures.js` — requiring this file registers NO hooks).
+// `_fixtures.js` -- requiring this file registers NO hooks).
 //
 // Wait for a widget to reach `idle`, but fast-fail the moment the harness
 // reports a bootstrap-blocking lint error (e.g. a version↔controller-name
@@ -53,7 +53,7 @@ export async function waitForWidgetIdle(
     throw new Error(
       "Widget bootstrap was LINT-BLOCKED (not a box/network failure). " +
         "This is almost always a hand-edited info.json version that desynced " +
-        "the controller registration names — let the bump process " +
+        "the controller registration names -- let the bump process " +
         "(`widget.js push --bump`) rewrite them instead of editing info.json " +
         "by hand:\n" +
         lines

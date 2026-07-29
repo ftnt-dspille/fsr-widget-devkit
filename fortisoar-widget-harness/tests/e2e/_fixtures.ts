@@ -39,7 +39,7 @@ const BENIGN_CONSOLE_PATTERNS = [
   /importScripts/i,
   // SOAR vendor app.unmin.js's modelMetadatasService.m() reads
   // `e["hydra:member"].forEach` without guarding against transient
-  // proxy failures — when /api/3/model_metadatas times out, returns 502,
+  // proxy failures -- when /api/3/model_metadatas times out, returns 502,
   // or auth lags, the response body is missing hydra:member and forEach
   // throws. AngularJS catches it as "Possibly unhandled rejection: {}".
   // Pre-existing vendor bug, no functional impact (later module use
@@ -57,7 +57,7 @@ const BENIGN_CONSOLE_PATTERNS = [
   // Contract drift tests intentionally load a fixture whose contract_version
   // is a MAJOR bump ahead of the widget's WIDGET_CONTRACT_VERSION. The widget
   // correctly logs console.error("[fortiaiAgenticAssistant] Connector contract …
-  // MAJOR mismatch") — that IS the behavior under test. The tests verify the
+  // MAJOR mismatch") -- that IS the behavior under test. The tests verify the
   // banner/error-state via DOM assertions, not console output.
   /\[fortiaiAgenticAssistant\].*contract.*mismatch/i,
 ];
@@ -110,7 +110,7 @@ test.afterEach(async ({ consoleErrors, page }, testInfo: TestInfo) => {
 
   // Catch the "[object Object]" stringification bug class. AngularJS bindings
   // that target an input/textarea/contenteditable but receive an object stringify
-  // to the literal "[object Object]" — visible to users but easy to miss in tests.
+  // to the literal "[object Object]" -- visible to users but easy to miss in tests.
   // Scan the live DOM after every test; if it shows up anywhere we treat it as
   // a regression in field-type coercion / value binding.
   let stringifiedObjects: object[] = [];
@@ -166,7 +166,7 @@ test.afterEach(async ({ consoleErrors, page }, testInfo: TestInfo) => {
   }
   if (stringifiedObjects.length > 0) {
     throw new Error(
-      `[${testInfo.title}] DOM contains "[object Object]" — likely an Angular binding ` +
+      `[${testInfo.title}] DOM contains "[object Object]" -- likely an Angular binding ` +
         `received an object where a string was expected:\n` +
         JSON.stringify(stringifiedObjects, null, 2)
     );

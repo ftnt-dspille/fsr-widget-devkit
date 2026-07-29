@@ -6,12 +6,12 @@
 // *test* if that test happens to depend on the asset; a miss on an incidental
 // request would otherwise pass silently and let a real forticloud dependency
 // creep back into the "hermetic" suite. This global teardown queries every
-// per-worker server (ports 14401, 14402 — see _isolated.js / playwright.config
+// per-worker server (ports 14401, 14402 -- see _isolated.js / playwright.config
 // webServer) AFTER the suite and throws if any miss was recorded, so CI /
 // ship-verify go red on the leak instead of shipping a half-hermetic tier.
 //
 // No-op when hermetic is off (live runs set FSR_HERMETIC=0).
-const PORTS = [14401, 14402];
+const PORTS = [(Number(process.env.E2E_BASE_PORT) || 14401), (Number(process.env.E2E_BASE_PORT) || 14401) + 1];
 
 module.exports = async () => {
   if (process.env.FSR_HERMETIC === '0' || process.env.E2E_LIVE) return;
@@ -25,7 +25,7 @@ module.exports = async () => {
         for (const m of body.misses) all.push(`:${port} ${m}`);
       }
     } catch (_e) {
-      // Server already torn down or never booted — nothing to enforce.
+      // Server already torn down or never booted -- nothing to enforce.
     }
   }
   if (all.length) {
@@ -34,7 +34,7 @@ module.exports = async () => {
       `Hermetic e2e tier leaked ${uniq.length} un-snapshotted platform path(s) ` +
       `to the forticloud proxy:\n  ${uniq.join('\n  ')}\n` +
       `Snapshot them locally (scripts/fetch-soar-assets.sh) or stub them in ` +
-      `server.js — the mock tier must never depend on a live box.`
+      `server.js -- the mock tier must never depend on a live box.`
     );
   }
 };

@@ -13,7 +13,7 @@ import { APIRequestContext } from "@playwright/test";
 // per-worker baseURL (14401 + parallelIndex, set by _isolated.js) instead of
 // pinning worker 1's port. Under per-worker servers a hardcoded origin would
 // query the wrong worker's harness.
-const HARNESS = "http://localhost:14401";
+const HARNESS = `http://localhost:${Number(process.env.E2E_BASE_PORT) || 14401}`;
 const DEFAULT_ID = "fortiaiAgenticAssistant-1.0.29";
 
 export async function resolveWidgetId(
@@ -31,7 +31,7 @@ export async function resolveWidgetId(
     const w = (list || []).find((x: any) => x.name === widgetName);
     if (w && w.id) return w.id;
   } catch (_e) {
-    /* harness unreachable — fall back to the default */
+    /* harness unreachable -- fall back to the default */
   }
   return DEFAULT_ID;
 }

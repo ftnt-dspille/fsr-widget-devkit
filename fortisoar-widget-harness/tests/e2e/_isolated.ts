@@ -5,7 +5,7 @@
 // 14401; Node serves the heavy AngularJS app-shell single-threaded, so two
 // simultaneous widget boots starved each other and produced "boot timeout"
 // failures. The old config papered over that with retries (flaky-green), which
-// we reject — a test that fails once is a failure.
+// we reject -- a test that fails once is a failure.
 //
 // Instead each worker gets its OWN dev server (playwright.config.js boots one
 // per port: 14401 + parallelIndex), so the workers never contend. This fixture
@@ -15,7 +15,7 @@
 //   const { test, expect } = require('<path>/_isolated');
 import { test as base, expect } from "@playwright/test";
 
-const BASE_PORT = 14401;
+const BASE_PORT = Number(process.env.E2E_BASE_PORT) || 14401;
 
 export const test = base.extend({
   baseURL: [

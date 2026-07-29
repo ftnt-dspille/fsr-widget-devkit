@@ -50,7 +50,7 @@ export async function waitForRender(page: Page, opts?: RenderWaitOptions): Promi
 }
 
 // Drain the app to quiescence: outstanding $http/templates, pending digests,
-// and deferred $timeout / ui-grid canvas repaints. Idempotent and cheap — call
+// and deferred $timeout / ui-grid canvas repaints. Idempotent and cheap -- call
 // it after any interaction whose effect lands asynchronously.
 export async function settleRender(page: Page, settleOpts?: { timeoutMs?: number; cycles?: number }): Promise<void> {
   await page.evaluate(

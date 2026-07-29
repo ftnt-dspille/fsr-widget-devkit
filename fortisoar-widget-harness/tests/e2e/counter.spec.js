@@ -1,5 +1,5 @@
 'use strict';
-// End-to-end test — boots the widget in the harness (headless Chromium) and
+// End-to-end test -- boots the widget in the harness (headless Chromium) and
 // exercises the real DOM. The complement to the jest unit test. Run with:
 //
 //   make test-e2e-widget WIDGET=counter   # from the dev-kit root

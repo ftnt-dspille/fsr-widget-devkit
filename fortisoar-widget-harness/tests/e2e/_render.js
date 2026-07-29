@@ -24,7 +24,7 @@ async function waitForRender(page, opts) {
     }
 }
 // Drain the app to quiescence: outstanding $http/templates, pending digests,
-// and deferred $timeout / ui-grid canvas repaints. Idempotent and cheap — call
+// and deferred $timeout / ui-grid canvas repaints. Idempotent and cheap -- call
 // it after any interaction whose effect lands asynchronously.
 async function settleRender(page, settleOpts) {
     await page.evaluate(
