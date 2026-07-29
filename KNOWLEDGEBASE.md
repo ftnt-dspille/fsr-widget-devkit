@@ -877,6 +877,43 @@ The harness lint blocks a push if any selector lacks this prefix.
 <div data-cs-chart="chartOptions"></div>
 ```
 
+#### 7.6.1 Hand-rolled SVG charts: three gotchas that all render a *plausible lie*
+
+From `socAssistantMonitor` 1.0.8 -- the widget drew a smooth week-long cost
+decline that never happened. All three are silent: the chart looks fine.
+
+**1. Zero-fill your buckets.** Aggregation endpoints (here the connector's
+`get_usage_summary`) return only buckets that HAVE rows. A 7d range with
+traffic on two days comes back as two points; index-to-x mapping then stretches
+them across the full width and invents a trend over the five missing days.
+Always expand the series to one bucket per interval across the *requested*
+range before pathing, with `0` for the quiet ones -- and derive bucket keys in
+the producer's exact format (`%Y-%m-%d` vs `%Y-%m-%dT%H:00:00`), in UTC.
+
+**2. `preserveAspectRatio="none"` distorts `<text>`, not just the path.** A
+`viewBox="0 0 400 140"` rendered into a ~1150px-wide box scales x by ~2.9x, so
+axis labels render as `0 7 - 2 8` with the glyphs pulled apart. It's fine for
+a pure area/line path; it is never fine for text. Put axis labels in **HTML**
+positioned over the SVG (`position:absolute; left:<pct>%`), not in `<text>`.
+Add `vector-effect="non-scaling-stroke"` so the line keeps an even weight too.
+
+**3. Labels and path must share one x scale.** The old code inset the path by
+`padX=8` on a 0..400 viewBox but positioned labels at `$index * (400/(n-1))` --
+so labels never sat over their points, and the first/last were half-clipped by
+the viewBox edge. Compute both from the same divisor (percentages are easiest),
+and remember that thinning labels (`show 3 of 30`) must not change the spacing
+of the ones you keep.
+
+Bonus: scale sparklines from **0**, not from the observed min. `min..max`
+scaling redraws `3,4,5` as a full-height climb identical to `0,50,100`.
+
+#### 7.6.2 `ng-repeat` over a function that builds a fresh object trips `infdig`
+
+`ng-repeat="(k,v) in someFn()"` re-invokes `someFn()` every digest; a new object
+identity each time never stabilises -> `$rootScope:infdig`. Memoise on a cheap
+key (`tab + JSON.stringify(state)`) and return the cached reference, the same
+way `socAssistantMonitor`'s `users()` caches on the `$scope.usage` reference.
+
 ---
 
 ## 8. Services catalog
@@ -1648,6 +1685,41 @@ In the template:
 ```
 
 Preview inside Content Hub only works on 7.4.1+ when locales are present.
+
+---
+
+## 23.1 Shared filter state across tabs: scope keys per panel
+
+A multi-panel widget with one `activeFilters` bag will eventually send a filter
+to a panel that means something else by it. In `socAssistantMonitor` a live
+session's `status` is `active|waiting_approval|idle` while an audit row's
+`status` is `success|error`; clicking the "Pending HITL" card set
+`status=waiting_approval` globally, so switching to the Audit tab queried for a
+status no LLM call can have and rendered "No LLM calls recorded yet" over 45
+real turns. The query returns `[]`, not an error -- nothing surfaces.
+
+Declare which keys each panel accepts and project the shared bag through it:
+
+```js
+var _PANEL_KEYS = {
+  sessions: { session_status: "status", user_iri: "user_iri" }, // widget key -> op param
+  audit:    { status: "status", intent: "intent", user_iri: "user_iri" }
+};
+// chips render only visibleFilters(); ops receive only _panelFilters(panel)
+```
+
+Two related rules:
+
+* **Filter on identity, display the name.** `toggleFilter('user_iri', u.name)`
+  sends `"CS Admin"` into an IRI-keyed param -> zero rows. Send
+  `/api/3/people/<uuid>` and carry the label separately for the chip.
+* **Never render a chip on a panel that ignores it.** A chip that can't affect
+  what's on screen is a UI that lies about why the list looks the way it does.
+
+Test the forwarding *per panel*. The original suite asserted `loadAudit` passed
+filters through and passed green for months while `loadLiveSessions` dropped
+them entirely -- see [[parallel_name_lists_drift_bug_class]]: the same concept
+living in two code paths needs an assertion on each.
 
 ---
 
