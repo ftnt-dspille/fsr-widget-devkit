@@ -1,7 +1,8 @@
 # State-derived intent & tool slicing -- plan
 
-**Status:** in progress -- Phase 0 ✅, **Phase 1 ✅ built+unit-green 2026-07-28
-(offline; live-sweep + ship open)**, Phase 2 ✅ (live-proven 159, conn 0.5.23),
+**Status:** in progress -- Phase 0 ✅, **Phase 1 ✅ SHIPPED + LIVE-VERIFIED .206
+2026-07-28 (conn 0.5.47 / widget 1.2.46; interleave triage->author in ONE session
+reached emit_playbook_offer)**, Phase 2 ✅ (live-proven 159, conn 0.5.23),
 M1 ✅, M2 ✅ built + connector-tier live-verified (conn 0.5.28; widget tier open),
 M3 ✅ (external MCP proven live). **Open: the Phase 1 live-sweep + ship, Phase 3,
 the M2 widget-tier proof.**
@@ -18,8 +19,15 @@ the M2 widget-tier proof.**
 > when absent, and the widget sends page facts + keys the session on the mounted
 > record/page (ONE thread, intent-agnostic; the per-turn frontier gates tools, so
 > the old per-intent thread split is retired). Connector offline suites green (M2
-> oracle 20/20 preserved); widget 80 suites / 892 green. **Remaining = box only:**
-> P0.4 grid usability, the interleave live-sweep row, and shipping both repos.
+> oracle 20/20 preserved); widget 80 suites / 892 green.
+> **SHIPPED + LIVE-VERIFIED 2026-07-28:** connector to .159 (0.5.46) + .206 (0.5.47);
+> `assistant_personas` module created + Key Store personas migrated on BOTH boxes
+> (4 on .159, 5 on .206); widget shipped to .206 (1.2.46, ship-verify all gates).
+> P0 live: `list_agent_tools` resolves both migrated personas from the module
+> (`persona_applied=True`). P1 live: an interleave on the GA beaconing alert drove
+> triage (hunt tools -> trace) then, in the SAME session, an authoring ask reached
+> `emit_playbook_offer` -- one thread, no page flip. **Remaining (optional):** ship
+> widget to .159; a headed-matrix interleave row for the gitignored scenario set.
 **Created:** 2026-07-25 · **Last updated:** 2026-07-27
 **Scope:** `fortiaiAgenticAssistant` widget + `connector-fsr-soc-assistant` + `fsr-playbook-framework`
 **Supersedes / absorbs:** STATUS 4f follow-up #2 ("the two-intent split is too coarse"),
