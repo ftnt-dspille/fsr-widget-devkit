@@ -20,7 +20,7 @@ A widget becomes a floating "drawer" icon (like FortiAI / Setup Guide) when:
     "popup": "custom",          // Interactive background (non-blocking)
     "draggable": true,          // User can drag the panel
     "activeBackground": true,
-    "displayName": "FortiAI",   // Optional — shown next to logo
+    "displayName": "FortiAI",   // Optional -- shown next to logo
     "enableFor": [              // Where the drawer icon appears
       "main.dashboard",
       "viewPanel.modulesDetail",
@@ -45,7 +45,7 @@ $scope.$on('popupClosed', () => { /* pause timers, cancel pending requests */ })
 Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 
 > **⚠️ Detect host-record context on events, NOT once at boot.** A drawer widget
-> is **not torn down on navigation** — its controller/scope stay alive while the
+> is **not torn down on navigation** -- its controller/scope stay alive while the
 > user moves between pages (§18.4). So reading the current record only in the
 > controller constructor is a bug: at construct time `$state` may still be on the
 > page you opened *from* (e.g. a module **list**), and the host record is **not**
@@ -53,7 +53,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > cached context is stale/empty and anything you send upstream goes out with no
 > record. (Live regression: the FSR SOC Assistant triage drawer sent
 > "Investigate this alert" with no `entity` block because it detected context
-> once at boot.) The fix — re-derive on the drawer lifecycle:
+> once at boot.) The fix -- re-derive on the drawer lifecycle:
 >
 > ```js
 > // Re-detect when the drawer opens AND on every navigation while mounted.
@@ -61,9 +61,9 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > $scope.$on('$stateChangeSuccess', _refreshContext);
 >
 > function _refreshContext() {
->     // $state.params is now settled — read module/id off it.
+>     // $state.params is now settled -- read module/id off it.
 >     var module = $state.params.module, id = $state.params.id;
->     if (!module || !id) return;                 // list/dashboard — keep last context
+>     if (!module || !id) return;                 // list/dashboard -- keep last context
 >     // Load the record authoritatively (same source the native drawer reads).
 >     var entity = FormEntityService.get();
 >     entity.loadFields().then(() => { /* update scope context, re-seed */ });
@@ -76,7 +76,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > canonical reference (`_updateContextFromState` + `_registerStateListener`);
 > `fortiaiAgenticAssistant`'s `_refreshEntityContext` follows the same shape.
 >
-> **⚠️ The `popupOpened`/`$stateChangeSuccess` hooks are NOT enough on their own —
+> **⚠️ The `popupOpened`/`$stateChangeSuccess` hooks are NOT enough on their own --
 > also re-detect in the init `$timeout`.** Opening a drawer *directly onto* a
 > record detail (e.g. clicking a case and the drawer mounts as part of the same
 > navigation) can settle `$state` onto the detail *between* controller
@@ -106,7 +106,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > ```
 >
 > Note the side effect: an entity-less mount (true dashboard/list) now schedules a
-> stray 300 ms timer — harmless, but tests that assert "no pending `$timeout`
+> stray 300 ms timer -- harmless, but tests that assert "no pending `$timeout`
 > tasks" via `expect(()=>$timeout.flush()).toThrow()` will break; assert the real
 > intent (e.g. `pollSpy` not called) instead.
 
@@ -124,38 +124,60 @@ Shows the widget in the general drawer rail **and** as a tool inside the Playboo
 "contexts": ["header_navbar", "launch_on_boot"]
 ```
 
-Used by `setupGuide` — adds an icon to the top bar and auto-launches on first login.
+Used by `setupGuide` -- adds an icon to the top bar and auto-launches on first login.
 
 ### 18.4 How `enableFor` actually works (and what state names mean)
 
-`metadata.view.enableFor` is the **only mechanism** that lets a widget render on a SOAR page that isn't one of the marketplace wizard's five hardcoded `pages` values (`View Panel`, `Dashboard`, `Reports`, `Listing`, `Add Form`). It is read by the `csDrawerWidgetGroup` directive (`fsr_src/app.unmin.js:26220–26236`).
+`metadata.view.enableFor` is the **only mechanism** that lets a widget render on a SOAR page that isn't one of the marketplace wizard's five hardcoded `pages` values (`View Panel`, `Dashboard`, `Reports`, `Listing`, `Add Form`). It is read by the `csDrawerWidgetGroup` directive (`fsr_src/app.unmin.js:26220-26236`).
 
 On every Angular UI-Router `$stateChangeSuccess`, the directive walks every drawer widget and toggles `metadata.drawerVisibility` based on whether `$state.current.name` appears in that widget's `enableFor` array. Empty/missing `enableFor` ⇒ always visible.
 
 **The state-name format.** SOAR uses Angular UI-Router with dot-separated parent/child state names:
 
 - `main` is the post-auth app shell (`app.unmin.js:46127`). Sticky state, mounts `app/templates/main.html` into the `content` view, deep-redirects to `main.dashboard`. Every authenticated page is a child.
-- `main.playbookDetail` (`app.unmin.js:32540`) — URL `/playbooks/:id`, controller `PlaybookDesignerCtrl`, template `app/playbooks/designer/designer.html`. The playbook editor.
+- `main.playbookDetail` (`app.unmin.js:32540`) -- URL `/playbooks/:id`, controller `PlaybookDesignerCtrl`, template `app/playbooks/designer/designer.html`. The playbook editor.
 - Other useful child states visible in the bundle: `main.dashboard`, `main.editor`, `main.workflow`, `main.rules`, `main.search`, `main.security`, `main.profile`, `main.system`. To enumerate, grep `app.unmin.js` for `.state("main.`.
 
-**The matcher uses `_.contains` on the exact `current.name`** — so `main.playbookDetail.subview` does **not** match `main.playbookDetail`. List each nested state explicitly.
+**The matcher uses `_.contains` on the exact `current.name`** -- so `main.playbookDetail.subview` does **not** match `main.playbookDetail`. List each nested state explicitly.
+
+**The playbook designer boots far slower than a record page - budget for it, don't sample once.**
+Measured on 8.0 (`/playbooks/<uuid>`), from `domcontentloaded`:
+
+| elapsed | `img.logo-sm` count | `$state.current.name` |
+|---|---|---|
+| 4s - 10s | **0** | `""` (shell not resolved) |
+| 12s - 14s | 3 | `main.playbookDetail` |
+
+A record page has its drawer icons by ~4s, so a flat "settle 10s then look for the
+icon" works there and **deterministically fails on the designer** - at exactly 10s
+there is no icon *and no resolved state yet*. This bit the live matrix's B-rows: the
+driver found no titled icon, so it skipped its own composer wait and fell through to
+the blind `.sub-block` click-loop, failing every run in ~25s with
+`composer not found - drawer did not open`. That message reads like an `enableFor`
+bug, and it is **not**: state, `enableFor`, icon visibility and the composer mount
+were all verified correct, and a real click at 14s opens the drawer fine.
+Fixed in `lib/liveUiDriver.{ts,js}` by waiting on the condition
+(`img.logo-sm` count > 0, 45s cap) instead of a fixed timeout - the same
+"wait for the condition, not a fixed guess" rule the file already applied to the
+composer but not to the nav. ⚠️ Edit **both** `.ts` and `.js` (playwright/jest load
+the `.ts`).
 
 ### 18.5 Capabilities this unlocks
 
 Drawer widgets are the most general extension primitive in SOAR. A few things that follow:
 
-- **Target any UI-Router state, not just the five "pages".** Workflow editor, rule editor, system-settings — anywhere SOAR has a state, you can scope a widget to it. The marketplace wizard's pages list is just the dashboard-picker UX; `enableFor` ignores it.
-- **Persistent floating tools across navigation.** Drawer widgets aren't torn down on route change — they keep their controller/scope alive and just toggle visibility. So a Jinja editor with `enableFor: ["main.playbookDetail", "main.editor"]` stays open with its template/input intact while the user flips between records and playbooks. Not achievable with a normal page widget.
+- **Target any UI-Router state, not just the five "pages".** Workflow editor, rule editor, system-settings -- anywhere SOAR has a state, you can scope a widget to it. The marketplace wizard's pages list is just the dashboard-picker UX; `enableFor` ignores it.
+- **Persistent floating tools across navigation.** Drawer widgets aren't torn down on route change -- they keep their controller/scope alive and just toggle visibility. So a Jinja editor with `enableFor: ["main.playbookDetail", "main.editor"]` stays open with its template/input intact while the user flips between records and playbooks. Not achievable with a normal page widget.
 - **Cross-page context via the `payload` binding.** `csDrawerWidgetGroup` passes a `payload` two-way binding into each widget. Combined with walking `$rootScope.record` (current viewpanel record) or reading `$state.params`, the drawer widget can react to whatever the user is currently looking at *behind* the popup.
-- **Popup event bus.** `$broadcast("popupOpened", widgetKey)` and `$broadcast("popupClosed", widgetKey)` fire on every drawer-widget open/close (`app.unmin.js:26248`). Widgets can listen to coordinate — e.g. close-self when another opens, refresh on return.
+- **Popup event bus.** `$broadcast("popupOpened", widgetKey)` and `$broadcast("popupClosed", widgetKey)` fire on every drawer-widget open/close (`app.unmin.js:26248`). Widgets can listen to coordinate -- e.g. close-self when another opens, refresh on return.
 - **Override / wrap SOAR UX without forking.** Because `popup: "custom"` renders into the shared `#custom-modal` as a fixed overlay, a drawer widget can effectively be an alternate UI for any state. Useful for: custom record viewer scoped to one module, debug console only on `main.system`, "convert to Jinja" helper button on the playbook editor.
 
 **Gotchas.**
-- Drawer widgets are not picker-installable — they appear in the drawer rail on install and have no "Add to dashboard" UX. There is no edit-modal flow either; per-user config has to live in user prefs, the current record, or hardcoded.
+- Drawer widgets are not picker-installable -- they appear in the drawer rail on install and have no "Add to dashboard" UX. There is no edit-modal flow either; per-user config has to live in user prefs, the current record, or hardcoded.
 - The drawer rail itself must be enabled by the SOAR shell. It is in standard SOAR, but a customer admin who has hidden it leaves nothing to render into.
 - For per-record gating beyond state-name matching (e.g. "only when editing alerts module playbooks"), you still need the drawer widget to mount, then a `$watch` on `$state.params` to hide its UI internally.
 
-The mental shift: **widgets aren't just dashboard tiles** — they're a sanctioned plugin extension point with a stable rendering surface and event bus. The dashboard/listing picker is the documented use; `enableFor` + `popup: "custom"` is the more general primitive.
+The mental shift: **widgets aren't just dashboard tiles** -- they're a sanctioned plugin extension point with a stable rendering surface and event bus. The dashboard/listing picker is the documented use; `enableFor` + `popup: "custom"` is the more general primitive.
 
 ### 18.6 Streaming chat-drawer gotchas (fortiaiAgenticAssistant)
 
@@ -166,14 +188,14 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
 - **Rebuilding the live preview resets per-tool UI state.** If each poll rebuilds
   `streamingMessage` through the same renderer (`FsrPbRender.buildAssistantMessage`),
   the renderer reseeds every `tool_call`'s `{_open,_inputOpen,_resultOpen}` to
-  collapsed — so anything the analyst expanded snaps shut on the next ~700 ms poll.
+  collapsed -- so anything the analyst expanded snaps shut on the next ~700 ms poll.
   Carry the prior preview's expand state forward (`_mergeUiState`, keyed by
   `_toolUseId` with positional fallback) **before** assigning the new preview, and
   make the step `ng-repeat` `track by (ev._toolUseId || $index)` so AngularJS
   doesn't recycle DOM by position.
 
 - **Gateway error bodies leak secrets and overflow the widget.** An nginx 404 / 5xx
-  echoes the *request* back — including the live `Authorization: Bearer <JWT>` and
+  echoes the *request* back -- including the live `Authorization: Bearer <JWT>` and
   `Websocket-SessionID`. Never show `err.message` raw: map HTML/4xx/5xx bodies to a
   friendly bounded string, scrub `Bearer`/JWT/token/session before anything is
   stored **or exported** (a downloaded `.md` is a leak vector too), and cap the
@@ -188,15 +210,15 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
 - **`chat_turn` can't be the sole long-lived request for long agentic runs.** A
   "build" turn is one blocking POST; a >5-min agentic run dies against the ~300 s
   gateway ceiling regardless of streaming quality. Durable answer: trim the re-sent
-  prior `tool_result`s (they ride verbatim each turn — ~30 KB of records) and commit
-  **poll-to-completion** — when the `chat_poll` `stream_end` frame carries the
+  prior `tool_result`s (they ride verbatim each turn -- ~30 KB of records) and commit
+  **poll-to-completion** -- when the `chat_poll` `stream_end` frame carries the
   transcript, build a result from it (+ the stream's turn #) and run it through the
   *same* `_handleTurnResult` path as the POST return. For this to be safe the commit
   path must be **idempotent per turn** (`_committedTurns[turn]`, first writer wins)
   and `_handleTurnResult` must treat a fast `{accepted}`-with-no-transcript POST
   reply as a no-op (latch the turn #, keep the stream alive). That combination lets
-  the connector return an immediate ack and stream the real work to the terminal —
-  no blocking POST, no 300 s ceiling — while sync mode (POST returns the full
+  the connector return an immediate ack and stream the real work to the terminal --
+  no blocking POST, no 300 s ceiling -- while sync mode (POST returns the full
   transcript) still works because the duplicate is deduped. In the contract this is
   **2.7.0 "detached mode"**: the widget opts in by sending `detached: true` on the
   live `chat_turn` payload (not `chat_resume`), the connector runs the agent on a
@@ -204,14 +226,14 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   blocking worker, losing the terminal frame), and the terminal `stream_end` frame
   carries the **full** envelope (`transcript`, `turn_id`, `contract_version`,
   `last_assistant_yaml`, `tags`) so it stands in for the blocking return. The ack's
-  `stop_reason` is the literal `"accepted"` — detect it (or `accepted:true`) +
+  `stop_reason` is the literal `"accepted"` -- detect it (or `accepted:true`) +
   no-transcript as the no-op.
 
-- **`stop_reason` is an Anthropic-native vocabulary — switching the connector's
+- **`stop_reason` is an Anthropic-native vocabulary -- switching the connector's
   LLM provider to OpenAI silently broke it.** The contract's terminal value for a
   normal turn is `"end_turn"` (plus `awaiting_*` / `max_turns` / `error`). The
   AnthropicProvider satisfies this *natively* because Anthropic's own
-  `stop_reason` already returns `"end_turn"` — there is **no normalization layer**
+  `stop_reason` already returns `"end_turn"` -- there is **no normalization layer**
   between provider and contract. So when the box connector was repointed to
   OpenAI (`gpt-4o-mini`), the provider leaked OpenAI's raw chat-completions
   `finish_reason` (`"stop"`, `"length"`, …) straight into `stop_reason`, and a
@@ -221,7 +243,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   contract test `tests/live/chat.live.test.js` T3 asserts `=== "end_turn"` and
   any strict consumer breaks. Fix is in `fsr_playbooks/llm/openai_provider.py`
   (`_contract_stop_reason()`: `stop→end_turn`, `length→max_turns`,
-  `content_filter→error`, empty→`end_turn`) — normalize at the provider so OpenAI
+  `content_filter→error`, empty→`end_turn`) -- normalize at the provider so OpenAI
   emits the same vocabulary Anthropic does. **Lesson: any provider added behind
   this connector must map its native finish/stop tokens onto the contract
   vocabulary; the contract is not provider-agnostic by construction.**
@@ -231,12 +253,12 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   polling the moment it fires `chat_turn` (poll at delay 0), and the connector's
   `chat_turn` does health-check + warmup *before* it writes the new turn's
   `turn_start`. If the first poll wins that race, the feed's "current turn"
-  (scoped to `MAX(turn)`) is still the *completed* prior turn — whose
+  (scoped to `MAX(turn)`) is still the *completed* prior turn -- whose
   `stream_end` reports `done:true` with its transcript. The widget commits that
   old transcript as the new turn and the new turn produces nothing (export
   `sess-ei6esw96`: a "build playbook" turn replayed the prior enrichment, same
   `tool_use` ids, `finalYaml:false`). The widget's own `minTurn = _lastTurn + 1`
-  frame-gate normally drops it — but **`_lastTurn` stays 0 after a history-open**
+  frame-gate normally drops it -- but **`_lastTurn` stays 0 after a history-open**
   (`_replayTurns` rehydrated turns without advancing it), so `minTurn=1` failed
   to exclude turn 1. Fixes, layered:
   - **Connector (root cause):** `chat_poll`/`read_turn_progress` take a
@@ -247,12 +269,12 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
     hang the next poll).
   - **Widget commit guard (defense-in-depth):** latch `_detachedActive` for the
     in-flight detached turn so `_handleTurnResult` treats **any** synchronous
-    return (`!fromPoll`) as an ack and never commits its transcript — only the
+    return (`!fromPoll`) as an ack and never commits its transcript -- only the
     `chat_poll` `stream_end` (tagged `_fromPoll`) may commit; plus an
     `_isStaleReplay` drop of any transcript whose `tool_use` ids are **all**
     already on screen. Set the latch *after* `_startStreaming()` (it calls
     `_stopStreaming`, which clears the flag). NB: the detached `chat_turn`
-    *return itself is clean* (`{accepted:true}`, no transcript) — the leak was
+    *return itself is clean* (`{accepted:true}`, no transcript) -- the leak was
     the poll feed, not the ack.
 
 - **The other half of the `since_turn` fence: the connector's turn counter must
@@ -261,7 +283,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   safe if the connector's `turn_idx` and the widget's `_lastTurn` advance in
   lockstep. The connector originally derived `turn_idx = MAX(chat_turns.turn) + 1`,
   but a `chat_turns` row is written **only on a `UsageEvent`**. A turn that fails
-  *before* usage — LLM gateway down/502, an error in the prologue — writes a
+  *before* usage -- LLM gateway down/502, an error in the prologue -- writes a
   `turn_start` frame but no `chat_turns` row, so the **next** turn reuses the same
   `turn_idx`. Meanwhile the widget's `_lastTurn` advanced (it committed the failed
   turn's error terminal), so its poll fence (`since_turn = minTurn - 1`) is now one
@@ -269,22 +291,22 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   excludes **every** subsequent live turn forever → `chat_poll` returns
   `turn:null`, empty frames, `done:false`, and the analyst sees no live messages.
   Fix (connector `0.3.134`): derive the next turn from `MAX(turn)` across **both**
-  `chat_turns` AND `turn_progress` (`Storage.next_turn_idx()`) — `turn_progress`
+  `chat_turns` AND `turn_progress` (`Storage.next_turn_idx()`) -- `turn_progress`
   gets a `turn_start` row for every turn, so the counter increments
   unconditionally. Lesson: never key a monotonic turn counter off a table written
   conditionally (usage/success-gated); key it off one written for every turn.
   Diagnostic fingerprint in a bug report: a `chat_poll` request with `since_turn:N`
   where the connector returns `turn:null` (it has no turn > N).
 
-- **Classifying a poll error: never match the bare operation name — a transient
+- **Classifying a poll error: never match the bare operation name -- a transient
   transport blip echoes it.** The `chat_poll` `.catch` must decide "connector
   can't stream this op" (stand the loop down, show "Streaming this build is
   unavailable… Please retry.") vs. "transient blip" (reschedule the same cursor).
   The original test matched `/chat_poll|unknown operation|…/` against
-  `JSON.stringify(err)` — but a rejected `$http` error carries `config.data`,
+  `JSON.stringify(err)` -- but a rejected `$http` error carries `config.data`,
   which still holds `operation:'chat_poll'`. So an intermittent upstream **502 /
   `ERR_EMPTY_RESPONSE`** (common on the forticloud→OpenAI gateway path) matched the
-  bare token and **stranded the turn with a dead banner — the source of the
+  bare token and **stranded the turn with a dead banner -- the source of the
   "sometimes the widget just errors" inconsistency**. Same scenario, run twice:
   once 3 tool calls + answer, once dead banner + 0 tool calls. Fix
   (`view.controller.js` `_pollOnce.catch`): treat `status <= 0 || status >= 500`
@@ -301,7 +323,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   routed through the connector's `SuspendedSession` gate ends the turn with
   `stop_reason:"approval_required"` and an `approval_request` transcript event.
   That event carries `{approval_id, tool, tier, preview:{tool,args}, args_hash,
-  summary, requires_step_up}` — **no top-level `args` field**. Two traps:
+  summary, requires_step_up}` -- **no top-level `args` field**. Two traps:
   (1) Rendering `ar.args` in the dialog always shows an empty `{}` (the field
   doesn't exist); show `ar.summary`, falling back to a non-empty `ar.preview.args`
   or a plain explanation. (2) The connector's `chat_resume` pops the suspended
@@ -311,52 +333,52 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   runs, no playbook is created, and the turn dead-ends ("stuck after Approve").
   Always send `approval_id` on the resume payload. (`preview.args` for
   `push_playbook` is itself `{}` because the compiled YAML isn't echoed into the
-  preview — the full args live server-side in the `SuspendedSession`.) This is
+  preview -- the full args live server-side in the `SuspendedSession`.) This is
   distinct from the `action_card` path, which resumes by `card_id`.
 
 - **A detached turn commits ONLY via the poll terminal, so EVERY poll-teardown
-  path must guarantee `viewState` leaves `'sending'` — else the composer hangs on
+  path must guarantee `viewState` leaves `'sending'` -- else the composer hangs on
   the typing bubbles.** In detached mode the `chat_turn` ack carries no
   transcript, so the turn is committed exclusively by the `chat_poll` `stream_end`
   frame (`_fromPoll`). Each way `_pollOnce` can call `_stopStreaming()` *without*
   committing then strands `viewState==='sending'` forever (ng-if of the
-  `typing-indicator`) — the exact "click Build playbook → just see the chat
+  `typing-indicator`) -- the exact "click Build playbook → just see the chat
   bubbles" report. The four strand paths and the fix (`_settleDetachedIfStranded`,
   a single chokepoint that degrade-commits the streamed `s.frames` as an
-  `end_turn`, or surfaces an error — no-op once committed or in non-detached mode
+  `end_turn`, or surfaces an error -- no-op once committed or in non-detached mode
   where the blocking return is still authoritative):
-  - **Signal-only terminal** — `stream_end` with `done:true` but **no transcript**
+  - **Signal-only terminal** -- `stream_end` with `done:true` but **no transcript**
     (`_absorbPoll`'s "defer to chat_turn return" branch). In detached mode there
     *is* no blocking return to defer to → settle (degrade-commit the frames).
-  - **Lost producer / never-terminal** — `chat_poll` is unreachable or `done`
+  - **Lost producer / never-terminal** -- `chat_poll` is unreachable or `done`
     never flips, so the loop polls forever. The connector's own lost-producer
     guard (writes an error terminal after `STREAM_TIMEOUT_SECS=300`) doesn't help
     if `chat_poll` itself is down. Add a widget wall-clock watchdog
     (`DETACHED_WATCHDOG_MS`, default 6 min, `config.detachedTimeoutMs` override)
     that settles with an error past the cap.
-  - **Capability gate / unknown-op** — `chat_poll` answers below `STREAM_MIN_CONTRACT`
+  - **Capability gate / unknown-op** -- `chat_poll` answers below `STREAM_MIN_CONTRACT`
     or rejects as an unknown op. The old code set `s.supported=false` and "degraded
-    to the blocking response" — but a *detached* turn has no blocking response, so
+    to the blocking response" -- but a *detached* turn has no blocking response, so
     that degrade silently hung. Settle with an error.
-  - **Render throw during commit** — if `_appendAssistantMessage`/`buildAssistantMessage`
-    throws (e.g. a `tool_result` with `null` content — `JSON.stringify(undefined)`
+  - **Render throw during commit** -- if `_appendAssistantMessage`/`buildAssistantMessage`
+    throws (e.g. a `tool_result` with `null` content -- `JSON.stringify(undefined)`
     returns `undefined`, then `.length` throws), the poll `.then` rejects into a
     `.catch` that sees the stream already stopped and bails → strand. Hardened the
     renderer to coerce `tool_result` content to a string, and the settle helper is
     wrapped in try/catch that forces an error state as a last resort.
   Mock-mode turns are synchronous (return the full transcript inline, write no
-  feed) so **none of the mock e2e specs exercise this path** — the live detached
+  feed) so **none of the mock e2e specs exercise this path** -- the live detached
   poll loop had zero frontend coverage. Probe it by forcing `?mode=live` and
   `page.route`-stubbing the connector HTTP layer (`POST /api/integration/execute/`,
   `GET /api/integration/connectors/`) to script the detached contract: ack →
   `turn_start` → frames → terminal. See `fortiaiAgenticAssistant.liveDetached.spec.js`.
   Two gotchas building that probe: Playwright **regex** route patterns match here
   where `**/…` glob strings silently don't; and the `__fortiaiAgenticAssistant__` test
-  probe was previously exposed only in mock mode — broadened to any harness
+  probe was previously exposed only in mock mode -- broadened to any harness
   (localhost) mount so live-path state is introspectable.
 
 - **The build-vs-triage UI mode is NOT on the wire, so a refresh-rehydrate must
-  RECONSTRUCT it from the transcript — otherwise an already-built playbook comes
+  RECONSTRUCT it from the transcript -- otherwise an already-built playbook comes
   back hidden.** `chat_history` returns only `{user}` / `{transcript}` turns; the
   `uiIntent` the analyst was in (and `currentYaml`, `playbookLink`) is pure client
   state that a reload drops. On a record-mounted drawer `uiIntent` defaults to
@@ -370,14 +392,14 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   - **Scan ALL assistant turns for the last `​```yaml` fence, not just the last
     transcript.** A later push/confirm turn carries no fence, so the old
     `_extractYaml(_lastTranscript())` missed an earlier draft. Worse,
-    `_lastTranscript()` mapped committed text events to `{text: e.display}` — but
+    `_lastTranscript()` mapped committed text events to `{text: e.display}` -- but
     committed text events store the body on **`.text`** (`{type:'text', text}`),
     so `.display` was `undefined` and YAML never restored at all on reload. Read
     `ev.text` off the committed events directly and `_lastTranscript()` is gone.
   - **Restore `playbookLink`/`playbookName` from a persisted `playbook_pushed`
     `info_card`.** The offer-accept path (`_resume_playbook_offer_accept`)
     persists that card (with a `kind:'link'` block) into the transcript, so the
-    "Open in Playbook Designer" link survives a refresh — but the *client* push
+    "Open in Playbook Designer" link survives a refresh -- but the *client* push
     path (`pushPlaybook` → `_appendSystemMessage`) only writes a live system
     message that is NOT persisted, so that link is still lost on reload (would
     need a connector-side transcript-persist on `push_playbook` to fix durably).
@@ -386,22 +408,22 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
     plain triage session (no YAML) correctly stays in triage. Drive the path in
     e2e via the test-only `__fortiaiAgenticAssistant__.replayTurns(turns)` probe
     (`fortiaiAgenticAssistant.rehydrateBuild.spec.js`); note `link` is a real
-    `normalizeBlocks` kind — the render-pipeline fixture validator's `BLOCK_KINDS`
+    `normalizeBlocks` kind -- the render-pipeline fixture validator's `BLOCK_KINDS`
     set was missing it.
 
 - **A `$scope` field that both selects a UI mode AND is sent on the wire cannot
-  safely take a third value — keep persona/mode *framing* signals separate from
+  safely take a third value -- keep persona/mode *framing* signals separate from
   the payload-bound `intent`.** `fortiaiAgenticAssistant`'s `uiIntent` doubles as
   the layout selector (`triage`/`build`) and the chat_turn `intent` field, which
   the connector's `_resolve_intent` only understands as `triage|build` (anything
   else falls through to `build` → the wrong toolset). So making the drawer
   **persona-aware** (a module with a Key Store `fsr_assistant_profile:<module>`
-  persona should drop SOC-triage framing — greeting, "Investigate this case"
+  persona should drop SOC-triage framing -- greeting, "Investigate this case"
   deck, "Build playbook" handoff, "Paste the FortiSOC summary" placeholder) must
   NOT introduce a `uiIntent === 'author'`. Instead a *separate* `$scope.personaUi`
   signal drives the framing helpers (`_entityHeadline`, `composerPlaceholder`,
   `showPersonaQuickActions`, and a `personaUi`-guard on `showQuickActions` /
-  `canBuildFromTriage`), leaving `uiIntent` at `triage` on the wire — the
+  `canBuildFromTriage`), leaving `uiIntent` at `triage` on the wire -- the
   connector already narrows tools by `entity.module` server-side regardless of
   intent. Resolution is `fsrPbAgentService.resolvePersona(cfg, module)`: a direct
   `/api/3/keys?key=fsr_assistant_profile:<module>` read first, falling back to the
@@ -410,24 +432,24 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   triage default, byte-unchanged. Persona resolution is chained BEFORE the seed
   in the init flow (`_personaReady`) and re-run when the module changes
   (`_reseedForCurrentEntity`) so the greeting card never flashes SOC voice then
-  re-labels. An `ui` block is optional — a persona record with none still gets a
+  re-labels. An `ui` block is optional -- a persona record with none still gets a
   neutral "Working on …" framing (best-effort). See
   `persona.resolve.service.test.js`, `persona.framing.controller.test.js`,
   `personaFraming.spec.js`, and fixture `persona_ztpf_author.json`.
 
 - **EVERY SOC-voiced label the drawer can show while a persona is active must go
-  through a persona-aware helper — the empty-hero and the build-hint were the
+  through a persona-aware helper -- the empty-hero and the build-hint were the
   easily-missed ones.** The deck / handoff / placeholder are gated off or
   overridden under a persona, but `heroHeading`/`heroSub` (the `empty-hero` card,
   shown when `!messages.length`, e.g. `seedFromEntity:false`) and the build-hint
-  sub were hardcoded SOC copy ("Triaging …", "containment actions — block,
+  sub were hardcoded SOC copy ("Triaging …", "containment actions -- block,
   isolate, disable", "paste a FortiSOC summary") that leaked over a non-SOC
   record. Fix: `heroHeading` routes through `_entityHeadline` (greeting → neutral
   "Working on …" → SOC "Triaging …"); `heroSub` and `buildHintSub` follow the
   same three-tier pattern as `composerPlaceholder` (persona override →
   neutral persona line → SOC default), reading `ui.subtitle` / `ui.buildHint`.
 - **The persona `ui` object is WHITELISTED in `fsrPbAgent.service.js`
-  `_personaFromUi` — a field the controller reads but the shaper doesn't copy is
+  `_personaFromUi` -- a field the controller reads but the shaper doesn't copy is
   silently dropped, so its override never fires.** `pullLabel`/`pullHint` were
   read by `pageDetailsLabel`/`pageDetailsTitle` but missing from the whitelist,
   so a Key Store persona could never actually override the pull-context button
@@ -438,7 +460,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   `label, greeting, subtitle, placeholder, pullLabel, pullHint, buildHint,
   quickActions, footer` (`footer` is defined but not yet consumed).
 
-- **The hand-rolled `renderMarkdown` mishandles nested + loose ordered lists —
+- **The hand-rolled `renderMarkdown` mishandles nested + loose ordered lists --
   they renumber `1,2,1,2` instead of `1,2,3`.** The list block used to gather
   only *consecutive* list-marker lines into one `<ol>`/`<ul>`, decide ordered-vs-
   unordered from the FIRST line, and let the browser number `<li>`s via CSS. Two
@@ -446,7 +468,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   with blank lines between steps: (a) the indented `-` sub-bullet matches the
   marker regex, so it's swept into the step's `<ol>` as a sibling `<li>` (no
   nesting) and (b) the blank line between steps ends the run, starting a fresh
-  `<ol>` back at 1 — net `1,2,1,2,1,2`. Fix (`view.controller.js` `_mdParseList`):
+  `<ol>` back at 1 -- net `1,2,1,2,1,2`. Fix (`view.controller.js` `_mdParseList`):
   parse the list block indentation-aware (a strictly-more-indented item opens a
   nested list under the current item) and loose-list-aware (a blank line followed
   by another item at ≥ the base indent keeps ONE list, so numbering stays
@@ -454,7 +476,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   `markdown.render.test.js` (loose stays one `<ol>`; nested nests; wrapped joins).
 
 - **The entity summary (seed) card silently fails to render under three race/IO
-  conditions — over a *real* record the analyst sees the entity-aware hero
+  conditions -- over a *real* record the analyst sees the entity-aware hero
   ("Triaging incident…") but NO summary card and a dead chat.** The seed is
   pushed once, gated on `messages.length === 0`, from the init flow (after a
   bounded `_resolveEntityContextWithRetry`, ~2 s) or a `popupOpened` /
@@ -463,7 +485,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
     record-detail page *after* the 2 s init retry gave up and no further
     navigation event fires, neither reseed path runs. Fix: a `$watch` on
     `entityContext.iri` that seeds whenever an entity is present and the timeline
-    is still empty — the durable backstop that doesn't depend on event timing.
+    is still empty -- the durable backstop that doesn't depend on event timing.
   - **A non-record HTTP body clobbers the `{@id}` stub.** `_resolveEntityRecord`'s
     fallback `GET <iri>?$relationships=true` adopted `resp.data` unconditionally;
     a proxy error page / 200-with-junk overwrote the stub so the card render
@@ -478,64 +500,64 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
     (watch the resolved value, not the event) and must degrade to a stub card
     rather than rendering nothing.
 
-- **That auto-seed `$watch` then SUPPRESSED the opener — fast entity ⇒ seed card
+- **That auto-seed `$watch` then SUPPRESSED the opener -- fast entity ⇒ seed card
   ⇒ init bails ⇒ no opening `chat_turn`, dead chat.** The init `$timeout` was
   guarded `if ($scope.messages.length > 0) return;` (meant to skip when a session
   is already rehydrated). But the seed backstop above fires the `$watch` *first*
   when the entity is immediately available (a drawer mount, or an injected
-  `__fsrPbEntity__` in e2e), pushing the summary card before init runs — so
+  `__fsrPbEntity__` in e2e), pushing the summary card before init runs -- so
   `messages.length === 1` and the block bails, skipping `chat_history` **and**
   `_runOpener()`. Over a real record you then see the seed card but the opener
   turn (empty-`messages[]` `chat_turn` that surfaces "Immediate action vs Build
   playbook") never fires: `lastPayload` stays null, no `action_card`. At mount the
   *only* thing that can have populated `messages` is the seed card (history loads
   *inside* this block), so the count-based guard is wrong. Fix: gate on a real
-  (non-seed) message instead — the seed push tags its message `_seeded: true`:
+  (non-seed) message instead -- the seed push tags its message `_seeded: true`:
   `if ($scope.messages.some(m => !m._seeded)) return;`. A lone seed card now lets
   init proceed; `_seedFromEntity`'s own `messages.length`/`_seedInFlight` latch
   prevents a double card, and `_shouldRunOpener()` still gates the opener.
   Covered by `fortiaiAgenticAssistant.incident.spec.js` ("seeds the record summary, runs
   intel hops, …", `&opener=1`).
 
-- **`info_card`, `ioc_card`, and `status_card` are ONE render family — don't
+- **`info_card`, `ioc_card`, and `status_card` are ONE render family -- don't
   gate acceptance on which name the connector emitted.** `fsrPbRender.js`
   renders all three through the same `normalizeInfoCard` path
   (`ev.type === 'status_card' || 'info_card' || 'ioc_card'`), and the connector
   normalizes an IOC-consolidation deliverable to an `info_card`
-  (variant `ioc_enrichment`) — so an enrichment/hunt turn may surface as either
+  (variant `ioc_enrichment`) -- so an enrichment/hunt turn may surface as either
   frame name interchangeably. The live-matrix eval (`tests/live/lib/matrixDriver.js`)
   therefore canonicalizes `ioc_card → info_card` (`CARD_ALIAS`) before the
   expected-card match, so a scenario expecting `info_card` isn't FAILed by a
   correct run that emitted `ioc_card` (and vice versa). `status_card` is
-  deliberately NOT folded in — it's a connector-health card, a distinct
+  deliberately NOT folded in -- it's a connector-health card, a distinct
   deliverable. Any new consumer that matches card frame types literally has the
   same latent bug: match the render family, not the frame name.
 
 - **A widget-driven tool surface reaches framework MCP tools through
-  `call_mcp_tool`, NOT the agent tool registry — and the two registries are
+  `call_mcp_tool`, NOT the agent tool registry -- and the two registries are
   different.** The C3 debug/authoring surfaces (per-step Verify, debug session,
   "Diagnose & fix") call framework tools directly (`fsrPbAgentService` →
   `_executeReal('call_mcp_tool', {tool, args})`) instead of going through the
   chat loop. The catch: `analyze_playbook`, `suggest_fix_for_diagnostic`,
   `step_test`, `start_debug_session`, … are `@mcp.tool()`-decorated but are
   **not** in the framework's `SAFE_TOOLS`/`TOOL_TIERS` (`fsr_playbooks/llm/tools.py`),
-  so the *agent* can't call them — they're advertised to no LLM. They're only
+  so the *agent* can't call them -- they're advertised to no LLM. They're only
   reachable because the connector's `call_mcp_tool` builds its registry
   (`operations._get_mcp_registry`) from a fixed set of tool-module suffixes
   (`tools_triage/discovery/execution/emit`, plus `fsr_soc_triage.tools_ztpf`) **and**
   a fallback that harvests every tool registered on the shared FastMCP
   `_tool_manager._tools`. So to expose a NEW framework tool to a widget panel you
-  need neither a SAFE_TOOLS entry nor a tier — just ensure its module is imported
+  need neither a SAFE_TOOLS entry nor a tier -- just ensure its module is imported
   (the `@mcp.tool()` decorator registers it on the shared `mcp`) so the fallback
   picks it up; then call it by name via `call_mcp_tool`. This is why the
-  Diagnose & fix panel needed **zero** framework/connector ship — `analyze_playbook`
+  Diagnose & fix panel needed **zero** framework/connector ship -- `analyze_playbook`
   + `suggest_fix_for_diagnostic` were already registered and callable. Conversely,
   a tier-3 WRITE (create_record/update_record) is deliberately kept OUT of
   `call_mcp_tool` (it bypasses the approval-card machinery) and stays agent-only.
 
 - **Value-level patches apply client-side only when the `before` literal is
   unique.** `suggest_fix_for_diagnostic` returns `{step_id, location, before,
-  after, …}` — a value-level edit, not whole-YAML like `validate_yaml`'s
+  after, …}` -- a value-level edit, not whole-YAML like `validate_yaml`'s
   `corrected_yaml`. The Diagnose & fix panel one-click-applies a patch by a plain
   `String.replace(before, after)` on the YAML pane, which is only safe when
   `before` occurs **exactly once** (`applyValuePatch` re-checks uniqueness at
@@ -549,41 +571,41 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
 - **Chat history shows the current viewer, not the real author/time.** The
   connector runs under the FortiSOAR **service account**, so it cannot derive who
   is chatting. If the widget doesn't send the acting user, `chat_history` replays
-  each user turn as just `{user: "<text>"}` — and the widget then fills the author
+  each user turn as just `{user: "<text>"}` -- and the widget then fills the author
   with `$scope.initiator` (the *current* viewer) and the timestamp with
   `Date.now()`. So reopening a chat someone else started shows *you*, *now*. Fix
   spans both sides: the widget stamps `actor: {name, iri}` (the current SOAR user
   from `usersService.getCurrentUser`) onto every user-originated call in
   `_withMode`; the connector persists it per user turn (`append_transcript_user`
   `author=`) and once per session (`set_session_initiator`, first-writer-wins),
-  and returns `author` + the original `created_at` as `ts` (epoch **seconds** —
+  and returns `author` + the original `created_at` as `ts` (epoch **seconds** --
   the widget ×1000 for its ms message clock) on `chat_history` turns, plus a
   session `initiator`. On replay `_appendUserMessage(text, {author, ts})` renders
   the stored values; live sends still default to the current user + now. The
-  change is **additive/back-compatible** — an old connector omits the fields and
-  the widget falls back — so **don't** bump the contract version for it (that
+  change is **additive/back-compatible** -- an old connector omits the fields and
+  the widget falls back -- so **don't** bump the contract version for it (that
   would false-trigger the minor-drift banner on older connectors). Existing chats
   can't be back-filled for author (never stored); timestamps can (already stored).
 
 - **Record-scope the chat session, or a drawer shows the WRONG record's chat.**
   A drawer stays mounted across UI-Router state changes (§18.4), so a chat session
   persisted under an intent-only `localStorage` key (`fsrPbSession:triage`) is
-  shared by every record — opening the widget on alert B rehydrates alert A's last
+  shared by every record -- opening the widget on alert B rehydrates alert A's last
   conversation. Fix: key the *triage* session by the host record IRI
   (`fsrPbSession:triage:<iri>`; `_sessionKey`), and make the `entityContext.iri`
   `$watch` the single authority that re-points `_sessionId` to the new record's own
-  thread whenever the record changes — `_switchSessionForEntity` (mint-or-rehydrate
+  thread whenever the record changes -- `_switchSessionForEntity` (mint-or-rehydrate
   + reset the stream fence like `newConversation`). Three non-obvious pins:
   (1) the host record is **not** reliably on `$state` at controller construction
-  (§18.6 init re-detect), so the construction-time `_sessionId` may be un-scoped —
+  (§18.6 init re-detect), so the construction-time `_sessionId` may be un-scoped --
   the `$watch` re-points it once the record settles, and a **superseded-load guard**
   (`if (_sessionId !== _capturedSession) return;` in every `chatHistory().then`)
   stops a stale load from replaying the previous record's thread over the current
-  one. (2) **Exempt the playbook designer / build mode** — its entity is the open
+  one. (2) **Exempt the playbook designer / build mode** -- its entity is the open
   playbook (a `workflows` IRI), one designer thread that must never be re-pointed by
   an entity change (gate on `uiIntent==='build' || inPlaybookEditor || module==='workflows'`).
   (3) Only adopt the legacy un-namespaced `fsrPbSession` key for the *un-scoped*
-  triage bucket — adopting it onto a specific record re-introduces the bleed.
+  triage bucket -- adopting it onto a specific record re-introduces the bleed.
   Off-record (dashboard / list) keeps the bare `fsrPbSession:triage` bucket.
 
 ### 18.7 Driving a drawer widget live in Playwright on 8.0 (WAF box)
@@ -600,7 +622,7 @@ box behind FortiGuard inline IPS (learned driving box 159; fixes in
   `/auth/authenticate` works in node; plain `curl` gets 405 on UA) but **not** for
   the browser UI login. 8.0's button label is **"Sign In"** (not "Login").
 - **8.0 renders multiple drawer icons; open yours by title.** The right-edge
-  drawer toggles are `img.logo-sm[title="…"]` — a record shows the native "AI
+  drawer toggles are `img.logo-sm[title="…"]` -- a record shows the native "AI
   Assistant", "Playbook Developer Assistant", and your widget's title all at once.
   A blind `.sub-block` click-loop opens the wrong drawer and the composer never
   mounts. Target `img.logo-sm[title="<widget title>"]` first, fall back to the
@@ -609,34 +631,34 @@ box behind FortiGuard inline IPS (learned driving box 159; fixes in
 ### 18.8 Mounting a drawer on a NON-record surface (live, 8.0)
 
 Verified against a live 8.0 box. The drawer is **persistent across navigation**,
-so *where* it was opened decides the entity context the backend sees — which is
+so *where* it was opened decides the entity context the backend sees -- which is
 what makes these paths test-relevant, not cosmetic.
 
-- **The drawer icon is in the DOM on EVERY page — but hidden where `enableFor`
+- **The drawer icon is in the DOM on EVERY page -- but hidden where `enableFor`
   doesn't match.** This is §18.4's `drawerVisibility` toggle seen from the test
   side: `csDrawerWidgetGroup` flips visibility on `$stateChangeSuccess` when
-  `$state.current.name` isn't in `metadata.view.enableFor` — it does **not**
+  `$state.current.name` isn't in `metadata.view.enableFor` -- it does **not**
   remove the icon. So `img.logo-sm[title="…"]` is present for every installed
   drawer widget on every route, and on a non-`enableFor` route it is simply
   **not visible** (`boundingBox()` → `null`, `isVisible()` → false).
   A real click times out and the composer never mounts, which surfaces as a
-  generic "composer not found" and reads like a widget bug — when the widget is
+  generic "composer not found" and reads like a widget bug -- when the widget is
   simply **not available on that route**. Waiting longer or click-looping can
   never fix it. `fortiaiAgenticAssistant`'s states are
-  `["main.modules.list", "viewPanel.modulesDetail", "main.playbookDetail"]` —
+  `["main.modules.list", "viewPanel.modulesDetail", "main.playbookDetail"]` --
   i.e. module list, record detail, playbook designer. **There is no dashboard
   mount.**
-  - **Corollary — don't hand-verify a mount with devtools `element.click()`.**
+  - **Corollary -- don't hand-verify a mount with devtools `element.click()`.**
     A synthetic DOM click *does* fire on the hidden icon and the drawer *does*
     open, so the mount looks fine by hand and fails under Playwright. Only a real
     click (or an `isVisible()` check) tells the truth. This cost a full debug
     cycle: the dashboard "worked" in devtools and failed every automated run.
 - **The drawer renders on `/not-found` too.** A wrong mount path still shows the
-  drawer icons, still opens a composer, and the chat turn still runs — just with
+  drawer icons, still opens a composer, and the chat turn still runs -- just with
   **no entity context**. A broken mount therefore reads as a *passing* test. The
   SPA rewrites a bad route to `/not-found`, so assert on `location.pathname`
   after navigating and fail loudly (`lib/liveUiDriver.ts` `goto()` throws).
-- **A bare `/dashboard` 404s** — the dashboard requires its uuid:
+- **A bare `/dashboard` 404s** -- the dashboard requires its uuid:
   `/dashboard?module=<dashboard-uuid>`. (Moot for this widget per `enableFor`
   above, but true of the route.)
 - **Playbook designer** is `/playbooks/<workflow-collection-uuid>`, not
@@ -645,7 +667,7 @@ what makes these paths test-relevant, not cosmetic.
   `/modules/view-panel/<module>/<uuid>?previousState=…`. Both the original and
   rewritten form work, so match on the module+uuid, not the whole path.
 - **Seeding a stale entity on purpose:** open the drawer on record A, then
-  navigate to surface B — the drawer carries A's entity into B. That is the
+  navigate to surface B -- the drawer carries A's entity into B. That is the
   repro shape for the D1-class bug (a `keys` record's module leaking into a
   playbook authored in the designer) and is what `openWidgetDrawer`'s
   `visitFirst` option exists for.

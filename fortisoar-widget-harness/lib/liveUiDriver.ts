@@ -1,6 +1,6 @@
 "use strict";
 /**
- * Live FortiSOAR UI driver — repeatable browser automation against the real
+ * Live FortiSOAR UI driver -- repeatable browser automation against the real
  * forticloud demo box (NOT the local harness). Encapsulates the hard-won quirks
  * of driving a deployed FortiSOAR 7.x SPA so other widget tests/scripts don't
  * re-derive them.
@@ -12,10 +12,10 @@
  *    interstitial (FortiGuard Attack ID 20000051) even though authenticated API
  *    POSTs to /api/integration/execute/ pass fine. Presenting a real desktop
  *    Chrome User-Agent (+ Accept-Language) clears the signature. This is why the
- *    UI was historically "un-driveable" on forticloud — it was the WAF, not SSO.
+ *    UI was historically "un-driveable" on forticloud -- it was the WAF, not SSO.
  *  - **csadmin is a LOCAL login, not SSO.** The login form is `#username` +
  *    `#login_password`; submit via `button[type=submit]` / "Login". (verify-remote
- *    couldn't drive *SSO* — but the local admin bypasses SSO entirely.)
+ *    couldn't drive *SSO* -- but the local admin bypasses SSO entirely.)
  *  - **Record deep-links use `/modules/<module>/<uuid>`** (ui-router state
  *    `main.modulesDetail`). A bare `/alerts/<uuid>` silently redirects to the
  *    dashboard.
@@ -40,7 +40,7 @@
 
 import { Page, Response, Browser, BrowserContext } from "@playwright/test";
 import soarEnv = require("./soarEnv");
-// The generic real-SOAR browser session lives in soarBrowser.js — the single
+// The generic real-SOAR browser session lives in soarBrowser.js -- the single
 // source of truth for the desktop-UA / WAF-evasion / login invariants. This
 // module is now the SOC-Assistant-drawer-specific layer ON TOP of it.
 import soarBrowser = require("./soarBrowser");
@@ -102,7 +102,7 @@ interface ChatFeed {
    * Terminal chat_turn/chat_resume RESPONSES, in wire order. A resumed turn
    * answers synchronously in its own response body rather than streaming
    * through chat_poll, so "wait for a poll to report done" never terminates
-   * for an approval — it just burns the whole turn budget and then grades the
+   * for an approval -- it just burns the whole turn budget and then grades the
    * row on the frames it never collected.
    */
   settled: { op: string; stopReason: unknown }[];
@@ -111,7 +111,7 @@ interface ChatFeed {
 /**
  * Attach a chat_poll / chat_turn capture to a page. Returns a `polls` array that
  * fills as the widget polls; each entry is {since, turn, frames, done}. This is
- * the proof surface for "are live messages streaming" — a healthy turn yields
+ * the proof surface for "are live messages streaming" -- a healthy turn yields
  * polls whose `turn` is non-null with frames>0 (the turn-counter desync bug made
  * every poll return turn:null / 0 frames).
  */
@@ -166,7 +166,7 @@ interface SendChatResult {
    * Did the submit demonstrably register? True when a chat_turn/chat_poll
    * request appeared in the feed within the submit-verify window. False means
    * the send silently no-op'd (the ng-model debounce race behind the ~1-in-14
-   * "no turn captured" flake) — the caller should treat the row as a drive
+   * "no turn captured" flake) -- the caller should treat the row as a drive
    * error, not a bad agent verdict. Deliberately NOT auto-retried here: a
    * resubmit could double-send a turn that was merely slow, so surfacing the
    * false is the contract and the matrix layer fails the row loudly.
@@ -204,7 +204,7 @@ interface ApprovalResult {
   done: boolean;
   /**
    * Set when a card was showing but the decision never registered (no
-   * chat_resume traffic followed the click) — a drive failure, exactly like
+   * chat_resume traffic followed the click) -- a drive failure, exactly like
    * sendChat's submitConfirmed=false, and the caller must not read it as
    * agent behaviour.
    */
@@ -216,7 +216,7 @@ interface OpenWidgetDrawerOpts {
   recordUuid?: string;
   /**
    * Mount the drawer on a NON-record surface (dashboard, playbook designer,
-   * a module list) instead of a record deep-link — e.g. "/dashboards" or
+   * a module list) instead of a record deep-link -- e.g. "/dashboards" or
    * "/playbooks". Mutually sufficient with recordUuid: supply one or the other.
    */
   mountPath?: string;
@@ -261,7 +261,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
   const mod = opts.module || "alerts";
   const base = soarBrowser.baseUrl(soarEnvResult);
   // Record deep-links MUST be /modules/<module>/<uuid> (ui-router
-  // main.modulesDetail) — a bare /alerts/<uuid> silently redirects to the
+  // main.modulesDetail) -- a bare /alerts/<uuid> silently redirects to the
   // dashboard. A caller-supplied mountPath is used verbatim.
   const target = opts.mountPath || `/modules/${mod}/${opts.recordUuid}`;
   const url = (p: string) => (/^https?:\/\//.test(p) ? p : `${base}${p.startsWith("/") ? "" : "/"}${p}`);
@@ -278,15 +278,31 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
 
   const goto = async (p: string): Promise<void> => {
     await page.goto(url(p), { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.waitForTimeout(10000); // record/page + widgets render
+    // WAIT FOR THE CONDITION, not a fixed guess -- same lesson as the composer
+    // wait below, which this line used to violate. A flat waitForTimeout(10000)
+    // is enough for a record page (~4s to icons) but NOT for the playbook
+    // designer: on 8.0 that page has rendered NO drawer icons and not even
+    // resolved `$state` at 10s (measured: logo-sm total=0, state="" at 10.0s;
+    // icons land 12-14s). Sampling once at 10s therefore found no titled icon,
+    // skipped the composer wait entirely, and fell into the blind .sub-block
+    // click-loop -- a DETERMINISTIC "composer not found" on every B-row that
+    // looked like a widget/enableFor bug but was purely this timing.
+    await page
+      .waitForFunction(
+        () => document.querySelectorAll("img.logo-sm").length > 0,
+        undefined,
+        { timeout: 45000 }
+      )
+      .catch(() => { /* fall through -- the caller's own errors are more specific */ });
+    await page.waitForTimeout(1500); // let the icon row settle after first paint
     // FortiSOAR renders the right-edge drawer icons on its /not-found page too,
     // so a bad path (a bare `/dashboard` without ?module=<uuid>, a stale record
-    // uuid) still opens a composer and the turn "works" — with no entity
+    // uuid) still opens a composer and the turn "works" -- with no entity
     // context. That silently turns a broken mount into a green scenario. Fail
     // loudly instead: the SPA rewrites the URL to /not-found on a bad route.
     if (/\/not-found/.test(new URL(page.url()).pathname)) {
       throw new Error(
-        `openWidgetDrawer: "${p}" resolved to /not-found on this box — the drawer would still ` +
+        `openWidgetDrawer: "${p}" resolved to /not-found on this box -- the drawer would still ` +
         `mount (with no entity), so this is failed loudly rather than passing silently. ` +
         `Check the path against the box: a dashboard needs ?module=<uuid>, the playbook ` +
         `designer is /playbooks/<collection-uuid>, records are /modules/<module>/<uuid>.`);
@@ -298,7 +314,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
    * (native "AI Assistant", "Playbook Developer Assistant", plus ours) as
    * `img.logo-sm[title=...]`, so a blind .sub-block click-loop opens the wrong
    * one. Target our widget's icon by its title first; fall back to the
-   * click-loop for older layouts. Idempotent — safe to call after a nav.
+   * click-loop for older layouts. Idempotent -- safe to call after a nav.
    */
   const widgetTitle = opts.widgetTitle || process.env.FSRPB_WIDGET_TITLE || "FortiAI Agentic Assistant";
   const openDrawer = async (): Promise<boolean> => {
@@ -308,15 +324,15 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
     // widget's `metadata.view.enableFor` states don't match the current route
     // (a dashboard is not an enableFor state for a modules/playbook drawer).
     // Present-but-hidden is therefore "not available here", not "slow to mount"
-    // — waiting or click-looping can never fix it. Say so, because the symptom
+    // -- waiting or click-looping can never fix it. Say so, because the symptom
     // otherwise surfaces as a generic "composer not found" and reads like a
     // widget bug. NB: a DOM `element.click()` in devtools DOES fire on the
-    // hidden icon and appears to work, which makes this doubly misleading — only
+    // hidden icon and appears to work, which makes this doubly misleading -- only
     // a real (Playwright) click reveals it.
     if (titledIcon && !(await titledIcon.isVisible())) {
       throw new Error(
         `openWidgetDrawer: the "${widgetTitle}" drawer icon exists but is HIDDEN on this route ` +
-        `(${new URL(page.url()).pathname}) — the widget's metadata.view.enableFor does not cover ` +
+        `(${new URL(page.url()).pathname}) -- the widget's metadata.view.enableFor does not cover ` +
         `this state, so the drawer cannot be opened here. Mount on an enableFor surface instead ` +
         `(module list / record detail / playbook designer).`);
     }
@@ -326,7 +342,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
       // then "if no composer, try the .sub-block loop" is actively harmful: on a
       // slower surface (a dashboard takes ~6s vs a record's ~3s) the composer
       // simply hasn't mounted yet, and the fallback loop then clicks the OTHER
-      // drawer icons — opening the native AI Assistant or toggling ours shut —
+      // drawer icons -- opening the native AI Assistant or toggling ours shut --
       // so a drawer that was opening correctly ends as "composer not found".
       // That is exactly how the P6a dashboard row failed while the same mount
       // worked by hand.
@@ -348,7 +364,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
   };
 
   // `visitFirst` seeds the persistent drawer with ANOTHER page's entity context
-  // before landing on the real target — the only way to drive a stale-entity
+  // before landing on the real target -- the only way to drive a stale-entity
   // (D1-class) scenario, where the drawer must carry page A's entity into
   // page B.
   if (opts.visitFirst) {
@@ -367,17 +383,17 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
      */
     async sendChat(text: string, { timeoutMs = 90000, pollEveryMs = 3000 }: SendChatOpts = {}): Promise<SendChatResult> {
       const composer = await page.$(COMPOSER);
-      if (!composer) throw new Error("composer not found — drawer did not open");
+      if (!composer) throw new Error("composer not found -- drawer did not open");
       const before = feed.polls.length;
 
       await composer.click();
       await composer.type(text, { delay: 15 });
       // Close the no-turn flake at its source: pressing Enter the instant typing
       // finishes can beat Angular's ng-model debounce, so the send handler reads
-      // an empty model and no-ops — the composer keeps the text and no chat_turn
+      // an empty model and no-ops -- the composer keeps the text and no chat_turn
       // fires. Dispatch an explicit input event and let the model settle before
       // submitting. (Enter is the widget's send trigger; do NOT click a
-      // `.composer button` — that matches the "Case context" button too and
+      // `.composer button` -- that matches the "Case context" button too and
       // would inject context instead of sending.)
       await composer.evaluate((el: HTMLElement) =>
         el.dispatchEvent(new Event("input", { bubbles: true })));
@@ -387,7 +403,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
       // Confirm the submit registered by watching for the turn to actually
       // start (a chat_turn/chat_poll request appears in the feed). This is the
       // unambiguous signal: if no poll fires within the verify window, the send
-      // silently no-op'd (the ng-model debounce race) — report
+      // silently no-op'd (the ng-model debounce race) -- report
       // submitConfirmed=false so the matrix treats it as a drive error rather
       // than a bad agent verdict. (A "composer cleared" heuristic is unreliable:
       // the widget can inject case-context text into the box, so "text changed"
@@ -424,8 +440,8 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
      * turn to finish.
      *
      * Every tier-3 tool (which is every `run_playbook` against a device) stops
-     * the turn at `approval_required`. Everything past that gate — the
-     * playbook's own deliverable, a `manual_input` chain — is unreachable to a
+     * the turn at `approval_required`. Everything past that gate -- the
+     * playbook's own deliverable, a `manual_input` chain -- is unreachable to a
      * driver that only types and presses Enter, so a scenario expecting a
      * post-approval card could never pass no matter how the agent behaved.
      *
@@ -455,7 +471,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
           if (btn) break;
           await page.waitForTimeout(500);
         }
-        if (!btn) break;                       // no (further) gate — normal exit
+        if (!btn) break;                       // no (further) gate -- normal exit
 
         const before = feed.polls.length;
         const sentBefore = feed.sent.length;
@@ -463,7 +479,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
 
         // Same contract as sendChat's submitConfirmed: prove the decision
         // reached the connector rather than trusting the click. Watch the
-        // REQUEST feed, not the poll feed — the click's job is to send
+        // REQUEST feed, not the poll feed -- the click's job is to send
         // chat_resume, and the connector holds that request open for as long as
         // the approved playbook takes to run, so a response-level check reports
         // a slow-but-working approval as "the button did nothing".
@@ -481,7 +497,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
           return {
             approved, polls: feed.polls.slice(startedAt), done,
             driveError: `an approval card was showing but the "${decision}" click never ` +
-              "registered — no resumed-turn traffic followed. A drive/capture failure, " +
+              "registered -- no resumed-turn traffic followed. A drive/capture failure, " +
               "not agent behaviour. Re-run the row.",
           };
         }
@@ -490,7 +506,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<Widget
         // The resumed turn can finish EITHER way: streaming through chat_poll,
         // or synchronously in the chat_resume response body. Watching only the
         // poll feed made an approval that had already answered look like a hung
-        // turn — it burned the full budget and then graded the row on frames it
+        // turn -- it burned the full budget and then graded the row on frames it
         // never collected. Whichever channel reports first wins.
         const settledBefore = feed.settled.length;
         const turnDeadline = Date.now() + timeoutMs;
