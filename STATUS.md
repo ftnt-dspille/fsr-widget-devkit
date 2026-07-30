@@ -12,7 +12,22 @@ file is the index. Update it when a thread changes state; move finished items to
 > "tracked" once it has a **Plan docs** row; anything still owed also gets an
 > **Open / next up** row.
 
-_Last updated: 2026-07-28 (session E). Reorganized the tracker + corrected a
+_Last updated: 2026-07-29. **T1 drawer-mount gap FIXED + LIVE on .159**: the
+assistant only enabled on `viewPanel.modulesDetail`, not `main.modulesDetail`
+(the full-page alert route the GA triage demo + live matrix driver use), so T1
+drove into a "drawer icon exists but is HIDDEN" error before its turn could run.
+Added `main.modulesDetail` to the widget's `enableFor`; shipped
+**fortiaiAgenticAssistant 1.2.47** to .159 via `ship-verify` (all 6 gates green,
+live-sweep passed). Also shipped **e2e flake fixes** (committed `cfbc607`/`2184429`):
+overridable `E2E_BASE_PORT` (kills 14401/14402 port contention between concurrent
+widget runs -- apply to `.ts` **and** `.js`; playwright prefers `.ts`), per-test
+timeout 45s→90s (boot-flake headroom, not retries), `expect.poll` for the B2
+composer refocus race, and a socket-reset retry on the widget-list fetch;
+validated 2 back-to-back full runs 135/135. **Still open**: TB approval-card
+under-emit never re-verified; T1 now mounts but the live matrix hasn't been
+re-run to confirm it goes green. Session E entry below._
+
+_2026-07-28 (session E). Reorganized the tracker + corrected a
 stale row: the two "live-found tool fixes" (`run_op` stringified params, SIEM
 `limit` string crash) are **done and live on .206** -- `run_op` fix is in
 released fw 0.5.7 (pinned by connector 0.5.37, all 9 workers verified on .206),
@@ -45,11 +60,13 @@ tracker reorg; rows below it are the older standing threads._
 
 | Thread | Next action | Blocker | Doc |
 |---|---|---|---|
+| 🟢 **T1 drawer-mount gap FIXED + LIVE on .159 (2026-07-29)** | The assistant enabled only on `viewPanel.modulesDetail` (slide-in view panel), not `main.modulesDetail` (the full-page `/modules/:module/:id` alert route the GA triage demo + live matrix driver deep-link to), so the matrix T1 row hit `liveUiDriver.openWidgetDrawer`'s "drawer icon exists but is HIDDEN" error before the turn ran. Added `main.modulesDetail` to `enableFor` (now `[main.modules.list, viewPanel.modulesDetail, main.modulesDetail, main.playbookDetail]`); shipped **fortiaiAgenticAssistant 1.2.47** to .159 via `ship-verify` (lint→unit 893✓→mock-e2e 135✓→introspect-gate→deploy→live-sweep, all green). **Next**: re-run the live matrix `MATRIX_IDS=T1,TB MATRIX_ENV=.env.159 make test-matrix-live` (RUNS=2, log to a file not `\| tail`) to confirm T1 now mounts+goes green and re-check TB's `approval_request` under-emit (the original "money beat", never re-verified). | none -- fix live; matrix re-run pending | `widgets-src/fortiaiAgenticAssistant/widget/info.json` (gitignored); `lib/liveUiDriver.js` |
+| 🟢 **e2e flake fixes SHIPPED (2026-07-29)** | Three flake classes from the T1 investigation, all fixed + validated (2 back-to-back full runs 135/135). (a) **Port contention** -- concurrent widget e2e runs both bound 14401/14402 → `ERR_CONNECTION_REFUSED`; added overridable `E2E_BASE_PORT` across both playwright configs + `_isolated`/`_widgetId`/`_hermeticTeardown` helpers (⚠️ **must edit `.ts` AND `.js` -- playwright loads `.ts` over `.js`**). (b) **Boot-timeout flakes** -- per-test cap 45s→90s (headroom for single-threaded app-shell boot under parallel load; longer wait, not retries). (c) **B2 composer refocus race** -- single `document.activeElement` read raced the async refocus → `expect.poll`. Plus a socket-reset retry on the widget-list fetch. **Committed** `cfbc607` (port override + retry) / `2184429` (KB: three e2e failure modes that are not widget bugs). | ✅ done | KB `docs/kb/` (three-e2e-failure-modes writeup); `fortisoar-widget-harness/playwright.config.{ts,js}` |
 | 🟢 **GA-demo CONTAINMENT ARC -- FIXED + LIVE-VERIFIED on .206 (2026-07-28)** | ~~The triage→contain demo failed: `find_containment_actions` returned `count:0`, agent emitted a capability_gap card instead of a containment approval.~~ **RESOLVED** by shipping framework **0.5.8** + connector **0.5.45** to .206. Two fixes closed both halves: framework `8d01ff0` (a timed-out/failed warmup healthcheck no longer **caches** an unhealthy verdict that silently deleted the real containment ops -- the health-gate fail-open) + connector `45719ad` (mutating MCP tool → **tier-3 approval card** rather than advisory). **Live-verified** driving "block attacker IP 192.168.22.16 on the FortiGate (block_ip_new)": the agent ran its containment lookup, emitted an **`action_card`** (`id: block-attacker-ip-192.168.22.16`) -- not capability_gap -- and on `chat_resume … approve` returned `executed: True` (real tool_use, not advisory). Money beat is demo-ready. _(Residual, cosmetic: the live-probe read `card.tier`/`card.mutating` as `None` -- wrong key path for the emitted-card schema; wire the literal `tier:"tier3"` assertion into the eval harness with the correct field, not another live turn.)_ | none -- verified | connector `scratchpad/ga_demo_containment_diagnosis.md`; memory `ga_demo_containment_health_gate_drops_ops` |
 | 🟢 **ztpf Z5 scenario -- RESOLVED as a manual-input row (2026-07-28)** | User chose option (a) (retarget to an approval-only source), but a live box investigation proved it **INFEASIBLE**: the only analyst-facing metadata-source record-action playbook, 'Get Metadata Source Data on Device' (`d4f71a01`), contains an **unconditional `InputBased` step** ('pick a manager and device'), so **all 9** sources drive it to `manual_input` -- the gate is intrinsic to the playbook, not the source. No approval-only record-action playbook exists on `ztpf_metadata_sources` on .206 (others are automated `triggerOnSource` triggers, `>` sub-playbooks, or an inactive `#exchange`/alerts playbook). Fell back to (b): `expectedCards`=`manual_input`. Z5 keeps **distinct** coverage vs SKL-MI2 -- `run_playbook` on a record-**bound** source → tier-3 approval gate → approve → playbook then hits its intrinsic `manual_input` (that sequence; SKL-MI2 tests chain resume). | none -- resolved | scenario `_note` in `fortisoar-widget-harness/tests/live/scenarios.local.206.json` (gitignored) |
 | 🟡 **ztpf SKL-MI2 -- stochastic manual-input flake (watch)** | Manual-input-chain scenario graded **2 PASS / 1 FAIL** across the 07-28 RUNS=2 sweep (incl. the network-contaminated run 1's pass) -- a flake in the resume path 0.5.37 touched, not a confirmed defect. Per the stochastic-turn rule, grade the defect not the symptom: if it recurs, do a targeted repro of the manual_input deliverable on that chain. | none -- watch-item | memory `manual_input_chain_resume`; scenario SKL-MI2 |
 | 🟢 **Manual-input FORM renders in the widget -- FIXED + live-verified .206 (conn 0.5.37)** | A record-action `run_playbook` that pauses on a `manual_input` step never showed its fillable form -- the agent only narrated "what value?" and the run sat paused. **Root cause:** `run_playbook` is tier-3 approval-gated, so its `tool_use` is in the PRIOR turn; the resume turn's transcript opens with an ORPHAN `tool_result` whose tool name can't resolve in the current turn, and the `manual_input` card synthesis in `_wire_transcript` was gated on that name → skipped the orphan → no form card. **Fix:** allow an orphan (unknown-name) `tool_result` through to `_manual_input_card_from_awaiting` (self-validates on `code==awaiting_input` + fillable fields); plus a bounded `_pending_input` poll in `_awaiting_or_slow` for form-lag. ✅ **Live-verified .206**: 1-gate + 2-gate → `tool_use→approval_request→tool_result→manual_input→stream_end`, card carries the real fillable fields (`note`/`approver`) wired to the run IRI; connector-level fill→resume drives to `finished`. Repro playbooks seeded via `scripts/seed_manual_input_playbook.py`. ✅ **COMMITTED** `a62b7a7`; 4 regression tests. **Along the way:** .206 was found running the OLD connector **0.5.29** (skills read-path + record-binding fix were never deployed there) → deployed **0.5.34→0.5.37**; this is what actually made skills fire on .206 and fixed `record_required`. | none -- fixed | connector `release_notes.md` 0.5.37; memory `manual_input_chain_resume` |
-| 🟢 **Scheduled Agent Tasks -- LIVE-VERIFIED .159 (conn 0.5.39, widget 1.2.44)** | ✅ **SHIPPED + LIVE-VERIFIED (session G).** Connector: 6 ops + runner-playbook compiler + `storage.scheduled_tasks`. Widget: Scheduled Tasks panel via overflow menu. **Live results**: created "Daily alert review" (cron `0 9 * * 1`), verified `run_scheduled_task_now` triggers workflow, `update_scheduled_task` enable/disable, `get/list_scheduled_tasks`. Shows on monitor dashboard with status/runs/last-run. **The playbook IS the task** (`kwargs` carry only `wf_iri`). | ✅ done | `docs/plans/scheduled-agent-tasks.md` |
+| 🟢 **Scheduled Agent Tasks -- LIVE-VERIFIED .159 (conn 0.5.39, widget 1.2.44)** | ✅ **SHIPPED + LIVE-VERIFIED (session G).** Connector: 6 ops + runner-playbook compiler + `storage.scheduled_tasks`. Widget: Scheduled Tasks panel via overflow menu. **Live results**: created "Daily alert review" (cron `0 9 * * 1`), verified `run_scheduled_task_now` triggers workflow, `update_scheduled_task` enable/disable, `get/list_scheduled_tasks`. Shows on monitor dashboard with status/runs/last-run. **The playbook IS the task** (`kwargs` carry only `wf_iri`). | ✅ done | `docs/plans/DONE/scheduled-agent-tasks.md` |
 | 🟡 **SOC Assistant Monitor v2 -- richer audit, active sessions, interactive dashboard** | User feedback from session G live review: v1 dashboard is **static and dry** -- KPI cards and historical tables, no pivoting. Four gaps: (1) **Audit trail lacks tool-call detail** -- can't see what tools the agent called, what params, what the agent actually did (only aggregate per-turn data). Need per-tool-call rows (`agent_tool_calls` table) + expandable audit rows showing the tool call chain with params/results/cost. (2) **No active sessions visibility** -- want to see what agentic chat sessions are running right now, who, on what record, in-flight tool calls (agent mid-loop), session state (`streaming`/`waiting_approval`/`idle`/`suspended`). (3) **No session audit deep-dive** -- want a timeline view: user prompt → tool call sequence → approvals → final response. (4) **Dashboard not interactive** -- KPI cards are static summaries, need click-to-filter: click a model/user/status filters the audit trail; status pills become filter chips; `shared activeFilters` state object. **Phase 1 + 2 + 3 + 4 ALL IMPLEMENTED + LIVE-VERIFIED .206 + .159 (conn 0.5.47, widget 1.0.7)**: Phase 2 = `chat_sessions` table + `list_active_sessions` op deriving status at read time from `turn_progress`/`suspended_sessions` (no stored status column; `/api/3/llm_activity_logs` not involved -- connector-store-only per user) + widget "Sessions" tab with status pips / open-in-chat. Phase 1 = `agent_tool_calls` table (FK→`agent_usage.id`, cascade) + per-tool-call capture in `chat_turn`'s `_on_event` (buffer ToolUse/ToolResult frames by `call_id`, flush+clear at each `UsageEvent` so each round-trip's calls attribute to that round-trip's audit row; `_tool_result_status`/`_summarize_result` helpers) + `list_agent_usage` nests `tool_call_detail` (one batched fetch) + widget expandable audit rows (▸/▾ toggle, tool-count badge, sub-table: #, name, status, latency, params `<pre>`, result). Per-call tokens/cost intentionally omitted (framework reports totals per round-trip, not per call). Tests: 14 storage + 14 widget + e2e smoke all green. Phase 3 = enriched `agent_usage` (`agent_thinking` + `approvals_count` + populated `response` from buffered TextEvent/ApprovalRequestEvent frames; additive ALTER migration; no new table needed) + widget Turn Detail overlay (prompt, thinking, tool chain, approvals, response) + cost-over-time chart fix (hourly fallback when daily=1 bucket, single-bucket flat line). Phase 4 = shared `activeFilters` state + click-to-filter on KPI cards, status badges, user rows, intent badges + filter chip bar with clear + `loadAudit` passes filters to the connector op. **All v2 follow-ups done.** Two post-deploy bug fixes (session H): (a) `nonlocal _approval_count` in `_on_event` closure -- `UnboundLocalError` silently swallowed by `try/except: pass` killed `agent_usage` writes for all turns after 0.5.47 deploy; (b) `users()` caching -- infinite `$rootScope:infdig` with live data (new array per call). Live e2e spec added (`socAssistantMonitor.live.spec.js`). | ✅ all live-verified .206 + .159 | `docs/plans/soc-assistant-monitor.md` §10 (v2 follow-ups) |
 | 🟢 **SOC Assistant Monitor v1 -- SHIPPED + LIVE-VERIFIED .159 (conn 0.5.39, widget 1.0.4)** | ✅ **SHIPPED + LIVE-VERIFIED (session G).** Connector: 4 monitor ops + `storage.agent_usage` + `log_llm_activity()` dual-write. Widget: glassy KPI cards, SVG sparklines, gradient area chart, segmented tabs, polished tables. **Live results**: 3 turns seeded, 16.6k tokens, $0.0038 cost, 3 pending HITL, 1 scheduled task; audit trail (3 entries), scheduled tab; all 10 ops green. Dashboard at `/?qid=80d9d1fc...`. | ✅ done | `docs/plans/soc-assistant-monitor.md` |
 | ~~Run-vs-author mis-routing -- live-verify on .206~~ | **LIVE-PROVEN on .206 2026-07-28 (conn 0.5.37, gpt-4.1-mini -- the model that was 0/3).** Build-intent turns mounted on a ztpf_devices record (FG1): (a) invented name + (b) the exact `d1c6684` step-label mis-route ("Create Next SingleLo Interface") both route to `run_playbook` and get refused pre-card with `unknown_playbook` + the REAL candidate list -- no fabricated YAML, no authoring tool (`verify/validate/compile`) touched, on both gpt-4.1-mini AND gpt-4o; (c) a resolving name ("Synch Device DVMDB info from FMG") → `run_playbook` → `approval_request`, `stop=approval_required` (gated, not executed) -- Lever 1 through the tier gate exactly per the grading note. Probe: `$CLAUDE_JOB_DIR/tmp/run_vs_author_probe.py`. Caveat: 1 run per model, not 2/2 same-model -- but the refusal is deterministic (pre-card validator), not model-judgment. | -- | memory `run_vs_author_misrouting_levers`; connector `operations.py:2363` (`_run_mode_active`) |
@@ -156,31 +173,48 @@ with this repo's nested `fortisoar-widget-harness/`._
 
 ## Plan docs (canonical detail)
 
-> _Index audited 2026-07-22, re-audited 2026-07-27. Every plan doc across the
-> three repos is listed below; previously this section covered only the
-> harness/widget-src ones, so `docs/plans/` and the framework/connector repos
-> were invisible from here. The 07-27 pass added the three plans written since
-> (state-derived, assistant-skills, connector-install-wizard) -- `docs/plans/`
-> and this table are now 1:1, so a new plan is only "tracked" once it has a row._
+> _Index audited 2026-07-22, re-audited 2026-07-27, reorganized 2026-07-29.
+> Master plan index: `docs/plans/INDEX.md`._
 
-### `docs/plans/` -- this repo (the active workstreams)
+### `docs/plans/` -- active
 
 | plan | state |
 |---|---|
-| `scheduled-agent-tasks.md` | 🟢 **2026-07-27, implemented + shipped** -- recurring agent tasks inside `fortiaiAgenticAssistant`. Platform-verified on .159: scheduler = django-celery-beat `/api/wf/api/scheduled/`, `id` rotates (key by `name`), `kwargs` carries only `wf_iri` → **playbook IS the task** (one generated runner + one schedule row per task). Connector already reaches `/api/wf/` via crudhub. **Shipped**: conn 0.5.36 (6 ops + runner-playbook compiler), widget 1.2.44 (Scheduled Tasks panel). |
-| `soc-assistant-monitor.md` | 🟢 **V1 SHIPPED+LIVE (2026-07-27)**. 🟡 **V2 follow-ups: richer audit, active sessions, interactive dashboard.** See Open row. |
-| `state-derived-intent-and-tool-slicing.md` | 🔵 **most active** -- Phase 0/2 + M1/M3 SHIPPED & live-proven on 159; **Phase 1, Phase 3, M2 widget-tier open**. Supersedes 4f follow-up #2 |
-| `assistant-skills-learned-house-rules.md` | 🟢 **2026-07-27, LIVE-PROVEN on .159** (conn 0.5.34 / fw 0.5.7) -- `assistant_skills` custom module; ⚠️ code **uncommitted**; **.206 ztpf rollout deferred** by the user. ⚠️ The plan's "Remaining work (box DATA)" section predates the .159 proof -- steps 1/2 are done there, and it still reads as if nothing is deployed |
-| `connector-install-wizard-api-map.md` | 🆕 **2026-07-26** -- UI construct → HTTP call map for the whole install/configure/ingest path; partly live-verified on 8.0 (§7a); §8 questions open, pyfsr sequence unimplemented |
-| `ga-demo-soc-investigation.md` | 🔵 **TOP PRIORITY** -- beat 5 closed in software; **159 reimage wiped the box-side provisioning**, so the demo needs re-seeding + FortiEDR/FortiGate reconfigured |
-| `widget-capability-test-and-persona-rollout.md` | 🔵 next-phase index (C1-C5 + persona rollout) |
-| `agentic-tooling-best-practices-alignment.md` | 🟡 **P0 prerequisite** -- three turn-drive harnesses have drifted; unify before comparing results across areas. _Was missing from this index._ |
-| `live-chat-eval-and-build-flow-fixes.md` | 🟡 Phases 1/0/2/4 done; 4 harness fixes + Phase 3 connector open. _Was missing from this index._ |
-| `stability-and-scalability-plan.md` | 🟢 Phases 0/1/2 shipped; 3A in progress |
-| `module-scoped-assistant-personas.md` | 🏗️ Phases 1+2 done; LLM egress open |
-| `playbook-compiler-fidelity-and-agent-surface.md` | 🟢 **Phase 1 gate BUILT + committed 2026-07-28** (framework `d76d180`; `make corpus-gate` 5/5 + RED-proof). Remaining: option (a) clean box pull for the 178/400 metric (R1-gated); Phase 2 (residual triage + error affordances). |
-| `build-persona-validation-plan.md` | reference |
-| `soc-assistant-ui-gaps.md` | reference |
+| `state-derived-intent-and-tool-slicing.md` | 🔵 **most active** -- Phase 0/2 + M1/M3 SHIPPED & live-proven; **Phase 1, Phase 3, M2 widget-tier open**. Supersedes 4f follow-up #2 |
+| `assistant-skills-learned-house-rules.md` | 🟢 Live on both .159 and .206; open: global skill scope, worker-restart |
+| `connector-install-wizard-api-map.md` | Draft -- UI construct → HTTP call map; §8 questions open, pyfsr sequence unimplemented |
+| `ga-demo-soc-investigation.md` | 🔵 **TOP PRIORITY** -- demo needs re-seeding on reimaged box |
+| `live-chat-eval-and-build-flow-fixes.md` | Active -- T2 root-cause done; open follow-ups |
+| `playbook-compiler-fidelity-and-agent-surface.md` | 🟢 Phase 1 gate BUILT + committed 2026-07-28. Remaining: option (a) clean box pull (R1-gated) |
+
+### `docs/plans/DONE/` -- done and shipped
+
+| plan | state |
+|---|---|
+| `scheduled-agent-tasks.md` | ✅ Shipped + live-verified .159 (conn 0.5.39, widget 1.2.44) |
+| `soc-assistant-monitor.md` | ✅ V1+V2 shipped + live-verified .206 + .159 |
+| `module-scoped-assistant-personas.md` | ✅ v1 COMPLETE, live-passed on .206 |
+| `release-runbook-0.5.8-blockbeat.md` | ✅ One-time ship of framework 0.5.8 + connector 0.5.43 |
+
+### `docs/plans/SUPERSEDED/` -- replaced by newer work
+
+| plan | replaced by |
+|---|---|
+| `widget-capability-test-and-persona-rollout.md` | Three pillars plan + STATUS.md open rows |
+| `stability-and-scalability-plan.md` | Three pillars plan |
+| `build-persona-validation-plan.md` | Three pillars plan |
+| `agentic-tooling-best-practices-alignment.md` | Three pillars plan |
+| `soc-assistant-ui-gaps.md` | Three pillars plan |
+
+### Widget-local plans
+
+| plan | state |
+|---|---|
+| `fortiaiAgenticAssistant/PLAN_demoable_three_pillars.md` | ✅ Approved 2026-07-13; in progress, Tracks A-E |
+| `fortiaiAgenticAssistant/PLAN_improvement_areas.md` | ✅ P0/P1 done; P2-P4 open |
+| `fortiaiAgenticAssistant/docs/DONE/PLAN_live_updates_and_error_hardening.md` | ✅ June 2026: all fixes done |
+| `fortiaiAgenticAssistant/STATUS.md` | Widget-level live tracker |
+| `fortiaiAgenticAssistant/INDEX.md` | Widget-level doc index |
 
 ### Cross-repo plans
 
