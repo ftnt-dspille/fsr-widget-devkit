@@ -1,9 +1,9 @@
 HARNESS := fortisoar-widget-harness
 
 # Three dedicated, never-overlapping ports:
-#   DEV_PORT        — the harness you drive by hand (`make dev`)
-#   TEST_PORT       — the isolated server Playwright boots for `make test`
-#   INTROSPECT_PORT — the introspection rig (`make introspect`)
+#   DEV_PORT        -- the harness you drive by hand (`make dev`)
+#   TEST_PORT       -- the isolated server Playwright boots for `make test`
+#   INTROSPECT_PORT -- the introspection rig (`make introspect`)
 # They differ on purpose so running tests never kills (or races) your dev
 # server, and a stale dev server never serves the wrong widget to a test run.
 # All are forced here via PORT=, which overrides .env (dotenv does not
@@ -41,7 +41,7 @@ new-widget: ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSum
 	  echo "Usage: make new-widget SPEC=spec.json   (or)   make new-widget NAME=<camelCase> [KIND=record] [TRIGGER=1] [TITLE=\"…\"]"; exit 2; \
 	fi
 
-dev: ## Run the harness you drive by hand — http://localhost:14400
+dev: ## Run the harness you drive by hand -- http://localhost:14400
 	cd $(HARNESS) && PORT=$(DEV_PORT) pnpm start
 
 start: dev ## Alias for dev
@@ -52,7 +52,7 @@ stop: ## Kill both the dev (14400) and test (14401) servers
 
 test: test-unit ## Full check: jest unit tests (use test-e2e-widget WIDGET=<name> for e2e)
 
-test-unit: ## Jest unit tests — harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
+test-unit: ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
 	cd $(HARNESS) && WIDGET="$(WIDGET)" pnpm test
 
 test-e2e-headed: ## Playwright e2e with browser UI (test server on 14401)
@@ -74,7 +74,7 @@ test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fre
 
 # Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
 # turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
-# fake LLM + cassette reads — no box, no LLM credits), then runs the Seam C e2e
+# fake LLM + cassette reads -- no box, no LLM credits), then runs the Seam C e2e
 # spec whose route interception forwards /api/integration/execute to it. This is
 # the one tier that exercises the real widget controller against real connector
 # logic without a live appliance. Teardown always kills the sidecar.
@@ -121,28 +121,43 @@ ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deplo
 	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
 	@echo "▶ 2/6 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
 	@echo "▶ 3/6 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
-	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline — scoped to $(WIDGET))"; \
-	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set — skipping; run 'make introspect-gate' separately)"; \
+	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"; \
+	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; \
 	  else $(MAKE) introspect-gate GATE_WIDGET=$(WIDGET); fi
 	@echo "▶ 5/6 deploy ($(BUMP)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
 	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) --bump $(BUMP)
 	@echo "▶ 6/6 live-sweep"; \
-	  if [ "$(WIDGET)" = "fsrSocAssistant" ]; then $(MAKE) test-live-sweep; \
-	  else echo "  (no live sweep defined for $(WIDGET) — skipping)"; fi
+	  if [ -f "widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js" ]; then $(MAKE) test-live-sweep WIDGET=$(WIDGET); \
+	  else echo "  (no live sweep spec for $(WIDGET) - skipping)"; fi
 	@echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed, and live-verified."
 
 release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
 
+# Derive the sweep spec from the widget name instead of hardcoding it. The old
+# hardcoded `fsrSocAssistant` path went stale at the widget rename, and BOTH
+# call sites failed silently-ish: `make test-live-sweep` died with "No tests
+# found", and ship-verify's `if [ "$(WIDGET)" = "fsrSocAssistant" ]` guard
+# stopped matching, so the CANONICAL ship path skipped its live gate entirely
+# and still printed "live-verified".
+SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
+# Source the box env explicitly, mirroring test-matrix-live's MATRIX_ENV. The
+# bare `.env` points at whichever box was last worked on, so a sweep run right
+# after shipping elsewhere silently [[SWEEP-ENV-SKIP]]s with "connector not
+# present/configured" -- which reads like a box outage rather than "you are
+# pointed at the wrong box".
+SWEEP_ENV ?= .env.159
+
 test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats (default 1)
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 	@n=$${RUNS:-1}; i=1; fail=0; \
 	while [ $$i -le $$n ]; do \
 	  echo "===== live-sweep run $$i/$$n ====="; \
-	  ( cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
-	    pnpm test:e2e tests/e2e/fsrSocAssistant.liveSweep.spec.js --reporter=list ) || fail=1; \
+	  ( cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
+	    PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
+	    pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).liveSweep.spec.js --reporter=list ) || fail=1; \
 	  i=$$((i+1)); \
 	done; \
 	exit $$fail
@@ -150,10 +165,10 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 MATRIX_ENV ?= .env.159
 # MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
 # (the connector-repo Makefile passes one). Boxes: .env.159 (8.0 triage),
-# .env.206 (ZTPF + the build/authoring flows — where the P6 rows belong).
+# .env.206 (ZTPF + the build/authoring flows -- where the P6 rows belong).
 MATRIX_ENV_PATH := $(if $(filter /%,$(MATRIX_ENV)),$(MATRIX_ENV),$(abspath $(HARNESS)/$(MATRIX_ENV)))
 # Scenario rows carry real record UUIDs, so they are BOX-SPECIFIC and must track
-# MATRIX_ENV — otherwise a 206 run drives 159's records. `.env.206` →
+# MATRIX_ENV -- otherwise a 206 run drives 159's records. `.env.206` →
 # scenarios.local.206.json when present, else the plain scenarios.local.json.
 # MATRIX_SCENARIOS=<path> overrides. All are gitignored; the template is
 # scenarios.local.example.json.
@@ -161,10 +176,10 @@ MATRIX_BOX := $(patsubst .env.%,%,$(notdir $(MATRIX_ENV)))
 MATRIX_SCENARIOS ?= $(if $(wildcard $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.json))
 # MATRIX_GATE filters rows by their `gate` field (see matrixDriver.gateRow).
 # Unset = every runnable row.
-test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10/P1–P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
+test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10/P1-P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
 	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
 	@if [ ! -f "$(MATRIX_SCENARIOS)" ]; then \
-	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(MATRIX_SCENARIOS) — copy tests/live/scenarios.local.example.json and fill in real record UUIDs for box '$(MATRIX_BOX)' (box-specific, gitignored)"; \
+	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(MATRIX_SCENARIOS) -- copy tests/live/scenarios.local.example.json and fill in real record UUIDs for box '$(MATRIX_BOX)' (box-specific, gitignored)"; \
 	else \
 	  echo "▶ matrix: env=$(MATRIX_ENV) scenarios=$(notdir $(MATRIX_SCENARIOS)) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"; \
 	  cd $(HARNESS) && set -a && . "$(MATRIX_ENV_PATH)" && set +a && \
@@ -172,7 +187,7 @@ test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1�
 	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
 
-test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify — each row is a headed box turn (~2–4 min). MATRIX_ENV=.env.206 for build flows.
+test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
 	@$(MAKE) test-matrix-live MATRIX_GATE=strict,xfail MATRIX_ENV=$(MATRIX_ENV)
 
 grade-export: ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
