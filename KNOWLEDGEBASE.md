@@ -2134,6 +2134,23 @@ State name | URL-ish | Use for
     `scripts/build_soc_assistant_pack.py` (playbook-builder repo) -- offline,
     ~0.1s vs ~60s, and self-consistent by construction.
 
+26. **Saving a playbook REPLACES it -- a snapshot is not a diff.** The designer's
+    own Save (and so `update_playbook`) is
+    `PUT /api/3/workflows/<uuid>?$relationships=true&$versions=true`, and
+    `$relationships=true` cascades the PUT into the nested step/route/group
+    records. That is what makes the write work **and** what makes it
+    destructive: anything absent from the body is deleted, with no error and no
+    visible diff. Two consequences worth internalising when touching any write
+    path: (a) a pre-edit snapshot into the Versions tab makes the damage
+    *recoverable*, not *visible* -- nobody opens a version diff they were never
+    told about, so a save-time refusal is a separate requirement, not a
+    duplicate of the snapshot; (b) when you read the live copy to compare
+    against, **you must pass `$relationships=true` on the READ too**, or steps
+    and routes come back as bare IRIs, the live side looks empty, and a
+    loss-check waves every deletion through while appearing to pass. The guard
+    that enforces this is `fsr_playbooks.compiler.prewrite.check_prewrite`
+    (HARDEN-1).
+
 ## 29. Platform source references (host UI code)
 
 How to locate and read the host UI's templates, directives, and services when a widget must mirror platform behavior -- grep recipes for walking the stripped SOAR bundle.
