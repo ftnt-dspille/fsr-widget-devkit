@@ -69,12 +69,30 @@ function captureChatFeed(page) {
     });
     return { polls, turns, sent, settled };
 }
+// The one live browser held across scenarios when reuse is enabled. Module
+// state (not a param) because the callers are independent jest test bodies
+// that have no place to thread a handle through.
+let _shared = null;
+/** The widget's "+ New" control -- `newConversation()` in view.html. */
+const NEW_CONVERSATION = '[data-testid="new-conversation"]';
+/**
+ * Tear down the shared browser. Call from a jest `afterAll` when reuse is on;
+ * otherwise the held browser keeps the process alive and a completed run looks
+ * like a hang.
+ */
+async function closeSharedSession() {
+    if (!_shared)
+        return;
+    const b = _shared.browser;
+    _shared = null;
+    await b.close().catch(() => { });
+}
 /**
  * Full flow: launch → login → navigate → open the SOC Assistant drawer.
  * Returns a session handle with sendChat/screenshot/close.
  *
  * opts: { module='alerts', recordUuid | mountPath (one required), visitFirst,
- *         headless=true, env }
+ *         headless=true, env, reuse }
  */
 async function openWidgetDrawer(opts = {}) {
     const soarEnvResult = soarEnv.resolveSoarEnv(opts.env);
@@ -92,10 +110,39 @@ async function openWidgetDrawer(opts = {}) {
     // login page whose "Sign In" button never enables. FSRPB_HEADED=1 forces a
     // real headed browser for live UI runs against such boxes.
     const headed = opts.headless === false || process.env.FSRPB_HEADED === "1";
-    const { browser, context } = await soarBrowser.launchContext({ headless: !headed });
-    const page = await context.newPage();
-    const feed = captureChatFeed(page);
-    await soarBrowser.login(page, base, soarEnvResult);
+    // --- browser reuse across scenarios -------------------------------------
+    //
+    // A matrix sweep paid browser launch + WAF login + first paint on EVERY row
+    // (~30-45s of a ~2-4min row), even though consecutive rows usually drive the
+    // SAME record. The widget already ships the only reset that matters: "+ New"
+    // (`newConversation()`, data-testid="new-conversation") starts a fresh chat
+    // session. So with reuse on we hold one browser/page open, click "+ New"
+    // between rows, and re-navigate only when the row targets a different record.
+    //
+    // Opt-in (FSRPB_REUSE_BROWSER=1, or opts.reuse) because it trades isolation
+    // for speed: rows then share cookies/localStorage and any widget state the
+    // previous row left. A target change forces a re-navigation, which remounts
+    // the widget and bounds that bleed; `closeSharedSession()` ends the run.
+    const reuse = opts.reuse === true
+        || (opts.reuse !== false && process.env.FSRPB_REUSE_BROWSER === "1");
+    let browser, context, page, feed;
+    let reusedSession = false;
+    if (reuse && _shared && _shared.base === base && !_shared.page.isClosed()) {
+        ({ browser, context, page, feed } = _shared);
+        reusedSession = true;
+    }
+    else {
+        // A shared session for a DIFFERENT box is not reusable -- close it rather
+        // than leak a browser (the leak is what makes jest hang past the run).
+        if (reuse && _shared)
+            await closeSharedSession();
+        ({ browser, context } = await soarBrowser.launchContext({ headless: !headed }));
+        page = await context.newPage();
+        feed = captureChatFeed(page);
+        await soarBrowser.login(page, base, soarEnvResult);
+        if (reuse)
+            _shared = { browser, context, page, feed, base, target: null };
+    }
     const goto = async (p) => {
         await page.goto(url(p), { waitUntil: "domcontentloaded", timeout: 60000 });
         // WAIT FOR THE CONDITION, not a fixed guess -- same lesson as the composer
@@ -109,7 +156,7 @@ async function openWidgetDrawer(opts = {}) {
         // looked like a widget/enableFor bug but was purely this timing.
         await page
             .waitForFunction(() => document.querySelectorAll("img.logo-sm").length > 0, undefined, { timeout: 45000 })
-            .catch(() => { /* fall through -- the caller's own errors are more specific */ });
+            .catch(() => { });
         await page.waitForTimeout(1500); // let the icon row settle after first paint
         // FortiSOAR renders the right-edge drawer icons on its /not-found page too,
         // so a bad path (a bare `/dashboard` without ?module=<uuid>, a stale record
@@ -186,7 +233,35 @@ async function openWidgetDrawer(opts = {}) {
         await goto(opts.visitFirst);
         await openDrawer();
     }
-    await goto(target);
+    if (reusedSession) {
+        // Re-navigate only on a target change; otherwise the page is already where
+        // this row wants it and the nav would cost the same first-paint we're
+        // trying to avoid.
+        if (_shared.target !== target) {
+            await goto(target);
+            _shared.target = target;
+        }
+        await openDrawer();
+        // Reset the CONVERSATION, not the browser. Without this the next row's
+        // prompt lands in the previous row's session and inherits its transcript --
+        // which would silently change what the model sees and make a row's verdict
+        // depend on the row before it.
+        const newBtn = await page.$(NEW_CONVERSATION);
+        if (newBtn) {
+            await newBtn.click().catch(() => { });
+            await page.waitForTimeout(1000);
+        }
+        // A row is graded from frames captured during ITS turn, so the shared
+        // page's accumulated feed has to be cleared or row N would be graded on
+        // rows 1..N's frames.
+        feed.polls.length = 0;
+        feed.turns.length = 0;
+    }
+    else {
+        await goto(target);
+        if (reuse && _shared)
+            _shared.target = target;
+    }
     const composerOpen = await openDrawer();
     return {
         page, browser, context, base, polls: feed.polls, turns: feed.turns, composerOpen,
@@ -339,8 +414,14 @@ async function openWidgetDrawer(opts = {}) {
             return path;
         },
         async close() {
+            // Under reuse the per-row `close()` must NOT kill the browser -- the
+            // whole point is that the next row inherits it. matrixDriver calls this
+            // in a finally block per row; the real teardown is closeSharedSession()
+            // from the suite's afterAll.
+            if (reuse && _shared && _shared.browser === browser)
+                return;
             await browser.close().catch(() => { });
         },
     };
 }
-module.exports = { openWidgetDrawer, launchContext: soarBrowser.launchContext, login: soarBrowser.login, captureChatFeed, DESKTOP_UA: soarBrowser.DESKTOP_UA };
+module.exports = { openWidgetDrawer, closeSharedSession, launchContext: soarBrowser.launchContext, login: soarBrowser.login, captureChatFeed, DESKTOP_UA: soarBrowser.DESKTOP_UA };

@@ -2119,6 +2119,20 @@ State name | URL-ish | Use for
     resolved. See §7 for the render-model contract.
 
 ---
+25. **A box-built solution pack ships stale widgets, and its dashboard pins go
+    stale too.** FortiSOAR's export engine (`export_config` /
+    `SolutionPackBuilder`) does NOT read the installed-widget table -- it serves
+    widget tarballs out of the appliance's `/tmp/solutionpacks/` cache. An export
+    produced `fortiaiAgenticAssistant-1.2.47` while 1.2.48 was both installed and
+    the source version, and `socAssistantMonitor-1.0.9` while 1.0.2 was
+    installed. Neither matched the box. Worse, a dashboard references a widget as
+    `"type": "<name>-<version>"`, so every widget bump silently breaks the pin and
+    the imported dashboard renders **blank** -- no import error. A name-only
+    guard (`wtype.rsplit("-", 1)[0]`) does not catch this. Build the pack
+    **locally** from the artifacts you control and repin the dashboard by name to
+    the version the pack carries:
+    `scripts/build_soc_assistant_pack.py` (playbook-builder repo) -- offline,
+    ~0.1s vs ~60s, and self-consistent by construction.
 
 ## 29. Platform source references (host UI code)
 

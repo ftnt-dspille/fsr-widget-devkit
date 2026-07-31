@@ -12,7 +12,33 @@ file is the index. Update it when a thread changes state; move finished items to
 > "tracked" once it has a **Plan docs** row; anything still owed also gets an
 > **Open / next up** row.
 
-_Last updated: 2026-07-29. **T1 drawer-mount gap FIXED + LIVE on .159**: the
+_Last updated: 2026-07-31. **HARDEN-1 promoted to this week's #1** (see the table
+below) -- it is the only open thread whose failure mode is destroying customer
+data, and it needs no box or network. **.206 connector 0.5.48 → 0.5.65 SHIPPED**
+(all 10 workers verified on 0.5.65 / fsr_playbooks 0.6.5, warmup clean), so .206
+and .159 are now at **connector parity**; shipped from a clean detached worktree
+at `9a912f4` because a concurrent session was mid-edit in the connector tree and
+`deploy.sh` packages the working tree as-is. Connector `9a912f4` also lands the
+**native-MCP config redesign** (`mcp_servers` dynamic picker off
+`/api/3/mcp_configurations`, `mcp_tier`, `mcp_auth` identity branch, one
+`_parse_mcp_allowlist` raising `AllowlistError` instead of three parsers
+swallowing errors into `{}`) + real release notes for 0.5.63-0.5.65. ⚠️ **Widget
+1.2.48 ship BLOCKED at gate 3/6** -- mock e2e 15 failed / 124 passed, all with
+the same `waitForFunction` timeout on `window.__fortiaiAgenticAssistant__`;
+the gate stopped before deploy, so **.159 is still 1.2.47 and .206 still
+1.2.46** (nothing half-shipped). Probably environmental, not a widget
+regression: `make introspect` fails to render **all 16 widgets** including
+trivial ones (`counter`, `c3Charts`), the harness bare `.env` proxies to the
+ztpAutomationGraph lab box (~4.5s for a plain `GET /`), and the machine was at
+load 9.17/10 cores with five concurrent sessions. **Re-run the gate on a quiet
+machine before concluding anything about 1.2.48** -- and note `widgets-src/*/`
+is gitignored, so 1.2.48 has no git history and has never been on either box.
+⏸️ **Framework 0.6.6 NOT cut** -- the tree is clean at `ab17e33`, so
+`release.sh`'s guards would pass, but `ab17e33` is "delete the run-vs-author
+classifier (Lever 2)" and its connector counterpart is still uncommitted in
+another session's tree; releasing would publish half a pair change onto both
+demo boxes. Held for the session that owns that refactor. Previously
+(2026-07-29): **T1 drawer-mount gap FIXED + LIVE on .159**: the
 assistant only enabled on `viewPanel.modulesDetail`, not `main.modulesDetail`
 (the full-page alert route the GA triage demo + live matrix driver use), so T1
 drove into a "drawer icon exists but is HIDDEN" error before its turn could run.
@@ -59,9 +85,10 @@ The threads to push on, ordered so the highest-risk one is cleared first.
 
 | # | Thread | Why now | First concrete action | Doc / detail |
 |---|---|---|---|---|
-| 1 | **GA demo on .206** | Top standing priority: make the SOC assistant demo great. Box is live (conn 0.5.37, all connectors configured, 3 seeded alerts). | Resolve the **Z5 scenario** decision (retarget vs flip to `manual_input` -- one-line edit), then an in-browser rehearsal of the triage→contain arc on .206. | `docs/plans/ga-demo-soc-investigation.md`; Open rows Z5 / SKL-MI2 |
-| 2 | **State-derived intent -- Phase 3 + M2 widget-tier** | Phase 0/1/2 + M1/M3 shipped & live (Phase 1 + persona P0 live-verified .206 2026-07-28). | Phase 3 (disposition from state) is **DEPRIORITIZED**; M2 widget-tier proof is now unblocked -- the widget sends page facts, so confirm it emits `module=workflows` from a playbook page + the in-browser per-page surface rehearsal. | `docs/plans/state-derived-intent-and-tool-slicing.md` |
-| 3 | **Compiler fidelity -- option (a)** | The gate mechanism is built + green on 5 synthesized fixtures; the real 178/400 metric needs a clean box pull. | Do the R1 licensing/PII review on stock content, then a fresh `?$relationships=true` pull of CLEAN playbooks → `make corpus-gate CORPUS_DIR=… MIN_PASS=178`. | `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.1b; memory `roundtrip_fidelity_gate_built` |
+| 1 | **HARDEN-1: save-path pre-write diff** | **The only item on this board whose failure mode is destroying customer data rather than erroring.** The widget writes the model's last ` ```yaml ` fence back over the customer's playbook; field loss is silent and has happened twice (`for_each`, then declared `parameters`), both found **by accident** because no test tier can see it. Pure local code -- no box, no network. | Build the pre-write diff gate: decompile the live playbook, diff it against what is about to be written, and **refuse the save** when a field disappears that the requested change does not explain. Fail closed, name the dropped path. Then a test tier that can actually catch it -- pin the OLD impl back and prove the gate goes red (synthesized fixtures inherit the fixer's blind spots). | Open row below; `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §Phase 1 |
+| 2 | **GA demo on .206** | Top standing priority: make the SOC assistant demo great. Box is live (conn 0.5.37, all connectors configured, 3 seeded alerts). | Resolve the **Z5 scenario** decision (retarget vs flip to `manual_input` -- one-line edit), then an in-browser rehearsal of the triage→contain arc on .206. | `docs/plans/ga-demo-soc-investigation.md`; Open rows Z5 / SKL-MI2 |
+| 3 | **State-derived intent -- Phase 3 + M2 widget-tier** | Phase 0/1/2 + M1/M3 shipped & live (Phase 1 + persona P0 live-verified .206 2026-07-28). | Phase 3 (disposition from state) is **DEPRIORITIZED**; M2 widget-tier proof is now unblocked -- the widget sends page facts, so confirm it emits `module=workflows` from a playbook page + the in-browser per-page surface rehearsal. | `docs/plans/state-derived-intent-and-tool-slicing.md` |
+| 4 | **Compiler fidelity -- option (a)** | The gate mechanism is built + green on 5 synthesized fixtures; the real 178/400 metric needs a clean box pull. | Do the R1 licensing/PII review on stock content, then a fresh `?$relationships=true` pull of CLEAN playbooks → `make corpus-gate CORPUS_DIR=… MIN_PASS=178`. | `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.1b; memory `roundtrip_fidelity_gate_built` |
 
 ---
 

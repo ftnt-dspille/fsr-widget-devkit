@@ -1,9 +1,15 @@
 # create_record demo. The playbook itself creates an alert (rather than
-# the test sidecar's setup) — exercises the InsertData step type.
+# the test sidecar's setup) -- exercises the InsertData step type.
 #
 # Cleanup: the playbook tags the new alert's `description` with a known
 # fsrpb_e2e_create marker; the .test.yaml's cleanup_query then deletes
 # any alert with that marker so repeat runs don't accumulate.
+#
+# GRAMMAR (updated 2026-07-31): step arguments are STEP-LEVEL keys. The old
+# `arguments:` wrapper (with `resource:` inside) is rejected outright --
+# validate_yaml/compile_yaml return `bad_value` "the `arguments:` wrapper is no
+# longer used". This fixture had drifted and was reding contract.live for both
+# tools; the tools were correct, the fixture was stale.
 
 collection: FSRPB Demo Record Create
 description: Single-step playbook that creates an alert.
@@ -20,11 +26,9 @@ playbooks:
 
       - name: Create alert
         type: create_record
-        arguments:
-          module: alerts                # → collection: /api/3/alerts
-          operation: Replace
-          resource:
-            name: "{{ vars.input.params.alert_name }}"
-            severity: /api/3/picklists/40187287-89fc-4e9c-b717-e9443d57eedb   # High
-            description: "fsrpb_e2e_create marker"
-          step_variables: []
+        module: alerts                  # → collection: /api/3/alerts
+        operation: Replace
+        fields:
+          name: "{{ vars.input.params.alert_name }}"
+          severity: /api/3/picklists/40187287-89fc-4e9c-b717-e9443d57eedb   # High
+          description: "fsrpb_e2e_create marker"

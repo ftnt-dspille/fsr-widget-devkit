@@ -1,16 +1,16 @@
-// Live prompt/flow MATRIX (docs/PROMPT_FLOW_TEST_PLAN.md T1–T10 / P1–P5):
+// Live prompt/flow MATRIX (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10 / P1-P5):
 // drive the deployed widget drawer on real records, one prompt per scenario
 // row, and evaluate each captured turn with tests/live/lib/matrixDriver.js.
 //
 // Gated: FSRPB_LIVE=1 (plus FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD; live UI
-// runs are HEADED — FSRPB_HEADED=1 — because the WAF blocks headless UAs).
+// runs are HEADED -- FSRPB_HEADED=1 -- because the WAF blocks headless UAs).
 // Run via `make test-matrix-live`, never by hand.
 //
 // Scenario rows carry box-specific record UUIDs, so they live in the
 // GITIGNORED tests/live/scenarios.local.json (copy scenarios.local.example.json
 // and fill in real UUIDs). Absent file → skip-with-warning, never red.
 //
-// PASS/FAIL contract — now PER ROW (`gate`), see matrixDriver.gateRow:
+// PASS/FAIL contract -- now PER ROW (`gate`), see matrixDriver.gateRow:
 //   soft   (default) only a hard-FAIL blocks. The original contract: PASS,
 //                    PASS (minor errors) and DEGRADED all ship, and DEGRADED is
 //                    surfaced in the summary as a fix to chase.
@@ -20,8 +20,8 @@
 // `forbidRedFlags[]` blocks on any gate, so a row parked for one open bug still
 // guards the bugs already fixed on that turn.
 //
-// Every row is additionally graded by the exportGrader red-flag rules — the
-// same rules that grade downloaded `.events.json` exports — so a known-bad flow
+// Every row is additionally graded by the exportGrader red-flag rules -- the
+// same rules that grade downloaded `.events.json` exports -- so a known-bad flow
 // signature caught once offline gates the live matrix forever after.
 //
 // MATRIX_GATE=strict,xfail runs ONLY the gating rows (`make test-matrix-gate`).
@@ -33,7 +33,7 @@ const { runScenario, formatReport, gateRow, GATES } = require("./lib/matrixDrive
 
 const LIVE = process.env.FSRPB_LIVE === "1";
 // Scenario rows are BOX-SPECIFIC (real record UUIDs), and MATRIX_ENV switches
-// boxes — so the rows must switch with it, or a 206 run drives 159's records.
+// boxes -- so the rows must switch with it, or a 206 run drives 159's records.
 // The Makefile resolves MATRIX_ENV=.env.206 → scenarios.local.206.json when that
 // file exists, falling back to scenarios.local.json.
 const SCENARIOS_PATH = process.env.MATRIX_SCENARIOS
@@ -45,7 +45,7 @@ const GATE_FILTER = (process.env.MATRIX_GATE || "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 
 // Hand-picked subset by row id (comma-separated, e.g. MATRIX_IDS=Z3,Z5). A full
-// sweep is 11 headed browser turns at ~2–4 min each, so targeting the rows that
+// sweep is 11 headed browser turns at ~2-4 min each, so targeting the rows that
 // cover a specific fix is the common case. Unset = all (subject to GATE_FILTER).
 const ID_FILTER = (process.env.MATRIX_IDS || "")
   .split(",").map((s) => s.trim()).filter(Boolean);
@@ -56,7 +56,7 @@ function loadScenarios() {
   return (cfg.scenarios || [])
     // JSON has no comments, so hand-edited scenario files tend to grow bare
     // strings as section headers. Spreading one would deserialize into a
-    // garbage row ({0:"─",...}) that then "fails" the matrix — drop non-objects.
+    // garbage row ({0:"─",...}) that then "fails" the matrix -- drop non-objects.
     .filter((s) => s && typeof s === "object" && !Array.isArray(s))
     .filter((s) => !s.skip)
     .map((s) => ({ module: cfg.module || "alerts", ...s, gate: s.gate || "soft" }))
@@ -76,7 +76,7 @@ if (!LIVE) {
   // default offline run: silent skip, same as the other *.live.test.js
 } else if (!scenarios) {
   console.warn(
-    `[matrix] SKIP: ${SCENARIOS_PATH} not found — copy scenarios.local.example.json ` +
+    `[matrix] SKIP: ${SCENARIOS_PATH} not found -- copy scenarios.local.example.json ` +
     `and fill in real record UUIDs (gitignored; box-specific).`
   );
 } else if (scenarios.length === 0) {
@@ -86,8 +86,16 @@ if (!LIVE) {
 }
 
 d("live prompt/flow matrix", () => {
-  // Serial by design (jest.live.config.js maxWorkers:1): one browser session
-  // per scenario against the shared live SOAR.
+  // Serial by design (jest.live.config.js maxWorkers:1). With
+  // FSRPB_REUSE_BROWSER=1 the rows SHARE one browser + login and reset between
+  // rows via the widget's "+ New" control, which cuts a browser launch, a WAF
+  // login and a first paint (~30-45s) off every row after the first. The held
+  // browser must be closed here or jest finishes and never exits.
+  afterAll(async () => {
+    const { closeSharedSession } = require("../../lib/liveUiDriver");
+    if (typeof closeSharedSession === "function") await closeSharedSession();
+  });
+
   const budget = (scenarios || []).reduce((ms, s) => ms + (s.timeoutMs || 120000) + 90000, 60000);
   jest.setTimeout(budget);
 
@@ -103,7 +111,7 @@ d("live prompt/flow matrix", () => {
         console.error(`[matrix] ${sc.id}: DRIVE ERROR: ${e && e.message}`);
         evaluation = {
           verdict: "FAIL (drive error)", why: String(e && e.message).slice(0, 200),
-          // driveError blocks on every gate — the row never ran, so no gate may
+          // driveError blocks on every gate -- the row never ran, so no gate may
           // treat it as an expected/tolerated outcome (see gateRow).
           hardFail: true, driveError: true, redFlags: [],
           metrics: { toolCalls: 0, errCount: 0, distinctCauses: 0, gotExpected: [], expected: sc.expectedCards || [] },
@@ -126,12 +134,12 @@ d("live prompt/flow matrix", () => {
         `[${m.gotExpected.join(",")}] / [${m.expected.join(",")}]`
       );
     }
-    // Red flags across the whole run, gating or not — the fix list.
+    // Red flags across the whole run, gating or not -- the fix list.
     const flagged = rows.filter((r) => (r.evaluation.redFlags || []).length);
     if (flagged.length) {
       console.log("\n--- red flags (all rows) ---");
       for (const r of flagged) {
-        for (const f of r.evaluation.redFlags) console.log(`  ${r.id}: ✗ ${f.code} — ${f.detail}`);
+        for (const f of r.evaluation.redFlags) console.log(`  ${r.id}: ✗ ${f.code} -- ${f.detail}`);
       }
     }
     console.log("================================================\n");
