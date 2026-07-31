@@ -77,3 +77,11 @@ fortisoar-widget-harness/docs/TYPING_ELIMINATE_ANY_PLAN.md
 
 # Local-only planning docs (may hold box IPs/dates) -- never track (global policy)
 docs/plans/
+
+# Local scratch + build artifacts -- never tracked
+fortisoar-widget-harness/scratchpad/
+fortisoar-widget-harness/tsconfig.tsbuildinfo
+.mcp.json
+
+# Demo deck: live screenshots + generated pptx -- local only, never tracked
+docs/demo-deck/

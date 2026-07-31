@@ -2087,6 +2087,36 @@ State name | URL-ish | Use for
     `draft:true`. **A 2xx is NOT proof of publish** -- validate the PUT response
     (or a follow-up GET) shows `draft === false` before declaring success. The
     harness `POST /_fsr/install/:id` now does this (`server.ts` `widgetIsPublished`).
+22. **A 2xx from a resume/execute call is NOT proof the action ran.** For any
+    human-approved action, the HTTP response tells you the *request* was
+    accepted, not that the backend executed the tool. `fortiaiAgenticAssistant`
+    stamped `_resolved` and painted a green "Approved" in `.then()`, so an
+    approved containment action whose tool never ran (the connector returned
+    `{"error": "unknown tool: …"}` inside the transcript) read as a success while
+    the tool chip sat forever on "awaiting result". Grade the **outcome** from
+    the response body -- scan the transcript for the matching `tool_result` and
+    branch on `ok === false` / `error` / `code === 'user_denied'` -- and keep a
+    neutral "awaiting result" state for when no result has arrived yet. Absence
+    of evidence must never render as success. (`view.controller.js`
+    `_approvalOutcome`; tests `approve.outcome.test.js`.)
+23. **Rendered event vocabulary ≠ wire event vocabulary.** `fsrPbRender` MERGES a
+    wire `tool_result` into the preceding `tool_call` chip, so a rendered message
+    has **no** `type === 'tool_result'` event. Any controller logic that scans
+    `msg.events` for tool activity (e.g. "did this turn move past the approval
+    gate?") must match `'tool_call'`, not the wire name -- a guard written
+    against the wire vocabulary silently never fires on a replayed transcript.
+    Check the renderer's output shape (`buildAssistantMessage`) before matching
+    on `type`.
+24. **Card state gated on a scope singleton dies on refresh.** The approval card's
+    buttons were gated on `$scope.approvalRequest`, which was only ever set from
+    a *live* turn result. The connector keeps the parked approval (TTL 10m), so
+    after a browser refresh the card replayed from `chat_history` with **no
+    Approve/Reject buttons** -- the analyst could see an action waiting on them
+    and had no way to act. Any interactive card whose actionability depends on
+    scope state outside the event itself needs an explicit rehydrate step that
+    rebuilds that state from the replayed transcript (`_rehydrateApprovalState`,
+    alongside `_rehydrateBuildState`), and must not re-arm a gate that already
+    resolved. See §7 for the render-model contract.
 
 ---
 
