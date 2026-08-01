@@ -12,9 +12,30 @@ file is the index. Update it when a thread changes state; move finished items to
 > "tracked" once it has a **Plan docs** row; anything still owed also gets an
 > **Open / next up** row.
 
-_Last updated: 2026-07-31. **HARDEN-1 promoted to this week's #1** (see the table
-below) -- it is the only open thread whose failure mode is destroying customer
-data, and it needs no box or network. **.206 connector 0.5.48 → 0.5.65 SHIPPED**
+_Last updated: 2026-07-31 (session J). **HARDEN-1 is BUILT on both write
+paths** (fw `d4b576c`, conn `fb72474`) -- the pre-write diff gate refuses a save
+that silently deletes live data, RED-proofed, green offline; **ship + one live
+proof are the only things owed**. Detail in the Open row and
+`docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §3.4. Two things
+worth carrying forward from building it: the live read **must** pass
+`$relationships=true` or the guard waves every deletion through while appearing
+to work, and a snapshot makes damage *recoverable*, not *visible* -- it is not a
+substitute for a save-time refusal. Also this session: **a connector test module
+that had NEVER run once** (`test_warmup_instance_rewarm.py`, dead since
+2026-07-13 -- a collection error is not a failure, so nothing surfaced it) is
+fixed with a shared `tests/conftest.py` stub + a suite-collectability guard,
+which immediately caught a second latent bug (`test_audit_tool_calls.py` was
+REPLACING the shared `sys.modules` stub, so every later test lost
+`get_logger`); connector suite **478 passed** with nothing ignored, up from 467.
+Committed the harness live-matrix **browser reuse** (~30-45s/row) + a stale
+`valid_playbook.yaml` that had been reding `contract.live` (`45c9984`). Local
+tiers green: `make tool-sweep` PASS, `make conv-suite` (frank) 10/10.
+⏭️ **Framework 0.6.6 is now UNBLOCKED** -- it was held because `ab17e33`
+(delete Lever 2) was half a pair change; the connector counterpart is committed
+(`88c71fa`). Not cut -- a release touches both demo boxes, so it needs a
+deliberate call. Previously: **HARDEN-1 was this week's #1**
+-- the only open thread whose failure mode was destroying customer
+data, and it needed no box or network. **.206 connector 0.5.48 → 0.5.65 SHIPPED**
 (all 10 workers verified on 0.5.65 / fsr_playbooks 0.6.5, warmup clean), so .206
 and .159 are now at **connector parity**; shipped from a clean detached worktree
 at `9a912f4` because a concurrent session was mid-edit in the connector tree and
@@ -33,11 +54,13 @@ ztpAutomationGraph lab box (~4.5s for a plain `GET /`), and the machine was at
 load 9.17/10 cores with five concurrent sessions. **Re-run the gate on a quiet
 machine before concluding anything about 1.2.48** -- and note `widgets-src/*/`
 is gitignored, so 1.2.48 has no git history and has never been on either box.
-⏸️ **Framework 0.6.6 NOT cut** -- the tree is clean at `ab17e33`, so
-`release.sh`'s guards would pass, but `ab17e33` is "delete the run-vs-author
-classifier (Lever 2)" and its connector counterpart is still uncommitted in
-another session's tree; releasing would publish half a pair change onto both
-demo boxes. Held for the session that owns that refactor. Previously
+⏸️ **Framework 0.6.6 still NOT cut, but the reason it was held is GONE.** It
+was held because `ab17e33` ("delete the run-vs-author classifier (Lever 2)") had
+its connector counterpart uncommitted in another session's tree, so releasing
+would publish half a pair change onto both demo boxes. That counterpart is now
+committed (`88c71fa`), so the pair is whole and `release.sh`'s guards pass. It
+is uncut only because nobody has made the call -- and a cut now would also carry
+HARDEN-1 (`d4b576c`), which is the actual decision to weigh. Previously
 (2026-07-29): **T1 drawer-mount gap FIXED + LIVE on .159**: the
 assistant only enabled on `viewPanel.modulesDetail`, not `main.modulesDetail`
 (the full-page alert route the GA triage demo + live matrix driver use), so T1
