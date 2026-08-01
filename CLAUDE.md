@@ -13,9 +13,12 @@ cited verdicts · **P2** tier-gated, analyst-approved actions · **P3** reach
 on-prem targets the cloud can't · **P4** bottle each investigation into a
 deterministic playbook. The widget is *the window*; the connector is the engine.
 
-- **Roadmap (canonical):** [`docs/plans/ROADMAP_2026-08.md`](docs/plans/ROADMAP_2026-08.md)
+- **Roadmap:** source is [`docs/plans/ROADMAP_2026-08.md`](docs/plans/ROADMAP_2026-08.md)
   -- horizons NOW/NEXT/LATER/PARKED plus an alignment scorecard of *built* vs
-  *proven* per promise. Its §1-2 is the fastest way to load context.
+  *proven* per promise. §1-2 is the fastest way to load context.
+  ⚠️ `docs/plans/` is **gitignored**, so edits here reach no other checkout --
+  re-mirror to `ROADMAP.md` in the tracker repo after changing it (procedure in
+  that repo's README). Other agents read the mirror.
 - **Board:** https://github.com/users/ftnt-dspille/projects/1 · issues in
   `ftnt-dspille/soc-assistant-tracker`. Fields: Promise / Component / Horizon /
   Needs box / Gate. **Claim a card before working it** -- several agents run in
