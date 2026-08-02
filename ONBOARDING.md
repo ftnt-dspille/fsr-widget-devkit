@@ -14,7 +14,7 @@ but does not contain the other two.
 |------|------------|----------------|
 | **Dev Kit** (this repo) | Harness, `Makefile`, `scripts/`, `KNOWLEDGEBASE.md`, lint configs, widget template. Ships `widgets-src/` **empty**. | `fsr_all_widgets/` |
 | **Widget(s)** | One repo per widget (e.g. `fortiaiAgenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
-| **Connector** | The agentic backend (`fortinet-fsr-playbook-builder` + `fsr_core`) the SOC-assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
+| **Connector** | The agentic backend (`connector-fsr-soc-assistant`, label "FSR SOC Assistant"; pins `fsr_playbooks`) the SOC-assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
 
 The harness (`fortisoar-widget-harness/`) is **part of this repo** -- plain files,
 not a separate git repo. (It used to be its own repo; that standalone repo is now
