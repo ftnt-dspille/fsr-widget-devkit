@@ -1,4 +1,4 @@
-# Onboarding — FSR Widget Dev Kit
+# Onboarding -- FSR Widget Dev Kit
 
 This repo is the **dev kit** for building FortiSOAR 7.x AngularJS widgets the way
 this team does: render in isolation, drive a real SOAR box through a proxy, test
@@ -16,12 +16,12 @@ but does not contain the other two.
 | **Widget(s)** | One repo per widget (e.g. `fortiaiAgenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
 | **Connector** | The agentic backend (`fortinet-fsr-playbook-builder` + `fsr_core`) the SOC-assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
 
-The harness (`fortisoar-widget-harness/`) is **part of this repo** — plain files,
+The harness (`fortisoar-widget-harness/`) is **part of this repo** -- plain files,
 not a separate git repo. (It used to be its own repo; that standalone repo is now
-frozen. Harness work happens here.) It is still intentionally generic — it knows
+frozen. Harness work happens here.) It is still intentionally generic -- it knows
 nothing about any specific widget.
 
-This repo lives on GitHub (`ftnt-dspille/fsr-widget-devkit`) — standard git, just
+This repo lives on GitHub (`ftnt-dspille/fsr-widget-devkit`) -- standard git, just
 `git push`. Secrets and proprietary Fortinet assets are gitignored, so the tracked
 tree is what ships; keep them that way (never `git add -f` an `.env`, the dev-guide
 PDF, or theme CSS).
@@ -47,14 +47,14 @@ make assets                                   # populates fsr_src/ from FSR_BASE
 (`scripts/clone-widgets.sh` → clones each `widgets.manifest` entry into
 `widgets-src/`). **jest unit tests work immediately after setup.** Playwright
 **e2e** tests additionally need `make assets`, which fetches the FortiSOAR app
-shell (`fsr_src/`) from your own licensed box — these Fortinet platform assets
+shell (`fsr_src/`) from your own licensed box -- these Fortinet platform assets
 are not redistributed with the kit. Private widget repos need credentials for their host. A
-widget with no remote yet stays local-only — add its URL to `widgets.manifest`
+widget with no remote yet stays local-only -- add its URL to `widgets.manifest`
 once it's pushed.
 
 > **Security:** the proxy disables TLS verification and strips CSP so the
 > harness can talk to a lab box. Only ever point `FSR_BASE_URL` at a trusted lab
-> instance. `.env` is gitignored — never commit credentials.
+> instance. `.env` is gitignored -- never commit credentials.
 
 ## Daily workflow
 
@@ -66,13 +66,13 @@ make test-e2e-spec SPEC=tests/e2e/foo.spec.js
 make stop                                  # kill both servers
 ```
 
-Always run tests **through the Makefile** — it manages the two never-overlapping
+Always run tests **through the Makefile** -- it manages the two never-overlapping
 ports (dev 14400, test 14401) so a test run never races your dev server. See
 `CONTRIBUTING.md` for the full widget-dev discipline (KB-first, ship.sh, etc.).
 
 **Want to run the connector + LLM locally** (a local OpenAI-compatible LLM gateway, a FortiSOAR box
 for SOAR data only) so you can iterate on connector/widget/prompt changes
-without redeploying or burning credits? See **[LOCAL_DEV.md](LOCAL_DEV.md)** —
+without redeploying or burning credits? See **[LOCAL_DEV.md](LOCAL_DEV.md)** --
 the fast local-dev loop.
 
 To package + push a widget to the lab box:
@@ -89,26 +89,40 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `fortiaiAgenticAssistant` ("FSR SOC Assistant") | 1.2.1 | `fortinet-fsr-playbook-builder` 0.3.121 | 2.8.0 | SOC copilot: investigate → hunt → triage → build |
-| `widget-jinja-editor` | — | none | n/a | standalone Monaco/Jinja editor |
-| `c3charts` | — | none (registry-driven) | n/a | chart builder |
-| `widget-action-renderer` | — | none | n/a | playbook action renderer |
+| `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.48 | `connector-fsr-soc-assistant` 0.5.77 | 2.8.0 | SOC copilot: investigate → hunt → triage → build |
+| `socAssistantMonitor` | 1.0.9 | `connector-fsr-soc-assistant` 0.5.77 | 2.8.0 | the assistant's monitoring surface |
+| `widget-jinja-editor` (`jinjaEditorWidget`) | 1.2.2 | none | n/a | standalone Monaco/Jinja editor |
+| `c3charts` (`c3Charts`) | 1.3.0 | none (registry-driven) | n/a | chart builder |
+| `widget-action-renderer` (`actionRendererWidget`) | 1.0.9 | none | n/a | playbook action renderer |
+
+The connector pins the framework: `connector-fsr-soc-assistant/requirements.txt`
+is the **single source of truth** for `fsr-playbooks` (currently `0.6.11`) -- the
+package is `fsr_playbooks`, not the long-dead `fsr_core`. Platform target is
+FortiSOAR **8.0**.
 
 > Keep this table current when bumping any widget/connector/contract. The widget
 > talks to the connector over the contract version baked into its config; a
 > mismatch shows up as unrendered transcript events or rejected pushes.
+>
+> The **widget columns are enforced** -- `tests/compatMatrix.test.js` reads each
+> widget's `info.json` and `fortiaiAgenticAssistant`'s `WIDGET_CONTRACT_VERSION`
+> and fails if this table disagrees. The connector/framework columns can't be
+> checked from this repo (different checkout), so they are hand-stamped; verify
+> them against `info.json` + `requirements.txt` in the connector repo, never
+> against prose. This table was wrong on **every** row until 2026-08-02 precisely
+> because nothing enforced it.
 
 ## Where to look
 
-- **`KNOWLEDGEBASE.md`** — the comprehensive widget-building reference (lifecycle,
+- **`KNOWLEDGEBASE.md`** -- the comprehensive widget-building reference (lifecycle,
   drawer/`enableFor`, platform services, packaging, 60-widget gotcha catalog).
   **Consult before any widget change; add new gotchas back into it.**
-- **`fortisoar-widget-harness/README.md`** — harness internals, the `widget` CLI,
+- **`fortisoar-widget-harness/README.md`** -- harness internals, the `widget` CLI,
   proxy/auth behavior.
-- **`fortisoar-widget-harness/examples/helloCounter/`** — a minimal working
+- **`fortisoar-widget-harness/examples/helloCounter/`** -- a minimal working
   widget to read or copy.
-- **`widgets-src/_template/`** — scaffold for a new widget. Start one with
+- **`widgets-src/_template/`** -- scaffold for a new widget. Start one with
   `scripts/new-widget.sh <camelName> "Title"` (copies the template and fills in
   every placeholder, incl. tests, so `make test-unit WIDGET=<camelName>` passes
   right away). Use `widget rename` only to rename an *existing* widget.
-- **`CONTRIBUTING.md`** — how we build, test, and ship widgets.
+- **`CONTRIBUTING.md`** -- how we build, test, and ship widgets.
