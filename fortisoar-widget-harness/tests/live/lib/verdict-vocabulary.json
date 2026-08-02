@@ -1,6 +1,6 @@
 {
   "$comment": [
-    "CANONICAL turn-grading vocabulary — the single source of truth for how ANY",
+    "CANONICAL turn-grading vocabulary \u2014 the single source of truth for how ANY",
     "repo grades an agentic turn. P0a of docs/plans/agentic-tooling-best-practices-alignment.md.",
     "",
     "WHY THIS IS DATA, NOT CODE: the only real grader (matrixDriver.js) is JS and",
@@ -15,10 +15,9 @@
     "  Python connector fsr_soc_triage/verdict_vocab.py (vendored copy + parity test)",
     "",
     "CHANGING THIS FILE changes acceptance for every repo. Bump `version` when you",
-    "do — the Python parity test compares it and fails loudly on a stale vendor."
+    "do \u2014 the Python parity test compares it and fails loudly on a stale vendor."
   ],
   "version": 1,
-
   "errorPattern": {
     "$comment": [
       "Classifies a tool_result payload as an error. Covers the connector's",
@@ -26,69 +25,104 @@
       "and the 'empty/degraded' results that silently derail a hunt (no matches,",
       "module/connector unavailable, unknown_operation).",
       "JS-flavoured regex source; `\\b` and alternation only, so Python's `re`",
-      "compiles it unchanged. Keep it portable — no lookbehind, no named groups."
+      "compiles it unchanged. Keep it portable \u2014 no lookbehind, no named groups."
     ],
     "source": "\\b(error|unavailable|not available|unknown_operation|no matches|no operations|failed|exception|traceback|denied|forbidden|timed? out|invalid endpoint|invalid credentials|not configured|no close suggestion)\\b",
     "flags": "i"
   },
-
   "notAnError": {
     "$comment": [
       "Payload shapes that look like failures but are not. `guard_redirect` is",
-      "STEERING (hunt-floor / call-once / capability guards, AGENT_HARDENING §D);",
-      "`ok:true` with a nested 'error' string is DATA, not a tool failure —",
+      "STEERING (hunt-floor / call-once / capability guards, AGENT_HARDENING \u00a7D);",
+      "`ok:true` with a nested 'error' string is DATA, not a tool failure \u2014",
       "list_configured_connectors reports each config's health, and an",
       "unconfigured imap once red-flagged the whole call."
     ],
-    "kinds": ["guard_redirect"],
+    "kinds": [
+      "guard_redirect"
+    ],
     "okTrueIsSuccess": true
   },
-
   "cardAlias": {
     "$comment": [
       "Card-type equivalence for the expected-card gate. The widget renders",
       "status_card / info_card / ioc_card through the SAME normalizeInfoCard path,",
       "and the connector normalizes an IOC-consolidation deliverable to an",
-      "info_card (variant ioc_enrichment) — so for acceptance they are ONE",
+      "info_card (variant ioc_enrichment) \u2014 so for acceptance they are ONE",
       "deliverable. status_card is deliberately NOT folded in: it is a",
       "connector-health deliverable, semantically distinct from an info/ioc",
       "finding, so a scenario wanting an info deliverable must not pass on a bare",
-      "status card."
+      "status card.",
+      "approval_request -> action_card: the connector now renders a tier-3 run_op",
+      "approval as an action_card (_approval_to_action_card), leaving a bare",
+      "approval_request only for non-run_op tools it cannot shape into a card. Both",
+      "are the same deliverable -- a mutating action staged for a human -- and an",
+      "action_card always halts the turn for confirm, so neither is the weaker",
+      "assertion. Box scenario files written before that change expect the legacy",
+      "name and were failing rows that DID stage a card (.159 TB/TO, .206 Z4/C1/",
+      "SKL-MIC); the checked-in example file already uses action_card."
     ],
-    "ioc_card": "info_card"
+    "ioc_card": "info_card",
+    "approval_request": "action_card"
   },
-
   "verdicts": {
     "$comment": [
       "The ladder, worst first. `hardFail` marks the ones that block a soft gate.",
-      "`driveError` marks the ones that are HARNESS failures, not agent behaviour —",
+      "`driveError` marks the ones that are HARNESS failures, not agent behaviour \u2014",
       "those block on EVERY gate including xfail (an xfail that swallowed a drive",
       "error would report 'XPASS (promote?)' for a turn that never sent a prompt)."
     ],
     "ladder": [
-      { "name": "FAIL (no turn captured)", "hardFail": true, "driveError": true },
-      { "name": "FAIL (red flag)", "hardFail": true },
-      { "name": "FAIL (no-investigation)", "hardFail": true },
-      { "name": "FAIL", "hardFail": true },
-      { "name": "DEGRADED", "hardFail": false },
-      { "name": "PASS (minor errors)", "hardFail": false },
-      { "name": "PASS", "hardFail": false },
-      { "name": "ENV-SKIP (no containment capability)", "hardFail": false }
+      {
+        "name": "FAIL (no turn captured)",
+        "hardFail": true,
+        "driveError": true
+      },
+      {
+        "name": "FAIL (red flag)",
+        "hardFail": true
+      },
+      {
+        "name": "FAIL (no-investigation)",
+        "hardFail": true
+      },
+      {
+        "name": "FAIL",
+        "hardFail": true
+      },
+      {
+        "name": "DEGRADED",
+        "hardFail": false
+      },
+      {
+        "name": "PASS (minor errors)",
+        "hardFail": false
+      },
+      {
+        "name": "PASS",
+        "hardFail": false
+      },
+      {
+        "name": "ENV-SKIP (no containment capability)",
+        "hardFail": false
+      }
     ]
   },
-
   "gates": {
     "$comment": [
       "Per-row gating: the matrix must hold rows that must stay clean AND rows",
       "documenting an open bug. A suite that goes perma-red on a known bug gets",
       "ignored; one that blocks only on hard-FAIL ships DEGRADED regressions",
-      "silently. forbidRedFlags[] overrides EVERY gate — that is what keeps an",
+      "silently. forbidRedFlags[] overrides EVERY gate \u2014 that is what keeps an",
       "xfail honest."
     ],
-    "names": ["soft", "strict", "xfail"],
+    "names": [
+      "soft",
+      "strict",
+      "xfail"
+    ],
     "default": "soft"
   },
-
   "defaults": {
     "$comment": [
       "errBudget: tool errors tolerated before DEGRADED. minTools: a triage that",

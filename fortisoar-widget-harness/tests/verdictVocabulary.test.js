@@ -2,9 +2,9 @@
 // docs/plans/agentic-tooling-best-practices-alignment.md). These tests hold the
 // two properties that make sharing it safe:
 //
-//   1. matrixDriver READS the vocabulary — it must not carry a second, drifting
+//   1. matrixDriver READS the vocabulary -- it must not carry a second, drifting
 //      copy of the error pattern / card aliases / gates.
-//   2. the vocabulary is language-NEUTRAL — a Python consumer must be able to
+//   2. the vocabulary is language-NEUTRAL -- a Python consumer must be able to
 //      compile the same regex and read the same ladder without a JS runtime.
 //
 // Without (1) this file is decoration; without (2) the Python side silently
@@ -39,7 +39,7 @@ describe("verdict vocabulary is the single source", () => {
 
   test("every hardFail verdict in the ladder is spelled FAIL", () => {
     // The driver used to infer hardFail from `startsWith("FAIL")`. It now uses
-    // ladder membership, so this asserts the two agree — if a future non-FAIL
+    // ladder membership, so this asserts the two agree -- if a future non-FAIL
     // verdict needs to block, that is a deliberate change and this test is
     // where you notice.
     for (const v of VOCAB.verdicts.ladder) {
@@ -57,12 +57,12 @@ describe("verdict vocabulary is the single source", () => {
 describe("vocabulary is language-neutral", () => {
   test("the error pattern uses no JS-only regex syntax", () => {
     const src = VOCAB.errorPattern.source;
-    expect(src).not.toMatch(/\(\?<[=!]/);   // lookbehind — not portable
-    expect(src).not.toMatch(/\(\?<\w+>/);   // named groups — differing syntax
+    expect(src).not.toMatch(/\(\?<[=!]/);   // lookbehind -- not portable
+    expect(src).not.toMatch(/\(\?<\w+>/);   // named groups -- differing syntax
     expect(src).not.toMatch(/\\[dswDSW]\{/); // JS-specific quantified classes
   });
 
-  test("the file is pure data — no comments outside $comment keys", () => {
+  test("the file is pure data -- no comments outside $comment keys", () => {
     const raw = fs.readFileSync(VOCAB_PATH, "utf8");
     expect(() => JSON.parse(raw)).not.toThrow();
     expect(raw).not.toMatch(/^\s*\/\//m);
@@ -100,6 +100,57 @@ describe("behaviour is unchanged by the extraction", () => {
        { type: "tool_result", tool_use_id: "1", content: { ok: true } }],
       { minTools: 1 });
     expect(clean.hardFail).toBe(false);
+  });
+
+  // The .159 TB/TO rows failed with `got=[]` while their transcript digest
+  // showed `action_card: 1` and stop_reason `awaiting_action_card` -- the card
+  // WAS staged. The connector now renders a tier-3 run_op approval as an
+  // action_card (`_approval_to_action_card`), so the box scenario files' older
+  // `approval_request` expectation could never be met. Same defect on .206
+  // (Z4/C1/SKL-MIC). The checked-in example file already says action_card.
+  test("an approval_request expectation is met by a staged action_card", () => {
+    const frames = [
+      { type: "tool_use", id: "1", name: "emit_action_card" },
+      { type: "tool_result", tool_use_id: "1", content: { ok: true } },
+      { type: "stream_end",
+        stop_reason: "awaiting_action_card",
+        transcript: [
+          { type: "tool_use", id: "1", name: "emit_action_card" },
+          { type: "tool_result", tool_use_id: "1", content: { ok: true } },
+          { type: "action_card", id: "block_ip", connector: "fortigate-firewall" },
+        ] },
+    ];
+    const r = evaluate(frames, { expectedCards: ["approval_request"], minTools: 0 });
+    expect(r.metrics.missingExpected).toEqual([]);
+    expect(r.hardFail).toBe(false);
+  });
+
+  test("the alias is symmetric -- a legacy approval_request meets action_card", () => {
+    const frames = [
+      { type: "stream_end",
+        stop_reason: "awaiting_approval",
+        transcript: [
+          { type: "tool_use", id: "1", name: "run_op" },
+          { type: "tool_result", tool_use_id: "1", content: { ok: true } },
+          { type: "approval_request", approval_id: "a1" },
+        ] },
+    ];
+    const r = evaluate(frames, { expectedCards: ["action_card"], minTools: 0 });
+    expect(r.metrics.missingExpected).toEqual([]);
+  });
+
+  test("the alias does not make every card interchangeable", () => {
+    const frames = [
+      { type: "stream_end",
+        stop_reason: "end_turn",
+        transcript: [
+          { type: "tool_use", id: "1", name: "get_record" },
+          { type: "tool_result", tool_use_id: "1", content: { ok: true } },
+          { type: "info_card", id: "i1" },
+        ] },
+    ];
+    const r = evaluate(frames, { expectedCards: ["approval_request"], minTools: 0 });
+    expect(r.metrics.missingExpected).toEqual(["approval_request"]);
   });
 
   test("the defaults match the documented contract", () => {
