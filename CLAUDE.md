@@ -23,6 +23,16 @@ deterministic playbook. The widget is *the window*; the connector is the engine.
   `ftnt-dspille/soc-assistant-tracker`. Fields: Promise / Component / Horizon /
   Needs box / Gate. **Claim a card before working it** -- several agents run in
   parallel. Filter `Needs box = box-free` for laptop-parallel work.
+- **Card ops:** raw `gh issue` commands are broken on this repo (Projects-classic
+  GraphQL deprecation). Use `scripts/tracker.sh` in the framework repo
+  (`/Users/dylanspille/PycharmProjects/fsr-playbook-framework/scripts/tracker.sh`)
+  for comment/close/reopen/create and setting board fields. It knows the
+  field/option IDs so you don't hand-construct `gh api` JSON:
+  ```
+  tracker.sh show 60; tracker.sh close 60; tracker.sh comment 60 "body"
+  tracker.sh create "Title" "body" --promise "P2 gating" --horizon NOW
+  ```
+  When you post a finding, close or update the card in the same session.
 - **`STATUS.md` is the cross-repo state tracker**, but its "this week" table is
   superseded by the roadmap's §3.
 
