@@ -158,3 +158,99 @@ describe("behaviour is unchanged by the extraction", () => {
     expect(VOCAB.defaults.minTools).toBe(1);
   });
 });
+
+// ── Box scenario files gate on names the widget must actually render ─────────
+//
+// SCOPE, precisely: this catches a scenario naming a frame type the widget
+// cannot render at all -- a typo, or a frame renamed/removed out of
+// fsrPbRender without the box files following. It does NOT catch the defect
+// that produced the .159 TB/TO and .206 Z4/C1/SKL-MIC reds: those named
+// `approval_request`, which the renderer *does* handle; it was the CONNECTOR
+// that stopped emitting it for tier-3 run_op. Verified by deleting the alias
+// and re-running -- the two alias tests above go red and these do not. Those
+// tests are the guard for that defect; these are the guard for the adjacent,
+// cheaper one, and the distinction is written down so nobody reads a green
+// here as coverage of the expensive case.
+//
+// Box scenario files are gitignored (box-specific record UUIDs), so this
+// skips-with-warning when absent -- TESTING.md's rule: a guard blocked by a
+// missing external artifact never sits perma-red, and re-arms by itself as
+// soon as the file is back.
+describe("box scenario expectations are renderable", () => {
+  const { canonCard } = require("./live/lib/matrixDriver");
+  const RENDER_PATH = path.join(
+    __dirname, "..", "..", "widgets-src", "fortiaiAgenticAssistant",
+    "widget", "widgetAssets", "js", "fsrPbRender.js");
+
+  // Derived from the renderer, not hand-listed: a hardcoded copy here would be
+  // the same parallel-list drift this file exists to prevent. The renderer
+  // dispatches on frame type via `ev.type === '<name>'`, so that comparison IS
+  // the list of things the widget can put on screen. (A narrower pattern --
+  // matching only names ending in `_card` plus a hand-typed few -- reported
+  // `playbook_offer` as unrenderable on the very first run. It renders fine;
+  // the extraction was wrong. Derive the set, don't enumerate it.)
+  function renderableTypes() {
+    const src = fs.readFileSync(RENDER_PATH, "utf8");
+    const found = new Set();
+    for (const m of src.matchAll(/\.type\s*===?\s*'([a-z_]+)'/g)) found.add(m[1]);
+    return found;
+  }
+
+  test("the renderer still declares the card types we grade against", () => {
+    const types = renderableTypes();
+    // Non-vacuity: a renamed/moved renderer would otherwise make every
+    // assertion below pass against an empty set.
+    expect(types.size).toBeGreaterThanOrEqual(10);
+    for (const t of ["action_card", "approval_request", "info_card",
+                     "playbook_offer", "capability_gap"]) {
+      expect(types.has(t)).toBe(true);
+    }
+  });
+
+  const boxFiles = fs.readdirSync(path.join(__dirname, "live"))
+    .filter((f) => /^scenarios\.local\..+\.json$/.test(f));
+
+  for (const file of boxFiles) {
+    test(`${file}: every expectedCards entry resolves to a renderable frame`, () => {
+      const types = renderableTypes();
+      const rows = JSON.parse(
+        fs.readFileSync(path.join(__dirname, "live", file), "utf8"));
+      const list = Array.isArray(rows) ? rows : (rows.scenarios || []);
+      const bad = [];
+      for (const row of list) {
+        for (const want of (row.expectedCards || [])) {
+          // canonCard applies the same alias map the grader applies, so a
+          // legacy name is fine PROVIDED the alias lands on something real.
+          if (!types.has(canonCard(want))) {
+            bad.push(`${row.id || "?"}: expects ${want} -> ${canonCard(want)}`);
+          }
+        }
+      }
+      expect(bad).toEqual([]);
+    });
+  }
+
+  test("at least one box file was checked (or say so out loud)", () => {
+    if (boxFiles.length === 0) {
+      console.warn("[[MATRIX-ENV-SKIP]] no scenarios.local.<box>.json present -- "
+        + "box expectation guard did not run; it re-arms when a box file returns");
+    }
+    expect(true).toBe(true);
+  });
+});
+
+// Non-vacuity for the guard above: a name the renderer has no branch for must
+// be caught. (Removing the approval_request alias does NOT red that guard --
+// see its header. This is what does.)
+describe("the renderable-frame guard actually rejects something", () => {
+  const { canonCard } = require("./live/lib/matrixDriver");
+  test("an unrenderable frame name fails the same check the box files pass", () => {
+    const src = fs.readFileSync(path.join(
+      __dirname, "..", "..", "widgets-src", "fortiaiAgenticAssistant",
+      "widget", "widgetAssets", "js", "fsrPbRender.js"), "utf8");
+    const types = new Set(
+      [...src.matchAll(/\.type\s*===?\s*'([a-z_]+)'/g)].map((m) => m[1]));
+    expect(types.has(canonCard("approval_card_typo"))).toBe(false);
+    expect(types.has(canonCard("action_card"))).toBe(true);
+  });
+});
