@@ -3,7 +3,7 @@
 // ─── Offline grader for a downloaded widget `.events.json` chat export ────────
 //
 // The widget's Export modal downloads a `.events.json` sidecar of any chat.
-// This grader turns that export into a repeatable, gradeable artifact — the
+// This grader turns that export into a repeatable, gradeable artifact -- the
 // OFFLINE half of the live-eval loop: an analyst runs a real prompt in the SOAR
 // UI, downloads the export, and this flags known-bad flow signatures without
 // re-running the box. (See docs/plans/live-chat-eval-and-build-flow-fixes.md.)
@@ -52,10 +52,10 @@ function digestExport(exp) {
 
 // Known-bad flow signatures. Each rule takes the digest and returns
 // {code, detail} when it fires, else null. Add rules as new failure classes
-// surface from live exports — that is how the loop grows coverage.
+// surface from live exports -- that is how the loop grows coverage.
 // Triage-only tools: the hunt/containment set that `intent:build` is supposed to
 // drop entirely (the framework's TRIAGE_ONLY_TOOLS scoping). Their PRESENCE in a
-// build turn is the defect — see triageToolInBuild.
+// build turn is the defect -- see triageToolInBuild.
 const TRIAGE_ONLY_TOOLS = [
   'find_containment_actions',
   'find_enrichment_actions',
@@ -64,14 +64,56 @@ const TRIAGE_ONLY_TOOLS = [
   'run_op',
 ];
 
+// Chips that ARE a request to change the open playbook. Pressing one is the
+// analyst reaching for a change through a control we own, so a change
+// deliverable on that turn is exactly what they asked for.
+const CHANGE_QUICK_ACTIONS = ['add_step', 'add_error_handling', 'optimize'];
+
 const RED_FLAG_RULES = [
+  // ⑦ A change was DELIVERED on a turn the analyst never asked to change
+  //    anything.
+  //
+  // Live: the analyst typed only a request to explain the open playbook. The
+  // model explained, noticed a real routing defect while explaining, then kept
+  // going -- five more round-trips -- and ended on an enhancement offer with an
+  // Apply button. Two symptoms, one overrun: a change proposed to someone who
+  // never asked, and a composer locked long after the prose had visibly
+  // finished, because the turn really was still running.
+  //
+  // Graded on the WIRE, never on the analyst's words. Reading the prompt to
+  // decide whether it was a change request works in English and fails silently
+  // in every other language a SOC runs in -- the same reason the connector
+  // gates the transition instead of classifying the request. The three signals
+  // here are all structural: the chip that opened the turn, the deliverable
+  // that came out, and whether a gate was shown in between.
+  //
+  // Deterministic in the sense the xfail contract demands: it keys on the
+  // DELIVERABLE (an offer card exists), not on a symptom that only sometimes
+  // appears. If the offer is there without a chip and without a gate, the
+  // defect is present on that run, full stop.
+  function unrequestedChangeOffer(d) {
+    // An offline .events.json export carries no request-side chip and no
+    // approval frames, so it cannot answer this. Stay silent rather than flag
+    // every legitimate enhancement in the offline corpus.
+    if (!d.hasAffordanceInfo) return null;
+    if (!(d.offerCards || []).length) return null;
+    if (CHANGE_QUICK_ACTIONS.indexOf(d.quickAction) >= 0) return null;
+    // The analyst was asked first and said yes -- that IS the affordance.
+    if (d.sawApproval) return null;
+    return {
+      code: 'unrequested_change_offer',
+      detail: `${d.offerCards.join(', ')} delivered with no change chip and no `
+        + 'approval gate -- the analyst was handed an applyable edit they never '
+        + 'asked for',
+    };
+  },
   // ⓪ A triage-only tool was CALLABLE AT ALL in a build/authoring turn.
   //
   // This is the real D2 defect, and it is deterministic. Rule ① below (the
   // hunt-floor guard firing) only catches the case where the guard happens to
-  // trip — across three live 206 runs the model called find_containment_actions
+  // trip -- across three live 206 runs the model called find_containment_actions
   // EVERY time, but the guard tripped in only two. So an xfail row keyed on ①
-  // alone reported "XPASS (promote) — the bug looks fixed" on the third run
+  // alone reported "XPASS (promote) -- the bug looks fixed" on the third run
   // while the defect was fully present: a false all-clear.
   //
   // Grade the toolset, not the symptom: in intent:build these tools should not
@@ -84,7 +126,7 @@ const RED_FLAG_RULES = [
     if (!hits.length) return null;
     return {
       code: 'triage_tool_in_build',
-      detail: `triage-only tool(s) reachable in intent:build: ${hits.join(', ')} — the build toolset should not expose them at all`,
+      detail: `triage-only tool(s) reachable in intent:build: ${hits.join(', ')} -- the build toolset should not expose them at all`,
     };
   },
   // ① Triage containment / hunt-floor guard firing in a BUILD/authoring turn.
@@ -115,7 +157,7 @@ const RED_FLAG_RULES = [
     };
   },
   // ③ A native CRUD action ("create an alert/record") was hunted for as a
-  //    connector operation and found nowhere — the model doesn't know
+  //    connector operation and found nowhere -- the model doesn't know
   //    create_record is a platform step, not a connector op.
   function crudAsConnectorOp(d) {
     const misses = d.toolCalls.filter((t) => t.name === 'find_operation'
@@ -127,13 +169,13 @@ const RED_FLAG_RULES = [
       detail: `find_operation searched ${misses.length}× for a native CRUD op on connectors; none exist`,
     };
   },
-  // ④ The mounted record's module leaked into the authored playbook — either
+  // ④ The mounted record's module leaked into the authored playbook -- either
   //    into the Start step of the final YAML, or into a build tool's `module`
   //    arg (both observed in the same captured failure: a keys mount produced
   //    `module:keys` in build_playbook_from_trace's input AND in Start). Either
   //    surface is the same defect, so both carry one code.
   function mountModuleLeak(d) {
-    // `workflows` is the OPEN PLAYBOOK in the designer — the legitimate entity
+    // `workflows` is the OPEN PLAYBOOK in the designer -- the legitimate entity
     // there (that is what D1's fix installs), never a leak.
     const AUTHORING = ['workflows'];
     const BAD = ['keys', 'alerts', 'incidents', 'cases'];
@@ -141,7 +183,7 @@ const RED_FLAG_RULES = [
     // A leak is the MOUNTED module reappearing in the authored playbook. When
     // the mount is known, compare against it: a live build mounted on the
     // designer (module:workflows) that authors `module: alerts` is the model
-    // choosing a module, NOT a leak — the old static BAD-list check called that
+    // choosing a module, NOT a leak -- the old static BAD-list check called that
     // a leak and would have fired a false positive on a real 206 run. Fall back
     // to the BAD list only when the mount is unknown.
     const leaks = (mod) => {
@@ -154,7 +196,7 @@ const RED_FLAG_RULES = [
       if (m && leaks(m[1])) {
         return {
           code: 'mount_module_leaked_into_start',
-          detail: `playbook Start step carries module:${m[1]} — the mounted record module leaked into an authored playbook`,
+          detail: `playbook Start step carries module:${m[1]} -- the mounted record module leaked into an authored playbook`,
         };
       }
     }
@@ -164,7 +206,7 @@ const RED_FLAG_RULES = [
     if (!hit) return null;
     return {
       code: 'mount_module_leaked_into_start',
-      detail: `${hit.name} was called with module:${hit.input.module} — the mounted record module leaked into an authored playbook`,
+      detail: `${hit.name} was called with module:${hit.input.module} -- the mounted record module leaked into an authored playbook`,
     };
   },
   // ⑤ A native platform CRUD action was authored as a `set_variable` that only
@@ -187,7 +229,7 @@ const RED_FLAG_RULES = [
       detail: `${bad.length} record-creating step(s) authored with a non-CRUD step type: ${bad.join('; ')}`,
     };
   },
-  // ⑥ A step calls out to a placeholder/hallucinated HTTP endpoint — the model
+  // ⑥ A step calls out to a placeholder/hallucinated HTTP endpoint -- the model
   //    invented a firewall REST URL inside a code-snippet script rather than
   //    using a real configured connector operation.
   function hallucinatedHttpEndpoint(d) {
@@ -208,12 +250,12 @@ const RED_FLAG_RULES = [
 //
 // The red-flag rules above are the single source of truth for "known-bad flow
 // signature". They must grade BOTH halves of the eval loop:
-//   offline — a downloaded `.events.json` (digestExport, display-shaped), and
-//   live    — a matrixDriver capture ({frames, requests}, wire-shaped).
+//   offline -- a downloaded `.events.json` (digestExport, display-shaped), and
+//   live    -- a matrixDriver capture ({frames, requests}, wire-shaped).
 // So this adapts a live capture onto the identical digest contract
 // ({intent, toolCalls[{name,input,result,status}], texts, finalYaml}) and every
 // rule applies to live matrix rows for free. A rule added for an offline
-// regression immediately gates the live matrix too — that is the whole point of
+// regression immediately gates the live matrix too -- that is the whole point of
 // the loop (docs/plans/live-chat-eval-and-build-flow-fixes.md).
 function digestLive(frames, requests) {
   // Lazy require breaks the module cycle: exportGrader already requires
@@ -237,7 +279,7 @@ function digestLive(frames, requests) {
       texts.push(row.text);
     }
   });
-  // The authored YAML rides in a build tool's arg or a playbook card payload —
+  // The authored YAML rides in a build tool's arg or a playbook card payload --
   // there is no `currentYaml` on the wire the way the export has one. Take the
   // LAST one seen: the newest revision is what the analyst ends up with.
   const yamlOf = (o) => (o && typeof o === 'object'
@@ -248,7 +290,7 @@ function digestLive(frames, requests) {
     if (y) finalYaml = y;
   });
   // ...and most of the time it rides in the assistant's PROSE as a fenced block.
-  // Critically, `text` frames are streaming DELTAS — a live build turn produced
+  // Critically, `text` frames are streaming DELTAS -- a live build turn produced
   // 612 of them and not one contained "```yaml", because the fence is split
   // across frames. Grading them individually silently killed every YAML-based
   // rule on live captures (only the tool-based ones fired). They must be JOINED
@@ -267,7 +309,26 @@ function digestLive(frames, requests) {
   // to tell a real mount leak from the model simply choosing a module.
   const mountModule = (requests || [])
     .map((r) => r.entity && r.entity.module).filter(Boolean)[0] || null;
-  return { intent, toolCalls, texts, finalYaml, mountModule };
+  // Everything unrequestedChangeOffer needs, read off the wire rather than
+  // inferred from the analyst's words: which chip (if any) opened the turn,
+  // whether a change deliverable was produced, and whether they were asked
+  // first. `hasAffordanceInfo` marks this digest as able to answer the
+  // question at all -- an offline .events.json export cannot, and the rule
+  // must stay silent there rather than guess.
+  const quickAction = (requests || [])
+    .map((r) => r.quick_action).filter(Boolean)[0] || null;
+  const offerCards = [...new Set(timeline
+    .filter((row) => row.kind === 'card'
+      && /^(enhancement_offer|patch_proposal)$/.test(row.cardType || ''))
+    .map((row) => row.cardType))];
+  // approval_request is not a card frame (buildTimeline's card regex does not
+  // match it), so read it off the raw frames.
+  const sawApproval = (frames || []).some((f) => {
+    if (!f || typeof f !== 'object') return false;
+    return (f.type || f.kind) === 'approval_request' || f.pending_approval === true;
+  });
+  return { intent, toolCalls, texts, finalYaml, mountModule,
+           hasAffordanceInfo: true, quickAction, offerCards, sawApproval };
 }
 
 // Verdict ladder mirrors matrixDriver's spirit: a hard-derailing flag → FAIL;
@@ -283,9 +344,12 @@ const HARD_FAIL_CODES = [
   'mount_module_leaked_into_start',
   'native_action_as_wrong_step_type',
   'hallucinated_http_endpoint',
+  // An edit the analyst never asked for IS a wrong deliverable -- the P2
+  // gating promise says a change is analyst-approved, never silent.
+  'unrequested_change_offer',
 ];
 
-// Grade any digest (offline export or live capture) — the shared verdict core.
+// Grade any digest (offline export or live capture) -- the shared verdict core.
 function gradeDigest(d) {
   const redFlags = [];
   RED_FLAG_RULES.forEach((rule) => { const f = rule(d); if (f) redFlags.push(f); });

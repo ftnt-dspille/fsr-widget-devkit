@@ -7,7 +7,7 @@
 // signatures without re-running the box. This asserts the grader on a REAL
 // captured failure (the "create a new playbook to block an ip and create an
 // alert" build turn) so the four defects it exposed stay detected as regressions
-// — and on synthetic clean input so a good turn grades PASS.
+// -- and on synthetic clean input so a good turn grades PASS.
 //
 // See docs/plans/live-chat-eval-and-build-flow-fixes.md.
 
@@ -18,7 +18,7 @@ const { gradeExport, digestExport } = require("./live/lib/exportGrader");
 const FIXTURE = path.join(__dirname, "live/fixtures/exports/build_block_ip_create_alert.events.json");
 const realExport = JSON.parse(fs.readFileSync(FIXTURE, "utf8"));
 
-describe("gradeExport — real captured build failure", () => {
+describe("gradeExport -- real captured build failure", () => {
   const report = gradeExport(realExport);
   const codes = report.redFlags.map((f) => f.code);
 
@@ -50,7 +50,7 @@ describe("gradeExport — real captured build failure", () => {
   });
 });
 
-describe("gradeExport — a clean build turn grades PASS", () => {
+describe("gradeExport -- a clean build turn grades PASS", () => {
   // A well-behaved authoring turn: build intent, a real create_record alert
   // step, a proper module, no triage guard, no trace tool.
   const clean = {
@@ -90,7 +90,7 @@ describe("gradeExport — a clean build turn grades PASS", () => {
   });
 });
 
-describe("gradeExport — robustness", () => {
+describe("gradeExport -- robustness", () => {
   test("empty / malformed export does not throw and grades PASS", () => {
     expect(() => gradeExport({})).not.toThrow();
     expect(gradeExport({}).verdict).toBe("PASS");
@@ -116,7 +116,7 @@ describe("gradeExport — robustness", () => {
 // connector op. The model instead authored a set_variable that formats a
 // message string, and a code-snippet step POSTing to an invented firewall URL.
 // Both are in the real fixture, so both are pinned here as regressions.
-describe("gradeExport — hallucinated authoring (D2.3)", () => {
+describe("gradeExport -- hallucinated authoring (D2.3)", () => {
   const report = gradeExport(realExport);
   const codes = report.redFlags.map((f) => f.code);
 
@@ -149,7 +149,7 @@ describe("gradeExport — hallucinated authoring (D2.3)", () => {
   });
 });
 
-describe("gradeExport — mount leak is caught on the tool input too", () => {
+describe("gradeExport -- mount leak is caught on the tool input too", () => {
   test("build_playbook_from_trace called with module:keys flags the leak without any YAML", () => {
     const exp = {
       manifest: { intent: "build" },
@@ -180,9 +180,9 @@ describe("gradeExport — mount leak is caught on the tool input too", () => {
 //
 // gradeLive() adapts a matrixDriver capture ({frames, requests}) onto the same
 // digest contract as a downloaded export, so ONE set of rules gates both. These
-// pin that equivalence — a rule written for an offline regression must fire on
+// pin that equivalence -- a rule written for an offline regression must fire on
 // the live wire shape too, or the loop leaks.
-describe("gradeLive — live matrix capture grades through the same rules", () => {
+describe("gradeLive -- live matrix capture grades through the same rules", () => {
   const { gradeLive, digestLive } = require("./live/lib/exportGrader");
 
   const liveCapture = {
@@ -212,7 +212,7 @@ describe("gradeLive — live matrix capture grades through the same rules", () =
   test("a guard_redirect is status 'ok' live, yet STILL red-flags in a build turn", () => {
     // Cross-module invariant. matrixDriver.isErr() deliberately classifies
     // kind:"guard_redirect" as steering, NOT a tool error (AGENT_HARDENING §D),
-    // so the live status is "ok" — whereas the offline export recorded the same
+    // so the live status is "ok" -- whereas the offline export recorded the same
     // call as resultStatus:"error". The red-flag rule must therefore key off the
     // guard PAYLOAD, not the status, or it would fire offline and silently miss
     // live. That asymmetry is the whole reason this test exists.
@@ -259,9 +259,9 @@ describe("gradeLive — live matrix capture grades through the same rules", () =
 // find_containment_actions on EVERY live run, but the hunt-floor guard tripped
 // on only some of them. A rule (and an xfail row) keyed on the GUARD therefore
 // reported "clean → promote, the bug looks fixed" while the defect was fully
-// present — a false all-clear, the worst thing a gate can do. So the toolset
+// present -- a false all-clear, the worst thing a gate can do. So the toolset
 // rule must fire on the CALL, independent of the result.
-describe("triage_tool_in_build — grades the defect, not the symptom", () => {
+describe("triage_tool_in_build -- grades the defect, not the symptom", () => {
   const { gradeExport, TRIAGE_ONLY_TOOLS } = require("./live/lib/exportGrader");
 
   const buildTurn = (result) => ({
@@ -272,7 +272,7 @@ describe("triage_tool_in_build — grades the defect, not the symptom", () => {
     ] }],
   });
 
-  test("fires when the triage tool SUCCEEDS (no guard) — the run-3 false all-clear", () => {
+  test("fires when the triage tool SUCCEEDS (no guard) -- the run-3 false all-clear", () => {
     // This exact shape reported XPASS (promote) before the rule existed.
     const codes = gradeExport(buildTurn({ ok: true, actions: [{ name: "block_ip" }] }))
       .redFlags.map((f) => f.code);
@@ -280,7 +280,7 @@ describe("triage_tool_in_build — grades the defect, not the symptom", () => {
     expect(codes).not.toContain("triage_guard_in_build"); // no guard in this result
   });
 
-  test("also fires when the guard DOES trip — both codes, same defect", () => {
+  test("also fires when the guard DOES trip -- both codes, same defect", () => {
     const codes = gradeExport(buildTurn({ ok: false, kind: "guard_redirect", hunt_floor_guard: true }))
       .redFlags.map((f) => f.code);
     expect(codes).toContain("triage_tool_in_build");
@@ -291,7 +291,7 @@ describe("triage_tool_in_build — grades the defect, not the symptom", () => {
     expect(gradeExport(buildTurn({ ok: true, actions: [] })).verdict).toBe("FAIL");
   });
 
-  test("does NOT fire in a triage turn — these tools are legitimate there", () => {
+  test("does NOT fire in a triage turn -- these tools are legitimate there", () => {
     const triage = { manifest: { intent: "triage" }, messages: [{ role: "assistant", events: [
       { type: "tool_call", name: "find_containment_actions", inputDisplay: "{}",
         resultDisplay: '{"ok":true}', resultStatus: "ok" },
@@ -314,5 +314,71 @@ describe("triage_tool_in_build — grades the defect, not the symptom", () => {
       ] }] };
       expect(gradeExport(exp).redFlags.map((f) => f.code)).toContain("triage_tool_in_build");
     }
+  });
+});
+
+// ─── unrequested_change_offer ────────────────────────────────────────────────
+//
+// The analyst asked to EXPLAIN and was handed an applyable edit. Graded on the
+// wire (chip / deliverable / gate), never on the analyst's words -- reading the
+// prompt to decide whether it was a change request works in English and fails
+// silently in every other language a SOC runs in.
+describe("gradeLive -- unrequested change offer", () => {
+  const { gradeLive } = require("./live/lib/exportGrader");
+
+  const explainTurn = (extra = {}) => ({
+    requests: [{ intent: "build", ...extra }],
+    frames: [
+      { type: "text", text: "This playbook converts a duration and creates an alert." },
+      ...(extra._frames || []),
+    ],
+  });
+
+  const codes = (c) => gradeLive(c.frames, c.requests).redFlags.map((f) => f.code);
+
+  test("an offer with no chip and no gate is flagged", () => {
+    const c = explainTurn({ _frames: [{ type: "enhancement_offer", offerId: "e1" }] });
+    expect(codes(c)).toContain("unrequested_change_offer");
+  });
+
+  test("it hard-fails the row -- an unasked-for edit is a wrong deliverable", () => {
+    const c = explainTurn({ _frames: [{ type: "enhancement_offer", offerId: "e1" }] });
+    expect(gradeLive(c.frames, c.requests).verdict).toBe("FAIL");
+  });
+
+  test("a change chip makes the same offer legitimate", () => {
+    for (const chip of ["add_step", "add_error_handling", "optimize"]) {
+      const c = explainTurn({ quick_action: chip,
+        _frames: [{ type: "enhancement_offer", offerId: "e1" }] });
+      expect(codes(c)).not.toContain("unrequested_change_offer");
+    }
+  });
+
+  test("an offer the analyst was ASKED for first is legitimate", () => {
+    // The gate fired, they approved, the offer followed -- that IS the affordance.
+    const c = explainTurn({ _frames: [
+      { type: "approval_request", approval_id: "ap-1", reason: "unrequested_change" },
+      { type: "enhancement_offer", offerId: "e1" },
+    ] });
+    expect(codes(c)).not.toContain("unrequested_change_offer");
+  });
+
+  test("explaining WITHOUT proposing an edit is clean", () => {
+    expect(codes(explainTurn())).not.toContain("unrequested_change_offer");
+  });
+
+  test("a read-only chip that produced no offer is clean", () => {
+    const c = explainTurn({ quick_action: "explain" });
+    expect(codes(c)).not.toContain("unrequested_change_offer");
+  });
+
+  test("an offline export cannot answer this and must stay silent", () => {
+    // .events.json carries no request-side chip and no approval frames. Guessing
+    // there would flag every legitimate enhancement in the offline corpus.
+    const exp = { manifest: { intent: "build" }, messages: [{ role: "assistant",
+      events: [{ type: "tool_call", name: "emit_enhancement_offer",
+                 inputDisplay: "{}", resultDisplay: '{"ok":true}', resultStatus: "ok" }] }] };
+    expect(gradeExport(exp).redFlags.map((f) => f.code))
+      .not.toContain("unrequested_change_offer");
   });
 });
