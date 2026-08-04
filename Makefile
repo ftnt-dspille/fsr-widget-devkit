@@ -124,9 +124,9 @@ ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deplo
 	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"; \
 	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; \
 	  else $(MAKE) introspect-gate GATE_WIDGET=$(WIDGET); fi
-	@echo "▶ 5/6 deploy ($(BUMP)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
+	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
 	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
-	    scripts/ship.sh $(WIDGET) --bump $(BUMP)
+	    scripts/ship.sh $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
 	@echo "▶ 6/6 live-sweep"; \
 	  if [ -f "widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js" ]; then $(MAKE) test-live-sweep WIDGET=$(WIDGET); \
 	  else echo "  (no live sweep spec for $(WIDGET) - skipping)"; fi
