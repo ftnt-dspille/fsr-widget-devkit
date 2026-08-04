@@ -294,6 +294,48 @@ describe("approval arc (#83)", () => {
     expect(ev.verdict).toBe("PASS");
   });
 
+  test("a PARK satisfies the DERIVED end_turn expectation (#88 live re-run)", () => {
+    // The whole SKL-MI arc: approved run_playbook -> ran (triggered, run_pk) ->
+    // parked at the playbook's own manual_input step -> the turn ends at
+    // awaiting_manual_input. Zero tool errors, expected card present. Before
+    // this, exempting awaiting_input from isErr just moved the failure one gate
+    // down to "wrong terminal".
+    const ev = evaluate([
+      useId("c1", "run_playbook", { playbook: "P" }),
+      approval("c1", "run_playbook"),
+      resId("c1", { ok: false, code: "awaiting_input", triggered: true, run_pk: "9247" }),
+      card("manual_input"),
+      end("awaiting_manual_input"),
+    ], { expectedCards: ["manual_input"], minTools: 1, errBudget: 1, autoApprove: true });
+    expect(ev.verdict).toBe("PASS");
+    expect(ev.hardFail).toBe(false);
+    expect(ev.metrics.terminalParked).toBe(true);
+    expect(ev.why).toContain("PARKED");   // never a silent pass
+  });
+
+  test("a park does NOT excuse a second approval gate", () => {
+    // The dead end #83 exists to catch: the row clicked approve and the turn
+    // stopped at ANOTHER gate. approval_required is deliberately not a park.
+    const ev = evaluate(brokenArc().slice(0, 4).concat(
+      resId("c2", { ok: true }), end("approval_required")), row);
+    expect(ev.verdict).toBe("FAIL (wrong terminal)");
+    expect(ev.hardFail).toBe(true);
+  });
+
+  test("an EXPLICIT expectTerminal is still matched exactly", () => {
+    // Loosening a derived default must not loosen a deliberate assertion.
+    const ev = evaluate([
+      useId("c1", "run_playbook", { playbook: "P" }),
+      approval("c1", "run_playbook"),
+      resId("c1", { ok: false, code: "awaiting_input", triggered: true, run_pk: "9" }),
+      card("manual_input"),
+      end("awaiting_manual_input"),
+    ], { expectedCards: ["manual_input"], minTools: 1, autoApprove: true,
+         expectTerminal: "end_turn" });
+    expect(ev.verdict).toBe("FAIL (wrong terminal)");
+    expect(ev.metrics.terminalParked).toBe(false);
+  });
+
   test("an UNapproved tool error still counts against errBudget", () => {
     // The split must not quietly exempt ordinary failures: only calls that
     // actually passed through an approval gate leave the budget.

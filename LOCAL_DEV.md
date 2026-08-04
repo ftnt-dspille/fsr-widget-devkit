@@ -1,6 +1,6 @@
-# Local development — widget + connector on your laptop
+# Local development -- widget + connector on your laptop
 
-Run the **connector** and the **LLM** on your laptop for fast iteration — no
+Run the **connector** and the **LLM** on your laptop for fast iteration -- no
 redeploy per change, no Anthropic credits, no box round-trip for the agent loop.
 A configured FortiSOAR box (159 = the 8.0 standard) supplies **SOAR data only**
 (records + other connectors' operations). The **widget** runs in the dev harness
@@ -28,15 +28,15 @@ everything else                             → harness proxy → 159 (or box-of
 - **Our connector's own ops** (`chat_turn`, `chat_poll`, `chat_resume`,
   `list_models`, `compile_yaml`, `health_check`, …) run **locally** in the
   sidecar. They never touch a box.
-- **Other connectors' ops** the agent invokes during triage — `run_op(connector=
+- **Other connectors' ops** the agent invokes during triage -- `run_op(connector=
   "fortisiem", operation="event_query", …)`, IP-enrichment (VirusTotal/Shodan/…),
-  firewall block — are **auto-proxied to the box**: `run_op` → `probes._env` →
+  firewall block -- are **auto-proxied to the box**: `run_op` → `probes._env` →
   pyfsr → `POST /api/integration/execute/` on `FSR_BASE_URL` (the 8.0 box). No extra
   proxy code; just the box config.
 - **Record fetches** (`GET /api/3/<module>/<id>`) go through the harness proxy
   to the box (real records; 159 has 25k+ alerts).
 
-No sim, no mock — the real `chat_turn` path. `simulation_mode` stays off; the
+No sim, no mock -- the real `chat_turn` path. `simulation_mode` stays off; the
 widget's localhost→mock default is overridden with `?mode=real`.
 
 ## Repos
@@ -59,7 +59,7 @@ bash scripts/setup-localdev-venv.sh
 
 # 2. Create your localdev.env (gitignored) from the example + real creds.
 #    Fill OPENAI_* from your LLM gateway (base URL, a chat model it serves,
-#    your key) and FSR_* for the FortiSOAR box (csadmin). See
+#    your key) and FSR_* for the FortiSOAR box (labuser). See
 #    scripts/localdev.env.example for the keys.
 cp scripts/localdev.env.example scripts/localdev.env
 $EDITOR scripts/localdev.env
@@ -70,10 +70,10 @@ $EDITOR scripts/localdev.env
 Two processes: the sidecar (connector) and the harness (widget).
 
 ```sh
-# Terminal 1 — the connector sidecar (runs the real operations against the LLM gateway + 159)
+# Terminal 1 -- the connector sidecar (runs the real operations against the LLM gateway + 159)
 FSRPB_DEV=1 .venv-localdev/bin/python scripts/local-connector-sidecar.py
 
-# Terminal 2 — the harness, routing connector-execute to the local sidecar
+# Terminal 2 -- the harness, routing connector-execute to the local sidecar
 FSR_LOCAL_CONNECTOR=1 PORT=4401 node server.js
 # (or via the parent Makefile: FSR_LOCAL_CONNECTOR=1 make start)
 ```
@@ -107,13 +107,13 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
 - **Connector (pytest):**
   `.venv-localdev/bin/python -m pytest
   ~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/connector-fsr-soc-assistant/fsr_soc_triage/tests/`
-  — exercises the triage library + intent slice (conftest imports
+  -- exercises the triage library + intent slice (conftest imports
   `fsr_soc_triage` for registration side-effects). Mocked tests need no box.
 - **Framework (offline contract):**
   `cd ~/PycharmProjects/fsr-playbook-framework && make tests` (fast pytest,
   excludes live/slow; includes the golden-trace pin) and `make chat-fast`
   (offline structure guards, no API, ~seconds).
-- **End-to-end local smoke:** the sidecar + `?mode=real` triage turn above —
+- **End-to-end local smoke:** the sidecar + `?mode=real` triage turn above --
   the real proof the whole loop works.
 
 ## No-cache / latest-changes discipline (prevent stale-state bugs)
@@ -121,7 +121,7 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
 - **fsr-playbooks / pyfsr**: installed **editable** → Python re-reads source on
   each import. No wheel to go stale. This is *why* editable + `FSRPB_DEV=1`:
   the production version-assert (`operations.py` `_import_fsr_playbooks`, which
-  guards the box's pinned `0.4.10` wheel) is counterproductive locally — an
+  guards the box's pinned `0.4.10` wheel) is counterproductive locally -- an
   editable install reports `0.0.0+unknown`, not the pin. `FSRPB_DEV=1` skips
   that one check (still asserts importability).
 - **Connector code**: edit `operations.py` → **restart the sidecar** (it holds
@@ -130,9 +130,9 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   `find <connector-dir> ~/PycharmProjects/fsr-playbook-framework -name __pycache__ -prune -exec rm -rf {} +`
 - **Widget code**: the harness hot-reloads templates, but the bundled AngularJS
   layer caches → hard-refresh the browser. If a rename/version bump misbehaves,
-  `make stop` + `make start` (never `node server.js` by hand — use the
+  `make stop` + `make start` (never `node server.js` by hand -- use the
   Makefile / `scripts/ship.sh`).
-- **Config flip** (LLM gateway↔box, `simulation_mode`): restart the sidecar — the
+- **Config flip** (LLM gateway↔box, `simulation_mode`): restart the sidecar -- the
   `probes._env` bridge rebinds on restart.
 - **Reference catalog (warmup / instance switch)**: the connector auto-rewarms
   the reference DB when it was warmed from a *different* SOAR than `FSR_BASE_URL`
@@ -154,25 +154,25 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
 
 ## Troubleshooting
 
-- **`fsr_playbooks version mismatch`** — `FSRPB_DEV=1` isn't set. The sidecar
+- **`fsr_playbooks version mismatch`** -- `FSRPB_DEV=1` isn't set. The sidecar
   sets it itself; if you run ops by hand, export it.
-- **LLM `403 model_blocked`** — the model in `OPENAI_MODEL` isn't permitted for
+- **LLM `403 model_blocked`** -- the model in `OPENAI_MODEL` isn't permitted for
   your gateway key (a gateway can expose a model under a routing prefix your key
   isn't allowed to use). Run `list_models` to see what your key *can* use and set
   `OPENAI_MODEL` to one of those.
-- **`run_op` returns `no_live_fsr` / "FSR instance not configured"** — the
+- **`run_op` returns `no_live_fsr` / "FSR instance not configured"** -- the
   sidecar's `localdev.env` is missing `FSR_BASE_URL` / creds, or the box is
   unreachable. (`probes/_env.py` `is_live()` needs base_url + (api_key OR
   username+password).)
-- **`ReadTimeoutError` to the FortiSOAR box** — the box was slow on a `run_op`
+- **`ReadTimeoutError` to the FortiSOAR box** -- the box was slow on a `run_op`
   (8s timeout). A real-but-slow-box issue; the agent retries / degrades. Raise
   `FSR_TIMEOUT` in `localdev.env` if it's flaky.
-- **`502 sidecar_unreachable`** — the sidecar isn't running (Terminal 1), or
+- **`502 sidecar_unreachable`** -- the sidecar isn't running (Terminal 1), or
   `FSRPB_SIDECAR_URL` points somewhere else.
-- **execute still hits the box (returns box-shape `{"operation":null,...}`)** —
+- **execute still hits the box (returns box-shape `{"operation":null,...}`)** --
   `FSR_LOCAL_CONNECTOR=1` wasn't set when the harness started, OR the harness is
   running stale `server.js` (rebuild: `npx tsc -p tsconfig.json`; restart).
-- **Widget shows mock data** — you forgot `?mode=real` (localhost defaults to
+- **Widget shows mock data** -- you forgot `?mode=real` (localhost defaults to
   mock; `fsrPbAgent.service.js` `_activeScenario`).
 
 ## Pointers
@@ -183,7 +183,7 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
 - Connectors SDK engine wheel: `~/.vscode/extensions/fortisoar.fortisoar-connector-0.0.1/resources/wheels/fortisoar_connector_engine-3.0.0.3-py3-none-any.whl`
   (re-point the setup script if the extension updates).
 - Sidecar: `fortisoar-widget-harness/scripts/local-connector-sidecar.py`
-  (stdlib HTTP, localhost-only, no auth — dev machine, not for shared use).
+  (stdlib HTTP, localhost-only, no auth -- dev machine, not for shared use).
 - Harness handler: `server.ts` `POST /api/integration/execute/` (gated by
   `FSR_LOCAL_CONNECTOR`; off = unchanged box-proxy behavior).
 - Widget connectors fixture:

@@ -37,6 +37,7 @@ const VOCAB = require("./verdict-vocabulary.json");
 const ERR_RX = new RegExp(VOCAB.errorPattern.source, VOCAB.errorPattern.flags);
 const NOT_AN_ERROR_KINDS = new Set(VOCAB.notAnError.kinds);
 const NOT_AN_ERROR_CODES = new Set(VOCAB.notAnError.codes || []);
+const PARKED_TERMINALS = new Set((VOCAB.terminals || {}).parked || []);
 const HARD_FAIL_VERDICTS = new Set(
   VOCAB.verdicts.ladder.filter((v) => v.hardFail).map((v) => v.name));
 
@@ -235,6 +236,17 @@ function evaluate(allFrames, opts = {}) {
   // `approval_required`, so the default stays null for them. `expectTerminal`
   // overrides explicitly. Derived, not opt-in: a row cannot silently omit it.
   const expectTerminal = opts.expectTerminal ?? (opts.autoApprove ? "end_turn" : null);
+  // A DERIVED end_turn expectation is also satisfied by a PARK: the turn
+  // stopped on a human gate having already done its work. An approved
+  // run_playbook whose playbook contains a manual_input step ends at
+  // `awaiting_manual_input` -- the run happened, the approval bought it, and it
+  // is waiting at the playbook's OWN gate. Only when the expectation was
+  // derived: a row that names `expectTerminal` explicitly still matches
+  // exactly, so no deliberate assertion is loosened. (#88 live re-run: with
+  // `awaiting_input` exempted from isErr, SKL-MI/SKL-MI2 fell straight through
+  // to "wrong terminal" -- the same bug one gate downstream.)
+  const terminalParked = !opts.expectTerminal
+    && PARKED_TERMINALS.has(terminalStop);
 
   const toolCalls = counts["tool_use"] || 0;
   const errCount = toolErrors.length;
@@ -306,7 +318,7 @@ function evaluate(allFrames, opts = {}) {
   } else if (correct === false) {
     verdict = "FAIL";
     why = `no deliverable (missing: ${missingExpected.join(",")}) after ${errCount} tool errors -- agent could NOT self-correct`;
-  } else if (expectTerminal && terminalStop !== expectTerminal) {
+  } else if (expectTerminal && terminalStop !== expectTerminal && !terminalParked) {
     verdict = "FAIL (wrong terminal)";
     why = `turn ended at stop_reason=${terminalStop}, expected ${expectTerminal}` +
       (terminalStop === "approval_required"
@@ -322,6 +334,11 @@ function evaluate(allFrames, opts = {}) {
   } else {
     verdict = "PASS";
     why = `0 tool errors; ` + (correct === null ? "clean run" : "deliverable present");
+  }
+  // A park is a PASS, but never a silent one: say so, or the report reads as a
+  // turn that ran to completion.
+  if (terminalParked && !HARD_FAIL_VERDICTS.has(verdict)) {
+    why += ` -- PARKED at stop_reason=${terminalStop} (work done, waiting on a human), which satisfies the derived ${expectTerminal}`;
   }
 
   return {
@@ -341,7 +358,7 @@ function evaluate(allFrames, opts = {}) {
       approvalRefusals: approvalRefusals.length,
       distinctCauses: sigs.length,
       expected: expectedCards, gotExpected, missingExpected,
-      terminalStop, expectTerminal,
+      terminalStop, expectTerminal, terminalParked,
     },
   };
 }

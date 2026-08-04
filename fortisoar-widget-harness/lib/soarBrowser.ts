@@ -13,7 +13,7 @@
  *    Presenting a real desktop Chrome User-Agent (+ Accept-Language) clears it.
  *    This is why the UI was historically "un-driveable" on forticloud -- the WAF,
  *    not SSO.
- *  - **csadmin is a LOCAL login, not SSO.** Login form is `#username` +
+ *  - **labuser is a LOCAL login, not SSO.** Login form is `#username` +
  *    `#login_password`; submit via `button[type=submit]` / "Login".
  *  - **Record deep-links use `/modules/<module>/<uuid>`** (ui-router state
  *    `main.modulesDetail`). A bare `/<module>/<uuid>` silently redirects to login.
@@ -86,7 +86,7 @@ async function launchContext({ headless = true }: LaunchContextOpts = {}): Promi
   return { browser, context };
 }
 
-/** Log in with resolved creds (local csadmin). Throws if the form never appears. */
+/** Log in with resolved creds (local labuser). Throws if the form never appears. */
 async function login(page: Page, base: string, soar: SoarEnvResult): Promise<void> {
   await page.goto(base + "/login", { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForSelector(LOGIN.pass, { timeout: 30000 });

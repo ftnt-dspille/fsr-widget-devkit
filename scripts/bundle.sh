@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bundle.sh — produce a single tarball that scp's to a SOAR appliance and
+# bundle.sh -- produce a single tarball that scp's to a SOAR appliance and
 # installs every *.palette in the scripts/ directory as a theme.
 #
 # Usage:
@@ -33,7 +33,7 @@ PALETTES=( *.palette )
 [[ ${#PALETTES[@]} -gt 0 ]] || { echo "no *.palette files to bundle" >&2; exit 1; }
 cp "${PALETTES[@]}" "$DEST/"
 
-# Overrides — first *-overrides.css wins, renamed to overrides.css.
+# Overrides -- first *-overrides.css wins, renamed to overrides.css.
 OVERRIDES=( *-overrides.css )
 if [[ ${#OVERRIDES[@]} -gt 0 ]]; then
     cp "${OVERRIDES[0]}" "$DEST/overrides.css"
@@ -54,8 +54,8 @@ Contents:
 $(cd "$DEST" && ls -1 | sed 's/^/  /')
 
 Install on the SOAR appliance:
-  scp $NAME.tar.gz csadmin@<appliance>:/tmp/
-  ssh csadmin@<appliance>
+  scp $NAME.tar.gz labuser@<appliance>:/tmp/
+  ssh labuser@<appliance>
   cd /tmp && tar xzf $NAME.tar.gz && cd $NAME
   sudo ./install.sh
 
@@ -66,7 +66,7 @@ Then in the browser console (or DevTools -> Application -> Clear site data):
 
 Switch theme via Settings -> System Configuration -> Theme.
 
-Re-run install.sh after SOAR upgrades — upgrades rewrite themes.json and
+Re-run install.sh after SOAR upgrades -- upgrades rewrite themes.json and
 strip your entries. The CSS files survive.
 EOF
 

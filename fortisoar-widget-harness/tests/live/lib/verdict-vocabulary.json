@@ -17,7 +17,7 @@
     "CHANGING THIS FILE changes acceptance for every repo. Bump `version` when you",
     "do \u2014 the Python parity test compares it and fails loudly on a stale vendor."
   ],
-  "version": 3,
+  "version": 4,
   "errorPattern": {
     "$comment": [
       "Classifies a tool_result payload as an error. Covers the connector's",
@@ -56,6 +56,30 @@
       "awaiting_input"
     ],
     "okTrueIsSuccess": true
+  },
+  "terminals": {
+    "$comment": [
+      "`parked`: stop_reasons that mean the turn PAUSED on a human gate having",
+      "already done its work -- not that it failed to finish. They satisfy a",
+      "DERIVED end_turn expectation (the one autoApprove infers); an explicit",
+      "row-level `expectTerminal` still matches exactly, so a deliberate",
+      "assertion is never weakened.",
+      "",
+      "Found by the live re-run of #88 on .206: with `awaiting_input` correctly",
+      "exempted from isErr, SKL-MI / SKL-MI2 stopped verdicting 'approval spent",
+      "on a refusal' and immediately failed 'wrong terminal' instead -- 0 tool",
+      "errors, expected cards present, ended at `awaiting_manual_input`. Same",
+      "bug as #88 one gate downstream: the run happened, the analyst's approval",
+      "bought it, and it is parked at the playbook's OWN manual_input step.",
+      "",
+      "Deliberately NOT here: `approval_required` and `awaiting_action_card`. On",
+      "an autoApprove row those mean a SECOND approval gate was raised after the",
+      "first was clicked -- nothing ran -- which is the exact dead end the derived",
+      "expectation exists to catch (#83)."
+    ],
+    "parked": [
+      "awaiting_manual_input"
+    ]
   },
   "cardAlias": {
     "$comment": [

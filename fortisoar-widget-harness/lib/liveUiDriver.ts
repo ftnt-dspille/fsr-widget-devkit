@@ -13,7 +13,7 @@
  *    POSTs to /api/integration/execute/ pass fine. Presenting a real desktop
  *    Chrome User-Agent (+ Accept-Language) clears the signature. This is why the
  *    UI was historically "un-driveable" on forticloud -- it was the WAF, not SSO.
- *  - **csadmin is a LOCAL login, not SSO.** The login form is `#username` +
+ *  - **labuser is a LOCAL login, not SSO.** The login form is `#username` +
  *    `#login_password`; submit via `button[type=submit]` / "Login". (verify-remote
  *    couldn't drive *SSO* -- but the local admin bypasses SSO entirely.)
  *  - **Record deep-links use `/modules/<module>/<uuid>`** (ui-router state

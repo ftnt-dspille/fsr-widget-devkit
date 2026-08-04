@@ -1,0 +1,53 @@
+{
+  "_comment": "Local-only. Lab-specific deny patterns for scripts/check_infra_leaks.py. Gitignored on purpose: naming these in a tracked file would publish them on the public mirror.",
+  "text": [
+    "\\b10\\.99\\.\\d{1,3}\\.\\d{1,3}\\b",
+    "\\b[a-z0-9][a-z0-9.-]*\\.fortidemo\\b",
+    "\\b[a-z0-9][a-z0-9.-]*\\.fabriclab\\.ca\\b",
+    "\\bsvl-devops[a-z0-9.-]*\\b",
+    "\\bcsadmin\\b"
+  ],
+  "binary": [
+    "\\b10\\.99\\.\\d{1,3}\\.\\d{1,3}\\b",
+    "\\b[a-z0-9][a-z0-9.-]*\\.fortidemo\\b",
+    "\\b[a-z0-9][a-z0-9.-]*\\.fabriclab\\.ca\\b",
+    "\\b[a-z0-9][a-z0-9.-]*\\.fortilab\\.fortinet\\.(?:com|net)\\b",
+    "\\bsvl-devops[a-z0-9.-]*\\b",
+    "\\bcsadmin\\b"
+  ],
+  "allow": [],
+  "samples": [
+    "https://10.99.198.51/api/3/alerts",
+    "user=csadmin",
+    "svl-devops-example",
+    "https://example-appliance.fortidemo/api",
+    "example-appliance.fortidemo",
+    "https://example.fabriclab.ca/group/repo"
+  ],
+  "replace": [
+    [
+      "\\b10\\.99\\.\\d{1,3}\\.(\\d{1,3})\\b",
+      "198.51.100.\\1"
+    ],
+    [
+      "\\b[a-z0-9][a-z0-9.-]*\\.fortilab\\.fortinet\\.(?:com|net)\\b",
+      "appliance.example.com"
+    ],
+    [
+      "\\b[a-z0-9][a-z0-9.-]*\\.fortidemo\\b",
+      "appliance.example.com"
+    ],
+    [
+      "\\b[a-z0-9][a-z0-9.-]*\\.fabriclab\\.ca\\b",
+      "git.example.com"
+    ],
+    [
+      "\\bsvl-devops[a-z0-9.-]*\\b",
+      "git.example.com"
+    ],
+    [
+      "\\bcsadmin\\b",
+      "labuser"
+    ]
+  ]
+}
