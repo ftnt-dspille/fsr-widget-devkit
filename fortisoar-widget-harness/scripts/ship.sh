@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ship.sh — bulletproof harness (re)start + widget push.
+# ship.sh -- bulletproof harness (re)start + widget push.
 #
 # The historical failure: a stale harness from a prior session keeps holding
 # the port. A plain `node server.js` then dies on EADDRINUSE *silently in the
@@ -60,7 +60,7 @@ die()  { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 # ---- 1. sanity: env file ----------------------------------------------------
 [ -f "$FSR_ENV_FILE" ] || die "env file not found: $FSR_ENV_FILE"
 
-# Source it so THIS process — and the server we spawn — share the same env.
+# Source it so THIS process -- and the server we spawn -- share the same env.
 set -a
 # shellcheck disable=SC1090
 . "$FSR_ENV_FILE" 2>/dev/null || true
@@ -80,7 +80,7 @@ listeners() { lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null || true; }
 
 existing="$(listeners)"
 if [ -n "$existing" ]; then
-  warn "port $PORT already held by PID(s): $(echo "$existing" | tr '\n' ' ')— killing for a clean, known-good start"
+  warn "port $PORT already held by PID(s): $(echo "$existing" | tr '\n' ' ')-- killing for a clean, known-good start"
   echo "$existing" | xargs -r kill 2>/dev/null || true
   for _ in 1 2 3 4 5; do [ -z "$(listeners)" ] && break; sleep 1; done
   still="$(listeners)"
@@ -89,7 +89,7 @@ if [ -n "$existing" ]; then
     echo "$still" | xargs -r kill -9 2>/dev/null || true
     for _ in 1 2 3 4 5; do [ -z "$(listeners)" ] && break; sleep 1; done
   fi
-  [ -z "$(listeners)" ] || die "could not free port $PORT — investigate manually (lsof -iTCP:$PORT)"
+  [ -z "$(listeners)" ] || die "could not free port $PORT -- investigate manually (lsof -iTCP:$PORT)"
   ok "port $PORT freed"
 fi
 
@@ -98,7 +98,7 @@ fi
 # PID (no off-by-one from an intermediate shell/nohup).
 say "starting fresh harness → $LOG_FILE"
 # Pass FSR_ENV_FILE through so the server treats this as an EXPLICIT target and
-# never lets a stale `.harness-active-env` (UI pick) override it — even when the
+# never lets a stale `.harness-active-env` (UI pick) override it -- even when the
 # chosen host equals the default `.env`'s host (the value-diff heuristic is blind
 # to that case; the explicit file name is not).
 ( cd "$HARNESS_DIR" && exec env PORT="$PORT" WIDGETS_SRC="$WIDGETS_SRC" \
@@ -111,7 +111,7 @@ say "launched PID $SRV_PID"
 # ---- 4. wait for readiness AND prove the listener is OUR process ------------
 # The port was provably free in step 2, so whoever listens now is the server we
 # just launched. We still assert the listening PID is SRV_PID (or a child of it)
-# and is a node process running THIS harness's server.js — belt and suspenders.
+# and is a node process running THIS harness's server.js -- belt and suspenders.
 is_ours() {
   local pid="$1"
   [ "$pid" = "$SRV_PID" ] && return 0
@@ -130,7 +130,7 @@ for i in $(seq 1 30); do
   if curl -sf -o /dev/null "http://localhost:$PORT/_fsr/widgets"; then
     owner="$(listeners | head -n1)"
     if is_ours "$owner"; then ready=1; ok "harness ready after ${i}s (listener PID $owner, launched $SRV_PID)"; break; fi
-    die "PID $owner holds :$PORT but is not our launched server ($SRV_PID) — aborting to avoid pushing through a foreign server"
+    die "PID $owner holds :$PORT but is not our launched server ($SRV_PID) -- aborting to avoid pushing through a foreign server"
   fi
   sleep 1
 done
@@ -139,7 +139,7 @@ done
 # Confirm the started server actually resolved the host we expect.
 if grep -qiE "EHOSTUNREACH|ECONNREFUSED|EADDRINUSE" "$LOG_FILE"; then
   echo "----- harness log (tail) -----"; tail -n 20 "$LOG_FILE" || true
-  die "harness log shows a connection/bind error — do not push"
+  die "harness log shows a connection/bind error -- do not push"
 fi
 
 # ---- 4b. ASSERT the running server actually targets EXPECTED_HOST -----------
@@ -151,7 +151,7 @@ fi
 ACTUAL_HOST="$(curl -sf "http://localhost:$PORT/_fsr/info" \
   | sed -n 's/.*"proxyHost":"\([^"]*\)".*/\1/p' | sed -E 's#:[0-9]+$##')"
 if [ -z "$ACTUAL_HOST" ]; then
-  warn "could not read harness target from /_fsr/info — proceeding, but verify the box"
+  warn "could not read harness target from /_fsr/info -- proceeding, but verify the box"
 elif [ "$ACTUAL_HOST" != "$EXPECTED_HOST" ]; then
   die "TARGET MISMATCH: you asked for '$EXPECTED_HOST' but the harness is pointed at '$ACTUAL_HOST' (likely a stale .harness-active-env). Refusing to push. Fix: set FSR_ENV_FILE to the intended target, or delete $HARNESS_DIR/.harness-active-env."
 fi
@@ -163,7 +163,7 @@ if [ "$FORCE_RESTART" = 1 ]; then
 fi
 
 # ---- 5. push ----------------------------------------------------------------
-[ -n "$WIDGET_ID" ] || { warn "no widgetId given — harness is up, nothing to push."; exit 0; }
+[ -n "$WIDGET_ID" ] || { warn "no widgetId given -- harness is up, nothing to push."; exit 0; }
 [ "$DO_PUSH" = 1 ] || { ok "harness up; --no-push set, done."; exit 0; }
 
 PUSH_ARGS=(push "$WIDGET_ID")
@@ -172,4 +172,12 @@ PUSH_ARGS=(push "$WIDGET_ID")
 say "pushing $WIDGET_ID → $EXPECTED_HOST (via PID $SRV_PID)"
 # Same sourced env + explicit HARNESS_URL so widget.js targets THIS server.
 HARNESS_URL="http://localhost:$PORT" node "$HARNESS_DIR/scripts/widget.js" "${PUSH_ARGS[@]}"
-ok "push complete — $WIDGET_ID → $EXPECTED_HOST"
+ok "push complete -- $WIDGET_ID → $EXPECTED_HOST"
+
+# Sync the ONBOARDING.md compat matrix from the (possibly bumped) info.json.
+# The compat-matrix test runs BEFORE the bump in ship-verify, so without this
+# the table drifts on every ship. tracker #85.
+if [ -n "$BUMP" ] && [ -f "$REPO/scripts/sync-compat-matrix.js" ]; then
+  say "syncing ONBOARDING.md compat matrix"
+  ( cd "$REPO" && node scripts/sync-compat-matrix.js ) || warn "sync-compat-matrix.js failed (non-fatal)"
+fi

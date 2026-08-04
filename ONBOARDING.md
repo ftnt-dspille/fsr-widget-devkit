@@ -89,14 +89,14 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.50 | `connector-fsr-soc-assistant` 0.5.95 | 2.8.0 | SOC copilot: investigate → hunt → triage → build |
-| `socAssistantMonitor` | 1.0.9 | `connector-fsr-soc-assistant` 0.5.77 | 2.8.0 | the assistant's monitoring surface |
+| `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.51 | `connector-fsr-soc-assistant` 0.5.98 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `socAssistantMonitor` | 1.0.9 | `connector-fsr-soc-assistant` 0.5.98 | 2.8.0 | the assistant's monitoring surface |
 | `widget-jinja-editor` (`jinjaEditorWidget`) | 1.2.2 | none | n/a | standalone Monaco/Jinja editor |
 | `c3charts` (`c3Charts`) | 1.3.0 | none (registry-driven) | n/a | chart builder |
 | `widget-action-renderer` (`actionRendererWidget`) | 1.0.9 | none | n/a | playbook action renderer |
 
 The connector pins the framework: `connector-fsr-soc-assistant/requirements.txt`
-is the **single source of truth** for `fsr-playbooks` (currently `0.6.11`) -- the
+is the **single source of truth** for `fsr-playbooks` (currently `0.6.16`) -- the
 package is `fsr_playbooks`, not the long-dead `fsr_core`. Platform target is
 FortiSOAR **8.0**.
 
