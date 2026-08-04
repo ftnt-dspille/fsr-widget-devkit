@@ -164,6 +164,117 @@ describe("evaluate() verdict ladder", () => {
   });
 });
 
+// ── The approval arc: a spent approval must buy a run (#83) ──────────────────
+//
+// SKL-MIC graded "PASS (minor errors)" on a turn that ran NOTHING: run_playbook
+// was staged as a tier-3 approval, the analyst approved, the tool refused
+// `record_required`, the model retried correctly, and THAT raised a second
+// approval card nobody answered. stop_reason=approval_required, no assistant
+// text, zero playbook runs.
+//
+// Two independent holes let that pass, and each is closed separately below so
+// neither can silently carry the other:
+//   1. the refusal landed inside `errBudget: 1` -- a refusal that consumes an
+//      approval is not a routine error;
+//   2. nothing asserted where the turn ENDED, so stopping dead at a second gate
+//      scored the same as running the playbook and reporting results.
+//
+// Same family as the two pre-commit hooks scoped to a deleted directory: a check
+// that reports the same thing whether or not the thing it checks is true.
+describe("approval arc (#83)", () => {
+  // Real wire shape: a tool_result carries ONLY tool_use_id (no `.tool`), and
+  // the approval_request names the tool_use it gates. The synthetic `.tool`
+  // shorthand used above never occurs live, and the approval split keys on ids.
+  const useId = (id, name, input = {}) => ({ type: "tool_use", id, name, input });
+  const resId = (id, content) => ({ type: "tool_result", tool_use_id: id, content });
+  const approval = (id, tool) => ({ type: "approval_request", tool_use_id: id, tool, tier: 3 });
+
+  // The captured 0.5.95 arc, frame for frame.
+  const brokenArc = () => [
+    useId("c1", "list_module_playbooks"), resId("c1", { ok: true, playbooks: [{ name: "P" }] }),
+    useId("c2", "run_playbook", { playbook: "P", follow: true }),
+    approval("c2", "run_playbook"),
+    resId("c2", { ok: false, code: "record_required", triggered: false }),
+    useId("c3", "run_playbook", { playbook: "P", record: "/api/3/m/u", follow: true }),
+    approval("c3", "run_playbook"),
+    end("approval_required"),
+  ];
+  const row = { expectedCards: ["approval_request"], minTools: 1, errBudget: 1, autoApprove: true };
+
+  test("a refusal on an APPROVED call is not absorbed by errBudget", () => {
+    const ev = evaluate(brokenArc(), row);
+    expect(ev.verdict).toBe("FAIL (approval spent on a refusal)");
+    expect(ev.hardFail).toBe(true);
+    // The whole point: it is OUT of the routine budget, not merely over it.
+    expect(ev.metrics.errCount).toBe(0);
+    expect(ev.metrics.approvalRefusals).toBe(1);
+  });
+
+  test("the terminal check fires independently of the refusal check", () => {
+    // Same dead end, but the approved call SUCCEEDS -- so only the second
+    // unanswered gate is left to catch. Without the terminal assertion this is
+    // "PASS": the expected card is present and there are zero tool errors.
+    const frames = brokenArc();
+    frames[4] = resId("c2", { ok: true, runId: "r1" });
+    const ev = evaluate(frames, row);
+    expect(ev.verdict).toBe("FAIL (wrong terminal)");
+    expect(ev.hardFail).toBe(true);
+    expect(ev.metrics.terminalStop).toBe("approval_required");
+    expect(ev.metrics.expectTerminal).toBe("end_turn");
+    expect(ev.metrics.missingExpected).toEqual([]);   // the card gate was happy
+    expect(ev.metrics.errCount).toBe(0);              // the error gate was happy
+  });
+
+  test("an approved run that resumes and reports results passes", () => {
+    const ev = evaluate([
+      useId("c1", "run_playbook", { playbook: "P" }),
+      approval("c1", "run_playbook"),
+      resId("c1", { ok: true, status: "finished", results: [{ device: "FG1" }] }),
+      text("The playbook finished; DVMDB info synched."),
+      end("end_turn"),
+    ], row);
+    expect(ev.verdict).toBe("PASS");
+    expect(ev.hardFail).toBe(false);
+  });
+
+  // The guard against over-tightening. Rows that only STAGE an action card and
+  // never click it legitimately end at approval_required -- an action_card halts
+  // the turn for confirm by design. Deriving the expectation from autoApprove
+  // (rather than applying it to every row) is what keeps those green.
+  test("a row that does NOT auto-approve may end at approval_required", () => {
+    const frames = [
+      useId("c1", "run_op", { op: "block_ip" }),
+      approval("c1", "run_op"),
+      end("approval_required"),
+    ];
+    const ev = evaluate(frames, { expectedCards: ["approval_request"], minTools: 1 });
+    expect(ev.metrics.expectTerminal).toBe(null);
+    expect(ev.verdict).toBe("PASS");
+    expect(ev.hardFail).toBe(false);
+  });
+
+  test("expectTerminal overrides the autoApprove-derived default", () => {
+    const ev = evaluate(brokenArc().slice(0, 4).concat(
+      resId("c2", { ok: true }), end("awaiting_choice")),
+      { ...row, expectTerminal: "awaiting_choice" });
+    expect(ev.metrics.expectTerminal).toBe("awaiting_choice");
+    expect(ev.hardFail).toBe(false);
+  });
+
+  test("an UNapproved tool error still counts against errBudget", () => {
+    // The split must not quietly exempt ordinary failures: only calls that
+    // actually passed through an approval gate leave the budget.
+    const ev = evaluate([
+      useId("c1", "search"), resId("c1", { ok: false, error: "timed out" }),
+      useId("c2", "search"), resId("c2", { ok: false, error: "timed out" }),
+      card("info_card"), end(),
+    ], { expectedCards: ["info_card"], minTools: 1, errBudget: 1 });
+    expect(ev.metrics.errCount).toBe(2);
+    expect(ev.metrics.approvalRefusals).toBe(0);
+    expect(ev.verdict).toBe("DEGRADED");
+  });
+});
+
 describe("card-type normalization (ioc_card ≡ info_card)", () => {
   // The widget renders status_card/info_card/ioc_card through one path
   // (fsrPbRender.js) and the connector normalizes IOC consolidation to an

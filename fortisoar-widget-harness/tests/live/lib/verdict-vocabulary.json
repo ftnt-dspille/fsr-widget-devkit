@@ -17,7 +17,7 @@
     "CHANGING THIS FILE changes acceptance for every repo. Bump `version` when you",
     "do \u2014 the Python parity test compares it and fails loudly on a stale vendor."
   ],
-  "version": 1,
+  "version": 2,
   "errorPattern": {
     "$comment": [
       "Classifies a tool_result payload as an error. Covers the connector's",
@@ -87,6 +87,14 @@
         "hardFail": true
       },
       {
+        "name": "FAIL (approval spent on a refusal)",
+        "hardFail": true
+      },
+      {
+        "name": "FAIL (wrong terminal)",
+        "hardFail": true
+      },
+      {
         "name": "FAIL",
         "hardFail": true
       },
@@ -126,7 +134,12 @@
   "defaults": {
     "$comment": [
       "errBudget: tool errors tolerated before DEGRADED. minTools: a triage that",
-      "runs 0 tools is an LLM summarizer, not an investigator."
+      "runs 0 tools is an LLM summarizer, not an investigator.",
+      "",
+      "errBudget covers ROUTINE errors only. A refusal on a call the analyst",
+      "already APPROVED is never routine -- it spends the one approval on a call",
+      "that could not succeed -- so the grader keeps those out of this budget and",
+      "hard-fails on them (FAIL (approval spent on a refusal))."
     ],
     "errBudget": 1,
     "minTools": 1

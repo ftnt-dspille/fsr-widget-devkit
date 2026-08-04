@@ -134,8 +134,16 @@ function digestFrames(rawFrames) {
   const counts = {};
   const tools = [];
   const toolErrors = [];
+  const approvalRefusals = [];
   const lastUseByTool = {};
   const nameById = toolNameIndex(allFrames);
+  // Tool calls that were staged behind a human approval gate. Precomputed over
+  // the whole timeline (not accumulated in the loop below) so the split is
+  // order-independent -- a transcript that emits the card after the result must
+  // classify the same way.
+  const approvalGated = new Set(
+    allFrames.filter((f) => f && f.type === "approval_request" && f.tool_use_id)
+             .map((f) => f.tool_use_id));
   let text = "";
   let terminalStop = null;
   for (const f of allFrames) {
@@ -150,13 +158,22 @@ function digestFrames(rawFrames) {
     if (t === "tool_result") {
       const nm = toolNameOf(f, nameById);
       tools.push("  ⤷ result " + nm + ": " + JSON.stringify(payloadOf(f)).slice(0, 200));
-      if (isErr(f)) toolErrors.push({ tool: nm, args: lastUseByTool[nm], payload: JSON.stringify(payloadOf(f)).slice(0, 300) });
+      if (isErr(f)) {
+        const rec = { tool: nm, args: lastUseByTool[nm], payload: JSON.stringify(payloadOf(f)).slice(0, 300) };
+        // A refusal on an APPROVED call is not a routine tool error: it spent
+        // the analyst's one approval on a call that could never have succeeded,
+        // and the model's corrected retry raises a SECOND gate that nobody
+        // answers. Kept OUT of toolErrors so `errBudget: 1` cannot absorb it
+        // (which is exactly how SKL-MIC graded PASS on a turn that ran nothing).
+        if (approvalGated.has(f.tool_use_id)) approvalRefusals.push(rec);
+        else toolErrors.push(rec);
+      }
     }
     if (t === "error") toolErrors.push({ tool: "(error frame)", payload: JSON.stringify(f).slice(0, 300) });
     if (t === "text" && f.text) text += f.text;
     if (t === "stream_end") terminalStop = f.stop_reason || f.reason || terminalStop;
   }
-  return { order, counts, tools, toolErrors, text, terminalStop };
+  return { order, counts, tools, toolErrors, approvalRefusals, text, terminalStop };
 }
 
 // ── ENV-SKIP: the box lacks the capability the row asks for ──────────────────
@@ -201,7 +218,15 @@ function evaluate(allFrames, opts = {}) {
   const minTools = opts.minTools ?? VOCAB.defaults.minTools;
 
   const digest = digestFrames(allFrames);
-  const { counts, toolErrors, terminalStop } = digest;
+  const { counts, toolErrors, approvalRefusals, terminalStop } = digest;
+
+  // Which stop_reason this row must END on. A row that opts into `autoApprove`
+  // CLICKS the approval, so the turn has to resume and finish -- ending at
+  // `approval_required` means a second gate was raised and nothing ran. Rows
+  // that merely STAGE an action card (no autoApprove) legitimately stop at
+  // `approval_required`, so the default stays null for them. `expectTerminal`
+  // overrides explicitly. Derived, not opt-in: a row cannot silently omit it.
+  const expectTerminal = opts.expectTerminal ?? (opts.autoApprove ? "end_turn" : null);
 
   const toolCalls = counts["tool_use"] || 0;
   const errCount = toolErrors.length;
@@ -262,9 +287,24 @@ function evaluate(allFrames, opts = {}) {
   } else if (toolCalls < minTools) {
     verdict = "FAIL (no-investigation)";
     why = `ran ${toolCalls} tool call(s), needs >=${minTools} -- this is an LLM summarizer, not an investigator; the agent narrated the seed context instead of pulling records / enriching / searching`;
+  } else if (approvalRefusals.length) {
+    // The root cause, so it is reported ahead of the missing deliverable it
+    // causes: the approval was spent on a call that could not succeed.
+    verdict = "FAIL (approval spent on a refusal)";
+    why = `${approvalRefusals.length} approved tool call(s) came back refused -- ` +
+      approvalRefusals.map((e) => `${e.tool}: ${e.payload.slice(0, 120)}`).join("; ") +
+      ` -- the analyst's approval bought nothing, and the corrected retry needs a second one. ` +
+      `Refuse this BEFORE the card (see _precard_validate), not after.`;
   } else if (correct === false) {
     verdict = "FAIL";
     why = `no deliverable (missing: ${missingExpected.join(",")}) after ${errCount} tool errors -- agent could NOT self-correct`;
+  } else if (expectTerminal && terminalStop !== expectTerminal) {
+    verdict = "FAIL (wrong terminal)";
+    why = `turn ended at stop_reason=${terminalStop}, expected ${expectTerminal}` +
+      (terminalStop === "approval_required"
+        ? " -- the row approved a gate and the turn stopped at ANOTHER one: no results, no closing message"
+        : "") +
+      `. The expected cards appeared, so the card gate alone would have called this a pass.`;
   } else if (errCount > errBudget) {
     verdict = "DEGRADED";
     why = `${errCount} tool errors (budget ${errBudget})` + (correct === true ? " but self-corrected to deliverable" : "") + ` -- ${sigs.length} distinct root cause(s) to fix`;
@@ -290,9 +330,10 @@ function evaluate(allFrames, opts = {}) {
     sigs,
     metrics: {
       toolCalls, minTools, errCount, errBudget,
+      approvalRefusals: approvalRefusals.length,
       distinctCauses: sigs.length,
       expected: expectedCards, gotExpected, missingExpected,
-      terminalStop,
+      terminalStop, expectTerminal,
     },
   };
 }
