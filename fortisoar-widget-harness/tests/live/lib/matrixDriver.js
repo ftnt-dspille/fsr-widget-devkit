@@ -391,6 +391,7 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
   // Transcripts returned inline by a chat_turn/chat_resume response, with the
   // frame count at the moment they arrived. See the fold-in below.
   const syncTranscripts = [];
+  const t0 = Date.now();
   page.on("response", async (r) => {
     if (!/integration\/execute/.test(r.url())) return;
     let req = {};
@@ -407,6 +408,7 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
         messages: p.messages, intent: p.intent, entity: p.entity,
         decision: p.decision, card_id: p.card_id, session_id: p.session_id,
         approval_id: p.approval_id, turn_id: p.turn_id,
+        ts: Date.now() - t0,
       };
       // ...and READ THE RESPONSE. This used to return early, so a turn that
       // answered synchronously in its own response body (rather than streaming
@@ -436,7 +438,8 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
     if (op !== "chat_poll") return;
     let data = {};
     try { data = (await r.json()).data || {}; } catch (_) { return; }
-    for (const f of (data.frames || [])) allFrames.push(f);
+    const now = Date.now() - t0;
+    for (const f of (data.frames || [])) allFrames.push({ ...f, _ms: now });
   });
 
   // try/finally, NOT a bare close: when sendChat throws (e.g. the drawer never
@@ -492,7 +495,7 @@ async function captureScenario({ module = "alerts", recordUuid, mountPath, visit
       transcript: [...(prev ? prev.transcript : []), ...t.transcript],
     });
   }
-  return { frames: allFrames, res, requests };
+  return { frames: allFrames, res, requests, t0 };
 }
 
 // Redact obvious secrets before an artifact hits disk (mirrors the widget
@@ -527,27 +530,28 @@ function buildTimeline(rawFrames, requests) {
   const useById = {};
   for (const f of (frames || [])) {
     const t = f.type;
+    const ms = f._ms;
     if (t === "tool_use") {
       const row = { kind: "tool_call", name: f.name, input: f.input ?? f.params ?? {},
-        result: undefined, resultStatus: "pending", isError: undefined };
+        result: undefined, resultStatus: "pending", isError: undefined, ms };
       if (f.id) useById[f.id] = row;
       timeline.push(row);
     } else if (t === "tool_result") {
       const payload = payloadOf(f);
       const row = f.tool_use_id && useById[f.tool_use_id];
       const err = isErr(f);
-      if (row) { row.result = payload; row.resultStatus = err ? "error" : "ok"; row.isError = err; }
+      if (row) { row.result = payload; row.resultStatus = err ? "error" : "ok"; row.isError = err; row.resultMs = ms; }
       else timeline.push({ kind: "tool_result", name: f.name, result: payload,
-        resultStatus: err ? "error" : "ok", isError: err });
+        resultStatus: err ? "error" : "ok", isError: err, ms });
     } else if (t === "text") {
-      timeline.push({ kind: "text", text: f.text ?? f.content ?? "" });
+      timeline.push({ kind: "text", text: f.text ?? f.content ?? "", ms });
     } else if (t === "error") {
-      timeline.push({ kind: "error", payload: f });
+      timeline.push({ kind: "error", payload: f, ms });
     } else if (/_card$|^info_card$|playbook_offer|enhancement_offer|capability_gap|manual_input|choice_card/.test(t || "")) {
-      timeline.push({ kind: "card", cardType: t, payload: f });
+      timeline.push({ kind: "card", cardType: t, payload: f, ms });
     } else if (t === "usage") {
       timeline.push({ kind: "usage", input_tokens: f.input_tokens, output_tokens: f.output_tokens,
-        stop_reason: f.stop_reason });
+        stop_reason: f.stop_reason, ms });
     }
   }
   return timeline;
@@ -557,7 +561,7 @@ function buildTimeline(rawFrames, requests) {
 // input/output/error + raw frames) to a gitignored artifact so a failing
 // scenario is fully inspectable WITHOUT bloating the console/agent context.
 // Returns the artifact path (or null if the write failed -- never throws).
-function writeArtifact(scenario, res, evaluation, frames, requests) {
+function writeArtifact(scenario, res, evaluation, frames, requests, wallClockMs) {
   try {
     const fs = require("fs");
     const path = require("path");
@@ -574,14 +578,12 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
         frameCounts: d.counts, toolCalls: (d.tools || []).length,
         toolErrors: (d.toolErrors || []).length, terminalStop: d.terminalStop,
         done: res.done, streamedTurn: res.sawStreamingTurn,
-        // How many approval gates the driver decided (absent = the row did not
-        // opt into autoApprove). Distinguishes "the agent never gated" from
-        // "the driver approved and the turn still produced nothing".
+        wallClockMs,
         approvalsDecided: res.approvalsDecided,
       },
-      timeline,          // paired, full input/output/error -- the human view
-      requests,          // raw chat_turn/chat_resume inputs
-      frames,            // raw untruncated chat_poll frames -- nothing lost
+      timeline,
+      requests,
+      frames,
     });
     const file = path.join(dir, `${scenario.id || "scenario"}.json`);
     fs.writeFileSync(file, JSON.stringify(artifact, null, 2));
@@ -594,7 +596,8 @@ function writeArtifact(scenario, res, evaluation, frames, requests) {
 // Capture + evaluate one scenario row. Scenario: { id, kind, module?,
 // recordUuid, prompt, expectedCards[], minTools, errBudget, timeoutMs }.
 async function runScenario(scenario) {
-  const { frames, res, requests } = await captureScenario(scenario);
+  const { frames, res, requests, t0 } = await captureScenario(scenario);
+  const wallClockMs = t0 ? Date.now() - t0 : null;
   const evaluation = evaluate(frames, {
     ...scenario,
     submitConfirmed: res.submitConfirmed,
@@ -616,7 +619,7 @@ async function runScenario(scenario) {
     evaluation.why = report.redFlags.map((f) => f.code).join(", ") + " -- " +
       (report.redFlags[0] ? report.redFlags[0].detail : "");
   }
-  const artifactPath = writeArtifact(scenario, res, evaluation, frames, requests);
+  const artifactPath = writeArtifact(scenario, res, evaluation, frames, requests, wallClockMs);
   return { frames, res, requests, evaluation, artifactPath };
 }
 
