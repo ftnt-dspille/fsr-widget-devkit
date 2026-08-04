@@ -36,6 +36,7 @@ const VOCAB = require("./verdict-vocabulary.json");
 
 const ERR_RX = new RegExp(VOCAB.errorPattern.source, VOCAB.errorPattern.flags);
 const NOT_AN_ERROR_KINDS = new Set(VOCAB.notAnError.kinds);
+const NOT_AN_ERROR_CODES = new Set(VOCAB.notAnError.codes || []);
 const HARD_FAIL_VERDICTS = new Set(
   VOCAB.verdicts.ladder.filter((v) => v.hardFail).map((v) => v.name));
 
@@ -89,6 +90,13 @@ function isErr(f) {
     // (AGENT_HARDENING §D) exactly so evals and the widget can tell them
     // apart from real tool errors.
     if (NOT_AN_ERROR_KINDS.has(p.kind)) return false;
+    // Same idea, keyed on `code`: an approved run_playbook that lands on a
+    // manual_input step returns {ok:false, code:"awaiting_input",
+    // triggered:true, run_pk}. The run HAPPENED and is parked at its own gate
+    // -- a resumable seam, not a refusal. Must be checked BEFORE the
+    // `ok === false` line below, which is what made those rows verdict
+    // "approval spent on a refusal" (tracker #88).
+    if (NOT_AN_ERROR_CODES.has(p.code)) return false;
     if (p.ok === false) return true;
     if (p.error || p.code === "error" || p.exception) return true;
     // Structured success: a nested "error" string is DATA, not a tool

@@ -17,7 +17,7 @@
     "CHANGING THIS FILE changes acceptance for every repo. Bump `version` when you",
     "do \u2014 the Python parity test compares it and fails loudly on a stale vendor."
   ],
-  "version": 2,
+  "version": 3,
   "errorPattern": {
     "$comment": [
       "Classifies a tool_result payload as an error. Covers the connector's",
@@ -36,10 +36,24 @@
       "STEERING (hunt-floor / call-once / capability guards, AGENT_HARDENING \u00a7D);",
       "`ok:true` with a nested 'error' string is DATA, not a tool failure \u2014",
       "list_configured_connectors reports each config's health, and an",
-      "unconfigured imap once red-flagged the whole call."
+      "unconfigured imap once red-flagged the whole call.",
+      "",
+      "`codes` is the same idea keyed on `code` rather than `kind`.",
+      "`awaiting_input`: an approved run_playbook whose playbook contains a",
+      "manual_input step comes back {ok:false, code:'awaiting_input',",
+      "triggered:true, run_pk:...}. The run HAPPENED \u2014 it is parked at its own",
+      "gate on the resumable seam tools_playbook.py returns for exactly this",
+      "case. Grading it as a failed call made every such row verdict",
+      "'approval spent on a refusal' (tracker #88, reproduced 2/2 on SKL-MI /",
+      "SKL-MI2). `ok:false` was doing double duty for 'this call failed' and",
+      "'this call is parked awaiting a human'; the connector's wire shape stays",
+      "as-is and the grader learns the difference."
     ],
     "kinds": [
       "guard_redirect"
+    ],
+    "codes": [
+      "awaiting_input"
     ],
     "okTrueIsSuccess": true
   },

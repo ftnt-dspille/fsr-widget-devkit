@@ -62,6 +62,20 @@ describe("isErr classifier", () => {
       status: "error", result: null, error: "connector unavailable",
     }))).toBe(true);
   });
+  test("awaiting_input is a PARKED run, not a refusal", () => {
+    // An approved run_playbook whose playbook contains a manual_input step
+    // comes back ok:false + code:"awaiting_input" + triggered:true + run_pk.
+    // The run HAPPENED and is parked on a resumable seam; grading it as a
+    // failed call is what made SKL-MI / SKL-MI2 verdict "approval spent on a
+    // refusal" 2/2 (tracker #88).
+    expect(isErr(errResult("run_playbook", {
+      ok: false, code: "awaiting_input", triggered: true, run_pk: "9247",
+    }))).toBe(false);
+    // A genuinely failed run still trips.
+    expect(isErr(errResult("run_playbook", {
+      ok: false, code: "error", error: "playbook not found",
+    }))).toBe(true);
+  });
 });
 
 describe("evaluate() verdict ladder", () => {
@@ -259,6 +273,25 @@ describe("approval arc (#83)", () => {
       { ...row, expectTerminal: "awaiting_choice" });
     expect(ev.metrics.expectTerminal).toBe("awaiting_choice");
     expect(ev.hardFail).toBe(false);
+  });
+
+  test("an approved run PARKED at a manual_input gate is not a refusal (#88)", () => {
+    // SKL-MI / SKL-MI2: the approved run_playbook DID run (triggered:true, a
+    // real run_pk) and stopped at the playbook's own manual_input step. The
+    // ok:false seam is a resumable park, not a refusal -- the analyst's
+    // approval bought a real run, so this must not verdict
+    // "approval spent on a refusal".
+    const ev = evaluate([
+      useId("c1", "run_playbook", { playbook: "P" }),
+      approval("c1", "run_playbook"),
+      resId("c1", { ok: false, code: "awaiting_input", triggered: true, run_pk: "9247" }),
+      text("The playbook is running and is waiting on your input."),
+      end("end_turn"),
+    ], row);
+    expect(ev.metrics.approvalRefusals).toBe(0);
+    expect(ev.metrics.errCount).toBe(0);   // nor does it burn the routine budget
+    expect(ev.hardFail).toBe(false);
+    expect(ev.verdict).toBe("PASS");
   });
 
   test("an UNapproved tool error still counts against errBudget", () => {
