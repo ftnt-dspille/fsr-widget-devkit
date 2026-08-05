@@ -305,7 +305,31 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     // from where the analyst sits. Every state this arc touches (the approval
     // singleton, the pending-card gate, viewState) is a way to leave the
     // composer dead or swallow the next prompt.
-    const before = await assistantText(page);
+    // Anchor on the assistant MESSAGE COUNT, not on transcript length.
+    //
+    // The length-slice version produced a FALSE RED on 2026-08-05: the previous
+    // turn's answer was still streaming into the DOM when this test began, so
+    // `before` captured a partial transcript and the "new" text was the tail of
+    // the PREVIOUS answer ("I will not call resume_playbook..."). The box said
+    // otherwise -- `chat_history` showed the follow-up turn had answered the
+    // phishing question properly, with a get_record call. The test was
+    // measuring the wrong window and reported a shipped, working fix as broken.
+    // A gate that cries wolf costs what a sleeping gate costs.
+    //
+    // Settle the prior turn first, then require a brand-new message element.
+    const msgSel = '[data-testid^="chat-message-assistant-"]';
+    let stableCount = await page.locator(msgSel).count();
+    let stableText = await assistantText(page);
+    const settleDeadline = Date.now() + 60000;
+    while (Date.now() < settleDeadline) {
+      await page.waitForTimeout(3000);
+      const t = await assistantText(page);
+      const n = await page.locator(msgSel).count();
+      if (t === stableText && n === stableCount) break;  // two quiet reads
+      stableText = t;
+      stableCount = n;
+    }
+    const beforeCount = stableCount;
 
     const sent = await session.sendChat("How do I triage a phishing report?");
     // Drive failure vs. product failure, kept apart as everywhere else here.
@@ -314,24 +338,47 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     // Wait for the ANSWER, not for the driver's done signal. `sendChat` settles
     // on the shared poll feed, which can report done from a poll belonging to
     // the turn before this one -- this test returned in 5s that way, long before
-    // any model could have answered, and then failed on text that had not been
-    // rendered yet. Poll the DOM for the answer itself.
-    let after = before;
+    // any model could have answered.
+    // Read the answer as the TEXT DELTA from the settled baseline, not as a new
+    // element at index `beforeCount`. The widget does not reliably add one
+    // assistant element per turn (tool/progress bubbles share the same testid
+    // prefix, and a streaming turn can land in an element that already
+    // existed), so an element-count anchor waited out the full budget and
+    // reported "" while the box had answered perfectly -- verified via
+    // chat_history on 0.5.104. The settle loop above is what fixes the ORIGINAL
+    // false red; the delta is just how the answer is read.
+    let fresh = "";
     const answerDeadline = Date.now() + 120000;
     while (Date.now() < answerDeadline) {
-      after = await assistantText(page);
-      if (after.length > before.length && /phish/i.test(after.slice(before.length))) break;
+      const now = await assistantText(page);
+      if (now.length > stableText.length) {
+        const first = now.slice(stableText.length);
+        await page.waitForTimeout(4000);   // let it finish streaming
+        const settled = (await assistantText(page)).slice(stableText.length);
+        if (settled === first && settled.trim().length > 40) {
+          fresh = settled;
+          break;
+        }
+      }
       await page.waitForTimeout(3000);
     }
-    const fresh = after.slice(before.length);
     console.log("[approvalToManualInput.live] follow-up answer: "
       + JSON.stringify(fresh.slice(0, 500)));
-    expect(after.length).toBeGreaterThan(before.length);
-    // It answered the NEW question rather than replaying the playbook arc. The
-    // check is on the text that is NEW since the prompt -- matching /phish/i
-    // against the whole transcript would pass on the echo of the question
-    // itself, i.e. it would go green whether or not the agent ever answered.
-    expect(fresh).toMatch(/phish/i);
+    // Empty means the widget never rendered a new assistant message at all.
+    expect(fresh).not.toBe("");
+
+    // It answered the NEW question rather than replaying the playbook arc.
+    // Asserted on THAT message alone -- matching against the whole transcript
+    // would pass on the echo of the question itself, i.e. go green whether or
+    // not the agent ever answered.
+    //
+    // The NEGATIVE is the real assertion. A correct answer need never use the
+    // word "phishing" (live it opened "I'll give a concise, actionable triage
+    // playbook you can follow"), so requiring that keyword is what made the
+    // check unfalsifiable in the useful direction. What must not happen is the
+    // strand: the turn coming back about the playbook run instead.
+    expect(fresh).not.toMatch(/resume_playbook|run_pk|workflow run (PK|identifier)/i);
+    expect(fresh).toMatch(/phish|triage|email|report/i);
 
     // The old cards stay resolved: no gate re-raised, no second form.
     expect(await page.locator('[data-testid="approval-approve"]').count()).toBe(0);

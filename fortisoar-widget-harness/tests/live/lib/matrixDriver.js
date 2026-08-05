@@ -131,7 +131,13 @@ function canonicalFrames(allFrames) {
   const se = [...(allFrames || [])].reverse().find(
     (f) => f && f.type === "stream_end" && Array.isArray(f.transcript) && f.transcript.length);
   if (!se) return allFrames || [];
-  return [...se.transcript, { type: "stream_end", stop_reason: se.stop_reason || se.reason }];
+  // Preserve _ms timing: transcript frames arrive in the stream_end batch,
+  // so they share its timestamp. Without this, buildTimeline loses all timing.
+  const ms = se._ms;
+  const transcript = ms != null
+    ? se.transcript.map((f) => (f._ms != null ? f : { ...f, _ms: ms }))
+    : se.transcript;
+  return [...transcript, { type: "stream_end", stop_reason: se.stop_reason || se.reason, _ms: ms }];
 }
 
 // Digest a captured frame array: frame-type counts/order, tool trace, tool

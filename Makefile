@@ -133,18 +133,37 @@ ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deplo
 	@# the widget rename (see SWEEP_WIDGET). Skipping is now an explicit choice
 	@# (SKIP_LIVE_SWEEP=1), and the completion line says which gates actually ran.
 	@echo "▶ 6/6 live-sweep"; \
+	  lv_status="unverified"; \
 	  if [ -n "$(SKIP_LIVE_SWEEP)" ]; then \
 	    echo "  ⚠️  SKIP_LIVE_SWEEP set -- this build is NOT live-verified."; \
+	    lv_status="skip"; \
 	  elif [ -f "widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js" ]; then \
-	    $(MAKE) test-live-sweep WIDGET=$(WIDGET); \
+	    sweep_log=$$(mktemp -t fsr-ship-sweep.XXXXXX); \
+	    $(MAKE) test-live-sweep WIDGET=$(WIDGET) 2>&1 | tee "$$sweep_log"; \
+	    if grep -F -q '[[SWEEP-ENV-SKIP]]' "$$sweep_log"; then \
+	      echo "  ⚠️  box down / [[SWEEP-ENV-SKIP]] -- this build is NOT live-verified."; \
+	      lv_status="envskip"; \
+	    elif grep -F -q '[[SWEEP-VERIFIED]]' "$$sweep_log"; then \
+	      lv_status="verified"; \
+	    else \
+	      echo "✗ live-sweep FAILED -- widget regression, not shipped (see output above)."; \
+	      rm -f "$$sweep_log"; exit 1; \
+	    fi; \
+	    rm -f "$$sweep_log"; \
 	  else \
 	    echo "✗ no live sweep spec at widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js"; \
 	    echo "  ship-verify's live gate would cover NOTHING, so it fails instead of"; \
 	    echo "  claiming 'live-verified'. Write the spec, or pass SKIP_LIVE_SWEEP=1"; \
 	    echo "  to ship knowing this build is unverified against a box."; \
 	    exit 1; \
-	  fi
-	@echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed$(if $(SKIP_LIVE_SWEEP), -- NOT live-verified (SKIP_LIVE_SWEEP), and live-verified)."
+	  fi; \
+	  case "$$lv_status" in \
+	    verified) lv_msg=" and live-verified";; \
+	    skip) lv_msg=" -- NOT live-verified (SKIP_LIVE_SWEEP)";; \
+	    envskip) lv_msg=" -- NOT live-verified (box down / [[SWEEP-ENV-SKIP]])";; \
+	    *) lv_msg=" -- NOT live-verified";; \
+	  esac; \
+	  echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed$$lv_msg."
 
 release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
@@ -164,17 +183,36 @@ SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
 # pointed at the wrong box".
 SWEEP_ENV ?= .env.159
 
-test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats (default 1)
+test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats (default 1). Prints [[SWEEP-VERIFIED]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
-	@n=$${RUNS:-1}; i=1; fail=0; \
+	@# A hard-down box makes the spec's beforeAll print [[SWEEP-ENV-SKIP]] and
+	@# skip every scenario. Playwright exits 0 on all-skipped, so without this
+	@# check ship-verify would print "live-verified" over a gate that graded
+	@# NOTHING (#96). The gate keys on output markers (not exit codes): a
+	@# `$(MAKE)` recipe exit is remapped to 2, so 77 can't cross the make
+	@# boundary. fail=1 is a real widget failure; ran==0 (no [[SWEEP]] result
+	@# lines) with fail==0 is the env-skip class (box down).
+	@set -o pipefail; \
+	n=$${RUNS:-1}; i=1; fail=0; sweep_log=$$(mktemp -t fsr-sweep.XXXXXX); \
 	while [ $$i -le $$n ]; do \
 	  echo "===== live-sweep run $$i/$$n ====="; \
 	  ( cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
 	    PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
-	    pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).liveSweep.spec.js --reporter=list ) || fail=1; \
+	    pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).liveSweep.spec.js --reporter=list ) 2>&1 | tee "$$sweep_log" || fail=1; \
 	  i=$$((i+1)); \
 	done; \
-	exit $$fail
+	if [ $$fail -ne 0 ]; then \
+	  echo "[[SWEEP-FAIL]] live-sweep reported a test failure (see output above) -- widget regression."; \
+	  rm -f "$$sweep_log"; exit 1; \
+	fi; \
+	ran=$$(grep -F -c '[[SWEEP]]' "$$sweep_log" 2>/dev/null || true); ran=$${ran:-0}; \
+	rm -f "$$sweep_log"; \
+	if [ "$$ran" -eq 0 ]; then \
+	  echo "[[SWEEP-ENV-SKIP]] live-sweep graded 0 scenarios -- NOT live-verified (box down / gate covered nothing). Re-run when the box is up."; \
+	  exit 1; \
+	fi; \
+	echo "[[SWEEP-VERIFIED]] live-sweep graded $$ran scenario(s) -- live-verified."; \
+	exit 0
 
 MATRIX_ENV ?= .env.159
 # MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
