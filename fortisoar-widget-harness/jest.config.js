@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 
-// Discovery roots — merge the user's widget root with the harness's bundled
+// Discovery roots -- merge the user's widget root with the harness's bundled
 // examples/ so the example's tests run in the monorepo AND a clone, and even
 // when WIDGETS_SRC is pinned (via .env or the Makefile). Mirrors server.js.
 function widgetRoots() {
@@ -16,7 +16,7 @@ function widgetRoots() {
 const WIDGET_ROOTS = widgetRoots();
 
 // All widget dirs (across every root) that carry a tests/ folder, as
-// { name, dir } — the candidate set for the WIDGET filter.
+// { name, dir } -- the candidate set for the WIDGET filter.
 function testableWidgets() {
   const out = [];
   for (const root of WIDGET_ROOTS) {
@@ -107,9 +107,8 @@ if (WIDGET_FILTER && WIDGET_FILTER !== "all") {
   }
 }
 
-module.exports = {
-  projects: [
-    {
+const PROJECTS = [
+  {
       displayName: "harness",
       rootDir: __dirname,
       testEnvironment: "node",
@@ -118,7 +117,7 @@ module.exports = {
       // or walk the widget roots on disk. Alone that is fine (server.test.ts is
       // 30 tests in ~1.8s), but under `make test-unit WIDGET=…` the harness and
       // widget projects compete for the same workers and a single test can be
-      // starved past 5s — observed as server.test.ts failing 1 run in 3 while
+      // starved past 5s -- observed as server.test.ts failing 1 run in 3 while
       // passing standalone every time. The work is not slow, the slice is; give
       // it headroom rather than let CPU contention read as a product failure.
       // (A genuine hang still fails, just 30s later.)
@@ -141,6 +140,22 @@ module.exports = {
         "<rootDir>/tests/server\\.test\\.js",
       ],
     },
-    ...discoverWidgetProjects(),
+  ...discoverWidgetProjects(),
+];
+
+module.exports = {
+  // A suite that collects nothing must not look like a suite that passes
+  // (PLAN_testing_that_can_fail 0.2). `passWithNoTests: false` is Jest's
+  // default, but it only guards the run as a WHOLE -- with `projects`, one
+  // project can match zero files while the others keep the run green, and a
+  // widget whose tests/ dir moved would just quietly stop being tested. The
+  // reporter closes that per-project hole; it needs the expected names because
+  // Jest drops a zero-file project before any reporter sees it.
+  passWithNoTests: false,
+  reporters: [
+    "default",
+    ["<rootDir>/scripts/jest-empty-project-reporter.js",
+     { expectProjects: PROJECTS.map((p) => p.displayName) }],
   ],
+  projects: PROJECTS,
 };

@@ -127,10 +127,24 @@ ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deplo
 	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
 	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
+	@# A missing sweep spec used to "skip" and still print "live-verified" below.
+	@# That is the 0.2 bug class: the gate ran over an empty set and reported the
+	@# same thing it reports when it passes -- and it already burned us once at
+	@# the widget rename (see SWEEP_WIDGET). Skipping is now an explicit choice
+	@# (SKIP_LIVE_SWEEP=1), and the completion line says which gates actually ran.
 	@echo "▶ 6/6 live-sweep"; \
-	  if [ -f "widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js" ]; then $(MAKE) test-live-sweep WIDGET=$(WIDGET); \
-	  else echo "  (no live sweep spec for $(WIDGET) - skipping)"; fi
-	@echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed, and live-verified."
+	  if [ -n "$(SKIP_LIVE_SWEEP)" ]; then \
+	    echo "  ⚠️  SKIP_LIVE_SWEEP set -- this build is NOT live-verified."; \
+	  elif [ -f "widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js" ]; then \
+	    $(MAKE) test-live-sweep WIDGET=$(WIDGET); \
+	  else \
+	    echo "✗ no live sweep spec at widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js"; \
+	    echo "  ship-verify's live gate would cover NOTHING, so it fails instead of"; \
+	    echo "  claiming 'live-verified'. Write the spec, or pass SKIP_LIVE_SWEEP=1"; \
+	    echo "  to ship knowing this build is unverified against a box."; \
+	    exit 1; \
+	  fi
+	@echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed$(if $(SKIP_LIVE_SWEEP), -- NOT live-verified (SKIP_LIVE_SWEEP), and live-verified)."
 
 release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
@@ -178,8 +192,15 @@ MATRIX_SCENARIOS ?= $(if $(wildcard $(HARNESS)/tests/live/scenarios.local.$(MATR
 # Unset = every runnable row.
 test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10/P1-P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
 	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
+	@# A missing scenario file used to warn and exit 0 -- "the matrix passed"
+	@# over zero rows (PLAN_testing_that_can_fail 0.2). MATRIX_ALLOW_SKIP=1 is
+	@# the explicit opt-out for a machine with no box-specific scenarios.
 	@if [ ! -f "$(MATRIX_SCENARIOS)" ]; then \
 	  echo "⚠️  [[MATRIX-ENV-SKIP]] missing $(MATRIX_SCENARIOS) -- copy tests/live/scenarios.local.example.json and fill in real record UUIDs for box '$(MATRIX_BOX)' (box-specific, gitignored)"; \
+	  if [ "$(MATRIX_ALLOW_SKIP)" != "1" ]; then \
+	    echo "   the matrix would grade 0 rows, which is not a pass. Re-run with MATRIX_ALLOW_SKIP=1 to skip deliberately."; \
+	    exit 1; \
+	  fi; \
 	else \
 	  echo "▶ matrix: env=$(MATRIX_ENV) scenarios=$(notdir $(MATRIX_SCENARIOS)) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"; \
 	  cd $(HARNESS) && set -a && . "$(MATRIX_ENV_PATH)" && set +a && \

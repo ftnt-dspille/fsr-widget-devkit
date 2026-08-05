@@ -50,9 +50,15 @@ const GATE_FILTER = (process.env.MATRIX_GATE || "")
 const ID_FILTER = (process.env.MATRIX_IDS || "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 
+// Rows the file DEFINES (after `skip:`), before any filter -- the denominator
+// for the "did the run actually cover what it claims" check below.
+let definedRunnable = 0;
+
 function loadScenarios() {
   if (!fs.existsSync(SCENARIOS_PATH)) return null;
   const cfg = JSON.parse(fs.readFileSync(SCENARIOS_PATH, "utf8"));
+  definedRunnable = (cfg.scenarios || [])
+    .filter((s) => s && typeof s === "object" && !Array.isArray(s) && !s.skip).length;
   return (cfg.scenarios || [])
     // JSON has no comments, so hand-edited scenario files tend to grow bare
     // strings as section headers. Spreading one would deserialize into a
@@ -71,16 +77,32 @@ function loadScenarios() {
 
 const scenarios = LIVE ? loadScenarios() : null;
 
+// A live matrix run that selects ZERO rows must be a FAILURE, not a warning
+// (PLAN_testing_that_can_fail 0.2: a gate that runs over an empty set is
+// indistinguishable from a gate that passes). You asked for a live run; if the
+// scenario file is missing, empty, or your MATRIX_IDS/MATRIX_GATE filter is a
+// typo, the run covers nothing and the console warning scrolls past above a
+// green "0 failed". MATRIX_ALLOW_SKIP=1 opts out for the legitimate case of a
+// machine that has no box-specific scenario file at all.
+const ALLOW_SKIP = process.env.MATRIX_ALLOW_SKIP === "1";
+let emptyReason = null;
+if (LIVE && !scenarios) {
+  emptyReason =
+    `${SCENARIOS_PATH} not found -- copy scenarios.local.example.json and fill in ` +
+    `real record UUIDs (gitignored; box-specific).`;
+} else if (LIVE && scenarios.length === 0) {
+  emptyReason = definedRunnable === 0
+    ? "the scenario file defines no runnable rows (all `skip: true`, or empty)."
+    : `MATRIX_GATE=${process.env.MATRIX_GATE || "<unset>"} / MATRIX_IDS=` +
+      `${process.env.MATRIX_IDS || "<unset>"} selected 0 of ${definedRunnable} rows ` +
+      "-- almost certainly a typo'd filter.";
+}
+
 let d = describe.skip;
 if (!LIVE) {
   // default offline run: silent skip, same as the other *.live.test.js
-} else if (!scenarios) {
-  console.warn(
-    `[matrix] SKIP: ${SCENARIOS_PATH} not found -- copy scenarios.local.example.json ` +
-    `and fill in real record UUIDs (gitignored; box-specific).`
-  );
-} else if (scenarios.length === 0) {
-  console.warn("[matrix] SKIP: scenarios.local.json has no runnable rows (all skipped or empty).");
+} else if (emptyReason && ALLOW_SKIP) {
+  console.warn(`[matrix] SKIP (MATRIX_ALLOW_SKIP=1): ${emptyReason}`);
 } else {
   d = describe;
 }
@@ -99,7 +121,14 @@ d("live prompt/flow matrix", () => {
   const budget = (scenarios || []).reduce((ms, s) => ms + (s.timeoutMs || 120000) + 90000, 60000);
   jest.setTimeout(budget);
 
+  test("the run selected rows to grade", () => {
+    // Fails LOUDLY where a console.warn used to scroll past a green run.
+    expect(emptyReason || "").toBe("");
+    expect((scenarios || []).length).toBeGreaterThan(0);
+  });
+
   test("every matrix scenario satisfies its gate", async () => {
+    if (emptyReason) return; // the row-selection test above already went red
     const rows = [];
     for (const sc of scenarios) {
       let res, evaluation, artifactPath;
@@ -143,6 +172,25 @@ d("live prompt/flow matrix", () => {
       }
     }
     console.log("================================================\n");
+
+    // Every selected row must have produced a graded result. A row that fell
+    // out of the loop (an exception outside the try, an early return) would
+    // otherwise just be absent from the summary -- and an absent row reads as
+    // "nothing wrong with it" (PLAN_testing_that_can_fail 0.2).
+    expect(rows.map((r) => r.id)).toEqual(scenarios.map((s) => s.id));
+
+    // Coverage honesty: when no filter is set, the run must cover every row the
+    // file defines. `ship-verify` row 2 failing and rows 3-4 then never running
+    // is exactly this shape -- the run reports on what it reached, not on what
+    // it was supposed to reach.
+    if (GATE_FILTER.length === 0 && ID_FILTER.length === 0) {
+      expect(rows.length).toBe(definedRunnable);
+    } else {
+      console.log(
+        `[matrix] FILTERED RUN: ${rows.length} of ${definedRunnable} defined rows ` +
+        `(gate=${GATE_FILTER.join(",") || "<all>"} ids=${ID_FILTER.join(",") || "<all>"}) ` +
+        "-- this run does NOT cover the rest.");
+    }
 
     const blockers = rows.filter((r) => r.gateResult.blocks);
     if (blockers.length) {
