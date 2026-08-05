@@ -53,6 +53,34 @@ function captureChatPayloads(page) {
   return captured;
 }
 
+// The chat transcript as text. Everything this spec asserts about turns is read
+// from the DOM, because `window.__fortiaiAgenticAssistant__` is gated to
+// localhost by design ("never reaches a deployed install") -- on a real box it
+// is simply absent, and a live assertion built on it silently compares against
+// `undefined`.
+// Scoped to `.pb-message` (the ng-repeat over chatMessages) rather than the
+// whole widget: the widget root's textContent is mostly chrome and whitespace --
+// the composer, the "Record context" button, the layout's newlines. A
+// "transcript grew" assertion measured against that goes green on a re-render
+// that added nothing, which is a gate that passes whether or not the thing it
+// checks is true.
+async function chatText(page, sel = ".pb-message") {
+  if (!(await page.locator(".fsr-pb-widget").count())) {
+    throw new Error("the widget body (.fsr-pb-widget) is not on the page -- the "
+      + "drawer closed or never rendered. A drive failure, not a verdict.");
+  }
+  const parts = await page.locator(sel).allTextContents();
+  return parts.join("\n").replace(/[ \t]+/g, " ").replace(/\n{2,}/g, "\n").trim();
+}
+
+// ASSISTANT messages only. The widget renders the analyst's own prompt into the
+// same feed, so "does the transcript mention phishing after I asked about
+// phishing?" is true the instant the question is echoed -- green whether or not
+// the agent ever answered. Scoping to the assistant's own turns is what makes
+// that assertion able to fail.
+const assistantText = (page) =>
+  chatText(page, '[data-testid^="chat-message-assistant-"]');
+
 function writeCapture(captured) {
   try {
     fs.mkdirSync(CAPTURE_DIR, { recursive: true });
@@ -138,6 +166,10 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     // the manual_input event reached the widget's state but did not render, or
     // never arrived at all. Those are different bugs in different layers, and a
     // bare "locator not found" cannot tell them apart.
+    // NOTE the probe half of this is EMPTY on a real box on purpose (see
+    // `chatText`) -- `state`/`eventTypes` being blank here means "not
+    // introspectable", NOT "the widget has no messages". Only the DOM fields
+    // below carry information live.
     const diag = async () => page.evaluate(() => {
       const p = window.__fortiaiAgenticAssistant__ || {};
       const evTypes = [];
@@ -204,6 +236,7 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     requireParkedForm("submit");
     const page = session.page;
 
+    const beforeSubmit = await chatText(page);
     const submit = page.locator(`[data-testid="manual-input-submit-${inputId}"]`);
     await submit.waitFor({ state: "visible", timeout: 15000 });
     // A submit button that is disabled here means `manualInputValid` rejects
@@ -252,17 +285,16 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     expect(await page.locator('[data-testid="approval-outcome-error"]').count()).toBe(0);
 
     // And the run's own outcome comes back into the chat, rather than the
-    // transcript ending at the form. The text is model-authored so it cannot be
-    // pinned live -- assert a real turn landed and log it for eyeballing.
-    const after = await page.evaluate(() => {
-      const p = window.__fortiaiAgenticAssistant__ || {};
-      return {
-        state: p.state, msgCount: p.messageCount,
-        lastText: (p.lastTurn && (p.lastTurn.content || p.lastTurn.text) || ""),
-      };
-    });
-    console.log("[approvalToManualInput.live] post-resume " + JSON.stringify(after, null, 1));
-    expect(after.lastText.trim().length).toBeGreaterThan(0);
+    // transcript ending at the form. Asserted on the DOM, not on
+    // `window.__fortiaiAgenticAssistant__`: that probe is deliberately
+    // localhost-only and by design NEVER reaches a deployed install, so a live
+    // spec that leans on it is asserting against `undefined` -- which is how the
+    // first cut of this test reported a working resume as a failure. The text is
+    // model-authored, so what's assertable is that the transcript GREW.
+    const grown = await chatText(page);
+    console.log("[approvalToManualInput.live] post-resume transcript tail: "
+      + JSON.stringify(grown.slice(-400)));
+    expect(grown.length).toBeGreaterThan(beforeSubmit.length);
   });
 
   test("an unrelated question in the same session still gets a normal answer", async () => {
@@ -273,30 +305,42 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     // from where the analyst sits. Every state this arc touches (the approval
     // singleton, the pending-card gate, viewState) is a way to leave the
     // composer dead or swallow the next prompt.
-    const before = await page.evaluate(
-      () => (window.__fortiaiAgenticAssistant__ || {}).messageCount);
+    const before = await assistantText(page);
 
     const sent = await session.sendChat("How do I triage a phishing report?");
     // Drive failure vs. product failure, kept apart as everywhere else here.
     expect(sent.submitConfirmed).toBe(true);
 
-    const after = await page.evaluate(() => {
-      const p = window.__fortiaiAgenticAssistant__ || {};
-      return {
-        state: p.state, msgCount: p.messageCount,
-        lastText: (p.lastTurn && (p.lastTurn.content || p.lastTurn.text) || ""),
-      };
-    });
-    console.log("[approvalToManualInput.live] follow-up " + JSON.stringify(after, null, 1));
-    expect(after.msgCount).toBeGreaterThan(before);
-    expect(after.lastText.trim().length).toBeGreaterThan(0);
-    // It answered the NEW question rather than replaying the playbook arc.
-    expect(after.lastText).toMatch(/phish/i);
+    // Wait for the ANSWER, not for the driver's done signal. `sendChat` settles
+    // on the shared poll feed, which can report done from a poll belonging to
+    // the turn before this one -- this test returned in 5s that way, long before
+    // any model could have answered, and then failed on text that had not been
+    // rendered yet. Poll the DOM for the answer itself.
+    let after = before;
+    const answerDeadline = Date.now() + 120000;
+    while (Date.now() < answerDeadline) {
+      after = await assistantText(page);
+      if (after.length > before.length && /phish/i.test(after.slice(before.length))) break;
+      await page.waitForTimeout(3000);
+    }
+    const fresh = after.slice(before.length);
+    console.log("[approvalToManualInput.live] follow-up answer: "
+      + JSON.stringify(fresh.slice(0, 500)));
+    expect(after.length).toBeGreaterThan(before.length);
+    // It answered the NEW question rather than replaying the playbook arc. The
+    // check is on the text that is NEW since the prompt -- matching /phish/i
+    // against the whole transcript would pass on the echo of the question
+    // itself, i.e. it would go green whether or not the agent ever answered.
+    expect(fresh).toMatch(/phish/i);
 
     // The old cards stay resolved: no gate re-raised, no second form.
     expect(await page.locator('[data-testid="approval-approve"]').count()).toBe(0);
     expect(await page.locator('[data-testid^="manual-input-submit-"]').count()).toBe(0);
     expect(await page.locator('[data-testid="approval-submitting"]').count()).toBe(0);
-    expect(after.state).toBe("idle");
+    // Settled and ready for another question -- read off the DOM, since the
+    // viewState probe does not exist on a deployed install. `chat-stop` renders
+    // only while a turn is in flight.
+    expect(await page.locator('[data-testid="chat-stop"]').count()).toBe(0);
+    expect(await page.locator('[data-testid="chat-input"]').first().isEnabled()).toBe(true);
   });
 });
