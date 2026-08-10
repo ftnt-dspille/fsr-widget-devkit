@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-live-sweep test-matrix-live test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -248,6 +248,39 @@ test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T
 
 test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
 	@$(MAKE) test-matrix-live MATRIX_GATE=strict,xfail MATRIX_ENV=$(MATRIX_ENV)
+
+# ── The LOCAL matrix ────────────────────────────────────────────────────────
+#
+# Same grader, same scenario rows, same verdict ladder as test-matrix-live --
+# but driven against the widget in the dev harness talking to the connector
+# sidecar on this laptop (lib/localUiDriver.js). No widget ship, no connector
+# ship, no box login. Use it to iterate; use test-matrix-live to certify.
+#
+# Where it sits among the tiers (each proves something the others cannot):
+#   make test-e2e         mocked connector      → DOM/render only
+#   make turn-hermetic    real connector, FAKE  → deterministic contract, box-free
+#                         LLM + cassette data
+#   make test-matrix-local real connector, REAL → agent behaviour on YOUR working
+#                         model, box for data     tree, graded (this target)
+#   make test-matrix-live  everything deployed  → proves the SHIPPED path
+#
+# It does NOT prove the deployment (the fsr-playbooks pin, the on-box install,
+# the worker recycle). That seam belongs to release-ship / ship-verify.
+#
+# Expects the local loop already running (LOCAL_DEV.md), in two terminals:
+#   FSRPB_DEV=1 .venv-localdev/bin/python scripts/local-connector-sidecar.py --reload
+#   FSR_LOCAL_CONNECTOR=1 PORT=4401 node server.js
+# The driver preflights both and refuses -- rather than silently grading the
+# box's deployed connector -- if the harness is not wired to the sidecar.
+MATRIX_LOCAL_BASE ?= http://localhost:4401
+test-matrix-local: ## LOCAL matrix: the same graded rows against the harness + connector sidecar (no ship, no box login). Needs the LOCAL_DEV.md loop running. MATRIX_IDS=Z3,Z5 for a subset.
+	@echo "▶ matrix (LOCAL): base=$(MATRIX_LOCAL_BASE) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"
+	@echo "  grading your WORKING TREE -- this does not prove the deployed path (use test-matrix-live for that)"
+	cd $(HARNESS) && \
+	  MATRIX_TARGET=local FSRPB_LOCAL_BASE="$(MATRIX_LOCAL_BASE)" \
+	  MATRIX_GATE="$(MATRIX_GATE)" MATRIX_IDS="$(MATRIX_IDS)" \
+	  $(if $(MATRIX_SCENARIOS_LOCAL),MATRIX_SCENARIOS="$(MATRIX_SCENARIOS_LOCAL)",) \
+	    pnpm test:live tests/live/matrix.live.test.js
 
 grade-export: ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
 	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi

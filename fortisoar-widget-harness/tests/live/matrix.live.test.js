@@ -31,14 +31,24 @@ const fs = require("fs");
 const path = require("path");
 const { runScenario, formatReport, gateRow, GATES } = require("./lib/matrixDriver");
 
-const LIVE = process.env.FSRPB_LIVE === "1";
+// Which mount the rows are driven against -- see matrixDriver's MATRIX_TARGET.
+// `local` drives the dev harness + connector sidecar (no ship, no box login),
+// and is its own explicit opt-in, so it does not additionally require
+// FSRPB_LIVE=1: that flag guards "this run touches the deployed box".
+const TARGET = (process.env.MATRIX_TARGET || "live").toLowerCase();
+const LIVE = process.env.FSRPB_LIVE === "1" || TARGET === "local";
 // Scenario rows are BOX-SPECIFIC (real record UUIDs), and MATRIX_ENV switches
 // boxes -- so the rows must switch with it, or a 206 run drives 159's records.
 // The Makefile resolves MATRIX_ENV=.env.206 → scenarios.local.206.json when that
-// file exists, falling back to scenarios.local.json.
+// file exists, falling back to scenarios.local.json. A local-target run gets its
+// own file when one exists: its rows must reference records the LOCAL harness
+// can actually resolve through its proxy, and its `visitFirst` rows have to be
+// dropped (localUiDriver rejects them by design).
 const SCENARIOS_PATH = process.env.MATRIX_SCENARIOS
   ? path.resolve(process.env.MATRIX_SCENARIOS)
-  : path.join(__dirname, "scenarios.local.json");
+  : (TARGET === "local" && fs.existsSync(path.join(__dirname, "scenarios.localdev.json")))
+    ? path.join(__dirname, "scenarios.localdev.json")
+    : path.join(__dirname, "scenarios.local.json");
 
 // Only run rows whose gate is in MATRIX_GATE (comma-separated). Unset = all.
 const GATE_FILTER = (process.env.MATRIX_GATE || "")
@@ -113,9 +123,15 @@ d("live prompt/flow matrix", () => {
   // rows via the widget's "+ New" control, which cuts a browser launch, a WAF
   // login and a first paint (~30-45s) off every row after the first. The held
   // browser must be closed here or jest finishes and never exits.
+  // Tear down whichever driver actually ran: each holds its OWN shared browser
+  // in module state, so closing the live one after a local run would leave a
+  // browser alive and jest would finish but never exit -- a completed run that
+  // looks like an infinite hang.
   afterAll(async () => {
-    const { closeSharedSession } = require("../../lib/liveUiDriver");
-    if (typeof closeSharedSession === "function") await closeSharedSession();
+    const driver = (process.env.MATRIX_TARGET || "live").toLowerCase() === "local"
+      ? require("../../lib/localUiDriver")
+      : require("../../lib/liveUiDriver");
+    if (typeof driver.closeSharedSession === "function") await driver.closeSharedSession();
   });
 
   const budget = (scenarios || []).reduce((ms, s) => ms + (s.timeoutMs || 120000) + 90000, 60000);

@@ -71,12 +71,25 @@ Two processes: the sidecar (connector) and the harness (widget).
 
 ```sh
 # Terminal 1 -- the connector sidecar (runs the real operations against the LLM gateway + 159)
-FSRPB_DEV=1 .venv-localdev/bin/python scripts/local-connector-sidecar.py
+FSRPB_DEV=1 .venv-localdev/bin/python scripts/local-connector-sidecar.py --reload
 
 # Terminal 2 -- the harness, routing connector-execute to the local sidecar
 FSR_LOCAL_CONNECTOR=1 PORT=4401 node server.js
 # (or via the parent Makefile: FSR_LOCAL_CONNECTOR=1 make start)
 ```
+
+**Both halves now reflect an edit immediately.** Widget JS/HTML already did --
+the harness watches widget dirs and broadcasts an SSE soft-remount. `--reload`
+gives the connector the same: a supervisor watches the connector tree and
+`fsr_playbooks`, and restarts the sidecar on any `*.py` change. It runs the
+child in a fresh interpreter rather than reloading modules in place (the
+connector registers operations and binds ContextVars at import; a half-reloaded
+process has bugs belonging to neither version), and it does **not** spin when
+your edit fails to import -- it prints the traceback and waits for the next
+change, so the error stays on screen.
+
+Caveat: a restart drops in-memory state. Editing mid-approval loses the parked
+session; finish the arc, then edit.
 
 Then open the widget and force real mode (the widget defaults to **mock** on
 localhost; `?mode=real` overrides that):
@@ -115,6 +128,21 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   (offline structure guards, no API, ~seconds).
 - **End-to-end local smoke:** the sidecar + `?mode=real` triage turn above --
   the real proof the whole loop works.
+- **Graded local turns (`make test-matrix-local`)** -- the same thing, but
+  scored instead of eyeballed. It drives this loop with the matrix's real
+  grader (`exportGrader` red-flag rules, the verdict ladder, the expected-card
+  gate) so a turn that *looks* fine but ran zero tools, burned its error budget,
+  or never produced a deliverable comes back FAIL. Run it from the parent repo
+  with the two processes above already up; `MATRIX_IDS=Z3,Z5` picks a subset.
+
+  This is the loop the grader was missing: before it, the only graded tier was
+  the deployed one, so seeing a scored result cost a widget ship *and* a
+  connector ship. It grades your working tree -- it does **not** prove the
+  deployment (pin, install, worker recycle). `make test-matrix-live` still owns
+  that. See `TESTING.md` §"The tiers, and what only each one can prove".
+
+  If the harness is not wired to the sidecar, the run **refuses to start**
+  rather than silently grading the deployed connector on the box.
 
 ## No-cache / latest-changes discipline (prevent stale-state bugs)
 

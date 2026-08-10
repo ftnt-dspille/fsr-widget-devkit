@@ -369,19 +369,43 @@ function evaluate(allFrames, opts = {}) {
   };
 }
 
-// Capture one scenario against the live box: open the deployed widget drawer
-// on a real record, send the prompt, and collect full chat_poll frame payloads
-// until the turn converges. Requires FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD
-// (WAF-safe driving -- headed + desktop UA -- is owned by lib/liveUiDriver).
+// Which mount the capture half drives. The GRADER is identical either way --
+// same frames, same vocabulary, same verdict ladder -- because both drivers tap
+// the same `/integration/execute` traffic and return the same session handle
+// (lib/chatSession.js).
+//
+//   live  (default) -- the DEPLOYED widget + connector on a real box. The only
+//                      tier that proves the deployment, and the only one that
+//                      can run a `visitFirst` stale-entity row.
+//   local           -- the widget in the local dev harness against the local
+//                      connector sidecar (LOCAL_DEV.md). Grades your WORKING
+//                      TREE: no widget ship, no connector ship, no login.
+//                      Does NOT prove the pin/install/recycle seam.
+//
+// Deliberately explicit rather than inferred from "is a harness running": a run
+// that silently changed which connector it graded would be worse than no run.
+const MATRIX_TARGET = (process.env.MATRIX_TARGET || "live").toLowerCase();
+if (!["live", "local"].includes(MATRIX_TARGET)) {
+  throw new Error(`MATRIX_TARGET must be "live" or "local", got "${MATRIX_TARGET}"`);
+}
+
+// Capture one scenario: open the widget on a record, send the prompt, and
+// collect full chat_poll frame payloads until the turn converges. The live
+// target requires FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD (WAF-safe driving --
+// headed + desktop UA -- is owned by lib/liveUiDriver); the local target
+// requires a harness started with FSR_LOCAL_CONNECTOR=1 plus the sidecar, and
+// refuses to run otherwise rather than grading the box's connector by accident.
 // `mountPath` drives the widget from a NON-record surface (dashboard, playbook
-// designer). The drawer is persistent, so WHERE it is mounted changes the
-// entity context the connector sees -- the D1-class bug (a stale `keys` entity
-// poisoning an authored playbook) is only reachable from a non-alert mount, so
-// the matrix has to be able to express one.
+// designer). On a box the drawer is persistent, so WHERE it is mounted changes
+// the entity context the connector sees -- the D1-class bug (a stale `keys`
+// entity poisoning an authored playbook) is only reachable from a non-alert
+// mount, so the matrix has to be able to express one.
 async function captureScenario({ module = "alerts", recordUuid, mountPath, visitFirst, prompt, timeoutMs = 120000, autoApprove = false }) {
   // Lazy require: keeps the pure eval half loadable in offline jest without
   // pulling in Playwright/the browser stack.
-  const { openWidgetDrawer } = require("../../../lib/liveUiDriver");
+  const { openWidgetDrawer } = MATRIX_TARGET === "local"
+    ? require("../../../lib/localUiDriver")
+    : require("../../../lib/liveUiDriver");
 
   const session = await openWidgetDrawer({ module, recordUuid, mountPath, visitFirst });
   const page = session.page;

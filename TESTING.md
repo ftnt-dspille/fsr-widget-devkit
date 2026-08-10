@@ -1,7 +1,7 @@
 # Writing tests that pass in this framework
 
 Every widget change ships with tests: **controller logic → jest**, **DOM/template
-→ Playwright e2e**. This guide captures the conventions that aren't obvious — the
+→ Playwright e2e**. This guide captures the conventions that aren't obvious -- the
 ones that otherwise cost an afternoon. Read it before writing your first spec.
 
 ## The two test types
@@ -10,14 +10,14 @@ ones that otherwise cost an afternoon. Read it before writing your first spec.
 |---|---|---|
 | Tests | controller view-model logic | real DOM rendered in the harness |
 | Runs in | jsdom (no browser) | headless Chromium |
-| Needs SOAR assets? | **No** | **Yes** — `make assets` first |
+| Needs SOAR assets? | **No** | **Yes** -- `make assets` first |
 | Spec lives in | `widgets-src/<widget>/tests/*.test.js` | `fortisoar-widget-harness/tests/e2e/<widget>.spec.js` |
 | Run with | `make test-unit WIDGET=<widget>` | `make test-e2e-widget WIDGET=<widget>` |
 
-Always run through the Makefile — it owns the dev (14400) / test (14401) ports
+Always run through the Makefile -- it owns the dev (14400) / test (14401) ports
 and kills stale servers. Never hand-start a server or call `playwright` directly.
 
-## Controller naming — the harness lint will block you
+## Controller naming -- the harness lint will block you
 
 The harness refuses to mount a widget whose controllers aren't named by
 convention, and a blocked mount makes **every** e2e for that widget fail with
@@ -29,11 +29,11 @@ convention, and a blocked mount makes **every** e2e for that widget fail with
 | edit | `edit<PascalName><numericVersion>DevCtrl` | `editIncidentSummary100DevCtrl` |
 
 `<numericVersion>` = the `info.json` version with dots removed (1.0.0 → `100`).
-`scripts/new-widget.sh` and `widget bump` generate/rewrite these for you — don't
+`scripts/new-widget.sh` and `widget bump` generate/rewrite these for you -- don't
 hand-edit the digits. If e2e fails to render, check the harness error panel: a
 `[edit-controller-mismatch]` / `[stale-version-ref]` lint there is the cause.
 
-> **Never hardcode the dotted version in the controller** (even in a comment) —
+> **Never hardcode the dotted version in the controller** (even in a comment) --
 > the harness `stale-version-ref` lint blocks bootstrap on a stale literal after
 > a bump, and a jest guard asserts `info.json.version` never appears verbatim in
 > `view.controller.js`. Derive it from the served script URL instead.
@@ -52,14 +52,14 @@ require("../widget/view.controller.js");
 ```
 
 Keep view logic pure and small so it's exercisable without a browser. Integration
-assertions check **every** case (`expect(failures).toEqual([])`) — don't stop at
+assertions check **every** case (`expect(failures).toEqual([])`) -- don't stop at
 the first success.
 
 ## E2e tests (Playwright)
 
 **Specs live in `fortisoar-widget-harness/tests/e2e/`, not in the widget folder.**
 Playwright's `testDir` is the harness, and it does **not** crawl through the
-`widgets-src` symlink — a spec left under `widgets-src/<w>/tests/e2e/` is silently
+`widgets-src` symlink -- a spec left under `widgets-src/<w>/tests/e2e/` is silently
 never discovered. `scripts/new-widget.sh` puts it in the right place.
 
 The harness mounts widgets by `info.json` **name**, and selects which to render
@@ -80,10 +80,10 @@ await expect(page.getByTestId('incident-summary-greeting')).toHaveText('Hello, A
 ```
 
 Conventions that matter:
-- **`data-testid` on every element you assert/drive** — kebab-case, prefixed by
+- **`data-testid` on every element you assert/drive** -- kebab-case, prefixed by
   the widget (`incident-summary-…`). `getByTestId` is selector-stable across
   template churn; CSS classes are not.
-- **Don't put `data-ng-controller` on the view root** — the harness (and SOAR
+- **Don't put `data-ng-controller` on the view root** -- the harness (and SOAR
   after publish) wraps the widget with its own; a second one creates a dead
   parallel scope and nothing renders. (KNOWLEDGEBASE.md §18.)
 - Let Playwright auto-retry: `await expect(locator).toHaveText(...)` waits for the
@@ -92,14 +92,14 @@ Conventions that matter:
 ### E2e needs the SOAR app shell
 
 The harness renders widgets inside the real FortiSOAR app bundle, served from
-`fsr_src/`. Those are Fortinet platform assets we don't redistribute — run
+`fsr_src/`. Those are Fortinet platform assets we don't redistribute -- run
 **`make assets`** once (after setting `fortisoar-widget-harness/.env`) to fetch
 them from your own licensed box. Without it, e2e fails with a
 `/_fsr/templates.min.js` 500 / "harness boot failed". Unit tests don't need this.
 
 ## Canonical build → test → deploy flow (use this, don't improvise)
 
-One pipeline, one command. This is the consolidated path — every step is a
+One pipeline, one command. This is the consolidated path -- every step is a
 Makefile target so the build/test/deploy story can't drift between sessions.
 
 ```
@@ -108,30 +108,30 @@ make ship-verify WIDGET=fortiaiAgenticAssistant [BUMP=patch]
 
 runs, in order, failing fast:
 
-1. **lint + typecheck** — four gates, because there are **two different linters**:
+1. **lint + typecheck** -- four gates, because there are **two different linters**:
    `widget.js lint` (the harness-server `HU.lintWidget`: controller naming /
    stale-version / required-files) **and** the standalone `lint-angular.js`
    (config-defaults, drawer-standalone, copyright-header, enableFor state-match…)
    **and** `lint-testids.js`, then `typecheck-widgets.js` (checkJs). The two
    standalone linters used to be reachable *only* via `pnpm lint` (no make target,
-   no CI, no git-hook ran them) — they're now wired here so their rules actually
+   no CI, no git-hook ran them) -- they're now wired here so their rules actually
    enforce on every ship. Don't "simplify" by dropping back to just `widget.js lint`.
-2. **unit** — `make test-unit` (jest; must exit 0 — see "trustworthy green" below)
-3. **e2e (mock)** — `make test-e2e-widget` (all non-live specs; `[Ll]ive` excluded)
-4. **introspect-gate** — hermetic DOM/payload/console regression vs baseline,
+2. **unit** -- `make test-unit` (jest; must exit 0 -- see "trustworthy green" below)
+3. **e2e (mock)** -- `make test-e2e-widget` (all non-live specs; `[Ll]ive` excluded)
+4. **introspect-gate** -- hermetic DOM/payload/console regression vs baseline,
    **scoped to the shipped widget** (`GATE_WIDGET=<w>`) so an unrelated widget's
    stale baseline can't block your ship. It still *renders* the whole fleet
    (~2.8 min); set `SKIP_INTROSPECT=1` to bypass when box-time is tight. Re-baseline
    an intended DOM/payload change with `make introspect`.
-5. **deploy** — `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
+5. **deploy** -- `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
    at the **harness `.env`** so it deploys to the *same* box the tests hit
-6. **live-sweep** — `make test-live-sweep` (real UI vs the real connector)
+6. **live-sweep** -- `make test-live-sweep` (real UI vs the real connector)
 
 > **Which box does `ship-verify` deploy to?** It **hardcodes `FSR_ENV_FILE=…/fortisoar-widget-harness/.env`**
-> (the Makefile `ship-verify` recipe) — it does **not** read the `.env.<box>` sidecar
+> (the Makefile `ship-verify` recipe) -- it does **not** read the `.env.<box>` sidecar
 > files or honor a `FSR_ENV_FILE=` override on the command line. To ship to a specific
 > box, point `.env` at it first (`cp .env.159 .env`), then restore afterward. (The
-> connector's own `make ship` is different — it defaults `ENV=.env.159` and takes
+> connector's own `make ship` is different -- it defaults `ENV=.env.159` and takes
 > `ENV=<path>`.) ship.sh's target-mismatch guard will abort if a stale
 > `.harness-active-env` disagrees with `.env`.
 >
@@ -140,7 +140,7 @@ runs, in order, failing fast:
 > sidecar** (e.g. `*.seamHermetic.spec.js`) only work under `make turn-hermetic`
 > (which starts the sidecar and sets `FSRPB_SEAMC_URL`). Guard them with
 > `test.skip(!process.env.FSRPB_SEAMC_URL, …)` so they run under `turn-hermetic` and
-> skip in ship-verify — otherwise they red every ship with `seamc_sidecar_unreachable`.
+> skip in ship-verify -- otherwise they red every ship with `seamc_sidecar_unreachable`.
 
 Sub-commands you'll also use directly:
 
@@ -151,38 +151,74 @@ Sub-commands you'll also use directly:
 | `make test-live-sweep [RUNS=n]` | the live UI bug-hunt sweep, repeated `n`× |
 | `make ship-verify WIDGET=<w> BUMP=<p>` | the whole pipeline above |
 
+### The tiers, and what only each one can prove
+
+Pick by the question you are asking. Nothing above a tier re-proves what it
+already covers, and nothing below it can substitute.
+
+| Tier | Command | Widget | Connector | Model | Data | Proves |
+|---|---|---|---|---|---|---|
+| mock e2e | `make test-e2e-widget` | real | client-side mock | -- | stubs | render / DOM behaviour |
+| Seam C | `make turn-hermetic` | real | **real**, in-process | fake | cassette | the widget↔connector contract, deterministically, box-free |
+| local matrix | `make test-matrix-local` | real | **real**, sidecar | **real** | box (proxy) | **agent behaviour on your working tree, graded** -- no ship |
+| live matrix | `make test-matrix-live` | deployed | deployed | real | box | the **shipped** path |
+
+The local matrix is the iteration loop: same grader, same rows, same verdict
+ladder as the live matrix, but driven against the harness + connector sidecar
+(`LOCAL_DEV.md`). It exists because the grader used to run **only** on the
+shipped path, so every bug it could see cost a widget ship + a connector ship
+before you could see it.
+
+What it deliberately does **not** prove: the deployment seam -- the
+`fsr-playbooks` pin, the on-box install, the worker recycle. Every outage in
+that seam has been an ordering mistake, and only `release-ship` / `ship-verify`
+covers it. Iterate locally, certify live.
+
+Two guards keep a local run honest, both because their failure mode is a silent
+green rather than an error:
+
+- the driver reads `/_fsr/info` and **refuses to run** unless the harness was
+  started with `FSR_LOCAL_CONNECTOR=1` -- otherwise `/api/integration/execute/`
+  proxies to the *deployed* connector and the row would grade shipped code;
+- it asserts `__fortiaiAgenticAssistant__.mockActive === false` after boot. The
+  widget is mock-by-default on localhost; without `?mode=real` every row would
+  pass against canned fixtures.
+
+Both are covered by `tests/localUiDriver.test.js`, and both have been
+mutation-proved (break the check, watch the test go red).
+
 ### Two tiers: hermetic mock gate vs live sweep
 
-The mock e2e tier is **hermetic** — it must never touch the FortiSOAR box, so a
+The mock e2e tier is **hermetic** -- it must never touch the FortiSOAR box, so a
 box outage can't red a mock test. The harness enforces this with `FSR_HERMETIC=1`
 (set by default for non-live e2e in `playwright.config.js`):
 
 - **Proxy fallthrough is disabled.** Anything not served from a local
   snapshot/stub returns a loud `599 HERMETIC-MISS: <path>` instead of silently
   proxying to forticloud. A miss is a *bug to fix* (snapshot or stub the path),
-  not a flake to retry — `GET /_fsr/hermetic-misses` dumps the worklist.
+  not a flake to retry -- `GET /_fsr/hermetic-misses` dumps the worklist.
 - **Platform chrome is served locally**: Monaco from `node_modules/monaco-editor`
   (pinned to the box's version), templates from `fsr_src/templates-extracted/`,
   and the boot reads (`/api/3/actors/current`, `/api/system/fixtures`) from
   harness stubs. `/_fsr/stylesheets` returns `[]` under hermetic (platform CSS is
   cosmetic; theme fidelity is a live-sweep concern). **Corollary: never assert
-  on computed `backgroundColor` or `color` in hermetic e2e tests** — SOAR's
+  on computed `backgroundColor` or `color` in hermetic e2e tests** -- SOAR's
   theme CSS is absent so ui-grid cells show CDN defaults (near-white `#fdfdfd`/
   `#f3f3f3`) regardless of the harness dark/light setting. Colour correctness is
   confirmed by the live harness browser (port 4401) with "Load FortiSOAR CSS"
   enabled, not by hermetic Playwright.
 - Run with `retries: 0` and one dev server **per worker** (no boot contention),
-  so a single failure is a real failure — never masked as flaky-green.
+  so a single failure is a real failure -- never masked as flaky-green.
 - **The hermetic guarantee is enforced after the suite**, not just per-test: a
   Playwright `globalTeardown` (`tests/e2e/_hermeticTeardown.js`) queries every
   per-worker server's `/_fsr/hermetic-misses` and **fails the run** if any path
-  leaked to the proxy — even one no test happened to assert on. So `ship-verify`
+  leaked to the proxy -- even one no test happened to assert on. So `ship-verify`
   / CI go red on a new silent box dependency.
-- Hot-reload (the SSE soft-remount on file change) is **off under hermetic** —
+- Hot-reload (the SSE soft-remount on file change) is **off under hermetic** --
   under concurrent workers a stray FS event would otherwise re-mount a widget
   mid-test and wipe its in-flight state. Tests never edit source mid-run.
 
-#### Default fixture layer — record-context widgets mount with zero per-spec stubbing
+#### Default fixture layer -- record-context widgets mount with zero per-spec stubbing
 
 A viewpanel/record-context widget fetches `GET /api/3/<module>/<id>?$relationships=true`
 (and often `/api/integration/connectors/`) **before it mounts**. Under hermetic
@@ -193,17 +229,17 @@ suite when it forgets one):
 - **Record:** `/api/3/<module>/<id>` returns a believable record. If the active
   widget ships `widgetAssets/fixtures/api3/record.json`, that's served verbatim;
   otherwise a minimal scaffold is synthesised from the URL (`@id`/`@type`/`uuid`/
-  `name`/`recordTags`) — enough to set `window.__HARNESS_RECORD` and mount.
+  `name`/`recordTags`) -- enough to set `window.__HARNESS_RECORD` and mount.
 - **Connectors:** `/api/integration/connectors/` returns the active widget's
   `widgetAssets/fixtures/api3/connectors.json`, else an empty-but-valid
-  `{status,totalItems,…,data:[]}` envelope (real SOAR shape — **not** hydra).
+  `{status,totalItems,…,data:[]}` envelope (real SOAR shape -- **not** hydra).
 - **Per-widget resolution:** the harness page POSTs the mounting widget's id to
   `/_fsr/active-widget`, so the handlers know whose fixtures to read (one widget
   per per-worker server → race-free).
 - **Reserved platform heads** (`model_metadatas`, `widgets`, `picklists`, …) are
-  *not* treated as records — they still surface as a loud `HERMETIC-MISS` so a
+  *not* treated as records -- they still surface as a loud `HERMETIC-MISS` so a
   genuinely-novel platform call can't hide behind a scaffold.
-- **Fixtures are OPTIONAL and version with the widget.** Seed them (faithfully —
+- **Fixtures are OPTIONAL and version with the widget.** Seed them (faithfully --
   snapshot a real response from the box) only when a scenario needs richer fields
   than the scaffold. Keep them lean (trim giant blobs like `sourcedata`).
 
@@ -225,10 +261,10 @@ run repeatedly / on a schedule.
 ### Single source of truth for the connector identity
 
 The widget hardcodes its connector name in `fsrPbAgent.service.js` (it must ship
-self-contained). **Test infra never hardcodes a second copy** — it reads
+self-contained). **Test infra never hardcodes a second copy** -- it reads
 `tests/live/lib/connectorIdentity.js`, which *derives* the name/search/config
 from that widget file. (The stale `fsr-playbook-builder` name that once aborted
-the live build test was a second copy drifting after the rename — this kills that
+the live build test was a second copy drifting after the rename -- this kills that
 class.)
 
 ### Env transients vs real failures (gateway preflight)
@@ -236,7 +272,7 @@ class.)
 The forticloud→OpenAI gateway is intermittently flaky (502 / `ERR_EMPTY_RESPONSE`).
 Two layers keep that from reading as a widget bug:
 
-- **Per-request blips** are *survived* by the widget's `chat_poll` retry — the
+- **Per-request blips** are *survived* by the widget's `chat_poll` retry -- the
   sweep is meant to exercise that resilience, so blips are not skipped.
 - **A hard backend outage** (box down, `health_check` not ok, no LLM key) is
   caught by the sweep's preflight and turns the run into an **ENV-SKIP**
@@ -248,20 +284,20 @@ So: live-sweep FAIL ⇒ look at the widget. ENV-SKIP ⇒ look at the backend.
 
 `make test-unit` must exit 0. If a guard can't run because an *external artifact*
 is missing (e.g. the contract markdown lost in the backend reorg), it **skips with
-a `console.warn`** and auto-re-arms when the artifact returns — it never sits
+a `console.warn`** and auto-re-arms when the artifact returns -- it never sits
 perma-red, because a permanent red trains everyone to ignore the suite and hides
 real regressions.
 
 ## Quick visual checks
 
 For a one-off "did the color/layout change" check, write a tiny ad-hoc Playwright
-snippet (boot the harness on 14401, `addInitScript` the widget, screenshot) — do
+snippet (boot the harness on 14401, `addInitScript` the widget, screenshot) -- do
 **not** spin up the page-tester agent for a single assertion; it's far slower.
 
 ## Known issues
 
 - The harness's own `soarEnv` keychain tests can report 2 failures under a
-  multi-project run (`make test-unit WIDGET=<x>`) on a fresh install — a jest
+  multi-project run (`make test-unit WIDGET=<x>`) on a fresh install -- a jest
   cross-project isolation quirk, not your widget. The default gate `make test`
   (harness only) is clean. Validate your widget with `make test-unit WIDGET=<x>`
   and read the `PASS <widget>` line for your suite specifically.

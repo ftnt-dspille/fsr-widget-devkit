@@ -62,7 +62,7 @@ function applySoarEnvFile(file) {
 let PROXY_VERBOSE = process.env.PROXY_VERBOSE === "1";
 // Hermetic mode (HERMETIC_E2E_PLAN.md Phase 1): when on, the proxy fallthrough
 // to the real FortiSOAR box is DISABLED. Anything not served locally returns a
-// loud `599 HERMETIC-MISS: <path>` instead of silently proxying — converting an
+// loud `599 HERMETIC-MISS: <path>` instead of silently proxying -- converting an
 // invisible forticloud dependency into a visible, fixable worklist item. The
 // e2e webServer sets FSR_HERMETIC=1 by default (see playwright.config.js) so the
 // mock gate can never red on a box outage. Set FSR_HERMETIC=0 to allow proxying.
@@ -149,7 +149,7 @@ let REGISTERED_SERVICES = Array.from(new Set([...PLATFORM_SERVICES, ...HARNESS_S
 // Hot-reload is a dev-DX feature only. Under hermetic (e2e) mode it is actively
 // harmful: with 2 concurrent workers a stray file event (lint refresh, macOS
 // FSEvents noise, a sibling test that writes a widget asset) broadcasts a
-// soft-remount that re-instantiates the widget controller mid-test — wiping its
+// soft-remount that re-instantiates the widget controller mid-test -- wiping its
 // in-flight state (e.g. the slow_turn Stop test lost its turn and went green-
 // state-empty). Tests never edit source mid-run, so skip every watcher.
 if (!HERMETIC) {
@@ -211,7 +211,7 @@ function widgetLocalServicesFor(widgetDir) {
     // Mirror runtime behavior: scanAssetScripts (and SOAR's install pipeline)
     // load every .js under widgetAssets/ before the controller boots, so any
     // service registered by any of those files is available at injection time.
-    // We don't require a <script> tag in view.html/edit.html — the harness
+    // We don't require a <script> tag in view.html/edit.html -- the harness
     // wires them automatically, just like SOAR does on install.
     const out = new Set();
     const root = path.join(widgetDir, "widgetAssets");
@@ -242,7 +242,7 @@ function widgetLocalServicesFor(widgetDir) {
     walk(root);
     return Array.from(out);
 }
-// Every file in the widget tree, as widget-relative paths — lets the linter
+// Every file in the widget tree, as widget-relative paths -- lets the linter
 // flag <script src>/<link href> references that point at a non-existent file.
 function listWidgetFiles(widgetDir) {
     const out = [];
@@ -317,12 +317,12 @@ const FALLBACK_TTL_MS = 50 * 60 * 1000;
 //
 // EXPLICIT INTENT ALWAYS WINS over the persisted UI pick. Two explicit signals:
 //   1. FSR_ENV_FILE set in the environment (ship.sh / a CLI/background launch
-//      names the target file). This is the ROBUST signal — it holds even when
+//      names the target file). This is the ROBUST signal -- it holds even when
 //      the chosen host equals the default `.env`'s host.
 //   2. isExplicitHostOverride(): a real exported FSR_BASE_URL that DIFFERS from
 //      the `.env` file value.
 // Why #1 matters: the value-diff heuristic in #2 CANNOT tell "operator set
-// FSR_BASE_URL=<default host>" from "dotenv copied the default in" — they look
+// FSR_BASE_URL=<default host>" from "dotenv copied the default in" -- they look
 // identical. So a ship that explicitly targets the same host as `.env` used to
 // be misread as "not explicit", and a stale `.harness-active-env` (a DIFFERENT
 // box) silently won. That shipped-to-the-wrong-box footgun is exactly what this
@@ -476,7 +476,7 @@ function upstreamMultipart(opts) {
     });
 }
 // Binary-safe upstream request. upstreamRequest concatenates response chunks
-// as utf8 strings, which corrupts gzip/tar bytes — so the widget-export flow
+// as utf8 strings, which corrupts gzip/tar bytes -- so the widget-export flow
 // (which returns a .tgz) goes through this variant instead.
 function upstreamRequestBinary(opts) {
     return new Promise((resolve, reject) => {
@@ -543,7 +543,7 @@ function invalidateToken() {
     tokenExpiry = 0;
 }
 // Widget discovery
-// Discovery roots — the harness MOUNTS widgets from every root that exists, so
+// Discovery roots -- the harness MOUNTS widgets from every root that exists, so
 // the bundled examples/ widgets are renderable in the monorepo (next to
 // widgets-src) AND in a fresh clone (where widgets-src is absent). When a folder
 // name appears in more than one root, the earlier root wins (widgets-src over
@@ -559,7 +559,7 @@ function resolveWidgetRoots() {
             roots.push(local);
     }
     // The harness's own bundled examples/ are ALWAYS mounted (for self-test and as
-    // a reference widget), regardless of where the user points WIDGETS_SRC — so
+    // a reference widget), regardless of where the user points WIDGETS_SRC -- so
     // `npm test` / `npm run test:e2e` work fully locally even when .env pins a root.
     const examples = path.resolve(__dirname, "examples");
     if (fs.existsSync(examples))
@@ -662,7 +662,7 @@ function buildWidgetRecord(folder, root) {
 // them for widgets that don't use them (see WidgetCapabilities). Conservative
 // by design: a generous marker set + scanning every .html/.js means we err
 // toward loading an editor when in doubt rather than starving a widget that
-// needs one. (Non-recursive directory scan misses nothing meaningful — these
+// needs one. (Non-recursive directory scan misses nothing meaningful -- these
 // directives live in the widget's own templates/controllers/widgetAssets.)
 const MONACO_MARKERS = /\bmonaco\b|cs-code-editor|csCodeEditor/i;
 const EDITOR_MARKERS = /cs-conditional|cs-html-editor|csHtmlEditor|cs-markdown-editor|csMarkdownEditor|tinymce|toastui|\brichtext\b/i;
@@ -821,7 +821,7 @@ function recordProxy(entry) {
     broadcast({ type: "proxy", entry });
 }
 // Force every harness response to be uncacheable. Setting cacheControl:false
-// on express.static only suppresses *its* Cache-Control header — browsers
+// on express.static only suppresses *its* Cache-Control header -- browsers
 // still apply heuristic caching, so an edited controller can keep running
 // the previous build until "Clear site data". no-store kills heuristics too.
 app.use((_req, res, next) => {
@@ -869,7 +869,7 @@ app.use("/harness.module.js", express.static(path.resolve(__dirname, "harness.mo
 // harnessUtils.js is dual-use: server.ts + jest `require()` it (needs the CJS
 // `module.exports = api` tail emitted from `export = api`), but it also loads in
 // the browser via <script>, where `module` is undefined → `ReferenceError:
-// module is not defined` on every page (backlog #4 — pervasive console noise
+// module is not defined` on every page (backlog #4 -- pervasive console noise
 // that also fails clean-error probes). A global `module` shim would make UMD
 // libs (lodash/angular/ui-grid) detect CommonJS and skip their window globals,
 // so instead serve THIS one file wrapped in an IIFE that provides a local
@@ -892,7 +892,7 @@ app.use("/lib", express.static(path.resolve(__dirname, "lib"), { etag: false, ca
 // Serve Monaco locally so the harness never proxies the editor bundle to the
 // SOAR box (HERMETIC_E2E_PLAN.md Phase 1). The widget's boot path
 // `await preloadMonaco()` (public/index.html) hard-fetches
-// /node_modules/monaco-editor/min/vs/loader.js + editor.main — under hermetic
+// /node_modules/monaco-editor/min/vs/loader.js + editor.main -- under hermetic
 // mode a proxied 599 there would brick boot, not just the YAML pane. We pin the
 // same monaco version the box ships (0.47.0) as a devDependency so build-mode
 // specs run against the real editor with zero forticloud dependency.
@@ -901,15 +901,15 @@ app.use("/node_modules/monaco-editor", express.static(path.resolve(__dirname, "n
     cacheControl: false,
 }));
 // Font dedup (introspection backlog #2). SOAR's steel.css ships TWO parallel
-// Lato @font-face roots — `/fonts/Lato/Lato-*.woff2` (the SOAR-hosted family)
+// Lato @font-face roots -- `/fonts/Lato/Lato-*.woff2` (the SOAR-hosted family)
 // AND `/node_modules/lato-font/fonts/lato-*/*.woff2` (the npm lato-font package)
-// — so any render whose text uses a weight declared in both downloads the same
+// -- so any render whose text uses a weight declared in both downloads the same
 // glyphs twice (~183 KB each for the normal weight, ~1 MB across weights). All
 // six npm weights are byte-IDENTICAL to their /fonts/Lato counterparts (verified
 // by md5), so redirecting the npm URLs onto the SOAR-hosted ones collapses the
 // duplicate to a single cached download with ZERO change to rendered glyphs.
 // This is the one place the harness intentionally diverges from SOAR's exact
-// wire (identical bytes, fewer requests) — a Phase 2 fidelity diff should
+// wire (identical bytes, fewer requests) -- a Phase 2 fidelity diff should
 // allowlist these redirected font URLs.
 const LATO_NPM_TO_SOAR = {
     "lato-normal": "Lato-Regular",
@@ -922,7 +922,7 @@ const LATO_NPM_TO_SOAR = {
 app.get(/^\/node_modules\/lato-font\/fonts\/([^/]+)\/[^/]+\.woff2$/, (req, res, next) => {
     const weight = req.params[0];
     const soar = LATO_NPM_TO_SOAR[weight];
-    // Unknown weight (a variant we haven't proven identical) — fall through to
+    // Unknown weight (a variant we haven't proven identical) -- fall through to
     // the proxy untouched rather than risk a wrong-glyph map.
     if (!soar)
         return next();
@@ -951,10 +951,10 @@ function loadPatchedFsrApp() {
     // Vendor angular modules we DO load (from CDN, before app.unmin.js) and
     // therefore want as cybersponse dep so their providers ($resource, etc.)
     // are visible in the bundle\'s factories. Add new entries as we add the
-    // matching <script> tags in index.html. Keep this minimal — the rest of
+    // matching <script> tags in index.html. Keep this minimal -- the rest of
     // SOAR\'s ~50 dep modules stay stripped and dealt with via stubs/no-ops.
     // All fortisoar.* and cybersponse.authentication sub-modules are actually
-    // defined inside app.unmin.js — they were stripped along with vendor deps
+    // defined inside app.unmin.js -- they were stripped along with vendor deps
     // by the empty-deps patch. Add them back so their factories (translationService,
     // etc.) are visible to cybersponse\'s injector.
     const HARNESS_VENDOR_DEPS = [
@@ -1074,7 +1074,7 @@ app.get("/_fsr/app.unmin.js", (_req, res) => {
 // when uibPopover needs the template. This must load AFTER app.unmin.js but can
 // load before or after harness.module.js (it only registers templates, doesn't
 // require real Angular services).
-// Resolve the SOAR template-cache bundle by glob, not a hardcoded hash — the
+// Resolve the SOAR template-cache bundle by glob, not a hardcoded hash -- the
 // filename carries a build hash (templates.min.<hash>.js) that differs per SOAR
 // version, and `make assets` fetches whatever the connected box serves.
 function resolveTemplatesFile() {
@@ -1094,7 +1094,7 @@ app.get("/_fsr/templates.min.js", (_req, res) => {
             return res
                 .status(404)
                 .type("text/plain")
-                .send("no fsr_src/templates.min.*.js — run `make assets` to fetch the SOAR app shell");
+                .send("no fsr_src/templates.min.*.js -- run `make assets` to fetch the SOAR app shell");
         }
         const body = fs.readFileSync(file, "utf8");
         // The dangling `||` in SOAR's ui-select-choices ng-show is intentional:
@@ -1126,7 +1126,7 @@ function isLocalPath(p) {
         return true;
     return false;
 }
-// Lightweight surface for the in-page status strip — a one-shot read of
+// Lightweight surface for the in-page status strip -- a one-shot read of
 // "what is this harness pointed at" without needing to scrape the proxy.
 app.get("/_fsr/info", (_req, res) => {
     let host = "";
@@ -1136,7 +1136,16 @@ app.get("/_fsr/info", (_req, res) => {
     catch (_) {
         host = HOST || "(unset)";
     }
-    res.json({ proxyHost: host, widgetCount: WIDGETS.length, activeEnv: ACTIVE_ENV });
+    // `localConnector` is reported so an automated driver can REFUSE to grade a
+    // turn it believes is local but which this harness would actually proxy to
+    // the deployed connector on the box (see lib/localUiDriver.ts). Silently
+    // grading the wrong connector is the one failure that makes a local gate
+    // worthless. Both consts are declared further down; this handler only ever
+    // runs after module init, so the reference is safe.
+    res.json({
+        proxyHost: host, widgetCount: WIDGETS.length, activeEnv: ACTIVE_ENV,
+        localConnector: LOCAL_CONNECTOR, sidecarUrl: LOCAL_CONNECTOR ? SIDECAR_URL : null,
+    });
 });
 // NS1: the page declares which widget is mounting so the hermetic record +
 // connector fixture handlers can resolve a per-widget fixture. Always accepted
@@ -1411,7 +1420,7 @@ function attachWatcher(w) {
         console.warn(`watch failed for ${w.folder}: ${e instanceof Error ? e.message : String(e)}`);
     }
 }
-// Skip hot-reload watchers under hermetic (e2e) mode — see HARNESS_MODULE_PATH
+// Skip hot-reload watchers under hermetic (e2e) mode -- see HARNESS_MODULE_PATH
 // watcher above for why a soft-remount mid-test corrupts deterministic runs.
 if (!HERMETIC)
     for (const w of WIDGETS)
@@ -1542,7 +1551,7 @@ function blockingLintErrors(w) {
 }
 // Applies a JSON merge patch to the widget's info.json, OR bumps the version and
 // syncs source controllers. Intended to be called by the harness UI after a 400
-// from /_fsr/package or /_fsr/install — the failure response includes a
+// from /_fsr/package or /_fsr/install -- the failure response includes a
 // `suggestedFix` patch the user can review and POST back here.
 // Body: { patch: <object> } OR { bump: 'patch'|'minor'|'major' }.
 // The patch branch refuses any patch that wouldn't clear validation errors so we
@@ -1629,7 +1638,7 @@ app.post("/_fsr/package/:id", express.json(), async (req, res) => {
     if (!w)
         return res.status(404).json({ error: "unknown widget id" });
     const body = (req.body || {});
-    // Lint runs AFTER the version sync below — running it here against the
+    // Lint runs AFTER the version sync below -- running it here against the
     // pre-bump source would block on stale-version-ref every time the user
     // typed a new version into the bump form, even though syncSourceToInfoJson
     // would have rewritten the references a few lines later. Order matters.
@@ -1693,7 +1702,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
     const w = widgetsById.get(req.params.id);
     if (!w)
         return res.status(404).json({ error: "unknown widget id" });
-    // The box this install will actually hit — echoed in every response so a
+    // The box this install will actually hit -- echoed in every response so a
     // wrong-target ship is obvious at the call site, not diagnosed after the fact.
     const targetHost = (() => { try {
         return new URL(HOST || "").host;
@@ -1743,7 +1752,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         const pkg = await packageWidget(w.dir, PACKAGE_OUTPUT_DIR);
         console.log(`install: packaged ${pkg.archiveName} (${pkg.size} bytes)`);
         const token = await ensureToken();
-        // Re-read the widget record from the box by name — a widget-type publish
+        // Re-read the widget record from the box by name -- a widget-type publish
         // does NOT create a solutionpack entry (the pack list stays empty even on a
         // fully-published widget), so the WIDGET RECORD's version+draft is the
         // authoritative deploy signal, not the solutionpack.
@@ -1806,13 +1815,13 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         // the tgz into DEVELOPMENT (the "Create" tab): the record appears at the new
         // version with `installed:false` and NO assets extracted to
         // /widgets/installed/. That is only step 1. The Content Hub UI then requires
-        // a manual PUBLISH from the dev/code-editor which promotes it — and THAT is
+        // a manual PUBLISH from the dev/code-editor which promotes it -- and THAT is
         // what makes the deploy stick. `import_jobs` stays empty for widgets (that's
         // the solution-pack path), so there is no job to poll.
         //
         // The publish is a `PUT /api/3/widgets/<uuid>` whose body MUST be the box's
         // DEVELOPMENT record (fetched below) + a set of flags. Both the body source
-        // and the flags are the exact shape the UI's `publishWidget()` sends —
+        // and the flags are the exact shape the UI's `publishWidget()` sends --
         // reverse-engineered from the box bundle (app.min.*.js) and verified live by
         // driving the Content-Hub UI:
         //   publishWidget() reads `g.widgetData` (loaded via developmentWidgets(id) =
@@ -1820,12 +1829,12 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         //   `draft = !publishSettings.publishDiscard`. The publish popup's ONLY action
         //   button (`btn-publish`) sets `publishDiscard = false`, so a real "Publish"
         //   ALWAYS sends `draft:false` (go live). There is NO "publish but keep as
-        //   draft" path — Cancel just aborts.
+        //   draft" path -- Cancel just aborts.
         // Flags: `draft:false`, `installed:true`, `enablePublish:false`,
         // `replace:true`, `replaceVersions:[]`, a `publishedDate` epoch, and `@id`.
         //
         // Why draft MUST be false: `draft:true` publishes the widget but leaves it a
-        // DRAFT — the record persists at the new version, but it is not "live" the way
+        // DRAFT -- the record persists at the new version, but it is not "live" the way
         // "Publish" makes it, so a bump can look deployed while behaving as unpublished.
         // The prior harness sent `draft:true` (on a misreading that publish keeps a
         // draft); `draft:false` is what the UI's Publish actually does. `replace:true`
@@ -1835,7 +1844,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         //
         // NOTE on the historical "reverts to old version seconds later" report: in
         // this session that reproduced ONLY as an artifact of shipping to the wrong
-        // box (a stale target — now guarded by targetHost + ship.sh's assert). On a
+        // box (a stale target -- now guarded by targetHost + ship.sh's assert). On a
         // correctly-targeted box, publishes stuck across every flag combination
         // tested. The SETTLE-CONFIRM below stays as cheap defensive insurance in case
         // a real reconciler-revert exists on some box/state we didn't hit.
@@ -1858,7 +1867,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
                 target: targetHost,
             });
         }
-        // Publish body MUST be the box's DEVELOPMENT record — the exact object the
+        // Publish body MUST be the box's DEVELOPMENT record -- the exact object the
         // UI's publishWidget() publishes (it reads `g.widgetData`, loaded from
         // `developmentWidgets(id)` = GET /api/3/widgets/development/<uuid>), NOT the
         // local info.json. Spreading local info.json was the residual rollback cause:
@@ -1880,7 +1889,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
                 catch ( /* fall through to freshInfo below */_a) { /* fall through to freshInfo below */ }
             }
             if (!devManifest || !devManifest["@id"]) {
-                // Fallback: box dev record unreadable — use local info.json (worse, may
+                // Fallback: box dev record unreadable -- use local info.json (worse, may
                 // revert) rather than fail the publish outright.
                 console.warn(`install: dev record for ${uuid} unreadable; falling back to local info.json (publish may not stick)`);
                 devManifest = freshInfo;
@@ -1940,7 +1949,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         }
         // SETTLE-CONFIRM (defensive): the verify above runs immediately after publish.
         // If any box/state DOES exhibit a delayed reconciler-revert (the historical
-        // "reverts seconds later" report — not reproduced here once the target box was
+        // "reverts seconds later" report -- not reproduced here once the target box was
         // correct), it would land a few seconds later and be missed. Cheap insurance:
         // re-read after a beat and confirm the new version is STILL the live, installed,
         // real-asset one. A revert here is a hard failure, not a reported success.
@@ -1955,7 +1964,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
         const settleOk = !!settleRec && settleRec.version === newVersion && settleRec.draft === false &&
             settleAsset.status >= 200 && settleAsset.status < 300 && !settleSpa;
         if (!settleOk) {
-            console.warn(`install: ROLLBACK detected for ${widgetName}@${newVersion} — settled to ${settleRec ? `${settleRec.version}(draft=${settleRec.draft})` : "absent"}, asset=${settleSpa ? "SPA-fallback" : settleAsset.status}`);
+            console.warn(`install: ROLLBACK detected for ${widgetName}@${newVersion} -- settled to ${settleRec ? `${settleRec.version}(draft=${settleRec.draft})` : "absent"}, asset=${settleSpa ? "SPA-fallback" : settleAsset.status}`);
             return res.status(502).json({
                 error: `publish did NOT stick: after ${SETTLE_CONFIRM_MS}ms the box reverted ` +
                     `${widgetName} to ${settleRec ? `${settleRec.version} (draft=${settleRec.draft})` : "absent"} ` +
@@ -1974,7 +1983,7 @@ app.post("/_fsr/install/:id", express.json(), async (req, res) => {
             uuid: uuid,
             name: freshInfo.name,
             version: freshInfo.version,
-            target: targetHost, // which box this actually landed on — never guess from your own env
+            target: targetHost, // which box this actually landed on -- never guess from your own env
             // We publish for real (draft:false); the widget goes live and stays put.
             published: settleRec ? settleRec.draft === false : true,
             draft: settleRec ? settleRec.draft : false,
@@ -2162,7 +2171,7 @@ app.post("/_fsr/upload-tgz", express.raw({ type: ["application/gzip", "applicati
 });
 app.get("/_fsr/stylesheets", async (_req, res) => {
     // Hermetic mode: this endpoint normally scrapes the live SOAR index for its
-    // <link> hrefs — an outbound forticloud call, and the hrefs it returns
+    // <link> hrefs -- an outbound forticloud call, and the hrefs it returns
     // (/css/style.min.<hash>.css, /css/themes/<theme>.css) then 599 since we don't
     // snapshot platform CSS. Both break hermeticity for purely cosmetic styling.
     // Return none: widgets render with harness chrome only, which is all the mock
@@ -2175,7 +2184,7 @@ app.get("/_fsr/stylesheets", async (_req, res) => {
             method: "GET",
             pathAndQuery: "/",
             headers: cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {},
-            // Cosmetic, bootstrap-blocking route — fail fast against a dead box so the
+            // Cosmetic, bootstrap-blocking route -- fail fast against a dead box so the
             // widget still mounts (chrome-only styling) instead of the page hanging.
             timeoutMs: 3000,
         });
@@ -2242,7 +2251,7 @@ const proxy = createProxyMiddleware({
     pathFilter: (p) => !isLocalPath(p),
     target: HOST,
     // HOST is mutable (the UI can re-point the proxy at another .env at runtime),
-    // and `target` is captured once at setup — so resolve the live target per
+    // and `target` is captured once at setup -- so resolve the live target per
     // request via `router`. Returns the current HOST every call.
     router: () => HOST,
     changeOrigin: true,
@@ -2269,7 +2278,7 @@ const proxy = createProxyMiddleware({
             delete proxyRes.headers["content-security-policy-report-only"];
             // Make proxied font files cacheable within the dev session. SOAR serves
             // them `no-store`, which (a) re-downloads every font on every render and
-            // (b) defeats the Lato dedup redirect above — the redirect unifies the
+            // (b) defeats the Lato dedup redirect above -- the redirect unifies the
             // npm + SOAR Lato URLs onto one path, but no-store forces the browser to
             // re-fetch it anyway. Fonts are immutable content, so a short max-age is
             // safe and lets the second reference hit cache. (Introspection backlog #2.)
@@ -2336,7 +2345,7 @@ const proxy = createProxyMiddleware({
 // errors that red specs asserting a clean console. These are platform-global
 // (not widget-specific), so they live here rather than in widgetAssets/fixtures.
 if (HERMETIC) {
-    // Current user — a minimal but valid SOAR actor so usersService resolves
+    // Current user -- a minimal but valid SOAR actor so usersService resolves
     // instead of throwing "Unable to retrieve user".
     app.get("/api/3/actors/current", (_req, res) => {
         res.json({
@@ -2350,15 +2359,15 @@ if (HERMETIC) {
             roles: [],
         });
     });
-    // System fixtures — the SYSTEM_MODULES list modelMetadatasService.getSystemModules
+    // System fixtures -- the SYSTEM_MODULES list modelMetadatasService.getSystemModules
     // iterates to set `metadata.<type>` for every system module (picklists,
     // workflows, …). An empty list leaves `metadata.picklists` unset, so
     // Entity.loadFields("picklists") rejects with "picklists module metadata not
-    // found" — which stalls every grid widget's execution chain (loadProcessing
+    // found" -- which stalls every grid widget's execution chain (loadProcessing
     // never clears). Serve the real snapshot fetched per-dev into fsr_src/ (same
     // licensed-asset home as app.unmin.js, gitignored, refreshed by
     // scripts/fetch-soar-assets.sh). Fall back to [] when it hasn't been fetched
-    // yet — non-grid widgets don't need it.
+    // yet -- non-grid widgets don't need it.
     const SYSTEM_FIXTURES_PATH = path.join(FSR_SRC_DIR, "system_fixtures.json");
     app.get("/api/system/fixtures", (_req, res) => {
         try {
@@ -2372,11 +2381,11 @@ if (HERMETIC) {
     // Entity.loadFields() resolves the picklist-typed fields and the platform
     // fetches their option lists (one GET per listName: Severity, AlertStatus, …).
     // Widgets that render their own data (jsonToGrid renders grid_data/grid_columns,
-    // not picklist options) don't need real values — an empty collection lets the
+    // not picklist options) don't need real values -- an empty collection lets the
     // field-load chain resolve so loadProcessing clears. Keeps the grid e2e tier
     // hermetic without snapshotting every picklist.
     app.get("/api/3/picklists", (_req, res) => res.json({ "hydra:member": [], "hydra:totalItems": 0 }));
-    // System settings — once the grid fully renders, csGrid/platform services read
+    // System settings -- once the grid fully renders, csGrid/platform services read
     // /api/3/system_settings (timezone, date format, pagination defaults, …).
     // Served from the per-dev snapshot fetched into fsr_src/ alongside the
     // fixtures (gitignored; refreshed by scripts/fetch-soar-assets.sh). Fall back
@@ -2395,7 +2404,7 @@ if (HERMETIC) {
             });
         }
     });
-    // NS1 default fixture layer (AGENT_NORTHSTAR.md #1) — un-reds every
+    // NS1 default fixture layer (AGENT_NORTHSTAR.md #1) -- un-reds every
     // record-context widget in the mock tier so a spec stubs only what's UNIQUE
     // to its scenario. Today each spec re-stubs /api/3/<module>/<id> +
     // /api/integration/connectors/ inline and one omission 599s the whole suite.
@@ -2403,7 +2412,7 @@ if (HERMETIC) {
     // Resolution order for both handlers: a per-widget fixture
     // (<widget>/widgetAssets/fixtures/api3/<name>.json, resolved via the active
     // widget the page POSTed to /_fsr/active-widget), else a believable default
-    // synthesised from the request. Fixtures are OPTIONAL — the default alone
+    // synthesised from the request. Fixtures are OPTIONAL -- the default alone
     // clears the 599 and sets window.__HARNESS_RECORD so viewpanel widgets mount.
     // Read a JSON fixture from the active widget's fixtures/api3 dir, or null.
     const readWidgetApi3Fixture = (name) => {
@@ -2420,7 +2429,7 @@ if (HERMETIC) {
             return null; // absent or unreadable → caller falls back to default
         }
     };
-    // Platform modules already handled above or by dedicated routes — never treat
+    // Platform modules already handled above or by dedicated routes -- never treat
     // these path heads as a record module to scaffold (they'd shadow real stubs
     // or mask a genuinely-novel platform call that SHOULD surface as a miss).
     const RESERVED_API3_HEADS = new Set([
@@ -2428,7 +2437,7 @@ if (HERMETIC) {
         "model_metadatas", "modules", "appsettings", "people", "picklist_names",
         "files", "attachments", "query", "export",
     ]);
-    // GET /api/3/<module>/<id>[?$relationships=true] — the record fetch every
+    // GET /api/3/<module>/<id>[?$relationships=true] -- the record fetch every
     // viewpanel/record-context widget makes before mounting (index.html
     // applyContext). Serve a per-widget record fixture if present, else a minimal
     // but valid scaffold synthesised from the URL so the widget mounts non-empty.
@@ -2454,7 +2463,7 @@ if (HERMETIC) {
             __self: `/api/3/${module}/${id}`,
         });
     });
-    // GET /api/integration/connectors/ — the connector list (action-renderer's
+    // GET /api/integration/connectors/ -- the connector list (action-renderer's
     // edit modal, any connector-driven widget). Real SOAR returns a
     // {status,totalItems,…,data:[]} envelope (NOT hydra). Serve a per-widget
     // fixture or an empty-but-valid envelope so an un-fixtured widget doesn't
@@ -2470,7 +2479,7 @@ if (HERMETIC) {
     app.get("/api/integration/connectors/", serveConnectors);
     app.get("/api/integration/connectors", serveConnectors);
 }
-// POST /api/integration/execute/ — run a connector operation. Registered at
+// POST /api/integration/execute/ -- run a connector operation. Registered at
 // top level (NOT inside the HERMETIC block above) so it applies in both hermetic
 // and live dev modes. Default (the box): falls through to the catch-all proxy →
 // the deployed connector worker on FSR_BASE_URL. Local-dev loop: set
@@ -2483,7 +2492,7 @@ const LOCAL_CONNECTOR = /^(1|true|yes|on)$/i.test(process.env.FSR_LOCAL_CONNECTO
 const executeLocal = async (req, res) => {
     var _a, e_1, _b, _c;
     try {
-        // Read the raw request body ourselves (no global express.json() — the box
+        // Read the raw request body ourselves (no global express.json() -- the box
         // proxy path needs the raw stream, and we only land here when
         // FSR_LOCAL_CONNECTOR=1). Forward the bytes verbatim to the sidecar.
         const chunks = [];
@@ -2540,7 +2549,7 @@ app.post("/api/integration/execute", (req, res, next) => {
 });
 // Hermetic gate: in hermetic mode nothing reaches the proxy. A request that
 // got this far was NOT served by any local static/stub middleware, so it would
-// have fallen through to forticloud — fail it loudly instead. The 599 status +
+// have fallen through to forticloud -- fail it loudly instead. The 599 status +
 // `HERMETIC-MISS:` body make the leak grep-able in test output and via
 // /_fsr/hermetic-misses. Whitelist auth handshake paths only if needed; today
 // the auth middleware short-circuits because no /api call should miss locally.
