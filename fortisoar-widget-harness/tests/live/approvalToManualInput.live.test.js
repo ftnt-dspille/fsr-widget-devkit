@@ -38,20 +38,10 @@ const { openWidgetDrawer } = require("../../lib/liveUiDriver");
 const CAPTURE_DIR = path.join(__dirname, "../../test-results/live");
 const CAPTURE_FILE = path.join(CAPTURE_DIR, "approvalToManualInput.payloads.json");
 
-function captureChatPayloads(page) {
-  const captured = [];
-  page.on("response", async (r) => {
-    if (!/integration\/execute/.test(r.url())) return;
-    let req = {};
-    try { req = r.request().postDataJSON() || {}; } catch (_) { return; }
-    const op = req.operation;
-    if (typeof op !== "string" || !/^chat_/.test(op)) return;
-    let body = null;
-    try { body = await r.json(); } catch (_) { body = { _nonJson: true }; }
-    captured.push({ op, params: req.params || null, response: body });
-  });
-  return captured;
-}
+// The recorder lives in lib/chatCapture.js, which also closes the tail-drop:
+// the last turn's chat_poll responses used to be missing from every capture,
+// because the write happened before the in-flight body handlers resolved.
+const { createChatCapture } = require("./lib/chatCapture");
 
 // The chat transcript as text. Everything this spec asserts about turns is read
 // from the DOM, because `window.__fortiaiAgenticAssistant__` is gated to
@@ -119,11 +109,15 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
   // a failure in t1 makes t2/t3 meaningless, so each guards on `inputId` and
   // says so out loud instead of failing on a mystery locator.
   let inputId = null;
-  let captured = [];
+  let capture = null;
   const NOTE_TEXT = "live DOM check";
 
   afterAll(async () => {
-    writeCapture(captured);
+    // Drain the in-flight response handlers BEFORE writing, or the tail of the
+    // last turn -- the frames you most need when the arc fails at the end --
+    // never reaches disk. Close the session after, never before: closing the
+    // page kills the handlers that are still resolving.
+    writeCapture(capture ? await capture.settle() : []);
     if (session) await session.close();
   });
 
@@ -142,7 +136,7 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     session = await openWidgetDrawer({ module: MODULE, recordUuid: RECORD });
     expect(session.composerOpen).toBe(true);
     const page = session.page;
-    captured = captureChatPayloads(page);
+    capture = createChatCapture(page);
 
     const sent = await session.sendChat(PROMPT);
     // A turn that never streamed is a DRIVE failure, not a verdict on the
