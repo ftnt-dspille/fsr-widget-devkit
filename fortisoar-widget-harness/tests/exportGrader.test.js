@@ -382,3 +382,175 @@ describe("gradeLive -- unrequested change offer", () => {
       .not.toContain("unrequested_change_offer");
   });
 });
+
+// ─── The degradation oracle (plan Phase 3) ───────────────────────────────────
+//
+// Graceful degradation is an ANTI-ORACLE: the better the fallback, the more
+// invisible this defect class becomes. Every rule below turns a soft failure
+// (a plausible sentence) into a hard one (a red flag). Each is paired with the
+// FIXED shape, so the test fails if a rule fires on a working turn -- a rule
+// that cannot be silenced is as useless as one that cannot fire.
+describe("gradeLive -- parked_run_narrated_not_carded", () => {
+  const { gradeLive } = require("./live/lib/exportGrader");
+  const codes = (frames, requests = [{ intent: "triage" }]) =>
+    gradeLive(frames, requests).redFlags.map((f) => f.code);
+
+  // Shape taken from the live approval→manual-input capture: run_playbook
+  // returns a parked run, and the gate is owed to the analyst as a card.
+  const parkedResult = {
+    type: "tool_result", tool_use_id: "t1",
+    content: JSON.stringify({ ok: true, status: "awaiting_manual_input", run_pk: "9308" }),
+  };
+  const parkedCall = { type: "tool_use", id: "t1", name: "run_playbook", input: { playbook: "Collect Note" } };
+  const askProse = { type: "text", text: "The run is waiting. Tell me the note and I'll continue." };
+
+  test("a parked run + an ask in prose + no card is flagged", () => {
+    expect(codes([parkedCall, parkedResult, askProse]))
+      .toContain("parked_run_narrated_not_carded");
+  });
+
+  test("the same turn WITH the manual_input card is clean -- this is the fix", () => {
+    expect(codes([parkedCall, parkedResult, askProse,
+      { type: "manual_input", card_id: "mi-1" }]))
+      .not.toContain("parked_run_narrated_not_carded");
+  });
+
+  test("a finished run described in prose is not a park", () => {
+    expect(codes([parkedCall,
+      { type: "tool_result", tool_use_id: "t1", content: JSON.stringify({ ok: true, status: "finished" }) },
+      askProse])).not.toContain("parked_run_narrated_not_carded");
+  });
+
+  test("an offline export cannot see card frames and must stay silent", () => {
+    const exp = { manifest: { intent: "triage" }, messages: [{ role: "assistant", events: [
+      { type: "tool_call", name: "run_playbook", inputDisplay: "{}",
+        resultDisplay: JSON.stringify({ status: "awaiting_manual_input" }), resultStatus: "ok" },
+      { type: "text", text: "Tell me the note and I'll continue." }] }] };
+    expect(gradeExport(exp).redFlags.map((f) => f.code))
+      .not.toContain("parked_run_narrated_not_carded");
+  });
+});
+
+describe("gradeLive -- agent_asks_for_data_it_holds", () => {
+  const { gradeLive } = require("./live/lib/exportGrader");
+  const RUN_PK = "3f43a6bca48e489da25e011a9891f98f";   // shape of a real run pk
+  const strand = (history) => ({
+    requests: [{ intent: "triage", messages: history }],
+    frames: [{ type: "text",
+      text: `Happy to resume it -- what is the run id for that execution?` }],
+  });
+  const codes = (c) => gradeLive(c.frames, c.requests).redFlags.map((f) => f.code);
+
+  test("asking for a run id the session history already carries is flagged", () => {
+    // THE session-scoping property. This turn ran ZERO tools -- a rule scoped to
+    // the turn's own tool_results could never have fired, which is exactly how
+    // the strand shipped.
+    const c = strand([
+      { role: "user", content: "Run the Collect Note playbook." },
+      { role: "assistant", content: `Started run ${RUN_PK}, awaiting your note.` },
+      { role: "user", content: "resume it" },
+    ]);
+    expect(gradeLive(c.frames, c.requests).toolStats.total).toBe(0);
+    expect(codes(c)).toContain("agent_asks_for_data_it_holds");
+  });
+
+  test("asking for an id the session genuinely never had is legitimate", () => {
+    expect(codes(strand([{ role: "user", content: "resume my earlier run" }])))
+      .not.toContain("agent_asks_for_data_it_holds");
+  });
+
+  test("a turn that just answers is clean", () => {
+    const c = { requests: [{ intent: "triage", messages: [
+      { role: "assistant", content: `run ${RUN_PK}` }] }],
+      frames: [{ type: "text", text: "The run finished successfully." }] };
+    expect(codes(c)).not.toContain("agent_asks_for_data_it_holds");
+  });
+
+  test("no captured history -> silent rather than guessing", () => {
+    const c = { requests: [], frames: [{ type: "text", text: "What is the run id?" }] };
+    expect(codes(c)).not.toContain("agent_asks_for_data_it_holds");
+  });
+});
+
+describe("gradeLive -- action_narrated_not_taken", () => {
+  const { gradeLive } = require("./live/lib/exportGrader");
+  const codes = (frames) => gradeLive(frames, [{ intent: "triage" }]).redFlags.map((f) => f.code);
+
+  test("claiming containment with no dispatch call is P2 gating theatre", () => {
+    expect(codes([{ type: "text", text: "I have blocked 203.0.113.10 at the perimeter." }]))
+      .toContain("action_narrated_not_taken");
+  });
+
+  test("the same claim WITH the dispatch call is the product working", () => {
+    expect(codes([
+      { type: "tool_use", id: "a1", name: "run_op", input: { operation: "block_ip_new" } },
+      { type: "tool_result", tool_use_id: "a1", content: '{"status":"Success"}' },
+      { type: "text", text: "I have blocked 203.0.113.10 at the perimeter." },
+    ])).not.toContain("action_narrated_not_taken");
+  });
+
+  test("a gate that was SHOWN is not a claim -- the analyst is being asked", () => {
+    expect(codes([
+      { type: "approval_request", approval_id: "ap-1" },
+      { type: "text", text: "I'll block 203.0.113.10 once you approve." },
+    ])).not.toContain("action_narrated_not_taken");
+  });
+
+  test("proposing an action as a question does not fire", () => {
+    expect(codes([{ type: "text", text: "Should I block 203.0.113.10 at the perimeter?" }]))
+      .not.toContain("action_narrated_not_taken");
+  });
+});
+
+describe("gradeLive -- card_type_expected_but_prose", () => {
+  const { gradeLive } = require("./live/lib/exportGrader");
+  const codes = (frames, scenario) =>
+    gradeLive(frames, [{ intent: "triage" }], scenario).redFlags.map((f) => f.code);
+
+  test("the expected card is missing and the prose describes it", () => {
+    expect(codes([{ type: "text", text: "I can create a playbook that does this for you." }],
+      { expectedCards: ["playbook_offer"] })).toContain("card_type_expected_but_prose");
+  });
+
+  test("the card actually arriving is clean", () => {
+    expect(codes([
+      { type: "playbook_offer", offerId: "p1" },
+      { type: "text", text: "I can create a playbook that does this for you." },
+    ], { expectedCards: ["playbook_offer"] })).not.toContain("card_type_expected_but_prose");
+  });
+
+  test("a missing card the prose never describes does not fire -- that is a\n"
+    + "    coverage question for the frame metrics, not a degradation", () => {
+    expect(codes([{ type: "text", text: "The alert looks benign." }],
+      { expectedCards: ["playbook_offer"] })).not.toContain("card_type_expected_but_prose");
+  });
+
+  test("a row that expects nothing cannot fire this rule", () => {
+    expect(codes([{ type: "text", text: "I can create a playbook that does this." }], {}))
+      .not.toContain("card_type_expected_but_prose");
+  });
+});
+
+// The degradation rules run against a REAL live capture, not just synthetic
+// frames. This is the approval→manual-input arc AFTER its fix (connector
+// 0.5.101+): a parked run that DID get carded. None of the four rules may fire
+// on it -- a rule that flags working live prose is worse than no rule, because
+// the matrix learns to ignore it.
+describe("degradation rules -- no false positives on the fixed live arc", () => {
+  const { gradeLive } = require("./live/lib/exportGrader");
+  const CAPTURE = path.join(__dirname, "..", "test-results", "live",
+    "approvalToManualInput.payloads.json");
+  const maybe = fs.existsSync(CAPTURE) ? test : test.skip;   // gitignored artifact
+
+  maybe("grades clean", () => {
+    const payloads = JSON.parse(fs.readFileSync(CAPTURE, "utf8"));
+    const frames = [];
+    const requests = [];
+    payloads.forEach((e) => {
+      if (e.op === "chat_turn" || e.op === "chat_resume") requests.push({ ...e.params });
+      if (e.op === "chat_poll") ((e.response.data || {}).frames || []).forEach((f) => frames.push(f));
+    });
+    const report = gradeLive(frames, requests);
+    expect(report.redFlags.map((f) => f.code)).toEqual([]);
+  });
+});

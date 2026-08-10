@@ -638,7 +638,9 @@ async function runScenario(scenario) {
   // gates the live matrix forever after. Lazy require: module cycle (see
   // exportGrader.digestLive).
   const { gradeLive } = require("./exportGrader");
-  const report = gradeLive(frames, requests);
+  // Pass the scenario through: card_type_expected_but_prose grades the row's
+  // `expectedCards` against the cards that actually arrived.
+  const report = gradeLive(frames, requests, scenario);
   evaluation.redFlags = report.redFlags;
   if (report.verdict === "FAIL" && !evaluation.hardFail) {
     // A red flag can hard-fail a row the frame metrics call clean: the derailed

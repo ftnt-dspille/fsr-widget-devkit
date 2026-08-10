@@ -69,6 +69,67 @@ const TRIAGE_ONLY_TOOLS = [
 // deliverable on that turn is exactly what they asked for.
 const CHANGE_QUICK_ACTIONS = ['add_step', 'add_error_handling', 'optimize'];
 
+// ─── The degradation oracle (plan Phase 3) ───────────────────────────────────
+//
+// Every bug in the approval/manual-input family produced a PLAUSIBLE system.
+// "Approved and executed" is a sentence a working product says; "tell me the
+// note and I'll resume run 9308" is helpful. Nothing crashed, nothing logged,
+// no status went red. That is partly by design -- "never dead-end the user" is
+// an explicit principle -- but graceful degradation is an ANTI-ORACLE: it
+// converts hard failures, which tests see, into soft ones only a human watching
+// the screen sees. The rules below make degradation itself detectable. They
+// DETECT; they never fix. A red flag turns an invisible degradation into a
+// visible one, and the repair is always a separate dispatch-side change.
+
+// A tool_result that says the run is parked/awaiting rather than finished.
+const PARKED_RESULT = /"?(?:awaiting_manual_input|awaiting_input|manual_input_required|pending_manual_input|parked|suspended)"?/i;
+
+// Prose that asks the analyst to hand something back.
+const PROSE_ASKS_FOR_INPUT = /\b(?:let me know|tell me|reply with|paste|provide|type|enter|send me|share)\b[^.?!\n]{0,80}[.?!\n]/i;
+
+// Prose asking for an IDENTIFIER specifically -- the strand's signature.
+const PROSE_ASKS_FOR_ID = /\b(?:give|send|paste|provide|share|supply|tell me|what(?:'s| is|'re| are)|confirm)\b[^.?!\n]{0,80}\b(?:run[ _-]?(?:id|pk|uuid|number)?|uuid|url|link|record[ _-]?id|playbook[ _-]?id|session[ _-]?id|workflow[ _-]?id)\b/i;
+
+// Identifiers the session demonstrably already holds.
+const HELD_ID_PATTERNS = [
+  /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,   // dashed uuid
+  /\b[0-9a-f]{32}\b/i,                                                    // bare uuid / run pk
+  /\/api\/3\/[a-z_]+\/[0-9a-f-]{8,}/i,                                    // IRI
+  /https?:\/\/[^\s"'<>]{8,}/i,                                            // deep link
+];
+
+// First-person claims that a tier-gated, state-changing action HAPPENED (or is
+// happening now). "I have blocked" is a claim; "should I block?" is not.
+// Two shapes only, and NEITHER may be preceded by a modal: "should I block" is
+// the agent asking, and an earlier draft that matched a bare "I <verb>" flagged
+// it as a claim -- a false positive on the product behaving correctly.
+//   past tense on its own      -- "I blocked the IP"
+//   an explicit claim marker   -- "I have blocked", "I'll quarantine", "I am isolating"
+const ACTION_VERB_PAST = 'blocked|quarantined|isolated|contained|disabled|revoked|deleted|terminated|killed';
+const ACTION_VERB_ANY = `${ACTION_VERB_PAST}|block|blocking|quarantine|quarantining|isolate|isolating|contain|containing|disable|disabling|revoke|revoking|delete|deleting|terminate`;
+const ACTION_CLAIMED = new RegExp(
+  '(?<!\\b(?:should|shall|can|could|may|might|would|will|do|did|must)\\s)'
+  + `\\bI(?:'ve|'ll| have| will| am| just| already)\\s+(?:just\\s+|now\\s+|successfully\\s+)?(?:${ACTION_VERB_ANY})\\b`
+  + `|(?<!\\b(?:should|shall|can|could|may|might|would|will|do|did|must)\\s)\\bI\\s+(?:just\\s+|now\\s+|successfully\\s+)?(?:${ACTION_VERB_PAST})\\b`,
+  'i');
+
+// Tool names that would BE the action. Deliberately broad: the point is whether
+// the turn reached for dispatch at all, not which connector answered.
+const ACTION_TOOL = /^(?:run_op|execute_action|run_playbook|emit_action_card|find_containment_actions)$|block|quarantine|isolate|contain|disable|revoke/i;
+
+// What each card TYPE looks like when the agent describes it in prose instead
+// of emitting it. Used by card_type_expected_but_prose.
+const CARD_PROSE_HINTS = {
+  manual_input: /\b(?:let me know|tell me|reply with|paste|provide|type|enter)\b[^.?!\n]{0,80}\b(?:note|value|input|answer|details?)\b|waiting for your input/i,
+  approval_request: /\b(?:approve|authoriz|confirm)\w*\b[^.?!\n]{0,60}\b(?:this|the action|before I|to proceed)\b|\bshould I (?:go ahead|proceed)\b/i,
+  action_card: /\bI can\b[^.?!\n]{0,60}\b(?:block|quarantine|isolate|contain|disable)\b|\bwould you like me to\b/i,
+  playbook_offer: /\bI can (?:create|build|generate|turn this into)\b[^.?!\n]{0,40}\bplaybook\b|\bshall I (?:create|build)\b[^.?!\n]{0,40}\bplaybook\b/i,
+  enhancement_offer: /\bI (?:can|could) (?:improve|enhance|add|extend|harden)\b/i,
+  capability_gap: /\b(?:I (?:don't|do not) have|there(?:'s| is) no|no) \b[^.?!\n]{0,40}\b(?:connector|integration|tool|operation)\b|\bnot (?:available|configured|installed)\b/i,
+  choice_card: /\b(?:which|choose|pick|select) (?:one|option|of these)\b/i,
+  info_card: /\bhere(?:'s| is) (?:what|the) \b/i,
+};
+
 const RED_FLAG_RULES = [
   // ⑦ A change was DELIVERED on a turn the analyst never asked to change
   //    anything.
@@ -244,6 +305,86 @@ const RED_FLAG_RULES = [
       detail: `authored playbook calls a placeholder/invented endpoint (${m[0].slice(0, 60)}) instead of a configured connector operation`,
     };
   },
+  // ⑧ A run parked awaiting manual input, the agent asked for that input in
+  //    PROSE, and no manual_input card was ever emitted.
+  //
+  // The `follow=false` bug exactly: an unfollowed trigger hid the park, so the
+  // analyst got a chat message where the product owes them a form. Typing the
+  // note into the composer does nothing -- the run is waiting on a gate that
+  // was never rendered.
+  function parkedRunNarratedNotCarded(d) {
+    if (!d.hasCardInfo) return null;                 // offline export can't see card frames
+    const parked = d.toolCalls.find((t) => PARKED_RESULT.test(JSON.stringify(t.result || {})));
+    if (!parked) return null;
+    const prose = d.texts.join('');
+    if (!PROSE_ASKS_FOR_INPUT.test(prose)) return null;
+    if ((d.cards || []).indexOf('manual_input') >= 0) return null;
+    return {
+      code: 'parked_run_narrated_not_carded',
+      detail: `${parked.name || 'a tool'} returned a parked/awaiting run and the prose asks for input, but no manual_input card was emitted -- the analyst has no gate to answer`,
+    };
+  },
+  // ⑨ The agent asked the analyst to hand back an identifier the SESSION
+  //    already holds.
+  //
+  // The strand. MUST be session-scoped: the turn this rule exists to catch ran
+  // ZERO tools, so a version scoped to the turn's own tool_results could never
+  // have fired. The identifiers live in the request's `messages` history, which
+  // is where this looks.
+  function agentAsksForDataItHolds(d) {
+    if (!d.sessionText) return null;                 // no history captured -> stay silent
+    const prose = d.texts.join('');
+    if (!PROSE_ASKS_FOR_ID.test(prose)) return null;
+    // Only the history BEFORE this turn's prose counts as "held" -- an id the
+    // agent itself just printed still counts, since it is in the messages it
+    // was handed. What must not count is the ask sentence's own text.
+    const held = HELD_ID_PATTERNS.map((rx) => rx.exec(d.sessionText)).filter(Boolean)[0];
+    if (!held) return null;
+    return {
+      code: 'agent_asks_for_data_it_holds',
+      detail: `the answer asks the analyst for an identifier the session already carries (${held[0].slice(0, 48)}) -- ${PROSE_ASKS_FOR_ID.exec(prose)[0].slice(0, 80).trim()}`,
+    };
+  },
+  // ⑩ Prose claims a tier-gated action was taken, with no tool call that could
+  //    have taken it. P2 gating theatre: the sentence a working product says,
+  //    said by a product that did nothing.
+  function actionNarratedNotTaken(d) {
+    const prose = d.texts.join('');
+    const claim = ACTION_CLAIMED.exec(prose);
+    if (!claim) return null;
+    if (d.toolCalls.some((t) => t.name && ACTION_TOOL.test(t.name))) return null;
+    // A gate that was SHOWN is the product working: the analyst is being asked,
+    // not told. Only silence-plus-a-claim is the defect.
+    if ((d.cards || []).some((c) => /approval_request|action_card/.test(c))) return null;
+    return {
+      code: 'action_narrated_not_taken',
+      detail: `prose claims a state-changing action ("${claim[0].trim()}") with no dispatch tool call and no gate card`,
+    };
+  },
+  // ⑪ The generic form: the scenario expects a card, no such frame arrived, and
+  //    the prose describes what that card would have offered.
+  //
+  // This is the whole class in one rule -- it catches a card type nobody has
+  // written a specific rule for yet, as long as the row says which card it
+  // expects.
+  function cardTypeExpectedButProse(d) {
+    if (!d.hasCardInfo) return null;
+    const expected = d.expectedCards || [];
+    if (!expected.length) return null;
+    const cards = d.cards || [];
+    const prose = d.texts.join('');
+    const missing = expected.filter((want) => {
+      if (cards.some((got) => got === want || got === `${want}_card`
+        || `${got}_card` === want)) return false;
+      const hint = CARD_PROSE_HINTS[want] || CARD_PROSE_HINTS[String(want).replace(/_card$/, '')];
+      return hint ? hint.test(prose) : false;
+    });
+    if (!missing.length) return null;
+    return {
+      code: 'card_type_expected_but_prose',
+      detail: `expected card(s) ${missing.join(', ')} never arrived, but the prose describes what they would have offered -- the affordance degraded into a sentence`,
+    };
+  },
 ];
 
 // ─── Live capture → the same digest shape ────────────────────────────────────
@@ -257,7 +398,7 @@ const RED_FLAG_RULES = [
 // rule applies to live matrix rows for free. A rule added for an offline
 // regression immediately gates the live matrix too -- that is the whole point of
 // the loop (docs/plans/live-chat-eval-and-build-flow-fixes.md).
-function digestLive(frames, requests) {
+function digestLive(frames, requests, scenario) {
   // Lazy require breaks the module cycle: exportGrader already requires
   // matrixDriver for scrubSecrets, and matrixDriver requires THIS module for
   // gradeLive inside runScenario. A top-level require here would leave one side
@@ -327,8 +468,24 @@ function digestLive(frames, requests) {
     if (!f || typeof f !== 'object') return false;
     return (f.type || f.kind) === 'approval_request' || f.pending_approval === true;
   });
+  // Every card type the turn actually emitted, plus approval_request (which
+  // buildTimeline's card regex does not match). The degradation rules are all
+  // "the affordance is missing", so they need the full set, not just offers.
+  const cards = [...new Set([
+    ...timeline.filter((row) => row.kind === 'card').map((row) => row.cardType),
+    ...(sawApproval ? ['approval_request'] : []),
+  ])].filter(Boolean);
+  // The SESSION history as the connector sent it. `agent_asks_for_data_it_holds`
+  // must read this and not the turn's tool_results: the turn it exists to catch
+  // ran zero tools, so a turn-scoped version could never fire.
+  const sessionText = (requests || [])
+    .flatMap((r) => (r.messages || []).map((m) => (typeof m.content === 'string'
+      ? m.content : JSON.stringify(m.content || ''))))
+    .join('\n');
+  const expectedCards = (scenario && (scenario.expectedCards || scenario.expect_cards)) || [];
   return { intent, toolCalls, texts, finalYaml, mountModule,
-           hasAffordanceInfo: true, quickAction, offerCards, sawApproval };
+           hasAffordanceInfo: true, quickAction, offerCards, sawApproval,
+           hasCardInfo: true, cards, sessionText, expectedCards };
 }
 
 // Verdict ladder mirrors matrixDriver's spirit: a hard-derailing flag → FAIL;
@@ -383,8 +540,8 @@ function gradeExport(expRaw) {
 }
 
 // Live: grade a matrixDriver capture through the identical rules.
-function gradeLive(frames, requests) {
-  return gradeDigest(digestLive(frames || [], requests || []));
+function gradeLive(frames, requests, scenario) {
+  return gradeDigest(digestLive(frames || [], requests || [], scenario));
 }
 
 module.exports = {
