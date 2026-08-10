@@ -30,7 +30,8 @@
     "remote-list": "node scripts/widget.js remote-list",
     "pull": "node scripts/widget.js pull",
     "ship": "node scripts/widget.js ship",
-    "verify-remote": "node scripts/widget.js verify-remote"
+    "verify-remote": "node scripts/widget.js verify-remote",
+    "fixtures:audit": "node scripts/fixtures-audit.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
