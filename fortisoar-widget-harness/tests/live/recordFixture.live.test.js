@@ -32,6 +32,7 @@
 //   RECORD_EXPECT_GATE=1                  fail if no approval card appeared
 //   RECORD_MANUAL_INPUT="note text"       answer a manual-input gate if one parks
 //   RECORD_FOLLOWUP="..."                 a second turn after the arc settles
+//   RECORD_WAIT_MS=90000                  idle before the follow-up (expire the gate)
 //   RECORD_MOUNT=/playbooks               mount somewhere that is not a record
 //
 // MUTATING when the arc approves something: an Approve click runs a real
@@ -47,6 +48,7 @@ const DECISION = process.env.RECORD_DECISION || "approve";
 const EXPECT_GATE = process.env.RECORD_EXPECT_GATE === "1";
 const MANUAL_INPUT = process.env.RECORD_MANUAL_INPUT || "";
 const FOLLOWUP = process.env.RECORD_FOLLOWUP || "";
+const WAIT_MS = parseInt(process.env.RECORD_WAIT_MS || "0", 10) || 0;
 const MODULE = process.env.RECORD_MODULE || "ztpf_devices";
 const RECORD = process.env.RECORD_RECORD || "";
 const MOUNT = process.env.RECORD_MOUNT || "";
@@ -136,6 +138,18 @@ d(`live: record the ${SCENARIO || "<unset>"} arc`, () => {
       // while the form is still up captures the park, not the answer.
       await page.locator(`[data-testid="manual-input-submit-${id[1]}"]`)
         .waitFor({ state: "detached", timeout: 180000 });
+    }
+
+    // Idle gap before the follow-up. The manual-input gate carries its OWN
+    // ~1-minute step timeout, so a human who reads the form and types an answer
+    // routinely lands AFTER the run has already resolved down the timeout
+    // branch. Driving the arc at machine speed never visits that state, which
+    // is the difference between a recorder that reproduces #98 and one that
+    // proves the happy path over and over.
+    if (WAIT_MS) {
+      // eslint-disable-next-line no-console
+      console.log(`[recordFixture] idling ${WAIT_MS}ms before the follow-up`);
+      await session.page.waitForTimeout(WAIT_MS);
     }
 
     if (FOLLOWUP) await session.sendChat(FOLLOWUP, { timeoutMs: 300000 });
