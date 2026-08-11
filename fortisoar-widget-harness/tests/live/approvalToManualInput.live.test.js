@@ -35,13 +35,19 @@ const { openWidgetDrawer } = require("../../lib/liveUiDriver");
 //     #91 was seven green hermetic tests against a bug that reproduced on the
 //     box every time -- because the fixture I invented tested the connector I
 //     imagined. These captures are the ground truth to diff them against.
-const CAPTURE_DIR = path.join(__dirname, "../../test-results/live");
-const CAPTURE_FILE = path.join(CAPTURE_DIR, "approvalToManualInput.payloads.json");
-
-// The recorder lives in lib/chatCapture.js, which also closes the tail-drop:
-// the last turn's chat_poll responses used to be missing from every capture,
-// because the write happened before the in-flight body handlers resolved.
-const { createChatCapture } = require("./lib/chatCapture");
+// The recorder now lives in the DRIVER (Phase 2.1): `openWidgetDrawer({capture:
+// true})` attaches it and `session.saveCapture(label)` writes
+// test-results/live/<label>.payloads.json, which is exactly the filename
+// `npm run fixtures:audit` looks for. Two things came free with the move:
+// lib/chatCapture.js already closes the tail-drop (it drains in-flight body
+// handlers before writing), and attaching at MOUNT time records the boot
+// traffic this spec used to miss by attaching after openWidgetDrawer returned.
+// The label MUST equal the fixture this arc is the ground truth for: the audit
+// matches a capture to a fixture by scenario name (<scenario>.payloads.json).
+// A label that matches nothing is not an error anywhere -- the capture is just
+// never read, and the fixture stays UNVERIFIED while a recording of it sits on
+// disk.
+const CAPTURE_LABEL = "approval_then_manual_input";
 
 // The chat transcript as text. Everything this spec asserts about turns is read
 // from the DOM, because `window.__fortiaiAgenticAssistant__` is gated to
@@ -71,18 +77,6 @@ async function chatText(page, sel = ".pb-message") {
 const assistantText = (page) =>
   chatText(page, '[data-testid^="chat-message-assistant-"]');
 
-function writeCapture(captured) {
-  try {
-    fs.mkdirSync(CAPTURE_DIR, { recursive: true });
-    fs.writeFileSync(CAPTURE_FILE, JSON.stringify(captured, null, 2));
-    console.log(`[approvalToManualInput.live] wrote ${captured.length} chat payload(s) `
-      + `to ${CAPTURE_FILE}`);
-  } catch (e) {
-    // Never let the diagnostic sink the run it exists to explain.
-    console.warn("[approvalToManualInput.live] capture write failed: " + e.message);
-  }
-}
-
 const LIVE = process.env.E2E_LIVE === "1";
 const d = LIVE ? describe : describe.skip;
 
@@ -109,16 +103,22 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
   // a failure in t1 makes t2/t3 meaningless, so each guards on `inputId` and
   // says so out loud instead of failing on a mystery locator.
   let inputId = null;
-  let capture = null;
   const NOTE_TEXT = "live DOM check";
 
   afterAll(async () => {
-    // Drain the in-flight response handlers BEFORE writing, or the tail of the
-    // last turn -- the frames you most need when the arc fails at the end --
-    // never reaches disk. Close the session after, never before: closing the
-    // page kills the handlers that are still resolving.
-    writeCapture(capture ? await capture.settle() : []);
-    if (session) await session.close();
+    // saveCapture() drains the in-flight response handlers before writing, or
+    // the tail of the last turn -- the frames you most need when the arc fails
+    // at the end -- never reaches disk. Write BEFORE closing, never after:
+    // closing the page kills the handlers that are still resolving. Never let
+    // the diagnostic sink the run it exists to explain.
+    if (session) {
+      try {
+        await session.saveCapture(CAPTURE_LABEL);
+      } catch (e) {
+        console.warn("[approvalToManualInput.live] capture write failed: " + e.message);
+      }
+      await session.close();
+    }
   });
 
   // The one fact t2/t3 cannot proceed without. Assert it explicitly so a
@@ -133,10 +133,13 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
   }
 
   test("the form renders and the card does not claim the action failed", async () => {
-    session = await openWidgetDrawer({ module: MODULE, recordUuid: RECORD });
+    session = await openWidgetDrawer({ module: MODULE, recordUuid: RECORD, capture: true });
     expect(session.composerOpen).toBe(true);
     const page = session.page;
-    capture = createChatCapture(page);
+
+    // Capture ALL console messages for debugging
+    const consoleMsgs = [];
+    page.on('console', m => consoleMsgs.push(m.type() + ': ' + m.text()));
 
     const sent = await session.sendChat(PROMPT);
     // A turn that never streamed is a DRIVE failure, not a verdict on the
@@ -184,6 +187,15 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
       await page.waitForTimeout(3000);
     }
     console.log("[approvalToManualInput.live] DIAG " + JSON.stringify(await diag(), null, 1));
+    console.log("[approvalToManualInput.live] CONSOLE " + JSON.stringify(consoleMsgs.filter(m => m.includes('STALE_REPLAY')), null, 1));
+    console.log("[approvalToManualInput.live] ALL CONSOLE " + JSON.stringify(consoleMsgs.slice(-20), null, 1));
+
+    // Debug: dump page HTML + screenshot when the form is missing
+    fs.mkdirSync(CAPTURE_DIR, { recursive: true });
+    const html = await page.content();
+    require("fs").writeFileSync(path.join(CAPTURE_DIR, "approvalToManualInput.dom.html"), html);
+    await page.screenshot({ path: path.join(CAPTURE_DIR, "approvalToManualInput.screenshot.png"), fullPage: true });
+    console.log("[approvalToManualInput.live] wrote DOM + screenshot to " + CAPTURE_DIR);
 
     const form = page.locator('[data-testid^="manual-input-"]').first();
     await form.waitFor({ state: "visible", timeout: 60000 });
@@ -323,6 +335,22 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
       stableText = t;
       stableCount = n;
     }
+    // Also wait for the chat poll feed to go quiet. The DOM settle loop above
+    // can finish before the model's text response to the previous turn's
+    // manual-input resolution arrives via chat_poll -- the resolution CARD
+    // appeared (test 2 passed), but the model's follow-up text ("The manual
+    // input gate with ID N was approved...") streams in seconds later. Without
+    // this check, that late text is captured as the "fresh" answer to the
+    // phishing question, producing a false red.
+    const pollSettleDeadline = Date.now() + 30000;
+    let lastPollCount = session.polls.length;
+    while (Date.now() < pollSettleDeadline) {
+      await page.waitForTimeout(5000);
+      if (session.polls.length === lastPollCount) break;
+      lastPollCount = session.polls.length;
+    }
+    stableText = await assistantText(page);
+    stableCount = await page.locator(msgSel).count();
     const beforeCount = stableCount;
 
     const sent = await session.sendChat("How do I triage a phishing report?");
@@ -350,6 +378,18 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
         await page.waitForTimeout(4000);   // let it finish streaming
         const settled = (await assistantText(page)).slice(stableText.length);
         if (settled === first && settled.trim().length > 40) {
+          // The widget re-renders the previous turn's assistant message
+          // when a new chat_turn is sent, creating a duplicate element with
+          // an updated timestamp. This grows assistantText without adding a
+          // new answer. Normalize timestamps before comparing: if the delta
+          // is the previous message re-rendered (same text, different time),
+          // re-baseline and keep waiting for the genuine answer.
+          const norm = (s) => s.replace(/\d{1,2}:\d{2}:\d{2}\s*[AP]M/gi, "");
+          if (norm(stableText).includes(norm(settled.trim()))) {
+            stableText = await assistantText(page);
+            await page.waitForTimeout(3000);
+            continue;
+          }
           fresh = settled;
           break;
         }

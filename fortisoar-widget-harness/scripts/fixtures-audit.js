@@ -59,7 +59,8 @@ function main() {
     process.exit(2);
   }
 
-  const report = { fixtures: files.length, findings: [], verified: 0, unverified: [] };
+  const report = { fixtures: files.length, findings: [], verified: 0, unverified: [], orphanCaptures: [] };
+  const usedCaptures = new Set();
 
   for (const file of files) {
     const full = path.join(FIXTURES, file);
@@ -74,12 +75,24 @@ function main() {
     auditFixture(fixture).forEach((f) => report.findings.push({ fixture: file, ...f }));
 
     const cmp = compareToCapture(fixture, captureFor(scenario));
+    if (cmp.verified) usedCaptures.add(`${scenario}.payloads.json`);
     if (cmp.verified) {
       report.verified += 1;
       cmp.findings.forEach((f) => report.findings.push({ fixture: file, ...f }));
     } else {
       report.unverified.push(file);
     }
+  }
+
+  // A capture whose name matches no fixture is read by nothing. Silence there
+  // is the worst outcome available: someone recorded the wire, the fixture it
+  // was meant to verify stayed UNVERIFIED, and the audit reported success. Name
+  // the orphans so a mislabelled capture is a visible mistake, not a no-op.
+  if (fs.existsSync(CAPTURES)) {
+    fs.readdirSync(CAPTURES)
+      .filter((f) => f.endsWith(".payloads.json") && !usedCaptures.has(f))
+      .sort()
+      .forEach((f) => report.orphanCaptures.push(f));
   }
 
   if (flag("--json")) {
@@ -95,6 +108,11 @@ function main() {
     console.log(`${report.verified} checked against a live capture; `
       + `${report.unverified.length} UNVERIFIED (no capture on disk) -- those are `
       + "still one author's belief about the wire, not evidence.");
+    if (report.orphanCaptures.length) {
+      console.log(`\n${report.orphanCaptures.length} capture(s) match NO fixture and were `
+        + "read by nothing -- rename the capture to the fixture's scenario name "
+        + `(session.saveCapture(label)):\n   ${report.orphanCaptures.join("\n   ")}`);
+    }
   }
 
   if (flag("--strict") && report.findings.length) process.exit(1);

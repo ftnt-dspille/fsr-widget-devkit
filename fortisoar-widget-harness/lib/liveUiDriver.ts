@@ -48,8 +48,13 @@ import soarBrowser = require("./soarBrowser");
 // with localUiDriver -- see chatSession.ts for why it is not duplicated.
 import {
   COMPOSER, NEW_CONVERSATION, captureChatFeed, makeChatSession,
-  ChatFeed, ChatSession,
+  ChatFeed, ChatSession, WireCapture,
 } from "./chatSession";
+// The wire recorder. Promoted out of a single live spec so ANY live spec or
+// matrix row can record the traffic its own turn produced -- the hand-written
+// fixtures are diffed against these captures, and a fixture is only evidence
+// if the recording it is checked against came from the same drive path.
+import { createChatCapture } from "./chatCapture";
 
 type SoarEnvResult = ReturnType<typeof soarEnv.resolveSoarEnv>;
 
@@ -79,6 +84,14 @@ interface OpenWidgetDrawerOpts {
    * that must not inherit any prior state. See closeSharedSession().
    */
   reuse?: boolean;
+  /**
+   * Record every `chat_*` request/response this session sees, retrievable via
+   * `session.saveCapture(label)`. Defaults to the CAPTURE env flag.
+   *
+   * Opt-in: the recorder holds every chat response body in memory for the life
+   * of the run, which is fine for one scenario and wasteful for a long sweep.
+   */
+  capture?: boolean;
 }
 
 // The one live browser held across scenarios when reuse is enabled. Module
@@ -86,7 +99,7 @@ interface OpenWidgetDrawerOpts {
 // that have no place to thread a handle through.
 let _shared: {
   browser: Browser; context: BrowserContext; page: Page; feed: ChatFeed;
-  base: string; target: string | null;
+  base: string; target: string | null; capture: WireCapture | null;
 } | null = null;
 
 /**
@@ -142,10 +155,17 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<ChatSe
   const reuse = opts.reuse === true
     || (opts.reuse !== false && process.env.FSRPB_REUSE_BROWSER === "1");
 
+  // Recording attaches a `page.on("response")` handler, so it must happen ONCE
+  // per page -- re-attaching on a reused page would record every payload twice
+  // and a duplicated capture is a fixture audit that fails for no real reason.
+  const wantCapture = opts.capture === true
+    || (opts.capture !== false && process.env.CAPTURE === "1");
+
   let browser: Browser, context: BrowserContext, page: Page, feed: ChatFeed;
+  let capture: WireCapture | null = null;
   let reusedSession = false;
   if (reuse && _shared && _shared.base === base && !_shared.page.isClosed()) {
-    ({ browser, context, page, feed } = _shared);
+    ({ browser, context, page, feed, capture } = _shared);
     reusedSession = true;
   } else {
     // A shared session for a DIFFERENT box is not reusable -- close it rather
@@ -154,8 +174,9 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<ChatSe
     ({ browser, context } = await soarBrowser.launchContext({ headless: !headed }));
     page = await context.newPage();
     feed = captureChatFeed(page);
+    if (wantCapture) capture = createChatCapture(page);
     await soarBrowser.login(page, base, soarEnvResult);
-    if (reuse) _shared = { browser, context, page, feed, base, target: null };
+    if (reuse) _shared = { browser, context, page, feed, base, target: null, capture };
   }
 
   const goto = async (p: string): Promise<void> => {
@@ -287,6 +308,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<ChatSe
     // Under reuse the shared browser outlives the row; only a non-reused (or
     // superseded) browser is ours to close here.
     closesBrowser: () => !(reuse && _shared && _shared.browser === browser),
+    capture,
   });
 }
 

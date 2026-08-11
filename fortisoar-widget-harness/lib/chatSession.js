@@ -79,7 +79,7 @@ function captureChatFeed(page) {
 /**
  * Build the session handle over an already-mounted widget.
  */
-function makeChatSession({ page, browser, context, base, feed, composerOpen, closesBrowser, }) {
+function makeChatSession({ page, browser, context, base, feed, composerOpen, closesBrowser, capture, }) {
     return {
         page, browser, context, base, polls: feed.polls, turns: feed.turns, composerOpen,
         /**
@@ -229,6 +229,29 @@ function makeChatSession({ page, browser, context, base, feed, composerOpen, clo
         async screenshot(path, full = false) {
             await page.screenshot({ path, fullPage: full });
             return path;
+        },
+        async saveCapture(label) {
+            if (!capture)
+                return null;
+            // settle() FIRST: Playwright resolves response bodies asynchronously, so
+            // writing on demand records whatever happened to have resolved -- which
+            // systematically drops the tail of the last turn, i.e. the frames you
+            // most want when something failed at the end. See lib/chatCapture.js.
+            const payloads = await capture.settle();
+            /* eslint-disable @typescript-eslint/no-var-requires */
+            const fs = require("fs");
+            const path = require("path");
+            /* eslint-enable @typescript-eslint/no-var-requires */
+            const dir = path.join(__dirname, "..", "test-results", "live");
+            fs.mkdirSync(dir, { recursive: true });
+            const safe = String(label).replace(/[^a-zA-Z0-9._-]+/g, "-");
+            const file = path.join(dir, `${safe}.payloads.json`);
+            fs.writeFileSync(file, JSON.stringify(payloads, null, 2));
+            // Say what landed. A capture that silently recorded nothing looks exactly
+            // like one that recorded a clean run -- the anti-oracle this whole
+            // recorder exists to avoid.
+            console.log(`[chatCapture] wrote ${payloads.length} chat payload(s) to ${file}`);
+            return file;
         },
         async close() {
             // Under reuse the per-row `close()` must NOT kill the browser -- the

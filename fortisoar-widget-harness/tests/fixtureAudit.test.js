@@ -244,3 +244,69 @@ describe("the real fixtures", () => {
     ]);
   });
 });
+
+// ── A live chat_turn streams its frames through chat_poll ──────────────────
+//
+// The turn's own response is just {accepted:true, turn_id}: the transcript
+// arrives in the polls that follow. Reading only the turn body reported every
+// captured turn as zero-frame, which would have fired an identical bogus
+// finding against all 38 fixtures the moment Phase 2.3 recorded them -- an
+// audit that is wrong the same way every time is one nobody reads.
+describe("signature folds chat_poll frames into the turn that streamed them", () => {
+  const poll = (frames, done = false) => ({
+    op: "chat_poll", params: null, response: { data: { frames, done } },
+  });
+  const liveCapture = [
+    { op: "chat_turn", params: null,
+      response: { data: { ok: true, accepted: true, turn_id: "t1", stop_reason: "accepted" } } },
+    poll([{ type: "turn_start" }]),
+    poll([{ type: "tool_use", id: "a" }]),
+    poll([{ type: "tool_result", tool_use_id: "a" }, { type: "usage" }]),
+    poll([{ type: "approval_request", approval_id: "ap1" }, { type: "usage" }]),
+    poll([{ type: "stream_end" }], true),
+  ];
+
+  test("an accepted turn is credited with the frames its polls carried", () => {
+    expect(signature(liveCapture)).toEqual([
+      { op: "chat_turn", frames: ["tool_use", "tool_result", "approval_request"] },
+    ]);
+  });
+
+  test("transport frames are not transcript content", () => {
+    const frames = signature(liveCapture)[0].frames;
+    ["turn_start", "stream_end", "usage", "heartbeat"].forEach((t) => {
+      expect(frames).not.toContain(t);
+    });
+  });
+
+  test("without folding the turn looks empty -- the bug this replaced", () => {
+    // Same capture, polls dropped: exactly what the old signature() saw.
+    const turnOnly = liveCapture.filter((p) => p.op !== "chat_poll");
+    expect(signature(turnOnly)).toEqual([{ op: "chat_turn", frames: [] }]);
+  });
+
+  test("polls are folded into the MOST RECENT turn, not the first", () => {
+    const twoTurns = [
+      ...liveCapture,
+      { op: "chat_resume", params: null, response: { data: { transcript: [] } } },
+      poll([{ type: "text" }]),
+      poll([{ type: "manual_input", input_id: "m1" }], true),
+    ];
+    expect(signature(twoTurns)).toEqual([
+      { op: "chat_turn", frames: ["tool_use", "tool_result", "approval_request"] },
+      { op: "chat_resume", frames: ["text", "manual_input"] },
+    ]);
+  });
+
+  test("a poll before any turn belongs to no turn and is dropped", () => {
+    expect(signature([poll([{ type: "text" }]), ...liveCapture])).toHaveLength(1);
+  });
+
+  test("a chat_resume that answers synchronously keeps its own transcript", () => {
+    const sync = [{ op: "chat_resume", params: null,
+      response: { data: { transcript: [{ type: "tool_result" }, { type: "manual_input" }] } } }];
+    expect(signature(sync)).toEqual([
+      { op: "chat_resume", frames: ["tool_result", "manual_input"] },
+    ]);
+  });
+});

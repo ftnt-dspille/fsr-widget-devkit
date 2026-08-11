@@ -7,6 +7,11 @@ const soarBrowser = require("./soarBrowser");
 // The mounted-widget session (sendChat / respondApprovals / close) is shared
 // with localUiDriver -- see chatSession.ts for why it is not duplicated.
 const chatSession_1 = require("./chatSession");
+// The wire recorder. Promoted out of a single live spec so ANY live spec or
+// matrix row can record the traffic its own turn produced -- the hand-written
+// fixtures are diffed against these captures, and a fixture is only evidence
+// if the recording it is checked against came from the same drive path.
+const chatCapture_1 = require("./chatCapture");
 // The one live browser held across scenarios when reuse is enabled. Module
 // state (not a param) because the callers are independent jest test bodies
 // that have no place to thread a handle through.
@@ -61,10 +66,16 @@ async function openWidgetDrawer(opts = {}) {
     // the widget and bounds that bleed; `closeSharedSession()` ends the run.
     const reuse = opts.reuse === true
         || (opts.reuse !== false && process.env.FSRPB_REUSE_BROWSER === "1");
+    // Recording attaches a `page.on("response")` handler, so it must happen ONCE
+    // per page -- re-attaching on a reused page would record every payload twice
+    // and a duplicated capture is a fixture audit that fails for no real reason.
+    const wantCapture = opts.capture === true
+        || (opts.capture !== false && process.env.CAPTURE === "1");
     let browser, context, page, feed;
+    let capture = null;
     let reusedSession = false;
     if (reuse && _shared && _shared.base === base && !_shared.page.isClosed()) {
-        ({ browser, context, page, feed } = _shared);
+        ({ browser, context, page, feed, capture } = _shared);
         reusedSession = true;
     }
     else {
@@ -75,9 +86,11 @@ async function openWidgetDrawer(opts = {}) {
         ({ browser, context } = await soarBrowser.launchContext({ headless: !headed }));
         page = await context.newPage();
         feed = (0, chatSession_1.captureChatFeed)(page);
+        if (wantCapture)
+            capture = (0, chatCapture_1.createChatCapture)(page);
         await soarBrowser.login(page, base, soarEnvResult);
         if (reuse)
-            _shared = { browser, context, page, feed, base, target: null };
+            _shared = { browser, context, page, feed, base, target: null, capture };
     }
     const goto = async (p) => {
         await page.goto(url(p), { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -204,6 +217,7 @@ async function openWidgetDrawer(opts = {}) {
         // Under reuse the shared browser outlives the row; only a non-reused (or
         // superseded) browser is ours to close here.
         closesBrowser: () => !(reuse && _shared && _shared.browser === browser),
+        capture,
     });
 }
 module.exports = { openWidgetDrawer, closeSharedSession, launchContext: soarBrowser.launchContext, login: soarBrowser.login, captureChatFeed: chatSession_1.captureChatFeed, DESKTOP_UA: soarBrowser.DESKTOP_UA };

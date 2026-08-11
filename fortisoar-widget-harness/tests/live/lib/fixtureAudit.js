@@ -24,6 +24,12 @@ const resultId = (f) => f.tool_use_id || f.call_id || f.id || null;
 
 const TURN_OPS = new Set(["chat_turn", "chat_resume", "respond_manual_input"]);
 
+// Streaming mechanics, not transcript content. These appear only in a live
+// capture's chat_poll frames (a hand-written fixture never models them), so
+// counting them would make every recorded turn diverge from every fixture on
+// pure transport noise.
+const TRANSPORT_FRAMES = new Set(["turn_start", "stream_end", "usage", "heartbeat"]);
+
 // Frames that COMMIT an id a later tool_result can attach to. `tool_use` is the
 // obvious one; an `approval_request` / `manual_input` card carries the id of the
 // very call it is gating, and the result comes back against that same id. A
@@ -226,14 +232,34 @@ function auditFixture(fixture) {
 // card. Content legitimately differs per run; shape must not.
 function signature(source) {
   if (Array.isArray(source)) {
-    // A live capture: [{op, params, response}]
-    return source
-      .filter((p) => TURN_OPS.has(p.op))
-      .map((p) => ({
-        op: p.op,
-        frames: (((p.response || {}).data || p.response || {}).transcript || [])
-          .map((f) => f.type),
-      }));
+    // A live capture: [{op, params, response}].
+    //
+    // A live `chat_turn` does NOT answer with its transcript -- it returns
+    // {accepted:true, turn_id} and the frames stream in through the `chat_poll`
+    // responses that follow. Reading only the turn's own body therefore reports
+    // EVERY captured turn as having zero frames, and would fire a
+    // "fixture [...] vs capture []" finding against all 38 fixtures the moment
+    // they get recorded: a check that is wrong the same way every time, which
+    // is how an audit teaches people to ignore it.
+    //
+    // So fold each turn's polls back into it. `chat_resume` is the other shape
+    // -- it answers synchronously with a `transcript` -- so take whichever the
+    // response actually carried.
+    const out = [];
+    for (const p of source) {
+      const body = (p.response || {}).data || p.response || {};
+      if (TURN_OPS.has(p.op)) {
+        out.push({ op: p.op, frames: (body.transcript || []).map((f) => f.type) });
+        continue;
+      }
+      // A poll before any turn belongs to no turn -- drop it rather than
+      // inventing an entry the fixture could never match.
+      if (p.op !== "chat_poll" || !out.length) continue;
+      for (const f of body.frames || []) {
+        if (!TRANSPORT_FRAMES.has(f.type)) out[out.length - 1].frames.push(f.type);
+      }
+    }
+    return out;
   }
   return transcriptsOf(source).map((t) => ({
     op: t.action,

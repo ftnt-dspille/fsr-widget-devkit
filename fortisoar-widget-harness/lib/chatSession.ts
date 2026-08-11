@@ -220,7 +220,25 @@ export interface ChatSession {
   sendChat(text: string, opts?: SendChatOpts): Promise<SendChatResult>;
   respondApprovals(opts?: ApprovalOpts): Promise<ApprovalResult>;
   screenshot(path: string, full?: boolean): Promise<string>;
+  /**
+   * Drain in-flight response handlers, then write every `chat_*`
+   * request/response this session saw to
+   * `test-results/live/<label>.payloads.json`.
+   *
+   * Returns the path, or null when nothing was recording (no CAPTURE=1). It
+   * returns null rather than throwing so a spec can call it unconditionally --
+   * but it never returns a path for a file it did not write, because "the
+   * capture exists" is a claim other gates act on.
+   */
+  saveCapture(label: string): Promise<string | null>;
   close(): Promise<void>;
+}
+
+/** Recorder handle from lib/chatCapture.js. */
+export interface WireCapture {
+  payloads: unknown[];
+  settle(ms?: number): Promise<unknown[]>;
+  pending(): number;
 }
 
 export interface MakeChatSessionArgs {
@@ -237,13 +255,19 @@ export interface MakeChatSessionArgs {
    * and the real teardown happens in the suite's afterAll. Defaults to true.
    */
   closesBrowser?: () => boolean;
+  /**
+   * Wire recorder for this page, when the mount attached one. Present only
+   * under CAPTURE=1 -- recording is opt-in because it holds every chat
+   * response body in memory for the life of the run.
+   */
+  capture?: WireCapture | null;
 }
 
 /**
  * Build the session handle over an already-mounted widget.
  */
 export function makeChatSession({
-  page, browser, context, base, feed, composerOpen, closesBrowser,
+  page, browser, context, base, feed, composerOpen, closesBrowser, capture,
 }: MakeChatSessionArgs): ChatSession {
   return {
     page, browser, context, base, polls: feed.polls, turns: feed.turns, composerOpen,
@@ -396,6 +420,29 @@ export function makeChatSession({
     async screenshot(path: string, full: boolean = false): Promise<string> {
       await page.screenshot({ path, fullPage: full });
       return path;
+    },
+
+    async saveCapture(label: string): Promise<string | null> {
+      if (!capture) return null;
+      // settle() FIRST: Playwright resolves response bodies asynchronously, so
+      // writing on demand records whatever happened to have resolved -- which
+      // systematically drops the tail of the last turn, i.e. the frames you
+      // most want when something failed at the end. See lib/chatCapture.js.
+      const payloads = await capture.settle();
+      /* eslint-disable @typescript-eslint/no-var-requires */
+      const fs = require("fs");
+      const path = require("path");
+      /* eslint-enable @typescript-eslint/no-var-requires */
+      const dir = path.join(__dirname, "..", "test-results", "live");
+      fs.mkdirSync(dir, { recursive: true });
+      const safe = String(label).replace(/[^a-zA-Z0-9._-]+/g, "-");
+      const file = path.join(dir, `${safe}.payloads.json`);
+      fs.writeFileSync(file, JSON.stringify(payloads, null, 2));
+      // Say what landed. A capture that silently recorded nothing looks exactly
+      // like one that recorded a clean run -- the anti-oracle this whole
+      // recorder exists to avoid.
+      console.log(`[chatCapture] wrote ${payloads.length} chat payload(s) to ${file}`);
+      return file;
     },
 
     async close(): Promise<void> {
