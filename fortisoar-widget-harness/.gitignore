@@ -15,15 +15,22 @@ localdev.env
 
 # Live-matrix scenario rows: real record UUIDs, box-specific. Template ships
 # as tests/live/scenarios.local.example.json. The glob covers the per-box files
-# (scenarios.local.206.json, …) that MATRIX_ENV selects — they carry real UUIDs
+# (scenarios.local.206.json, …) that MATRIX_ENV selects -- they carry real UUIDs
 # and must never be tracked. The negation keeps the placeholder template.
 tests/live/scenarios.local*.json
 !tests/live/scenarios.local.example.json
 
 # Live-matrix capture artifacts: full per-scenario timelines (input messages +
 # every tool call's full input/output/error + raw frames). Box-specific,
-# regenerated each run — never committed.
+# regenerated each run -- never committed.
 tests/live/_artifacts/
+
+# Recorded chat wire -- the evidence `npm run fixtures:audit` diffs the
+# hand-written fixtures against (session.saveCapture). Durable on purpose: this
+# used to live under test-results/, which Playwright wipes at the start of every
+# run, so recordings that cost real box time were deleted by the next unrelated
+# run. Never tracked: a raw capture carries the box host and real record uuids.
+tests/live/captures/
 
 # Last UI-selected SOAR target (basename of the chosen .env). Per-machine state.
 .harness-active-env
@@ -35,10 +42,10 @@ dev/cache/
 
 # widgets-src is a local-only discovery root: in the monorepo it's a symlink to
 # the sibling widgets repo; in a clone it's absent (the harness falls back to the
-# committed examples/). Never track it — a tracked symlink dangles on clone.
+# committed examples/). Never track it -- a tracked symlink dangles on clone.
 /widgets-src
 
-# FortiSOAR app shell fetched by `npm run assets` (Fortinet platform JS — each
+# FortiSOAR app shell fetched by `npm run assets` (Fortinet platform JS -- each
 # dev fetches it from their own licensed box; never committed).
 /fsr_src
 
@@ -65,7 +72,7 @@ playwright-report/
 # Obtain from your own licensed source; see docs/FortiSOAR-Widget-Development-Guide.md
 docs/*.pdf
 
-# Internal connector/widget design docs — not shipped with the public harness
+# Internal connector/widget design docs -- not shipped with the public harness
 FSR_PLAYBOOK_BUILDER_*
 
 # Introspection rig output (generated; baselines are committed separately)

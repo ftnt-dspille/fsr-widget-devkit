@@ -46,7 +46,7 @@ function fakeCapture() {
 }
 
 describe("chatSession.saveCapture", () => {
-  const outDir = path.join(__dirname, "..", "test-results", "live");
+  const outDir = path.join(__dirname, "live", "captures");
   const written = [];
   afterAll(() => {
     written.forEach((f) => { try { fs.unlinkSync(f); } catch (_) { /* gone */ } });
@@ -78,12 +78,26 @@ describe("chatSession.saveCapture", () => {
     expect(path.basename(file)).toBe("..-..-etc-pass-wd.payloads.json");
   });
 
-  test("writes under test-results/live with a .payloads.json suffix", async () => {
+  test("writes under tests/live/captures with a .payloads.json suffix", async () => {
     const s = makeChatSession(stubArgs(fakeCapture()));
     const file = await s.saveCapture("approval_resume");
     written.push(file);
     expect(path.resolve(file)).toBe(path.resolve(outDir, "approval_resume.payloads.json"));
     expect(fs.existsSync(file)).toBe(true);
+  });
+
+  // The capture is the ONLY evidence the fixture audit has. Playwright deletes
+  // its outputDir at the start of every run, so a capture written anywhere under
+  // test-results/ survives only until the next unrelated `npx playwright test` --
+  // which is how the Phase 2.1 recording was lost. Losing it is invisible: the
+  // audit just reports the fixture UNVERIFIED again, exactly as it did before
+  // anyone recorded anything.
+  test("captures do NOT live under Playwright's outputDir", async () => {
+    const s = makeChatSession(stubArgs(fakeCapture()));
+    const file = await s.saveCapture("durability");
+    written.push(file);
+    const wiped = path.resolve(__dirname, "..", "test-results");
+    expect(path.resolve(file).startsWith(wiped + path.sep)).toBe(false);
   });
 
   test("a temp-dir HOME cannot redirect the write (path is module-relative)", async () => {

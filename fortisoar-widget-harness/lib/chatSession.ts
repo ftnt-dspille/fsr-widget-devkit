@@ -223,7 +223,7 @@ export interface ChatSession {
   /**
    * Drain in-flight response handlers, then write every `chat_*`
    * request/response this session saw to
-   * `test-results/live/<label>.payloads.json`.
+   * `tests/live/captures/<label>.payloads.json`.
    *
    * Returns the path, or null when nothing was recording (no CAPTURE=1). It
    * returns null rather than throwing so a spec can call it unconditionally --
@@ -433,7 +433,14 @@ export function makeChatSession({
       const fs = require("fs");
       const path = require("path");
       /* eslint-enable @typescript-eslint/no-var-requires */
-      const dir = path.join(__dirname, "..", "test-results", "live");
+      // NOT test-results/: Playwright deletes its outputDir at the START of
+      // every run, so a capture written there survives only until the next
+      // `npx playwright test` -- including a completely unrelated one. The
+      // Phase 2.1 recording was destroyed exactly that way, and the audit then
+      // said "38 UNVERIFIED" with no hint that evidence had ever existed.
+      // Captures are what this whole audit rests on, so they get a durable
+      // directory. Gitignored: raw box wire carries host IPs and record uuids.
+      const dir = path.join(__dirname, "..", "tests", "live", "captures");
       fs.mkdirSync(dir, { recursive: true });
       const safe = String(label).replace(/[^a-zA-Z0-9._-]+/g, "-");
       const file = path.join(dir, `${safe}.payloads.json`);

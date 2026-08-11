@@ -37,7 +37,7 @@ const { openWidgetDrawer } = require("../../lib/liveUiDriver");
 //     imagined. These captures are the ground truth to diff them against.
 // The recorder now lives in the DRIVER (Phase 2.1): `openWidgetDrawer({capture:
 // true})` attaches it and `session.saveCapture(label)` writes
-// test-results/live/<label>.payloads.json, which is exactly the filename
+// tests/live/captures/<label>.payloads.json, which is exactly the filename
 // `npm run fixtures:audit` looks for. Two things came free with the move:
 // lib/chatCapture.js already closes the tail-drop (it drains in-flight body
 // handlers before writing), and attaching at MOUNT time records the boot
@@ -52,7 +52,7 @@ const CAPTURE_LABEL = "approval_then_manual_input";
 // wire capture of the same run. Keep the two in step: a dangling reference here
 // throws INSIDE the test and masks the failure the dump exists to explain --
 // which is exactly what it did the first time this spec was refactored.
-const CAPTURE_DIR = path.join(__dirname, "../../test-results/live");
+const CAPTURE_DIR = path.join(__dirname, "captures");
 
 // The chat transcript as text. Everything this spec asserts about turns is read
 // from the DOM, because `window.__fortiaiAgenticAssistant__` is gated to

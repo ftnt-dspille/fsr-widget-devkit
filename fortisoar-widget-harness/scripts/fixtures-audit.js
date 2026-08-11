@@ -30,20 +30,36 @@ const opt = (name, dflt) => {
 const REPO = path.join(__dirname, "..", "..");
 const FIXTURES = path.resolve(opt("--fixtures",
   path.join(REPO, "widgets-src", "fortiaiAgenticAssistant", "widget", "widgetAssets", "fixtures")));
+// Durable capture home. It used to be test-results/live, which Playwright wipes
+// at the start of every run -- so evidence recorded off a box was routinely
+// deleted by the next unrelated `npx playwright test`, and the audit reported
+// the fixtures as UNVERIFIED with no sign they ever had a recording.
 const CAPTURES = path.resolve(opt("--captures",
-  path.join(__dirname, "..", "test-results", "live")));
+  path.join(__dirname, "..", "tests", "live", "captures")));
+// Anything still sitting in the old location is read too, so a capture recorded
+// before the move is not silently ignored -- but it is named as stranded,
+// because the next Playwright run will delete it.
+const LEGACY_CAPTURES = path.resolve(path.join(__dirname, "..", "test-results", "live"));
 
 // A capture is matched to a fixture by scenario name: <scenario>.payloads.json.
 function captureFor(scenario) {
-  const p = path.join(CAPTURES, `${scenario}.payloads.json`);
-  if (!fs.existsSync(p)) return null;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
-    return Array.isArray(parsed) ? parsed : null;
-  } catch (e) {
-    console.warn(`  ! ${scenario}: capture on disk is unreadable (${e.message})`);
-    return null;
+  for (const dir of [CAPTURES, LEGACY_CAPTURES]) {
+    const p = path.join(dir, `${scenario}.payloads.json`);
+    if (!fs.existsSync(p)) continue;
+    if (dir === LEGACY_CAPTURES) {
+      console.warn(`  ! ${scenario}: capture is in test-results/live, which Playwright `
+        + "deletes at the start of the next run -- re-record, or move it to "
+        + "tests/live/captures/.");
+    }
+    try {
+      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      console.warn(`  ! ${scenario}: capture on disk is unreadable (${e.message})`);
+      return null;
+    }
   }
+  return null;
 }
 
 function main() {
@@ -88,11 +104,12 @@ function main() {
   // is the worst outcome available: someone recorded the wire, the fixture it
   // was meant to verify stayed UNVERIFIED, and the audit reported success. Name
   // the orphans so a mislabelled capture is a visible mistake, not a no-op.
-  if (fs.existsSync(CAPTURES)) {
-    fs.readdirSync(CAPTURES)
+  for (const dir of [CAPTURES, LEGACY_CAPTURES]) {
+    if (!fs.existsSync(dir)) continue;
+    fs.readdirSync(dir)
       .filter((f) => f.endsWith(".payloads.json") && !usedCaptures.has(f))
       .sort()
-      .forEach((f) => report.orphanCaptures.push(f));
+      .forEach((f) => report.orphanCaptures.push(path.join(path.basename(dir), f)));
   }
 
   if (flag("--json")) {

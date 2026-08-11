@@ -538,8 +538,12 @@ describe("gradeLive -- card_type_expected_but_prose", () => {
 // the matrix learns to ignore it.
 describe("degradation rules -- no false positives on the fixed live arc", () => {
   const { gradeLive } = require("./live/lib/exportGrader");
-  const CAPTURE = path.join(__dirname, "..", "test-results", "live",
-    "approvalToManualInput.payloads.json");
+  // Two things were wrong with this path and each made the test skip forever,
+  // which reads exactly like it passing: the dir was test-results/live (wiped by
+  // every Playwright run), and the filename was the SPEC's name while
+  // saveCapture writes the FIXTURE's scenario name.
+  const CAPTURE = path.join(__dirname, "live", "captures",
+    "approval_then_manual_input.payloads.json");
   const maybe = fs.existsSync(CAPTURE) ? test : test.skip;   // gitignored artifact
 
   maybe("grades clean", () => {
