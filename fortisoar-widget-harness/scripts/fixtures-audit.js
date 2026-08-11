@@ -75,7 +75,8 @@ function main() {
     process.exit(2);
   }
 
-  const report = { fixtures: files.length, findings: [], verified: 0, unverified: [], orphanCaptures: [] };
+  const report = { fixtures: files.length, findings: [], verified: 0, unverified: [],
+    pins: [], orphanCaptures: [] };
   const usedCaptures = new Set();
 
   for (const file of files) {
@@ -95,6 +96,13 @@ function main() {
     if (cmp.verified) {
       report.verified += 1;
       cmp.findings.forEach((f) => report.findings.push({ fixture: file, ...f }));
+    } else if (fixture.regression_pin) {
+      // A fixture that pins a shape a HEALTHY box can no longer emit -- the
+      // superseded wire shape, or a bug that has been fixed. Re-capturing it is
+      // not available, so counting it as "owed a recording" is a category error
+      // that makes the backlog look permanently incomplete. It is still audited
+      // structurally; it just is not chased for evidence it cannot have.
+      report.pins.push({ file, reason: String(fixture.regression_pin) });
     } else {
       report.unverified.push(file);
     }
@@ -125,6 +133,14 @@ function main() {
     console.log(`${report.verified} checked against a live capture; `
       + `${report.unverified.length} UNVERIFIED (no capture on disk) -- those are `
       + "still one author's belief about the wire, not evidence.");
+    if (report.pins.length) {
+      // Named, never silent: a pin that stops being a pin (the shape becomes
+      // reproducible again, or someone adds the flag to dodge a recording) has
+      // to be visible to be caught.
+      console.log(`\n${report.pins.length} regression pin(s) -- not re-recordable `
+        + "on a healthy box, so not counted as owed a capture:\n   "
+        + report.pins.map((p) => `${p.file} -- ${p.reason}`).join("\n   "));
+    }
     if (report.orphanCaptures.length) {
       console.log(`\n${report.orphanCaptures.length} capture(s) match NO fixture and were `
         + "read by nothing -- rename the capture to the fixture's scenario name "

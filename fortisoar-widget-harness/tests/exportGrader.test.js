@@ -532,11 +532,29 @@ describe("gradeLive -- card_type_expected_but_prose", () => {
 });
 
 // The degradation rules run against a REAL live capture, not just synthetic
-// frames. This is the approval→manual-input arc AFTER its fix (connector
-// 0.5.101+): a parked run that DID get carded. None of the four rules may fire
-// on it -- a rule that flags working live prose is worse than no rule, because
-// the matrix learns to ignore it.
-describe("degradation rules -- no false positives on the fixed live arc", () => {
+// frames: the approval -> manual_input arc off a lab box.
+//
+// This started life as "grades clean" -- the belief that the arc was fixed
+// (connector 0.5.101+) and therefore no rule may fire. The first run of it that
+// actually EXECUTED falsified that. It had been skipping forever on a path that
+// could not exist, and the moment it was pointed at a real recording it found a
+// live defect: after the analyst answered the manual-input gate and asked "Did
+// the run finish?", the agent replied by offering to resume run 16008 and
+// asking the analyst "to confirm whether the manual input was already submitted
+// outside this session" -- input the very same session had just carried on the
+// wire as `respond_manual_input`. That is `agent_asks_for_data_it_holds`, the
+// exact degradation the rule was written for, and it is tracked as its own card.
+//
+// So the test is split by intent, because the two halves fail for opposite
+// reasons:
+//   - the three rules that MUST NOT fire here are the false-positive guard. A
+//     rule that flags working live prose is worse than no rule; the matrix
+//     learns to ignore it.
+//   - the one that DOES fire is pinned as evidence. If it stops firing, either
+//     the product was fixed (update this) or the rule died (the failure mode
+//     this whole plan exists to catch). Silently tolerating it would turn a
+//     found bug back into background noise.
+describe("degradation rules against the real live arc", () => {
   const { gradeLive } = require("./live/lib/exportGrader");
   // Two things were wrong with this path and each made the test skip forever,
   // which reads exactly like it passing: the dir was test-results/live (wiped by
@@ -546,7 +564,7 @@ describe("degradation rules -- no false positives on the fixed live arc", () => 
     "approval_then_manual_input.payloads.json");
   const maybe = fs.existsSync(CAPTURE) ? test : test.skip;   // gitignored artifact
 
-  maybe("grades clean", () => {
+  function grade() {
     const payloads = JSON.parse(fs.readFileSync(CAPTURE, "utf8"));
     const frames = [];
     const requests = [];
@@ -554,7 +572,23 @@ describe("degradation rules -- no false positives on the fixed live arc", () => 
       if (e.op === "chat_turn" || e.op === "chat_resume") requests.push({ ...e.params });
       if (e.op === "chat_poll") ((e.response.data || {}).frames || []).forEach((f) => frames.push(f));
     });
-    const report = gradeLive(frames, requests);
-    expect(report.redFlags.map((f) => f.code)).toEqual([]);
+    return gradeLive(frames, requests);
+  }
+
+  maybe("does not flag the parts of the arc that WORKED", () => {
+    const codes = grade().redFlags.map((f) => f.code);
+    // The run was carded, the containment verbs were not narrated without a
+    // tool_use, and the cards the scenario expects were delivered.
+    expect(codes).not.toContain("parked_run_narrated_not_carded");
+    expect(codes).not.toContain("action_narrated_not_taken");
+    expect(codes).not.toContain("card_type_expected_but_prose");
+  });
+
+  maybe("still flags the post-resume strand, on real wire", () => {
+    const flag = grade().redFlags.find(
+      (f) => f.code === "agent_asks_for_data_it_holds");
+    expect(flag).toBeTruthy();
+    // Name the identifier in the detail, or the finding is unactionable.
+    expect(flag.detail).toMatch(/identifier/);
   });
 });
