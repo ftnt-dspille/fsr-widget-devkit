@@ -73,6 +73,17 @@ d(`live: record the ${SCENARIO || "<unset>"} arc`, () => {
   });
 
   test(`drives the arc and writes tests/live/captures/${SCENARIO}.payloads.json`, async () => {
+    // Mirror the widget's stream-lifecycle trace into the jest output. On a real
+    // appliance `window.__fortiaiAgenticAssistant__` is absent by design, so the
+    // console is the only channel that says which poll guard declined -- see #98.
+    const trace = [];
+    /* eslint-disable no-console */
+    const _hook = (page) => page.on("console", (m) => {
+      const t = m.text();
+      if (t.indexOf("[fsr-pb-stream]") === 0) { trace.push(t); console.log(t); }
+    });
+    /* eslint-enable no-console */
+
     session = await openWidgetDrawer({
       module: MODULE,
       recordUuid: RECORD || undefined,
@@ -82,6 +93,8 @@ d(`live: record the ${SCENARIO || "<unset>"} arc`, () => {
       // prior arc's turns and the audit would diff the fixture against them.
       reuse: false,
     });
+
+    _hook(session.page);
 
     const sent = await session.sendChat(PROMPT, { timeoutMs: 300000 });
     // submitConfirmed is the ng-model debounce race, not an agent verdict. A
@@ -126,6 +139,9 @@ d(`live: record the ${SCENARIO || "<unset>"} arc`, () => {
     }
 
     if (FOLLOWUP) await session.sendChat(FOLLOWUP, { timeoutMs: 300000 });
+
+    // eslint-disable-next-line no-console
+    console.log(`[recordFixture] ${SCENARIO}: ${trace.length} stream-trace line(s)`);
 
     const file = await session.saveCapture(SCENARIO);
     expect(file).toBeTruthy();
