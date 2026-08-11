@@ -554,6 +554,21 @@ describe("gradeLive -- card_type_expected_but_prose", () => {
 //     the product was fixed (update this) or the rule died (the failure mode
 //     this whole plan exists to catch). Silently tolerating it would turn a
 //     found bug back into background noise.
+//
+// UPDATE (#114 fixed, live-verified): it stopped firing, and it was the first
+// branch -- the product. A fresh live capture (mode=live, recorded against a
+// box carrying widget d03973d + the submission-echo messages) shows the
+// follow-up turn's history now carrying BOTH the analyst's manual-input
+// submission and the assistant's confirmation of it, where the old capture
+// jumped straight from an `awaiting_input` tool_result to the follow-up. The
+// agent was never confused; it was answering correctly from a history that had
+// the submission cut out of it.
+//
+// The pin is therefore INVERTED rather than deleted, and its assertion moved
+// off the rule and onto the property: the arc must carry the submission. That
+// matters because "no red flag" is exactly what a DEAD rule also produces. The
+// rule's own liveness is held by the synthetic firing case above
+// (`gradeLive -- agent_asks_for_data_it_holds`); this block asserts the wire.
 describe("degradation rules against the real live arc", () => {
   const { gradeLive } = require("./live/lib/exportGrader");
   // Two things were wrong with this path and each made the test skip forever,
@@ -584,11 +599,35 @@ describe("degradation rules against the real live arc", () => {
     expect(codes).not.toContain("card_type_expected_but_prose");
   });
 
-  maybe("still flags the post-resume strand, on real wire", () => {
-    const flag = grade().redFlags.find(
-      (f) => f.code === "agent_asks_for_data_it_holds");
-    expect(flag).toBeTruthy();
-    // Name the identifier in the detail, or the finding is unactionable.
-    expect(flag.detail).toMatch(/identifier/);
+  maybe("no longer strands after the resume (#114 fixed, on real wire)", () => {
+    expect(grade().redFlags.map((f) => f.code))
+      .not.toContain("agent_asks_for_data_it_holds");
+  });
+
+  // The property the fix is ABOUT. `not.toContain` above passes just as
+  // happily when the rule is dead, so the regression gate cannot rest on it:
+  // this reads the wire directly. #114 was a hole in history assembly -- the
+  // turn where the analyst answered the gate never reached the NEXT turn's
+  // serialized `messages`, so the last run-related thing the model could see
+  // still said `awaiting_input`.
+  maybe("the follow-up turn's history carries the manual-input submission", () => {
+    const payloads = JSON.parse(fs.readFileSync(CAPTURE, "utf8"));
+    const turns = payloads.filter(
+      (e) => e.op === "chat_turn" && (e.params || {}).messages);
+    // The arc is: open the run -> gate -> answer it -> ask something else. The
+    // LAST chat_turn is that final follow-up, and it is the one whose history
+    // was missing the answer.
+    const followUp = turns[turns.length - 1];
+    expect(turns.length).toBeGreaterThan(1);   // else there was no follow-up
+
+    const text = JSON.stringify(followUp.params.messages);
+    expect(text).toMatch(/manual[- _]?input/i);
+    // Not merely mentioned: the submission must be attributed to the ANALYST.
+    // An assistant-only mention is the model narrating, which is precisely
+    // what it did in the broken capture while asking to have it confirmed.
+    const fromAnalyst = followUp.params.messages.some(
+      (m) => m.role === "user" && typeof m.content === "string"
+             && /manual[- _]?input/i.test(m.content));
+    expect(fromAnalyst).toBe(true);
   });
 });
