@@ -27,7 +27,12 @@ const DEFAULT_SETTLE_MS = 15000;
  */
 function createChatCapture(page, opts = {}) {
   const urlPattern = opts.urlPattern || /integration\/execute/;
-  const opPattern = opts.opPattern || /^chat_/;
+  // `respond_manual_input` is a TURN op -- the fixture audit compares it in the
+  // op sequence -- but it does not start with `chat_`. A `^chat_` default
+  // therefore drops it from every recording, and the audit then reports the
+  // fixture as diverging on an op the capture was never allowed to see. Any op
+  // the audit grades must be recordable.
+  const opPattern = opts.opPattern || /^(chat_|respond_manual_input)/;
   const defaultTimeout = opts.timeoutMs || DEFAULT_SETTLE_MS;
 
   const payloads = [];

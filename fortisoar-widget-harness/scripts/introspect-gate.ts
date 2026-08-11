@@ -21,7 +21,7 @@
  *   node scripts/introspect-gate.js <widget>   # gate only reports for <widget>
  *
  * The optional <widget> filter (the widget dir/name, unversioned) scopes the
- * PASS/FAIL to that widget's report(s) only — used by `make ship-verify` so a
+ * PASS/FAIL to that widget's report(s) only -- used by `make ship-verify` so a
  * single-widget ship isn't blocked by an unrelated widget's stale baseline.
  * It does NOT change what `make introspect` renders (that's still the fleet).
  *
@@ -75,6 +75,38 @@ function runGate(): void {
   const inScope = (widgetId: string): boolean =>
     !filter || widgetId === filter || widgetId.startsWith(filter + "-");
 
+  // `make introspect` renders the CURRENT source of each widget, so it only
+  // ever writes a report for the version in widgets-src/<name>/widget/info.json.
+  // A report for any other version is a leftover from a past run and can never
+  // be regenerated -- if it happens to be red, the gate is red forever and no
+  // amount of correct work clears it. That is a gate nobody can satisfy, which
+  // is a gate everyone learns to pass with SKIP_INTROSPECT.
+  //
+  // (Hit for real: a fortiaiAgenticAssistant-1.2.52 report from a run whose
+  // auth failed -- a 502 and a gzip body parsed as JSON -- recorded a no-mount
+  // and then outlived the source version that produced it.)
+  //
+  // So stale-version reports are LISTED, loudly, and not gated.
+  const currentVersion = (name: string): string | null => {
+    for (const dir of [name, name.toLowerCase()]) {
+      const info = path.resolve(__dirname, "..", "..", "widgets-src", dir, "widget", "info.json");
+      try {
+        return String(JSON.parse(fs.readFileSync(info, "utf8")).version);
+      } catch (_e) { /* try the next casing */ }
+    }
+    return null;
+  };
+  const staleReports: string[] = [];
+  const isStale = (widgetId: string): boolean => {
+    const m = /^(.*)-(\d+\.\d+\.\d+)$/.exec(widgetId);
+    if (!m) return false;
+    const cur = currentVersion(m[1]);
+    // No source dir (a widget not checked out here) -- gate it as before rather
+    // than silently dropping it.
+    if (!cur) return false;
+    return cur !== m[2];
+  };
+
   const reports = fs.readdirSync(REPORT_DIR)
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
@@ -83,10 +115,34 @@ function runGate(): void {
       const baseline = loadReport(path.join(BASELINE_DIR, f));
       return { widgetId, report, baseline };
     })
-    .filter((r) => inScope(r.widgetId));
+    .filter((r) => inScope(r.widgetId))
+    .filter((r) => {
+      if (!isStale(r.widgetId)) return true;
+      staleReports.push(r.widgetId);
+      return false;
+    });
+
+  if (staleReports.length) {
+    console.log(`  (${staleReports.length} report(s) are for a version the current source `
+      + `no longer builds, so they cannot be regenerated and are not gated: `
+      + `${staleReports.join(", ")})`);
+  }
+
+  // Every report in scope was stale => the CURRENT version was never rendered,
+  // so the gate has nothing to say about the build being shipped. Passing there
+  // would print the same thing as a real pass over a real report -- the failure
+  // mode this whole plan is about. `make introspect-gate` depends on
+  // `introspect`, so this should be unreachable via make; it is here because the
+  // script is also run directly.
+  if (filter && reports.length === 0 && staleReports.length > 0) {
+    console.error(`Introspection gate: every report for "${filter}" is for a version `
+      + `the current source no longer builds, so NOTHING was gated. Run `
+      + `'make introspect' to render the current version first.`);
+    process.exit(1);
+  }
 
   if (filter && reports.length === 0) {
-    console.log(`Introspection gate: no reports match "${filter}" — nothing to gate.`);
+    console.log(`Introspection gate: no reports match "${filter}" -- nothing to gate.`);
     process.exit(0);
   }
 
@@ -101,7 +157,7 @@ function runGate(): void {
     }
 
     if (!baseline) {
-      // No baseline for this widget — it's new. Allow it without gate.
+      // No baseline for this widget -- it's new. Allow it without gate.
       results.push(`- ${widgetId}: new widget (no baseline yet)`);
       continue;
     }
@@ -169,12 +225,12 @@ function runGate(): void {
       }
     }
 
-    // Check 6: DOM skeleton-hash (Phase 2 fidelity — catches a widget edit or
+    // Check 6: DOM skeleton-hash (Phase 2 fidelity -- catches a widget edit or
     // harness optimization that changed the rendered DOM). Only applies when the
     // baseline carries a `dom` capture (the widget's profile declares a domRoot);
     // widgets without one skip this check with no behavior change. A legit DOM
-    // change (new feature) is a re-baseline event — `make introspect` re-snapshots
-    // — identical to how the payload/boot budgets already work.
+    // change (new feature) is a re-baseline event -- `make introspect` re-snapshots
+    // -- identical to how the payload/boot budgets already work.
     if (baseline.dom && report.dom) {
       const baseHash = baseline.dom.skeletonHash || "";
       const reportHash = report.dom.skeletonHash || "";
@@ -186,8 +242,8 @@ function runGate(): void {
       }
     } else if (report.dom && !baseline.dom) {
       // New widget gained a domRoot profile (or a capture that previously didn't
-      // resolve now does) — informational, not a failure; re-baseline to pin it.
-      results.push(`- ${widgetId}: DOM capture new (no baseline.dom yet) — re-baseline to pin skeletonHash`);
+      // resolve now does) -- informational, not a failure; re-baseline to pin it.
+      results.push(`- ${widgetId}: DOM capture new (no baseline.dom yet) -- re-baseline to pin skeletonHash`);
     }
 
     if (checks.length === 0) {

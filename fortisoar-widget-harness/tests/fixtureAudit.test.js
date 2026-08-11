@@ -310,3 +310,41 @@ describe("signature folds chat_poll frames into the turn that streamed them", ()
     ]);
   });
 });
+
+// ── Noise that would make every recorded fixture diverge ───────────────────
+describe("signature drops what a fixture could never model", () => {
+  const sync = (op, frames) => [{ op, params: null,
+    response: { data: { transcript: frames.map((t) => ({ type: t })) } } }];
+
+  test("transport frames are dropped from a SYNCHRONOUS transcript too", () => {
+    // respond_manual_input answers inline and carries `usage` in its own
+    // transcript -- filtering only the poll branch let it leak and reported
+    // [text,usage,text] against a fixture's [text].
+    expect(signature(sync("respond_manual_input", ["text", "usage", "text"])))
+      .toEqual([{ op: "respond_manual_input", frames: ["text"] }]);
+  });
+
+  test("a run of consecutive text frames collapses to one", () => {
+    // A live answer streamed as 130 text frames; the fixture models one. Chunk
+    // count is run-dependent, so comparing it raw diverges on nothing.
+    const many = new Array(130).fill("text");
+    expect(signature(sync("chat_turn", ["tool_use", ...many]))[0].frames)
+      .toEqual(["tool_use", "text"]);
+  });
+
+  test("collapsing is text-only -- two tool_use frames are two calls", () => {
+    expect(signature(sync("chat_turn", ["tool_use", "tool_use", "tool_result"]))[0].frames)
+      .toEqual(["tool_use", "tool_use", "tool_result"]);
+  });
+
+  test("text runs separated by another frame stay separate", () => {
+    expect(signature(sync("chat_turn", ["text", "tool_use", "text"]))[0].frames)
+      .toEqual(["text", "tool_use", "text"]);
+  });
+
+  test("the fixture side collapses identically, or every comparison is skewed", () => {
+    const fixture = { responses: [{ action: "chat_turn",
+      response: { transcript: [{ type: "text" }, { type: "text" }] } }] };
+    expect(signature(fixture)).toEqual([{ op: "chat_turn", frames: ["text"] }]);
+  });
+});

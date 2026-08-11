@@ -228,6 +228,21 @@ function auditFixture(fixture) {
 
 // --- the capture half -----------------------------------------------------
 
+// A live turn streams its prose as MANY incremental `text` frames -- one real
+// answer arrived as 130 of them -- while a fixture models the same answer as a
+// single `text`. Comparing those raw would make every recorded turn diverge on
+// nothing but chunk count, which is run-dependent by nature. Collapse runs of
+// consecutive `text` into one; every other frame type keeps its multiplicity,
+// because two tool_use frames really are two calls.
+function collapseText(types) {
+  const out = [];
+  for (const t of types) {
+    if (t === "text" && out[out.length - 1] === "text") continue;
+    out.push(t);
+  }
+  return out;
+}
+
 // A structural signature: op order + frame-type sequence + which frames carry a
 // card. Content legitimately differs per run; shape must not.
 function signature(source) {
@@ -249,7 +264,11 @@ function signature(source) {
     for (const p of source) {
       const body = (p.response || {}).data || p.response || {};
       if (TURN_OPS.has(p.op)) {
-        out.push({ op: p.op, frames: (body.transcript || []).map((f) => f.type) });
+        // Transport frames must be dropped HERE too, not only in the poll
+        // branch: a turn that answers synchronously carries `usage` inside its
+        // own transcript, and a fixture never models it.
+        out.push({ op: p.op, frames: (body.transcript || [])
+          .map((f) => f.type).filter((t) => !TRANSPORT_FRAMES.has(t)) });
         continue;
       }
       // A poll before any turn belongs to no turn -- drop it rather than
@@ -259,11 +278,11 @@ function signature(source) {
         if (!TRANSPORT_FRAMES.has(f.type)) out[out.length - 1].frames.push(f.type);
       }
     }
-    return out;
+    return out.map((e) => ({ op: e.op, frames: collapseText(e.frames) }));
   }
   return transcriptsOf(source).map((t) => ({
     op: t.action,
-    frames: t.frames.map((f) => f.type),
+    frames: collapseText(t.frames.map((f) => f.type)),
   }));
 }
 

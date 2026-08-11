@@ -65,7 +65,13 @@ test-e2e-headed: ## Playwright e2e with browser UI (test server on 14401)
 test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on an always-fresh test server
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make test-e2e-widget WIDGET=<widgetName>"; exit 2; fi
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
-	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(WIDGET) --reporter=list
+	@# E2E_LIVE= forces the MOCK stage to stay mock. playwright.config.js keys
+	@# testIgnore on that variable, so an ambient E2E_LIVE=1 in the caller's
+	@# shell silently un-ignores every *Live*.spec.js and this stage starts
+	@# driving a real box -- ship-verify's step 3/6 then fails on live-only
+	@# preconditions long before the deploy it is supposed to gate. The stage
+	@# that owns live (test-live-sweep, step 6/6) sets the flag itself.
+	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE= pnpm test:e2e $(WIDGET) --reporter=list
 
 test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fresh test server
 	@if [ -z "$(SPEC)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js"; exit 2; fi

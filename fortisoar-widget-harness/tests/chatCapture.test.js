@@ -121,3 +121,27 @@ describe("createChatCapture", () => {
     ]);
   });
 });
+
+// `respond_manual_input` is a TURN op the fixture audit grades, but it does not
+// start with `chat_`. The old `^chat_` default dropped it from every recording,
+// so the audit reported an op-sequence divergence for an op the capture was
+// never allowed to see. Any op the audit grades must be recordable.
+describe("the default op filter covers every op the audit grades", () => {
+  test("respond_manual_input is recorded", async () => {
+    const page = fakePage();
+    const cap = createChatCapture(page);
+    const release = page.emit("respond_manual_input", { data: { transcript: [] } });
+    release();
+    await cap.settle();
+    expect(cap.payloads.map((p) => p.op)).toEqual(["respond_manual_input"]);
+  });
+
+  test("an unrelated op is still ignored", async () => {
+    const page = fakePage();
+    const cap = createChatCapture(page);
+    const release = page.emit("health_check", { data: {} });
+    release();
+    await cap.settle();
+    expect(cap.payloads).toEqual([]);
+  });
+});

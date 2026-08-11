@@ -48,6 +48,11 @@ const { openWidgetDrawer } = require("../../lib/liveUiDriver");
 // never read, and the fixture stays UNVERIFIED while a recording of it sits on
 // disk.
 const CAPTURE_LABEL = "approval_then_manual_input";
+// Where saveCapture() writes, so the DOM/screenshot dump below lands beside the
+// wire capture of the same run. Keep the two in step: a dangling reference here
+// throws INSIDE the test and masks the failure the dump exists to explain --
+// which is exactly what it did the first time this spec was refactored.
+const CAPTURE_DIR = path.join(__dirname, "../../test-results/live");
 
 // The chat transcript as text. Everything this spec asserts about turns is read
 // from the DOM, because `window.__fortiaiAgenticAssistant__` is gated to
