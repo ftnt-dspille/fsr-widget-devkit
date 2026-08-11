@@ -60,6 +60,65 @@ describe("resume-is-cumulative (the #91 property)", () => {
   });
 });
 
+describe("first-turn-does-not-open-with-prose (the Phase-2 finding)", () => {
+  const opensWithProse = (frames) => ({ responses: [
+    { action: "chat_turn", response: { transcript: frames } }] });
+
+  test("fires when narration precedes the call the turn goes on to make", () => {
+    expect(rules(opensWithProse([
+      { type: "text", text: "Let me run that playbook for you." },
+      { type: "tool_use", id: "tu-1", name: "run_playbook", input: {} },
+    ]))).toContain("first-turn-does-not-open-with-prose");
+  });
+
+  test("is silent on the shape every recording shows -- act first, narrate after", () => {
+    expect(rules(opensWithProse([
+      { type: "tool_use", id: "tu-1", name: "run_playbook", input: {} },
+      { type: "tool_result", call_id: "tu-1", name: "run_playbook", content: { ok: true } },
+      { type: "text", text: "Done -- the run finished." },
+    ]))).toEqual([]);
+  });
+
+  // The silencing case that matters most, because getting it wrong would turn
+  // the rule into noise on every conversational fixture: a turn that answers a
+  // question and never calls anything DOES open with text on the wire.
+  test("is silent on a pure-conversational turn, which really does open with text", () => {
+    expect(rules(opensWithProse([
+      { type: "text", text: "To triage a phishing report, start by..." },
+    ]))).toEqual([]);
+  });
+
+  test("is silent when activity leads, which is also a real opening", () => {
+    expect(rules(opensWithProse([
+      { type: "activity", text: "Searching FortiSIEM" },
+      { type: "text", text: "I found three events." },
+      { type: "tool_use", id: "tu-1", name: "siem_search", input: {} },
+    ]))).toEqual([]);
+  });
+
+  // Scoped to the OPENING. Mid-conversation prose before a call is ordinary and
+  // appears on the wire; flagging it would make the rule unsilenceable.
+  test("does not reach past the first chat_turn", () => {
+    expect(rules({ responses: [
+      { action: "chat_turn", response: { transcript: [
+        { type: "tool_use", id: "tu-1", name: "get_record", input: {} }] } },
+      { action: "chat_turn", response: { transcript: [
+        { type: "text", text: "Now I will contain it." },
+        { type: "tool_use", id: "tu-2", name: "block_ip", input: {} }] } },
+    ] })).toEqual([]);
+  });
+
+  test("counts the leading frames, so the edit is mechanical", () => {
+    const f = auditFixture(opensWithProse([
+      { type: "text", text: "one" },
+      { type: "text", text: "two" },
+      { type: "approval_request", approval_id: "ap-1", tool: "run_playbook" },
+    ])).find((x) => x.rule === "first-turn-does-not-open-with-prose");
+    expect(f.detail).toMatch(/2 text frame\(s\)/);
+    expect(f.detail).toMatch(/approval_request/);
+  });
+});
+
 describe("no-orphan-tool-results", () => {
   test("fires on a result whose id was never committed anywhere", () => {
     const bad = { responses: [

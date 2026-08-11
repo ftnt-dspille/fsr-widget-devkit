@@ -214,12 +214,51 @@ function toolUseIdsAreStable(fixture) {
   return out;
 }
 
+// THE PHASE-2 FINDING, made intrinsic. 33 of 35 fixtures open their first
+// chat_turn with a `text` frame; not one recording does. Every capture starts
+// with `tool_use` (or `activity`) and the prose arrives after. The authors
+// wrote "the agent says something, then acts"; the connector acts first.
+//
+// This has to be an INTRINSIC rule rather than a capture diff. As a diff it
+// only fires for a fixture that has a recording on disk -- 6 of 38 -- so the
+// systematic finding was derived by hand across four fixtures and six
+// recordings, and nothing stops the 34th fixture from encoding the same belief
+// tomorrow. A finding a human had to assemble cannot detect its own
+// regression.
+//
+// Scoped to the FIRST turn deliberately. Mid-conversation prose before a tool
+// call is ordinary and appears on the wire; it is the OPENING that the
+// connector never shapes this way, and it is the opening that widget
+// behaviour -- first paint, skeleton timing, scroll anchoring -- keys on.
+function firstTurnDoesNotOpenWithProse(fixture) {
+  const turns = transcriptsOf(fixture);
+  const first = turns.find((t) => t.action === "chat_turn");
+  if (!first || !first.frames.length) return [];
+  if (first.frames[0].type !== "text") return [];
+  // Prose that is the WHOLE turn is a different animal: a pure-conversational
+  // answer ("how do I triage a phishing report?") legitimately never calls a
+  // tool, and the wire does open those with text. The belief being audited is
+  // narrower -- narration placed BEFORE a call the turn goes on to make.
+  const acts = first.frames.some((f) => CALL_FRAME_TYPES.has(f.type));
+  if (!acts) return [];
+  const upTo = first.frames.findIndex((f) => CALL_FRAME_TYPES.has(f.type));
+  return [{
+    rule: "first-turn-does-not-open-with-prose",
+    detail: `responses[${first.i}] chat_turn opens with ${upTo} text frame(s) `
+      + `before its first ${first.frames[upTo].type}. No recording on any box `
+      + `has ever shown that: live turns open with tool_use or activity and `
+      + `narrate afterwards. Anything the widget infers from leading prose is `
+      + `tested against a shape the connector does not send.`,
+  }];
+}
+
 const RULES = [
   resumeIsCumulative,
   noOrphanToolResults,
   toolUseBeforeItsResult,
   parkedRunCarriesItsIdentity,
   toolUseIdsAreStable,
+  firstTurnDoesNotOpenWithProse,
 ];
 
 function auditFixture(fixture) {
