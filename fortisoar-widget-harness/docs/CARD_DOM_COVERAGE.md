@@ -36,7 +36,7 @@ classified here, and a row for a card that no longer exists fails too.
 | `approval_request` | live-dom | `tests/live/approvalToManualInput.live.test.js` -- approve on a real box, real parked run, DOM asserted. The #90 arc. |
 | `manual_input` | live-dom | same spec: the parked run's form renders live and the submission resumes the run. |
 | `playbook_offer` | live-dom | `widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.createPlaybookLive.spec.js` clicks `playbook-offer-accept-*` on a box and verifies the workflow exists. NARROW: it proves accept-and-push, not the card's full render (draft steps, editable title, decline). |
-| `action_card` | hermetic-only | fixture-pinned only. NOT claimed: that a live connector's action_card args render as the analyst reads them, which is the #90 failure shape on a different card. |
+| `action_card` | hermetic-only | fixture-pinned only, now including the record-write shape (`recordWriteTarget.spec.js`: target, diff, and the not-your-record warning). NOT claimed: that a LIVE connector's `context_match` is right on a box -- the widget half is proven, the connector half (#120) is unit-tested only. |
 | `choice_card` | hermetic-only | fixture-pinned only. NOT claimed: live multi-select bounds (`minSelect`/`maxSelect`), or that a live choice resolution reaches the connector. |
 | `capability_gap` | hermetic-only | fixture-pinned only. NOT claimed: that a real unconfigured connector produces a gap card whose resume option works on a box. |
 | `patch_proposal` | hermetic-only | fixture-pinned only (`applyPatch`, `applyPatchResume`). NOT claimed: that a live patch applies and the resumed turn reflects it in the DOM. |
