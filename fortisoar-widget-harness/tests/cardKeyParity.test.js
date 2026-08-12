@@ -58,7 +58,28 @@ function realFindings() {
   if (fs.existsSync(CAPTURES)) {
     fs.readdirSync(CAPTURES).filter((f) => f.endsWith(".payloads.json")).sort()
       .forEach((f) => {
-        const cap = JSON.parse(fs.readFileSync(path.join(CAPTURES, f), "utf8"));
+        let cap;
+        try {
+          cap = JSON.parse(fs.readFileSync(path.join(CAPTURES, f), "utf8"));
+        } catch (e) {
+          // A recorder writing into this directory while the suite runs is
+          // normal -- a capture can appear in readdir and be gone, or half
+          // written, a millisecond later. That is not a finding about the
+          // widget, and crashing the whole gate over it turns a race into a
+          // red build nobody can reproduce.
+          //
+          // Announced, never silent: an unreadable capture is evidence we did
+          // NOT read, and a directory that is unreadable every run has to be
+          // visible rather than quietly skipped.
+          if (e.code === "ENOENT") {
+            console.warn(`  ! ${f}: vanished mid-run (a recorder is writing here) -- skipped`);
+          } else {
+            out.push({ fixture: `capture:${f}`, rule: "capture-unreadable",
+              detail: `capture on disk could not be parsed (${e.message}) -- `
+                + "it verifies nothing until it is re-recorded" });
+          }
+          return;
+        }
         auditCaptureParity(cap, sets, CARD_TYPES)
           .forEach((x) => out.push({ fixture: `capture:${f}`, ...x }));
       });
