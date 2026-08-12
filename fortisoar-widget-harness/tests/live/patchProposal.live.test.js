@@ -26,26 +26,24 @@
 //
 // LIVE + NON-MUTATING: the turn reads the open playbook. Nothing is applied.
 //
-// NOT YET CLAIMING patch_proposal. The claim marker below is deliberately
-// broken (`covers-card-live` with a space) so tests/cardDomCoverage.test.js
-// does NOT read it, because this spec has not yet passed on a box:
+// @covers-card-live: patch_proposal
 //
-//   covers-card-live : patch_proposal
+// CLAIMED 2026-08-12, on the first green live run against a real box.
 //
-// On its first live run the turn never reached a patch card. It stopped on
-// "Approval required: emit_patch_proposal (tier 3)" -- the change-affordance
-// gate, which escalated the whole write frontier when the analyst had not
-// pressed a change chip. A free-typed change request therefore paid for TWO
-// approvals: one to permit drafting the edit, then the patch card's own
-// Apply/Dismiss. The emit is pure, so the first one gated nothing; it is
-// removed in the framework (CHANGE_GATED_TOOLS is now empty).
+// The history, because a claim is only worth what was blocking it: on the
+// FIRST live run the turn never reached a patch card. It stopped on "Approval
+// required: emit_patch_proposal (tier 3)" -- the change-affordance gate, which
+// escalated the whole write frontier when the analyst had not pressed a change
+// chip. A free-typed change request therefore paid for TWO approvals: one to
+// permit drafting the edit, then the patch card's own Apply/Dismiss. The emit
+// is pure, so the first one gated nothing; it was removed in the framework
+// (CHANGE_GATED_TOOLS is now empty).
 //
-// That fix has to reach the BOX before this spec can pass, so the claim stays
-// off and the registry keeps calling patch_proposal hermetic-only. Repairing
-// the marker above (the at-sign, and no space before the colon) and flipping
-// the registry row are one commit, to be made when this goes green live -- not
-// before. Do not write the repaired marker anywhere else in this file, even in
-// prose: the gate greps for it, so describing it is the same as claiming it.
+// That fix reached the box on fsr-playbooks 0.6.19 / connector 0.5.114, and
+// this spec then went green first try: the card rendered with both snippets,
+// patch_proposal id `fix-step-name-case`, one approval. Until that run the
+// marker above was deliberately malformed so the coverage gate could not read
+// it -- the claim was off precisely because it was not yet true.
 
 const fs = require("fs");
 const path = require("path");
