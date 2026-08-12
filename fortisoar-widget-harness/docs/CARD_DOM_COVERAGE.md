@@ -34,7 +34,7 @@ classified here, and a row for a card that no longer exists fails too.
 | type | tier | evidence, or what we are NOT claiming |
 |---|---|---|
 | `approval_request` | live-dom | `tests/live/approvalToManualInput.live.test.js` -- approve on a real box, real parked run, DOM asserted. The #90 arc. |
-| `manual_input` | live-dom | same spec: the parked run's form renders live and the submission resumes the run. |
+| `manual_input` | live-dom | same spec: the parked run's form renders live and the submission resumes the run. NOT claimed: the card's DEADLINE states. The countdown chip, the expired chip, and the refusal to submit past zero (#124) are proven by unit tests over the clock, the renderer and the controller (`widgets-src/fortiaiAgenticAssistant/tests/manualInput.expiry.test.js`, each assertion mutation-checked) -- no spec has watched a gate lapse on a box, because that means holding a real timed step open until its timeout branch fires. |
 | `playbook_offer` | live-dom | `widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.createPlaybookLive.spec.js` clicks `playbook-offer-accept-*` on a box and verifies the workflow exists. NARROW: it proves accept-and-push, not the card's full render (draft steps, editable title, decline). |
 | `action_card` | hermetic-only | fixture-pinned only, now including the record-write shape (`recordWriteTarget.spec.js`: target, diff, and the not-your-record warning). NOT claimed: that a LIVE connector's `context_match` is right on a box -- the widget half is proven, the connector half (#120) is unit-tested only. |
 | `choice_card` | hermetic-only | fixture-pinned only. NOT claimed: live multi-select bounds (`minSelect`/`maxSelect`), or that a live choice resolution reaches the connector. |

@@ -41,5 +41,11 @@ and not yet decided. It is not a synonym for "fine".
 | `approval_request` | `args_hash` | by-design | Integrity handle for the connector's own tamper check on approved args. Never displayed; the analyst reads the args, not their hash. |
 | `approval_request` | `cursor` | by-design | Transcript position for the connector's own resume bookkeeping. Nothing for the analyst to read. |
 | `approval_request` | `reason` | UNTRIAGED | The machine-readable why (`unrequested_change`). Fixture-only -- no capture carries it, so it is unverified against the wire as well as unread. The same information reaches the analyst as prose in `summary`, so today it is redundant rather than lost: render it as a chip, or stop sending it. Tracker #124. |
-| `manual_input` | `expires_at` | UNTRIAGED | The gate's deadline as a timestamp. Not lost today -- the connector folds the countdown into the question PROSE ("⏱ This form expires in about 0m 56s") -- but nothing structured means no live countdown and no disabled submit after expiry, which is the durable half of #77/#79. |
-| `manual_input` | `expires_in_seconds` | UNTRIAGED | Same as above: shipped, evidenced, and read only as prose. |
+
+<!-- `manual_input` / `expires_at` + `expires_in_seconds` were UNTRIAGED here
+     until the card grew a live countdown and a submit that is refused past the
+     deadline (#124, the durable half of #77/#79). Both keys are read now, so
+     their rows are gone -- a row cannot outlive the thing it explains. The
+     connector still folds the countdown into the question prose as well; that
+     duplication is deliberate, so an older widget against a current connector
+     still says something rather than nothing. -->
