@@ -28,11 +28,35 @@
 // same card -- it would prove the button dispatches, not that the arc
 // completes, and the resume arc stays hermetic.
 //
-// @covers-card-live(PENDING FIRST GREEN LIVE RUN): capability_gap
+// @covers-card-live: capability_gap
 //
-// The marker is deliberately malformed until this spec has gone green against a
-// box -- same discipline as patchProposal.live and enhancementOffer.live. Flip
-// it and the registry row together; the coverage gate asserts they agree.
+// CLAIMED on the green run against a real box: card id `capgap_email`, with its
+// missing/why text, rendered fix steps and a live resume button; 29 payloads in
+// captures/capability_gap_email_quarantine.
+//
+// IT TOOK FOUR ATTEMPTS, and the first three are worth keeping because each was
+// a different wrong theory about what the card needs:
+//
+//   1. "disable this AD account" -- the agent found ONE partially-relevant
+//      configured action (a FortiSIEM OAuth revoke) and the gap branch is
+//      `if not actions:`, so a near-miss suppressed the card entirely. The
+//      analyst got prose ending in "What would you prefer?" -- the dead end
+//      this card exists to prevent. Filed as #125; still open, and NOT fixed by
+//      this spec going green.
+//   2. "block this domain" -- zero DOMAIN actions, but the agent generalised
+//      onto the configured firewall's URL filtering and staged an approval. So
+//      zero-at-the-tool is necessary but not sufficient: the target must have no
+//      plausible NEIGHBOUR on a configured connector either.
+//   3. "pull this phishing mail from every mailbox", on a stock alert -- the
+//      agent grounded on the mounted record, correctly saw an IPS/network alert
+//      with no email indicators anywhere, and asked for the missing indicator
+//      rather than inventing one.
+//
+// (3) is what finally identified the real precondition, and it was not the one
+// assumed: the box HAD the capability gap all along (no configured mail
+// connector), what it lacked was a RECORD an email-remediation ask could ground
+// on. Seeding that alert was enough; nothing was un-configured and no connector
+// state was touched.
 //
 // RUNNING IT: the harness's default .env points at a host that answers 200 on
 // /login but is not a working FortiSOAR, which presents as a selector bug at
@@ -49,17 +73,14 @@ const { openWidgetDrawer } = require("../../lib/liveUiDriver");
 const CAPTURE_LABEL = "capability_gap_email_quarantine";
 const CAPTURE_DIR = path.join(__dirname, "captures");
 
-// OPT-IN, and not by accident. This spec is kept because the work in it is
-// real -- the mount, the target-selection reasoning and the assertions are all
-// sound -- but on a box whose alert corpus is entirely network/traffic alerts
-// it CANNOT reach the card (see the header). A spec that fails every live run
-// trains people to ignore the live suite, and the registry already records the
-// gap honestly. So it stays one env var away rather than red by default:
+// OPT-IN, because this spec has a PRECONDITION the others do not: it needs a
+// seeded record (see RECORD below). Run it with:
 //
 //   CG_ENABLE=1 E2E_LIVE=1 ... npx jest -c jest.live.config.js capabilityGap
 //
-// Turn it on when the box has a record the ask can ground on (a phishing alert)
-// or a genuinely uncontainable target, then flip the marker + registry row.
+// The gate is not a doubt about the spec -- it is green. It is so that a box
+// missing the seeded alert reports "skipped, needs seeding" instead of a red
+// run that reads like a product failure.
 const LIVE = process.env.E2E_LIVE === "1";
 const ENABLED = LIVE && process.env.CG_ENABLE === "1";
 const d = ENABLED ? describe : describe.skip;
@@ -70,8 +91,19 @@ const d = ENABLED ? describe : describe.skip;
 // straight into build mode -- it drafted a whole disable-user playbook and
 // reached for emit_playbook_offer instead of ever considering the gap. Same
 // record the action-card spec drives.
+// A SEEDED record, and it has to be. See the header: an ask only reaches the
+// gap branch if the box cannot do it, and every containment ask that grounds on
+// this box's own alerts (all network-traffic ones) routes to the configured
+// firewall or EDR. So the record is a phishing alert carrying real email fields
+// -- emailFrom/emailTo/emailSubject/emailBody, plus a description saying the
+// message is still sitting in inboxes -- which makes mailbox purge the obvious
+// remediation and mail the capability the box lacks.
+//
+// If this uuid 404s the alert was cleaned up; re-seed one (module `alerts`,
+// type Phishing, the four email fields populated, name prefixed [TEST-105] so
+// it is identifiable) and set CG_RECORD.
 const MODULE = process.env.CG_MODULE || "alerts";
-const RECORD = process.env.CG_RECORD || "e94dc2dc-23c0-4b8f-a13f-02a1bb147c5f";
+const RECORD = process.env.CG_RECORD || "ef704391-d91d-4a69-ae4a-4d9982c830d3";
 // WHICH TARGET, AND WHY IT IS NOT AN OBVIOUS ONE. The gap branch in
 // `find_containment_actions` fires only on `if not actions` -- ZERO configured
 // containment actions for the target type. Probing the box directly:
