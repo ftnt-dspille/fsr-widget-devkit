@@ -314,9 +314,37 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   retry**; only a structured `unknown/no such/invalid/unsupported operation` (or
   `operation … not found`) on a non-5xx rejection counts as **unsupported**.
   Regression-tested in `tests/streaming.test.js` (transient 502 whose blob echoes
-  `chat_poll` must retry; a 400 `unknown operation` must still stand down). General
+  `chat_poll` must retry; a 400 `unknown operation` must still stand down).   General
   rule: classify transport failures by **HTTP status/transport code**, not by
   substring-matching the payload, which contains the request you sent.
+
+- **`_lastTurn` must advance from poll responses, not just `_handleTurnResult`
+  (#98).** The stream fence (`minTurn = _lastTurn + 1`) drops frames with
+  `f.turn < minTurn` as stale. But `_lastTurn` was only updated inside
+  `_handleTurnResult` (from `result.turn`, which comes from `s.turn` -- set by
+  `turn_start` frames). When `turn_start` frames lack a `turn` field (as they
+  do during the approval → manual_input arc), `s.turn` stays null and
+  `_lastTurn` never advances. The NEXT `chat_turn`'s stream then has
+  `minTurn = _lastTurn + 1` (stale), so the first poll serves the previous
+  turn's `done:true` terminal -- which the `resp.done && s.sawStart` check
+  treats as the current turn ending, killing the stream before the new turn
+  ever streams. The session strands: the composer returns to idle, the
+  analyst's follow-up question gets no answer. Fix: advance `_lastTurn` from
+  the poll response's top-level `turn` field in `_absorbPoll` (the connector
+  echoes `turn` on every poll response, so the fence stays current).
+  `view.controller.js` `_absorbPoll`, tracker #98.
+
+- **A sustained 502 burst needs a retry budget, not infinite patience (#106).**
+  The poll loop's `.catch` correctly classifies 502 as transient and retries
+  every `STREAM_POLL_MS` (700ms). But a SUSTAINED burst (3x 502 in one turn)
+  retried indefinitely -- up to the 6-minute detached watchdog -- leaving the
+  composer stuck in 'sending' with 0 tool calls, indistinguishable from a
+  model that refused to investigate. Fix: a `transientErrors` counter on the
+  stream object (reset on any successful poll, incremented on each transient
+  failure). After `STREAM_MAX_TRANSIENT_ERRORS` (10, ~7s of sustained failure),
+  surface the gateway problem to the analyst instead of silently retrying.
+  A single blip still retries cleanly (counter resets on the next successful
+  poll). `view.controller.js` `_pollOnce.catch`, tracker #106.
 
 - **The legacy `approval_required` modal must resume by `approval_id`, and the
   `approval_request` event has no `args`.** A tier-3 op (e.g. `push_playbook`)
