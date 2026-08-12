@@ -84,6 +84,25 @@ function readSets(rendererSrc, cardTypes) {
   return out;
 }
 
+// Every card frame in a live CAPTURE, as {type, keys}. Fixtures are their
+// author's belief about the wire (#104); a capture is what the connector
+// actually sent. Auditing only the fixtures means the audit inherits their
+// blind spots -- which is exactly what happened: `requires_step_up`, `tier`,
+// `cursor` and a whole run-history `context` block are on every recorded
+// approval and were in no fixture at all, so nothing could report them as
+// unread.
+function captureCardFrames(capture, cardTypes) {
+  const want = new Set(cardTypes);
+  const out = [];
+  (capture || []).forEach((p, i) => {
+    const body = (p.response || {}).data || p.response || {};
+    [...(body.transcript || []), ...(body.frames || [])].forEach((f) => {
+      if (f && want.has(f.type)) out.push({ i, type: f.type, keys: Object.keys(f) });
+    });
+  });
+  return out;
+}
+
 // Every card frame in a fixture, as {type, keys}.
 function cardFramesOf(fixture, cardTypes) {
   const want = new Set(cardTypes);
@@ -96,9 +115,9 @@ function cardFramesOf(fixture, cardTypes) {
   return out;
 }
 
-function auditKeyParity(fixture, sets, cardTypes) {
+function auditFrames(frames, sets) {
   const findings = [];
-  cardFramesOf(fixture, cardTypes).forEach((frame) => {
+  frames.forEach((frame) => {
     const read = sets[frame.type];
     if (read === null || read === undefined) {
       findings.push({ rule: "card-type-the-widget-cannot-render",
@@ -120,4 +139,13 @@ function auditKeyParity(fixture, sets, cardTypes) {
   return findings;
 }
 
-module.exports = { auditKeyParity, readSets, branchFor, keysRead, cardFramesOf, STRUCTURAL };
+function auditKeyParity(fixture, sets, cardTypes) {
+  return auditFrames(cardFramesOf(fixture, cardTypes), sets);
+}
+
+function auditCaptureParity(capture, sets, cardTypes) {
+  return auditFrames(captureCardFrames(capture, cardTypes), sets);
+}
+
+module.exports = { auditKeyParity, auditCaptureParity, auditFrames, readSets,
+  branchFor, keysRead, cardFramesOf, captureCardFrames, STRUCTURAL };

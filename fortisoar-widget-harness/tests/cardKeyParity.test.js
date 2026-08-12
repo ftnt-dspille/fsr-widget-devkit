@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 const {
-  auditKeyParity, readSets, branchFor, keysRead,
+  auditKeyParity, auditCaptureParity, readSets, branchFor, keysRead,
 } = require("./live/lib/cardKeyParity");
 
 const HARNESS = path.join(__dirname, "..");
@@ -24,6 +24,7 @@ const WIDGET = path.join(HARNESS, "..", "widgets-src", "fortiaiAgenticAssistant"
 const RENDERER = path.join(WIDGET, "widget", "widgetAssets", "js", "fsrPbRender.ts");
 const FIXTURES = path.join(WIDGET, "widget", "widgetAssets", "fixtures");
 const DOC = path.join(HARNESS, "docs", "CARD_KEY_PARITY.md");
+const CAPTURES = path.join(HARNESS, "tests", "live", "captures");
 
 // The analyst-actionable cards. Display-only frames (text, tool_use, info_card)
 // are not gated here -- see docs/CARD_DOM_COVERAGE.md for that boundary.
@@ -48,6 +49,20 @@ function realFindings() {
     const fixture = JSON.parse(fs.readFileSync(path.join(FIXTURES, f), "utf8"));
     auditKeyParity(fixture, sets, CARD_TYPES).forEach((x) => out.push({ fixture: f, ...x }));
   });
+  // CAPTURES TOO, and this is the half that matters most. A fixture is its
+  // author's belief about the wire (#104), so auditing only fixtures makes the
+  // audit inherit their blind spots -- which is exactly what happened:
+  // `requires_step_up`, `tier`, `cursor`, a run-history `context` block and the
+  // manual-input deadline are on every recorded card and were in NO fixture, so
+  // nothing could report them as unread.
+  if (fs.existsSync(CAPTURES)) {
+    fs.readdirSync(CAPTURES).filter((f) => f.endsWith(".payloads.json")).sort()
+      .forEach((f) => {
+        const cap = JSON.parse(fs.readFileSync(path.join(CAPTURES, f), "utf8"));
+        auditCaptureParity(cap, sets, CARD_TYPES)
+          .forEach((x) => out.push({ fixture: `capture:${f}`, ...x }));
+      });
+  }
   return out;
 }
 
