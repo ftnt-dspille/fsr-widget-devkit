@@ -20,6 +20,10 @@
 //
 // LIVE + MUTATING: clicking Approve runs a real playbook on a real box, which
 // is why it is gated behind E2E_LIVE like every other live spec here.
+//
+// @covers-card-live: approval_request, manual_input
+// (read by tests/cardDomCoverage.test.js -- the registry in
+// docs/CARD_DOM_COVERAGE.md may only call a card live-dom if a spec claims it.)
 
 const fs = require("fs");
 const path = require("path");
