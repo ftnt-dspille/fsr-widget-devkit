@@ -60,40 +60,18 @@ function transcriptsOf(fixture) {
 // --- the rules ------------------------------------------------------------
 // Each takes the parsed fixture and returns findings [{rule, detail}].
 
-// THE #91 PROPERTY. On resume the connector re-sends the whole conversation,
-// including tool_use ids committed in EARLIER turns. A fixture that carries
-// only the new frames teaches the widget a wire shape the box never sends, and
-// every test built on it is green about nothing.
-function resumeIsCumulative(fixture) {
-  const out = [];
-  const turns = transcriptsOf(fixture);
-  const committed = new Set();
-  for (const t of turns) {
-    if (t.action === "chat_resume" && committed.size) {
-      const present = new Set(
-        t.frames.filter((f) => f.type === "tool_use").map((f) => f.id));
-      const missing = [...committed].filter((id) => !present.has(id));
-      if (missing.length === committed.size) {
-        out.push({
-          rule: "resume-is-cumulative",
-          detail: `responses[${t.i}] chat_resume carries NONE of the `
-            + `${committed.size} tool_use id(s) committed earlier `
-            + `(${[...committed].join(", ")}). That is the delta shape; the `
-            + `connector sends the cumulative one.`,
-        });
-      } else if (missing.length) {
-        out.push({
-          rule: "resume-is-cumulative",
-          detail: `responses[${t.i}] chat_resume drops previously committed `
-            + `tool_use id(s): ${missing.join(", ")}`,
-        });
-      }
-    }
-    t.frames.filter((f) => f.type === "tool_use" && f.id)
-      .forEach((f) => committed.add(f.id));
-  }
-  return out;
-}
+// THE #91 PROPERTY -- revised after Phase 2.3 captures. The original rule (built
+// from an Aug 4 observation) said the connector re-sends tool_use frames on
+// resume; six independent captures on .159/.206 (Aug 11) prove it does NOT.
+// The resume carries only new frames + a tool_result for the call that was
+// gated (referencing the earlier tool_use via call_id/tool_use_id). No tool_use
+// frames are replayed. The rule was firing on the correct wire shape.
+//
+// The #91 widget fix (handling cumulative transcripts) is still valuable as
+// defensive code, and approval_then_manual_input.json is intentionally
+// cumulative to test it -- but that is a test of widget robustness, not a claim
+// about the wire. The rule is removed. The captures are the ground truth.
+function resumeIsCumulative(_fixture) { return []; }
 
 // A tool_result with no tool_use to attach to. The widget renders it against
 // nothing, which looks like a dropped call rather than a malformed fixture.
@@ -325,30 +303,84 @@ function signature(source) {
   }));
 }
 
+// A fixture may DECLARE a divergence from its capture:
+//
+//   "capture_divergence": [{ rule, detail, why }]
+//
+// This exists so the audit can be run --strict without a person holding the
+// known-and-explained mismatches in their head (they were living in a tracker
+// comment, which no gate reads). Three properties keep it from becoming the
+// usual waiver rot:
+//
+//  - it matches on the EXACT detail string, which contains both sequences. Any
+//    change to the fixture OR to the capture stops matching, and the finding
+//    comes back. A per-fixture or per-rule waiver would swallow the next,
+//    different mismatch on the same fixture -- the failure mode a suppression
+//    list normally has.
+//  - a declaration that matches nothing is itself a finding. An unused waiver
+//    is a dead gate wearing the costume of a live one ([[gates_can_be_silently_dead]]).
+//  - a fixture with a matched declaration does NOT count as capture-verified.
+//    The capture is evidence for the part that agrees and explicitly not for
+//    the part that does not; counting it whole would inflate the one number
+//    this audit exists to keep honest.
+function declarationsOf(fixture) {
+  const d = fixture.capture_divergence;
+  return Array.isArray(d) ? d : [];
+}
+
 // Compare a fixture's shape against a recorded capture of the same scenario.
 // Absence of a capture is NOT a pass -- it returns {verified:false}, and the
 // caller must report that as loudly as a failure.
 function compareToCapture(fixture, capture) {
+  const declared = declarationsOf(fixture);
   if (!capture || !capture.length) {
-    return { verified: false, findings: [], reason: "no capture on disk" };
+    // A declaration with no capture to diverge from is stale by definition --
+    // it is claiming to explain a diff that nothing computed.
+    return { verified: false, hadCapture: false,
+      findings: declared.map((d) => staleFinding(d)),
+      declared: [], reason: "no capture on disk" };
   }
   const a = signature(fixture);
   const b = signature(capture);
-  const findings = [];
+  const raw = [];
   const ops = (s) => s.map((x) => x.op).join(",");
   if (ops(a) !== ops(b)) {
-    findings.push({ rule: "capture-op-sequence",
+    raw.push({ rule: "capture-op-sequence",
       detail: `fixture ops [${ops(a)}] vs capture ops [${ops(b)}]` });
   }
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
     if (a[i].frames.join(",") !== b[i].frames.join(",")) {
-      findings.push({ rule: "capture-frame-sequence",
+      raw.push({ rule: "capture-frame-sequence",
         detail: `${a[i].op}#${i}: fixture [${a[i].frames.join(",")}] vs `
           + `capture [${b[i].frames.join(",")}]` });
     }
   }
-  return { verified: true, findings };
+
+  const used = new Set();
+  const findings = [];
+  const matched = [];
+  for (const f of raw) {
+    const i = declared.findIndex((d, j) => !used.has(j)
+      && d.rule === f.rule && d.detail === f.detail);
+    if (i < 0) { findings.push(f); continue; }
+    used.add(i);
+    matched.push({ ...f, why: declared[i].why || "(no reason given)" });
+  }
+  declared.forEach((d, j) => { if (!used.has(j)) findings.push(staleFinding(d)); });
+
+  // Verified means the capture backs the fixture. A declared divergence is the
+  // fixture saying it does not, in that place, on purpose.
+  return { verified: matched.length === 0, hadCapture: true, findings,
+    declared: matched };
+}
+
+function staleFinding(d) {
+  return { rule: "stale-capture-divergence",
+    detail: `declared divergence [${d.rule}] "${d.detail}" matches no finding. `
+      + "Either the fixture or the capture moved, and the declaration is now "
+      + "explaining something that no longer happens -- re-read the diff and "
+      + "rewrite or delete it." };
 }
 
 module.exports = {

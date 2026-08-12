@@ -38,25 +38,15 @@ const DELTA = JSON.parse(JSON.stringify(CUMULATIVE));
 DELTA.responses[1].response.transcript =
   DELTA.responses[1].response.transcript.filter((f) => f.type !== "tool_use");
 
-describe("resume-is-cumulative (the #91 property)", () => {
-  test("fires on the delta shape", () => {
-    expect(rules(DELTA)).toContain("resume-is-cumulative");
-  });
-
-  test("is silent on the cumulative shape -- the one the box actually sends", () => {
-    expect(rules(CUMULATIVE)).toEqual([]);
-  });
-
-  test("names the ids that went missing, so the fix is mechanical", () => {
-    const f = auditFixture(DELTA).find((x) => x.rule === "resume-is-cumulative");
-    expect(f.detail).toMatch(/tu-1/);
-  });
-
-  test("a first-turn resume with nothing committed yet is not a violation", () => {
-    const first = { responses: [
-      { action: "chat_resume", response: { transcript: [{ type: "text", text: "hi" }] } },
-    ] };
-    expect(rules(first)).toEqual([]);
+// resume-is-cumulative was removed after Phase 2.3 captures (Aug 11) proved the
+// connector sends the delta shape, not the cumulative one. The rule was firing
+// on the correct wire shape. The #91 widget fix (handling cumulative transcripts)
+// is still tested by approval_then_manual_input.json, which is intentionally
+// cumulative -- but that is a test of widget robustness, not a wire-shape claim.
+describe("resume-is-cumulative (removed -- captures show delta is correct)", () => {
+  test("the rule is a no-op (delta is the shape the connector sends)", () => {
+    expect(rules(DELTA)).not.toContain("resume-is-cumulative");
+    expect(rules(CUMULATIVE)).not.toContain("resume-is-cumulative");
   });
 });
 
@@ -269,6 +259,84 @@ describe("compareToCapture", () => {
   });
 });
 
+// ── Declared divergence ────────────────────────────────────────────────────
+//
+// Three fixtures legitimately disagree with their recording (an approval left
+// undecided when it was recorded; a deliberately cumulative resume that tests
+// the #91 widget fix; a 503 a healthy box will not produce). Those reasons used
+// to live in a tracker comment, which no gate reads -- so the audit could never
+// be run --strict, and "6 known findings" was a number a person had to carry.
+//
+// The declaration moves the reason into the fixture. The tests below are the
+// price of that: a suppression mechanism has to be shown FIRING as readily as
+// silencing, or it is just a way to turn the audit off one line at a time.
+describe("capture_divergence declarations", () => {
+  const capture = [
+    { op: "chat_turn", response: { data: { transcript: [
+      { type: "tool_use" }, { type: "approval_request" }] } } },
+    { op: "chat_resume", response: { data: { transcript: [
+      { type: "tool_use" }, { type: "tool_result" }, { type: "text" }] } } },
+  ];
+  // The finding DELTA earns against that capture, verbatim.
+  const REAL = compareToCapture(DELTA, capture).findings[0];
+  const declare = (...d) => ({ ...DELTA, capture_divergence: d });
+
+  test("the finding it names is silenced and reported as declared", () => {
+    const r = compareToCapture(declare({ ...REAL, why: "by design" }), capture);
+    expect(r.findings).toEqual([]);
+    expect(r.declared).toHaveLength(1);
+    expect(r.declared[0].why).toBe("by design");
+  });
+
+  test("a declared fixture is NOT counted as capture-verified", () => {
+    // The capture backs it everywhere except where the fixture says it does
+    // not. Folding that into `verified` would inflate the one number this
+    // audit exists to keep honest.
+    expect(compareToCapture(declare({ ...REAL, why: "by design" }), capture).verified)
+      .toBe(false);
+  });
+
+  test("a declaration matching nothing is itself a finding", () => {
+    // An unused waiver is a dead gate wearing the costume of a live one: it
+    // reads as "known and explained" while explaining something that no longer
+    // happens.
+    const r = compareToCapture(
+      declare({ rule: "capture-op-sequence", detail: "something that never fires", why: "x" }),
+      capture);
+    expect(r.findings.map((f) => f.rule)).toContain("stale-capture-divergence");
+  });
+
+  test("declaring against a fixture with no capture is stale, not silent", () => {
+    const r = compareToCapture(declare({ ...REAL, why: "x" }), null);
+    expect(r.findings.map((f) => f.rule)).toEqual(["stale-capture-divergence"]);
+  });
+
+  test("the match is on the EXACT detail, so a moved sequence fires again", () => {
+    // The detail string contains both sequences. This is what stops the
+    // declaration from covering the NEXT, different mismatch -- the failure
+    // mode every per-file suppression list has.
+    const drifted = JSON.parse(JSON.stringify(DELTA));
+    drifted.responses[1].response.transcript.push({ type: "manual_input", input_id: "m1" });
+    drifted.capture_divergence = [{ ...REAL, why: "by design" }];
+    const r = compareToCapture(drifted, capture);
+    expect(r.findings.map((f) => f.rule).sort())
+      .toEqual(["capture-frame-sequence", "stale-capture-divergence"]);
+  });
+
+  test("one declaration silences one finding, not every finding like it", () => {
+    // Two turns diverging the same way must need two declarations; otherwise a
+    // single line disables a whole rule for the fixture.
+    const twoBad = JSON.parse(JSON.stringify(DELTA));
+    twoBad.responses[0].response.transcript.push({ type: "text" });
+    const both = compareToCapture(twoBad, capture).findings;
+    expect(both).toHaveLength(2);
+    const r = compareToCapture(
+      { ...twoBad, capture_divergence: [{ ...both[0], why: "one only" }] }, capture);
+    expect(r.findings).toHaveLength(1);
+    expect(r.findings[0].detail).toBe(both[1].detail);
+  });
+});
+
 describe("the real fixtures", () => {
   const DIR = path.join(__dirname, "..", "..", "widgets-src", "fortiaiAgenticAssistant",
     "widget", "widgetAssets", "fixtures");
@@ -286,21 +354,55 @@ describe("the real fixtures", () => {
     }
   });
 
-  // Pinned, not asserted-clean: the four fixtures below really are in the delta
-  // shape and are the Phase 2.3 re-capture backlog. Pinning the SET means a new
-  // fixture written in that shape fails this test on the day it lands, instead
-  // of joining a backlog nobody re-reads.
-  test("only the known backlog is in the delta-on-resume shape", () => {
+  // resume-is-cumulative was removed -- captures show the connector sends delta.
+  // No fixture should be flagged for the delta shape.
+  // THE GATE. The audit ran advisory while the backlog was worked off; the
+  // backlog is off (45 findings -> 0, with the three real divergences declared
+  // in the fixtures that own them), so it becomes fatal here rather than
+  // waiting for someone to remember to add --strict to CI. `npm test` now goes
+  // red on a fixture that drifts from the wire.
+  //
+  // Run through the CLI on purpose: a test that re-implements the walk would
+  // pass while `npm run fixtures:audit -- --strict` was broken, which is the
+  // same class of gap as a gate that selects zero files.
+  const audit = (dir) => {
+    const { spawnSync } = require("child_process");
+    const r = spawnSync(process.execPath,
+      [path.join(__dirname, "..", "scripts", "fixtures-audit.js"), "--strict",
+        "--json", "--fixtures", dir],
+      { encoding: "utf8" });
+    return { code: r.status, report: JSON.parse(r.stdout) };
+  };
+
+  test("the shipped fixtures pass --strict", () => {
+    const { code, report } = audit(DIR);
+    expect(report.findings.map((f) => `${f.fixture}: [${f.rule}] ${f.detail}`)).toEqual([]);
+    expect(code).toBe(0);
+  });
+
+  test("...and --strict goes red on a drifted fixture (the mutation proof)", () => {
+    // A gate nobody has broken on purpose is a gate nobody knows works. Take a
+    // fixture whose capture currently backs it and change the shape the wire
+    // actually sends.
+    const tmp = fs.mkdtempSync(path.join(require("os").tmpdir(), "fixaudit-"));
+    const name = "approval_run_playbook_new.json";
+    const f = JSON.parse(fs.readFileSync(path.join(DIR, name), "utf8"));
+    const turn = f.responses.find((r) => r.action === "chat_turn");
+    turn.response.transcript.unshift({ type: "text", text: "Let me look into that." });
+    fs.writeFileSync(path.join(tmp, name), JSON.stringify(f));
+    const { code, report } = audit(tmp);
+    expect(code).toBe(1);
+    expect(report.findings.map((x) => x.rule))
+      .toEqual(expect.arrayContaining(["first-turn-does-not-open-with-prose"]));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  test("no fixture is flagged for the delta-on-resume shape", () => {
     const offenders = files.filter((f) => {
       const fixture = JSON.parse(fs.readFileSync(path.join(DIR, f), "utf8"));
       return auditFixture(fixture).some((x) => x.rule === "resume-is-cumulative");
     }).sort();
-    expect(offenders).toEqual([
-      "c2_hunt.json",
-      "incident_smtp_intrusion.json",
-      "playbook_ioc_sweep.json",
-      "playbook_soc_demo.json",
-    ]);
+    expect(offenders).toEqual([]);
   });
 });
 

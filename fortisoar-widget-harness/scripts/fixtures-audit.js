@@ -8,9 +8,13 @@
 //  - pass quietly when no live capture exists. A fixture with nothing to diff
 //    against is UNVERIFIED, and the summary says so on its own line. "0 failures"
 //    over an empty comparison set is the exact shape of a gate that cannot fail.
-//  - fail the build on the intrinsic findings by default while the fixtures are
-//    still being re-captured. --strict makes them fatal; wire that into CI once
-//    the backlog is worked off.
+//  - treat a declared divergence as a pass. A fixture that disagrees with its
+//    recording on purpose (see capture_divergence) is reported every run with
+//    its reason, and is NOT counted among the capture-verified.
+//
+// --strict makes findings fatal. The backlog is worked off (45 -> 0), so the
+// gate is live: tests/fixtureAudit.test.js runs this script with --strict over
+// the shipped fixtures, and carries a mutation proving it goes red.
 //
 // Usage:
 //   node scripts/fixtures-audit.js [--strict] [--json] [--fixtures <dir>]
@@ -76,7 +80,7 @@ function main() {
   }
 
   const report = { fixtures: files.length, findings: [], verified: 0, unverified: [],
-    pins: [], orphanCaptures: [] };
+    pins: [], orphanCaptures: [], diverged: [] };
   const usedCaptures = new Set();
 
   for (const file of files) {
@@ -92,10 +96,20 @@ function main() {
     auditFixture(fixture).forEach((f) => report.findings.push({ fixture: file, ...f }));
 
     const cmp = compareToCapture(fixture, captureFor(scenario));
-    if (cmp.verified) usedCaptures.add(`${scenario}.payloads.json`);
-    if (cmp.verified) {
+    // A capture counts as READ whenever it was compared -- including when the
+    // comparison diverged. Gating this on `verified` would report a capture
+    // that did its job as an orphan nothing reads.
+    if (cmp.hadCapture) usedCaptures.add(`${scenario}.payloads.json`);
+    cmp.findings.forEach((f) => report.findings.push({ fixture: file, ...f }));
+    if (cmp.declared && cmp.declared.length) {
+      // Declared-divergent: the capture backs this fixture everywhere EXCEPT
+      // the places the fixture says it does not. Deliberately not counted in
+      // `verified` -- see the note on compareToCapture.
+      report.diverged.push({ file, declared: cmp.declared });
+    } else if (cmp.verified) {
       report.verified += 1;
-      cmp.findings.forEach((f) => report.findings.push({ fixture: file, ...f }));
+    } else if (cmp.hadCapture) {
+      // Findings already recorded above; nothing further to count.
     } else if (fixture.regression_pin) {
       // A fixture that pins a shape a HEALTHY box can no longer emit -- the
       // superseded wire shape, or a bug that has been fixed. Re-capturing it is
@@ -133,6 +147,18 @@ function main() {
     console.log(`${report.verified} checked against a live capture; `
       + `${report.unverified.length} UNVERIFIED (no capture on disk) -- those are `
       + "still one author's belief about the wire, not evidence.");
+    if (report.diverged.length) {
+      // Printed every run, never folded into the verified count. A declared
+      // divergence is a fixture admitting its capture does not back it here --
+      // the reason has to stay in front of whoever reads the summary, or the
+      // audit quietly turns back into "N green" over an unexamined waiver list.
+      console.log(`\n${report.diverged.length} fixture(s) diverge from their capture `
+        + "BY DECLARATION -- the capture is not evidence for the diverging part:");
+      for (const d of report.diverged) {
+        console.log(`   ${d.file}`);
+        d.declared.forEach((x) => console.log(`      [${x.rule}] ${x.why}`));
+      }
+    }
     if (report.pins.length) {
       // Named, never silent: a pin that stops being a pin (the shape becomes
       // reproducible again, or someone adds the flag to dodge a recording) has
