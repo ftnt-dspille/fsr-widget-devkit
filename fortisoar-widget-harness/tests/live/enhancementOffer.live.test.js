@@ -36,6 +36,13 @@
 // gate could not read it -- the claim was off precisely because it was not yet
 // true, exactly as patchProposal.live's was.
 //
+// EXTENDED for #126, and NOT yet re-run live: the card now leads with a
+// step-level before/after diff (`diff_summary.changes`), and the assertion
+// below demands it. Until a green live run against a box carrying the
+// framework that emits `changes`, that half of this spec is a claim in
+// waiting -- the diff renders from fixtures (enhancementOffer.render.test.js)
+// and no box has yet drawn it.
+//
 // WHICH BOX, BECAUSE THAT IS WHAT COST THE TIME. The harness's default `.env`
 // points at a host that answers HTTP 200 on /login but is not a working
 // FortiSOAR, so the driver reached a stripped login form with none of the ids
@@ -156,7 +163,33 @@ d("live: enhancement_offer renders its change summary and verified YAML (DOM)", 
         + "analyst is being asked to Apply an unstated edit.");
     }
 
-    // 2. The bytes that will be written are REVIEWABLE. This is the claim the
+    // 2. The change is READABLE, not merely named. "~1 changed: Block IP" says
+    //    which step moved and nothing about how; before #126 the only answer to
+    //    "changed how?" was the whole-playbook YAML behind the toggle, which is
+    //    an Apply button over something nobody read. The step-level diff is the
+    //    card's body now, so its absence on a live payload is the finding.
+    const diff = page.locator(`[data-testid="enhancement-offer-diff-${offerId}"]`);
+    if (await diff.count() === 0) {
+      throw new Error("enhancement_offer " + offerId + " rendered its change "
+        + "NAMES but no step-level diff. Read " + CAPTURE_LABEL
+        + ".payloads.json before calling this a render defect: no `changes` on "
+        + "the wire means the BOX runs a framework older than the one that "
+        + "added diff_summary.changes (#126) -- a version fact, not a widget "
+        + "bug. `changes` present with no diff block IS the render defect.");
+    }
+    const panes = page.locator(
+      `[data-testid^="enhancement-before-${offerId}-"], `
+      + `[data-testid^="enhancement-after-${offerId}-"]`);
+    if (await panes.count() === 0) {
+      throw new Error("enhancement_offer " + offerId + " drew a diff block with "
+        + "no before/after pane inside it -- the step rows rendered but both "
+        + "sides came through empty, which puts the analyst back on the YAML.");
+    }
+    // A pane that counts but says nothing explains nothing.
+    expect(((await panes.first().textContent()) || "").trim().length)
+      .toBeGreaterThan(0);
+
+    // 3. The bytes that will be written are REVIEWABLE. This is the claim the
     //    card exists to make: pre-card, enhance mode scraped a YAML fence out
     //    of prose. The toggle only renders when finalYaml is non-empty, so its
     //    absence is itself the finding.
@@ -176,7 +209,7 @@ d("live: enhancement_offer renders its change summary and verified YAML (DOM)", 
     // Not a stray fragment: whatever Apply writes has to look like a playbook.
     expect(yamlText).toMatch(/steps\s*:/);
 
-    // 3. Apply and Not now both exist, so accepting is a choice rather than the
+    // 4. Apply and Not now both exist, so accepting is a choice rather than the
     //    only way forward.
     const accept = page.locator(`[data-testid="enhancement-offer-accept-${offerId}"]`);
     await accept.waitFor({ state: "visible", timeout: 30000 });

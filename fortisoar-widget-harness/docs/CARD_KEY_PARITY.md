@@ -37,10 +37,14 @@ and not yet decided. It is not a synonym for "fine".
 
 | card | key | status | reason |
 |---|---|---|---|
-| `enhancement_offer` | `diff_summary` | by-design | The producer sends both the structured diff and the flattened `steps_added/removed/modified` lists; the card renders the flat lists. Kept in the fixture because the fixture's job is mirroring the wire, not the renderer. |
 | `approval_request` | `args_hash` | by-design | Integrity handle for the connector's own tamper check on approved args. Never displayed; the analyst reads the args, not their hash. |
 | `approval_request` | `cursor` | by-design | Transcript position for the connector's own resume bookkeeping. Nothing for the analyst to read. |
 | `approval_request` | `reason` | UNTRIAGED | The machine-readable why (`unrequested_change`). Fixture-only -- no capture carries it, so it is unverified against the wire as well as unread. The same information reaches the analyst as prose in `summary`, so today it is redundant rather than lost: render it as a chip, or stop sending it. Tracker #124. |
+
+<!-- `enhancement_offer` / `diff_summary` was by-design here on the premise
+     that the card renders only the flattened `steps_*` lists. #126 killed
+     that premise: the key now carries per-step `changes` and the card
+     renders them as its body, so the row is gone rather than reworded. -->
 
 <!-- `manual_input` / `expires_at` + `expires_in_seconds` were UNTRIAGED here
      until the card grew a live countdown and a submit that is refused past the
