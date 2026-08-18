@@ -87,4 +87,4 @@ fortisoar-widget-harness/tsconfig.tsbuildinfo
 docs/demo-deck/
 
 # Local-only infra-leak deny patterns (scripts/check_infra_leaks.py)
-scripts/infra_patterns.local.json
+**/infra_patterns.local.json
