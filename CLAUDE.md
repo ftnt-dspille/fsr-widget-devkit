@@ -13,12 +13,15 @@ cited verdicts · **P2** tier-gated, analyst-approved actions · **P3** reach
 on-prem targets the cloud can't · **P4** bottle each investigation into a
 deterministic playbook. The widget is *the window*; the connector is the engine.
 
-- **Roadmap:** source is [`docs/plans/ROADMAP_2026-08.md`](docs/plans/ROADMAP_2026-08.md)
-  -- horizons NOW/NEXT/LATER/PARKED plus an alignment scorecard of *built* vs
-  *proven* per promise. §1-2 is the fastest way to load context.
-  ⚠️ `docs/plans/` is **gitignored**, so edits here reach no other checkout --
-  re-mirror to `ROADMAP.md` in the tracker repo after changing it (procedure in
-  that repo's README). Other agents read the mirror.
+- **Roadmap:** `ROADMAP.md` in the tracker repo
+  (`ftnt-dspille/soc-assistant-tracker`, private; local clone
+  `~/PycharmProjects/soc-assistant-tracker`) -- horizons NOW/NEXT/LATER/PARKED
+  plus an alignment scorecard of *built* vs *proven* per promise. §1-2 is the
+  fastest way to load context. **Edit it there and push** -- as of 2026-08-18
+  it is the single source, not a mirror, so there is no sync step. This repo
+  keeps only a pointer at `docs/plans/ROADMAP_2026-08.md`.
+  ⚠️ `docs/plans/` is **gitignored** -- the detailed plans live there because
+  they carry box details, and nothing in it reaches another checkout.
 - **Board:** https://github.com/users/ftnt-dspille/projects/1 · issues in
   `ftnt-dspille/soc-assistant-tracker`. Fields: Promise / Component / Horizon /
   Needs box / Gate. **Claim a card before working it** -- several agents run in
