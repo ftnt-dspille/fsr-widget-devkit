@@ -185,19 +185,42 @@ async function makeClient() {
   // must treat that as PROCEED, never as skip: a probe that fails open into a
   // skip would silently disarm the very assertion it guards, which is the
   // no-silent-caps rule. Only a definite "absent" earns a skip.
-  async function connectorConfigured(name) {
+  // Accepts ONE name or a list of equivalent ones. The list matters: the
+  // capability a row needs ("some firewall that can block an IP") is not the
+  // same thing as one vendor's package name, and the package name is not
+  // guessable -- this box installs the FortiGate connector as
+  // `fortigate-firewall`, so probing the obvious `fortigate` matched nothing
+  // and ENV-SKIPped a containment row the box could in fact have graded. A
+  // FALSE skip is the worse direction of this bug: the run stays green-ish
+  // while quietly covering less.
+  async function connectorConfigured(nameOrNames) {
+    const names = Array.isArray(nameOrNames) ? nameOrNames : [nameOrNames];
     let res;
     try {
+      // No `search=` filter: fetch the installed set once and decide locally.
+      // Server-side search is a substring match whose paging could drop the row
+      // we care about, and one list is cheaper than N searches anyway.
       res = await request("GET",
-        `${host}/api/integration/connectors/?search=${encodeURIComponent(name)}`,
-        { token });
+        `${host}/api/integration/connectors/?$limit=300`, { token });
     } catch (_) {
       return null;                       // transport failure -- indeterminate
     }
-    return classifyConnectorConfigured(res.json, name);
+    return combineConfigured(names.map(
+      (n) => classifyConnectorConfigured(res.json, n)));
   }
 
   return { meta, exec, get, del, token, connectorConfigured };
+}
+
+// Fold the per-name verdicts of an EQUIVALENCE set into one, preserving the
+// three-valued contract: any definite yes wins (the capability exists); with no
+// yes, a single indeterminate makes the whole answer indeterminate, because
+// "everything I could check says no, and one I could not check" is not evidence
+// of absence -- and only definite absence is allowed to skip a live gate.
+function combineConfigured(verdicts) {
+  if (verdicts.some((v) => v === true)) return true;
+  if (verdicts.some((v) => v === null)) return null;
+  return false;
 }
 
 // The DECISION half of connectorConfigured(), split out so it is testable
@@ -214,4 +237,16 @@ function classifyConnectorConfigured(json, name) {
   return !!(found && (found.configuration || []).length);
 }
 
-module.exports = { makeClient, CONNECTOR_NAME, classifyConnectorConfigured };
+// The connectors that can satisfy "block an IP on a firewall". Names are the
+// INSTALLED package names, which differ from the vendor word: FortiGate ships
+// as `fortigate-firewall`. Add rather than replace when another box carries a
+// different firewall.
+const FIREWALL_CONNECTORS = ["fortigate-firewall", "fortigate"];
+
+module.exports = {
+  makeClient,
+  CONNECTOR_NAME,
+  FIREWALL_CONNECTORS,
+  classifyConnectorConfigured,
+  combineConfigured,
+};
