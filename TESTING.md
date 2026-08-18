@@ -277,8 +277,21 @@ Two layers keep that from reading as a widget bug:
 - **A hard backend outage** (box down, `health_check` not ok, no LLM key) is
   caught by the sweep's preflight and turns the run into an **ENV-SKIP**
   (`[[SWEEP-ENV-SKIP]]`), not a wall of FAILs.
+- **A capability this box lacks** is the third class, and it is *per row*
+  rather than whole-suite: the box is up and the widget is fine, but a scenario
+  needs an integration that is not configured there. The containment row prompts
+  "Block the IP … on FortiGate"; with no `fortigate` connector configured the
+  agent correctly asks for the missing `ip_block_policy` / `ip_group_name`
+  instead of inventing an action card, and there is no card for the row to find.
+  That row **ENV-SKIPs** (`soar.connectorConfigured()`), and because a skipped
+  row grades nothing, **any** ENV-SKIP demotes the whole run out of
+  `[[SWEEP-VERIFIED]]` -- otherwise the run would claim "live-verified" while
+  covering less than it says (the #96 bug class, partial rather than total).
+  The probe is deliberately three-valued: *indeterminate* proceeds, only a
+  definite *absent* skips, so a hiccuping probe can never disarm a live gate.
 
-So: live-sweep FAIL ⇒ look at the widget. ENV-SKIP ⇒ look at the backend.
+So: live-sweep FAIL ⇒ look at the widget. ENV-SKIP ⇒ look at the backend --
+either it is down, or it is missing the integration the row needs.
 
 ### Trustworthy green
 

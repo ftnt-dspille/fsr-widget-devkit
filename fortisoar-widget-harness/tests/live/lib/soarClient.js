@@ -1,6 +1,6 @@
 // Standalone SOAR client for live connector-integration tests.
 //
-// Deliberately does NOT depend on the running harness proxy — it authenticates
+// Deliberately does NOT depend on the running harness proxy -- it authenticates
 // to FSR_BASE_URL directly with .env creds so the live suite is portable to
 // CI. Mirrors the wire the widget uses: POST /api/integration/execute/ with
 // {connector, version, config, operation, params}; the connector's response
@@ -16,7 +16,7 @@ const https = require("https");
 const { URL } = require("url");
 
 // Connector identity is DERIVED from the widget's own service (single source of
-// truth) — never hardcode a second copy here; that is what drifted after the
+// truth) -- never hardcode a second copy here; that is what drifted after the
 // fsr-playbook-builder → connector-fsr-soc-assistant rename.
 const _identity = require("./connectorIdentity");
 const CONNECTOR_NAME = _identity.name;
@@ -79,7 +79,7 @@ async function withRetry(fn, { attempts = 3, label = "op" } = {}) {
       }
     } catch (e) {
       last = e;
-      if (e && e.retryable === false) throw e; // real client error — fail fast
+      if (e && e.retryable === false) throw e; // real client error -- fail fast
       if (i >= attempts) break;
     }
     await new Promise((r) => setTimeout(r, 1000 * i));
@@ -133,7 +133,7 @@ async function makeClient() {
   async function exec(operation, params = {}, { timeoutMs = 120000 } = {}) {
     // The connector on this demo SOAR is redeployed frequently; during a deploy
     // window an op can briefly return HTTP 5xx, an empty body, or a Success
-    // envelope with null `data`. All three are transient — retry them so the
+    // envelope with null `data`. All three are transient -- retry them so the
     // suite is repeatable against a churning connector. A 4xx (bad params) is a
     // real bug and is NOT retried.
     return withRetry(
@@ -171,7 +171,47 @@ async function makeClient() {
     return { status: res.status, json: res.json };
   }
 
-  return { meta, exec, get, del, token };
+  // Is a THIRD-PARTY connector present AND configured on this box?
+  //
+  // Some live scenarios need a capability the widget does not provide: you
+  // cannot grade "containment surfaces an action card" on a box with no
+  // firewall connector, because the agent's correct behaviour there is to ask
+  // for the missing config rather than invent a card. Absence of the
+  // integration is an ENVIRONMENT gap, not a widget regression, and the sweep
+  // previously had no way to tell those apart -- so an unconfigured FortiGate
+  // was reported as "[[SWEEP-FAIL]] ... widget regression".
+  //
+  // Three-valued ON PURPOSE. `null` means "could not determine", and callers
+  // must treat that as PROCEED, never as skip: a probe that fails open into a
+  // skip would silently disarm the very assertion it guards, which is the
+  // no-silent-caps rule. Only a definite "absent" earns a skip.
+  async function connectorConfigured(name) {
+    let res;
+    try {
+      res = await request("GET",
+        `${host}/api/integration/connectors/?search=${encodeURIComponent(name)}`,
+        { token });
+    } catch (_) {
+      return null;                       // transport failure -- indeterminate
+    }
+    return classifyConnectorConfigured(res.json, name);
+  }
+
+  return { meta, exec, get, del, token, connectorConfigured };
 }
 
-module.exports = { makeClient, CONNECTOR_NAME };
+// The DECISION half of connectorConfigured(), split out so it is testable
+// without a box. Pure: search-response JSON in, three-valued verdict out.
+//   true  -- present with >=1 configuration (an action can actually run)
+//   false -- definitely absent, or present with zero configurations
+//   null  -- indeterminate (no/!malformed payload); callers must PROCEED on
+//            null, never skip, so a broken probe cannot disarm a live gate.
+function classifyConnectorConfigured(json, name) {
+  if (!json || !Array.isArray(json.data)) return null;
+  const found = json.data.find((c) => c && c.name === name);
+  // Present but unconfigured counts as absent: the connector is installed, yet
+  // nothing on this box can actually execute one of its actions.
+  return !!(found && (found.configuration || []).length);
+}
+
+module.exports = { makeClient, CONNECTOR_NAME, classifyConnectorConfigured };

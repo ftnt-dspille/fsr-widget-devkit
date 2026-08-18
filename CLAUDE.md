@@ -86,7 +86,10 @@ live-sweep). Invariants it encodes, don't reinvent them:
   skips-with-warning and auto-re-arms; it never sits perma-red.
 - **Live sweep** (`make test-live-sweep [RUNS=n]`) drives the widget through the
   UI vs the real connector. A FAIL ⇒ widget bug; an `[[SWEEP-ENV-SKIP]]` ⇒ the
-  backend/gateway is down, not the widget. (The box has **no SSO** -- local admin login
+  backend is down **or missing an integration the row needs** (no `fortigate`
+  configured ⇒ containment cannot card, which is the box being incomplete, not a
+  regression) -- and any ENV-SKIP demotes the run out of `[[SWEEP-VERIFIED]]`,
+  since a skipped row covers nothing. (The box has **no SSO** -- local admin login
   is a local login; the live-UI gotcha is FortiGuard IPS blocking a headless UA,
   so the sweep uses a real desktop Chrome UA.)
 - **Two tiers** (see `TESTING.md` §"Two tiers: hermetic mock gate vs live

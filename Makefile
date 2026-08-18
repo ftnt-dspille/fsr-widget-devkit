@@ -198,6 +198,12 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 	@# `$(MAKE)` recipe exit is remapped to 2, so 77 can't cross the make
 	@# boundary. fail=1 is a real widget failure; ran==0 (no [[SWEEP]] result
 	@# lines) with fail==0 is the env-skip class (box down).
+	@# THIRD class: the box is up and most rows grade fine, but one needs a
+	@# capability it lacks (no firewall connector ⇒ containment can't card).
+	@# Playwright exits 0 on a skip, so keying only on the exit code would print
+	@# "live-verified" over a gate that graded LESS than it claims -- #96 again,
+	@# partial instead of total. Any [[SWEEP-ENV-SKIP]] marker therefore demotes
+	@# the whole run, and says how many rows covered nothing.
 	@set -o pipefail; \
 	n=$${RUNS:-1}; i=1; fail=0; sweep_log=$$(mktemp -t fsr-sweep.XXXXXX); \
 	while [ $$i -le $$n ]; do \
@@ -212,9 +218,14 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 	  rm -f "$$sweep_log"; exit 1; \
 	fi; \
 	ran=$$(grep -F -c '[[SWEEP]]' "$$sweep_log" 2>/dev/null || true); ran=$${ran:-0}; \
+	envskip=$$(grep -F -c '[[SWEEP-ENV-SKIP]]' "$$sweep_log" 2>/dev/null || true); envskip=$${envskip:-0}; \
 	rm -f "$$sweep_log"; \
 	if [ "$$ran" -eq 0 ]; then \
 	  echo "[[SWEEP-ENV-SKIP]] live-sweep graded 0 scenarios -- NOT live-verified (box down / gate covered nothing). Re-run when the box is up."; \
+	  exit 1; \
+	fi; \
+	if [ "$$envskip" -ne 0 ]; then \
+	  echo "[[SWEEP-ENV-SKIP]] live-sweep graded $$ran scenario(s) but env-skipped $$envskip -- NOT live-verified (a capability this box lacks, e.g. an unconfigured connector). The rows that RAN are clean; the skipped ones covered nothing."; \
 	  exit 1; \
 	fi; \
 	echo "[[SWEEP-VERIFIED]] live-sweep graded $$ran scenario(s) -- live-verified."; \

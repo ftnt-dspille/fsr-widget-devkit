@@ -39,7 +39,34 @@ and not yet decided. It is not a synonym for "fine".
 |---|---|---|---|
 | `approval_request` | `args_hash` | by-design | Integrity handle for the connector's own tamper check on approved args. Never displayed; the analyst reads the args, not their hash. |
 | `approval_request` | `cursor` | by-design | Transcript position for the connector's own resume bookkeeping. Nothing for the analyst to read. |
-| `approval_request` | `reason` | UNTRIAGED | The machine-readable why (`unrequested_change`). Fixture-only -- no capture carries it, so it is unverified against the wire as well as unread. The same information reaches the analyst as prose in `summary`, so today it is redundant rather than lost: render it as a chip, or stop sending it. Tracker #124. |
+
+<!-- `approval_request` / `reason` was the last UNTRIAGED row, and triaging it
+     found the #78 shape rather than the redundancy the row assumed. The row
+     read "the same information reaches the analyst as prose in `summary`, so
+     it is redundant rather than lost: render it as a chip, or stop sending
+     it." Both halves were wrong, and the second would have deleted a real
+     feature:
+
+     - the producer is live (`fsr_playbooks/llm/tools.py`), not fixture-only.
+       Its branch is DORMANT, gated on `CHANGE_GATED_TOOLS` -- empty today and
+       deliberately kept armed by a test on that side. So `reason` is `null` on
+       every current capture, which is why the audit read absence-from-captures
+       as "unverified". Absence was evidence of dormancy, not of safety.
+     - it is not redundant with `summary`. `reason` selects the card's FRAMING,
+       which prose cannot do: the connector empties `preview.args` on that
+       branch precisely because the card is an offer, so the widget was heading
+       a suggestion "Approval required: verify_enhancement" -- a raw tool name
+       -- over an empty arg table with a green Approve button.
+
+     The widget now reads it (`isOffer`): the head becomes "Suggested change"
+     and the buttons "Draft it" / "No thanks". Covered by
+     `tests/approval.unrequestedChange.test.js`, firing/silencing paired so an
+     ordinary containment approval cannot inherit offer framing. #124. -->
+
+<!-- The table above is now entirely `by-design`. That is a state to hold
+     deliberately, not a finish line: UNTRIAGED existing is the gate working,
+     and the next audit that finds a key should add a row rather than reach for
+     a reason to leave one out. -->
 
 <!-- `enhancement_offer` / `diff_summary` was by-design here on the premise
      that the card renders only the flattened `steps_*` lists. #126 killed
