@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -188,6 +188,15 @@ SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
 # present/configured" -- which reads like a box outage rather than "you are
 # pointed at the wrong box".
 SWEEP_ENV ?= .env.159
+
+test-mcp-surface-live: ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (SWEEP_ENV=.env.159)
+	@# Its own target rather than `test-e2e-spec SPEC=…` because a live spec needs
+	@# the box env sourced, and test-e2e-spec deliberately does not source one --
+	@# an ambient E2E_LIVE=1 there would un-ignore every live spec in the mock tier.
+	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
+	  PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
+	  pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).mcpSurface.spec.js --reporter=list
 
 test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats (default 1). Prints [[SWEEP-VERIFIED]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
