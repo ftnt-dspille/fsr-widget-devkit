@@ -54,7 +54,7 @@ describe("isErr classifier", () => {
     // must short-circuit like ok:true.
     expect(isErr(okResult("mcp_soc__get_indicators", {
       status: "success",
-      result: { "hydra:member": [{ value: "10.100.88.102", reputation: "No Reputation Available" }] },
+      result: { "hydra:member": [{ value: "198.51.100.23", reputation: "No Reputation Available" }] },
       error: null,
     }))).toBe(false);
     // …but a real failure envelope (status:error / non-null error) still trips.

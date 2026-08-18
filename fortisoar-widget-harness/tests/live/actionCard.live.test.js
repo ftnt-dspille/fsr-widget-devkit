@@ -37,7 +37,6 @@ const CAPTURE_LABEL = "action_card_containment";
 const CAPTURE_DIR = path.join(__dirname, "captures");
 
 const LIVE = process.env.E2E_LIVE === "1";
-const d = LIVE ? describe : describe.skip;
 
 // The same record and phrasing the matrix's TB/TO rows use, because those are
 // the two prompts already verified live to reach containment on this box. An
@@ -46,20 +45,33 @@ const d = LIVE ? describe : describe.skip;
 // investigation floor first, and a card that never stages is indistinguishable
 // here from a card that renders wrong.
 const MODULE = process.env.AC_MODULE || "alerts";
-const RECORD = process.env.AC_RECORD || "e94dc2dc-23c0-4b8f-a13f-02a1bb147c5f";
+// The record and the containment target are BOX data, so they come from the box
+// env (.env.<box>, gitignored) rather than living here: a lab address or record
+// id baked into a tracked spec is live-capture provenance shipped to a public
+// repo. There is deliberately no default -- a placeholder would be worse than
+// absent, since it would drive a real turn at an address nobody chose.
+const RECORD = process.env.AC_RECORD;
+const AC_IP = process.env.AC_IP;
 // Phrasing lifted from the live sweep's own containment scenario ("Block the IP
 // <addr> on FortiGate"), which reports actionCards:1 against a real connector --
-// so the trigger is evidenced rather than guessed. The address is this box's
-// real IPS-exploit source, the same one the matrix TB/TO rows use.
+// so the trigger is evidenced rather than guessed. Point AC_IP at the source
+// address of the box's own IPS-exploit alert (the one the matrix TB/TO rows
+// use); an unrelated address will not reach containment.
 const PROMPT = process.env.AC_PROMPT
-  || "Block the IP 10.100.88.102 on FortiGate.";
+  || (AC_IP ? `Block the IP ${AC_IP} on FortiGate.` : null);
 
+// Never silently vanish: a skipped live gate that says nothing is
+// indistinguishable from a passing one.
 if (!LIVE) {
-  // Never silently vanish: a skipped live gate that says nothing is
-  // indistinguishable from a passing one.
   console.warn("[actionCard.live] SKIPPED -- set E2E_LIVE=1 (and a box env) to "
     + "run. The deployed action card is UNVERIFIED in this run.");
+} else if (!RECORD || !PROMPT) {
+  console.warn("[actionCard.live] SKIPPED -- this box env sets no AC_RECORD "
+    + "and/or AC_IP (or AC_PROMPT). Add them to .env.<box>; the action card is "
+    + "UNVERIFIED in this run.");
 }
+
+const d = LIVE && RECORD && PROMPT ? describe : describe.skip;
 
 d("live: containment action_card renders its arguments (DOM)", () => {
   jest.setTimeout(420000);
