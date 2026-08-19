@@ -170,6 +170,13 @@ async function makeClient() {
     const res = await request("DELETE", `${host}${pathAndQuery}`, { token });
     return { status: res.status, json: res.json };
   }
+  // Generic platform POST for substrate seeding (e.g. create a DESIGNER-shaped
+  // scratch collection -- random uuid, not the compiler's uuid5 -- so apply
+  // paths are exercised against the box state real analysts produce).
+  async function post(pathAndQuery, body) {
+    const res = await request("POST", `${host}${pathAndQuery}`, { token, body });
+    return { status: res.status, json: res.json };
+  }
 
   // Is a THIRD-PARTY connector present AND configured on this box?
   //
@@ -209,7 +216,7 @@ async function makeClient() {
       (n) => classifyConnectorConfigured(res.json, n)));
   }
 
-  return { meta, exec, get, del, token, connectorConfigured };
+  return { meta, exec, get, del, post, token, connectorConfigured };
 }
 
 // Fold the per-name verdicts of an EQUIVALENCE set into one, preserving the
