@@ -1,0 +1,166 @@
+{
+ "@type": "Workflow",
+ "name": "enhance seed",
+ "aliasName": null,
+ "tag": "",
+ "description": "five chained set_variable steps behind a manual trigger",
+ "isActive": true,
+ "debug": false,
+ "singleRecordExecution": false,
+ "remoteExecutableFlag": 0,
+ "parameters": [],
+ "synchronous": false,
+ "lastModifyDate": 1787179775,
+ "collection": "/api/3/workflow_collections/36463ea6-7133-5397-a499-7697228048c3",
+ "versions": [],
+ "triggerStep": "/api/3/workflow_steps/282b858f-6704-50de-a9a1-2504a0bfabab",
+ "steps": [
+  {
+   "@type": "WorkflowStep",
+   "name": "start",
+   "description": null,
+   "arguments": {
+    "step_variables": {
+     "input": {
+      "params": []
+     }
+    }
+   },
+   "status": null,
+   "top": "120",
+   "left": "200",
+   "stepType": "/api/3/workflow_step_types/b348f017-9a94-471f-87f8-ce88b6a7ad62",
+   "group": null,
+   "uuid": "282b858f-6704-50de-a9a1-2504a0bfabab"
+  },
+  {
+   "@type": "WorkflowStep",
+   "name": "Set one",
+   "description": null,
+   "arguments": {
+    "one": "1"
+   },
+   "status": null,
+   "top": "250",
+   "left": "200",
+   "stepType": "/api/3/workflow_step_types/04d0cf46-b6a8-42c4-8683-60a7eaa69e8f",
+   "group": null,
+   "uuid": "bdf33973-adec-5e89-a26d-61c00a7c3ee5"
+  },
+  {
+   "@type": "WorkflowStep",
+   "name": "Set two",
+   "description": null,
+   "arguments": {
+    "two": "2"
+   },
+   "status": null,
+   "top": "380",
+   "left": "200",
+   "stepType": "/api/3/workflow_step_types/04d0cf46-b6a8-42c4-8683-60a7eaa69e8f",
+   "group": null,
+   "uuid": "c50e402c-2dd4-5792-afc8-1a637133baae"
+  },
+  {
+   "@type": "WorkflowStep",
+   "name": "Set three",
+   "description": null,
+   "arguments": {
+    "three": "3"
+   },
+   "status": null,
+   "top": "510",
+   "left": "200",
+   "stepType": "/api/3/workflow_step_types/04d0cf46-b6a8-42c4-8683-60a7eaa69e8f",
+   "group": null,
+   "uuid": "acdd7250-92c7-579c-ad7f-96eabcb02c2c"
+  },
+  {
+   "@type": "WorkflowStep",
+   "name": "Set four",
+   "description": null,
+   "arguments": {
+    "four": "4"
+   },
+   "status": null,
+   "top": "640",
+   "left": "200",
+   "stepType": "/api/3/workflow_step_types/04d0cf46-b6a8-42c4-8683-60a7eaa69e8f",
+   "group": null,
+   "uuid": "e6128732-9472-5a3b-9eb8-418b43274489"
+  },
+  {
+   "@type": "WorkflowStep",
+   "name": "Set five",
+   "description": null,
+   "arguments": {
+    "five": "5"
+   },
+   "status": null,
+   "top": "770",
+   "left": "200",
+   "stepType": "/api/3/workflow_step_types/04d0cf46-b6a8-42c4-8683-60a7eaa69e8f",
+   "group": null,
+   "uuid": "4ab770eb-b317-531b-817f-be0249d14d2b"
+  }
+ ],
+ "routes": [
+  {
+   "@type": "WorkflowRoute",
+   "name": "start -> Set one",
+   "targetStep": "/api/3/workflow_steps/bdf33973-adec-5e89-a26d-61c00a7c3ee5",
+   "sourceStep": "/api/3/workflow_steps/282b858f-6704-50de-a9a1-2504a0bfabab",
+   "label": null,
+   "isExecuted": false,
+   "group": null,
+   "uuid": "0a64321a-65da-5195-821b-ebb7aa5e6f17"
+  },
+  {
+   "@type": "WorkflowRoute",
+   "name": "Set one -> Set two",
+   "targetStep": "/api/3/workflow_steps/c50e402c-2dd4-5792-afc8-1a637133baae",
+   "sourceStep": "/api/3/workflow_steps/bdf33973-adec-5e89-a26d-61c00a7c3ee5",
+   "label": null,
+   "isExecuted": false,
+   "group": null,
+   "uuid": "7393c265-c8de-522b-b4de-2efbd1c06c50"
+  },
+  {
+   "@type": "WorkflowRoute",
+   "name": "Set two -> Set three",
+   "targetStep": "/api/3/workflow_steps/acdd7250-92c7-579c-ad7f-96eabcb02c2c",
+   "sourceStep": "/api/3/workflow_steps/c50e402c-2dd4-5792-afc8-1a637133baae",
+   "label": null,
+   "isExecuted": false,
+   "group": null,
+   "uuid": "567c7cc7-e0f9-5c97-b91d-273708e2c8a9"
+  },
+  {
+   "@type": "WorkflowRoute",
+   "name": "Set three -> Set four",
+   "targetStep": "/api/3/workflow_steps/e6128732-9472-5a3b-9eb8-418b43274489",
+   "sourceStep": "/api/3/workflow_steps/acdd7250-92c7-579c-ad7f-96eabcb02c2c",
+   "label": null,
+   "isExecuted": false,
+   "group": null,
+   "uuid": "bfc54911-64cd-559d-900d-2c235e5f76f8"
+  },
+  {
+   "@type": "WorkflowRoute",
+   "name": "Set four -> Set five",
+   "targetStep": "/api/3/workflow_steps/4ab770eb-b317-531b-817f-be0249d14d2b",
+   "sourceStep": "/api/3/workflow_steps/e6128732-9472-5a3b-9eb8-418b43274489",
+   "label": null,
+   "isExecuted": false,
+   "group": null,
+   "uuid": "6477a2e0-e916-5601-ab50-7ccd1cb1d7f4"
+  }
+ ],
+ "groups": [],
+ "priority": "/api/3/picklists/9e8d41e4-8ada-4a2c-bd02-07f62c6d0a00",
+ "playbookOrigin": null,
+ "isEditable": true,
+ "uuid": "1c43d077-2223-591b-8857-12f9762ccdc1",
+ "owners": [],
+ "isPrivate": false
+}
