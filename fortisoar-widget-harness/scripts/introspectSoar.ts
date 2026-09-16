@@ -6,7 +6,7 @@
  * Renders a DEPLOYED widget on a live FortiSOAR box (WAF-safe desktop Chrome via
  * lib/soarBrowser) and captures the same RenderReport shape the harness rig
  * emits (scripts/introspect.ts), then diffs the two into a FidelityDiff. SOAR is
- * ground truth; the diff tells us where the harness render diverges — which
+ * ground truth; the diff tells us where the harness render diverges -- which
  * services the harness stubs that SOAR resolves for real, whether the widget
  * mounts and errors the same way, and how the resource profile compares.
  *
@@ -18,7 +18,7 @@
  *   introspection-reports/soar/<id>.json       (source:"soar" RenderReport)
  *   introspection-reports/fidelity/<id>.json   (FidelityDiff harness↔soar)
  *
- * Scope: only widgets rendered via the record drawer are supported today — that
+ * Scope: only widgets rendered via the record drawer are supported today -- that
  * is what is actually deployed + reachable on the box. A widget with no live
  * placement is logged as skipped (no silent coverage claims). Whole-app resource
  * diffing is deliberately excluded as noise: SOAR loads its entire shell (~250
@@ -46,7 +46,7 @@ const FIDELITY_DIR = path.join(REPORT_DIR, "fidelity");
 const SETTLE_MS = Number(process.env.INTROSPECT_SETTLE_MS || 2000);
 const RENDER_WAIT_MS = Number(process.env.INTROSPECT_SOAR_RENDER_MS || 10000);
 
-// The drawer composer — same selector liveUiDriver uses as its mount sentinel.
+// The drawer composer -- same selector liveUiDriver uses as its mount sentinel.
 const COMPOSER =
   '#custom-modal .composer textarea, #custom-modal .composer [contenteditable="true"], ' +
   '.composer textarea, .composer [contenteditable="true"], .composer input[type="text"]';
@@ -111,7 +111,7 @@ async function introspectSoar(lw: LiveWidget): Promise<RenderReport> {
   // idle headed browser window open.
   const uuid = await firstRecordUuid(lw.module);
 
-  // Force a headed, WAF-safe browser — headless is fingerprinted by the box IPS.
+  // Force a headed, WAF-safe browser -- headless is fingerprinted by the box IPS.
   const { browser, context } = await soarBrowser.launchContext({ headless: false });
   const page = await context.newPage();
 
@@ -182,7 +182,7 @@ async function introspectSoar(lw: LiveWidget): Promise<RenderReport> {
 
   // Phase 2 DOM/style capture from the live box (same shape as the harness rig
   // emits) so fidelity() can diff harness↔SOAR subtree + applied styles. Same
-  // selector the harness profile's domRoot uses — the widget's own template root
+  // selector the harness profile's domRoot uses -- the widget's own template root
   // is present in both #widget-host and the SOAR drawer. Returns undefined when
   // the widget didn't mount on the box; fidelity() treats that explicitly.
   const dom: DomCapture | undefined = lw.domRoot
@@ -210,7 +210,7 @@ async function introspectSoar(lw: LiveWidget): Promise<RenderReport> {
 // soarBrowser.login/baseUrl want the resolved SoarEnvResult; resolve it from
 // process.env (the caller sources .env.<box> before running).
 function soarBrowserEnv(): ReturnType<typeof soarEnv.resolveSoarEnv> {
-  return soarEnv.resolveSoarEnv();
+  return soarEnv.resolveActiveSoarEnv();
 }
 
 /** Compare a harness report against the soar report → FidelityDiff. */
@@ -220,17 +220,17 @@ function fidelity(harness: RenderReport | null, soar: RenderReport): FidelityDif
   const styleMismatches: string[] = [];
 
   if (!harness) {
-    notes.push("no harness report on disk — run `make introspect` first for a full diff");
+    notes.push("no harness report on disk -- run `make introspect` first for a full diff");
     return { widgetId: soar.widgetId, domMismatch: false, styleMismatches, stubbedInHarness, notes };
   }
 
   // Mount parity. A drawer/standalone widget renders on the box but the standard
-  // introspect rig can't mount it (no drawer/entity context) — so a harness
+  // introspect rig can't mount it (no drawer/entity context) -- so a harness
   // "no-mount"/"config-prompt" against a SOAR "mounted" is a RIG-BASELINE GAP,
   // not a widget regression. Only call it a mismatch when the harness DID mount.
   const harnessBaselineWeak = harness.mountState !== "mounted";
   if (harnessBaselineWeak && soar.mounted) {
-    notes.push(`harness baseline is "${harness.mountState}" (rig doesn't mount this widget — ` +
+    notes.push(`harness baseline is "${harness.mountState}" (rig doesn't mount this widget -- ` +
       `drawer/standalone needs context the rig omits) while SOAR mounts it; ` +
       `mount + stub-vs-real comparison is therefore unavailable for this widget`);
   } else if (harness.mounted !== soar.mounted) {
@@ -239,7 +239,7 @@ function fidelity(harness: RenderReport | null, soar: RenderReport): FidelityDif
     notes.push(`mount parity ok (both ${soar.mountState})`);
   }
 
-  // Console-error parity — the fidelity payoff. Attribute SOAR errors: only those
+  // Console-error parity -- the fidelity payoff. Attribute SOAR errors: only those
   // naming THIS widget's own path are "widget-hidden-by-harness" candidates; the
   // rest are whole-shell noise (other widgets' assets, generic 404s) the rig
   // happens to capture and must NOT be blamed on our widget.
@@ -247,7 +247,7 @@ function fidelity(harness: RenderReport | null, soar: RenderReport): FidelityDif
   const soarWidgetErrs = soar.correctness.consoleErrors.filter((e) => widgetPath.test(e));
   const soarShellErrs = soar.correctness.consoleErrors.filter((e) => !widgetPath.test(e));
   if (soarWidgetErrs.length) {
-    notes.push(`errors on SOAR naming THIS widget (harness hides these — investigate): ${soarWidgetErrs.length}`);
+    notes.push(`errors on SOAR naming THIS widget (harness hides these -- investigate): ${soarWidgetErrs.length}`);
   } else {
     notes.push(`no SOAR errors attributable to this widget (clean live render)`);
   }
@@ -272,12 +272,12 @@ function fidelity(harness: RenderReport | null, soar: RenderReport): FidelityDif
     notes.push(`stub-vs-real service map unavailable (needs a mounted harness render)`);
   }
 
-  // Resource profile (informational — NOT a mismatch; SOAR loads the full shell).
-  notes.push(`resource profile — harness: ${harness.resourceCount} res / ${kb(harness.totalBytes)}; ` +
+  // Resource profile (informational -- NOT a mismatch; SOAR loads the full shell).
+  notes.push(`resource profile -- harness: ${harness.resourceCount} res / ${kb(harness.totalBytes)}; ` +
     `soar: ${soar.resourceCount} res / ${kb(soar.totalBytes)} (full shell, expected heavier)`);
 
   // DOM + applied-style fidelity diff (Phase 2). Pure comparison of the two
-  // reports' `dom` captures — surfaces where the harness render diverges from
+  // reports' `dom` captures -- surfaces where the harness render diverges from
   // the live box structurally (skeleton/tag hash) or in applied styles. When
   // either side has no `dom` (rig didn't mount / widget didn't mount on box /
   // profile has no domRoot) the summary returns an explicit N/A note and no
@@ -483,7 +483,7 @@ async function main(): Promise<void> {
   fs.mkdirSync(FIDELITY_DIR, { recursive: true });
 
   // --offline recomputes the fidelity diff from the last saved SOAR report
-  // (no box drive) — use it to re-diff after refreshing the harness baseline.
+  // (no box drive) -- use it to re-diff after refreshing the harness baseline.
   const offline = process.argv.includes("--offline");
 
   for (const target of targets) {
@@ -493,9 +493,9 @@ async function main(): Promise<void> {
       const saved = path.join(SOAR_DIR, `${target.id}.json`);
       if (!fs.existsSync(saved)) { console.error(`  ✗ --offline: no saved SOAR report for ${target.id}`); continue; }
       soar = JSON.parse(fs.readFileSync(saved, "utf8")) as RenderReport;
-      console.log(`\n▶ ${target.id} — re-diffing saved SOAR report (offline)`);
+      console.log(`\n▶ ${target.id} -- re-diffing saved SOAR report (offline)`);
     } else {
-      console.log(`\n▶ ${target.id} — rendering live via ${target.mode}${isDashboard ? ` on dashboard` : ` on ${target.module}`}…`);
+      console.log(`\n▶ ${target.id} -- rendering live via ${target.mode}${isDashboard ? ` on dashboard` : ` on ${target.module}`}…`);
       try {
         soar = isDashboard
           ? await introspectSoarDashboard(target as LiveDashboardWidget)
@@ -506,7 +506,7 @@ async function main(): Promise<void> {
       }
       fs.writeFileSync(path.join(SOAR_DIR, `${target.id}.json`), JSON.stringify(soar, null, 2));
     }
-    console.log(`  ${soar.mounted ? "✓" : "✗"} ${target.id} — ${soar.mountState} — ${soar.resourceCount} res / ${kb(soar.totalBytes)} / ${soar.wallMs}ms / ${soar.correctness.errorCount} err`);
+    console.log(`  ${soar.mounted ? "✓" : "✗"} ${target.id} -- ${soar.mountState} -- ${soar.resourceCount} res / ${kb(soar.totalBytes)} / ${soar.wallMs}ms / ${soar.correctness.errorCount} err`);
 
     const harness = loadHarnessReport(target.id);
     const diff = fidelity(harness, soar);
