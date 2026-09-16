@@ -398,6 +398,18 @@ const UPSTREAM_TIMEOUT_MS = Number(process.env.FSR_UPSTREAM_TIMEOUT_MS) || 8000;
 
 // How long to wait after a publish before confirming it STUCK (the delayed
 // async rollback lands within a few seconds). Tunable for slow appliances.
+// The SPA fallback is an HTML DOCUMENT -- it is what the box serves for any
+// path under /widgets/installed/ that does not exist. Detect it by what the
+// response STARTS with, never by a substring anywhere in the body: a widget
+// controller may legitimately CONTAIN "<!DOCTYPE html>" (ztpRunReport builds a
+// printable report document inside exportPdf), and the old substring test
+// failed that widget's every push with a bogus assetLanded:false -- six times,
+// each one investigated by hand before being dismissed as a false negative.
+function looksLikeSpaFallback(body: string): boolean {
+  const head = (body || "").slice(0, 400);
+  return /^\s*<!DOCTYPE html>/i.test(head) || /<html[^>]*ng-app="cybersponse"/i.test(head);
+}
+
 const SETTLE_CONFIRM_MS = Number(process.env.FSR_SETTLE_CONFIRM_MS) || 6000;
 
 interface UpstreamResponse {
@@ -2012,7 +2024,7 @@ app.post("/_fsr/install/:id", express.json(), async (req: express.Request, res: 
       headers: { Authorization: `Bearer ${token}` },
     });
     const assetBody = assetRes.body || "";
-    const isSpaFallback = /ng-app="cybersponse"|<!DOCTYPE html>/i.test(assetBody);
+    const isSpaFallback = looksLikeSpaFallback(assetBody);
     const looksLikeController =
       assetBody.includes(".controller(") || assetBody.includes("angular");
     if (assetRes.status < 200 || assetRes.status >= 300 || isSpaFallback || !looksLikeController) {
@@ -2040,7 +2052,7 @@ app.post("/_fsr/install/:id", express.json(), async (req: express.Request, res: 
       pathAndQuery: assetPath,
       headers: { Authorization: `Bearer ${token}` },
     });
-    const settleSpa = /ng-app="cybersponse"|<!DOCTYPE html>/i.test(settleAsset.body || "");
+    const settleSpa = looksLikeSpaFallback(settleAsset.body || "");
     const settleOk =
       !!settleRec && settleRec.version === newVersion && settleRec.draft === false &&
       settleAsset.status >= 200 && settleAsset.status < 300 && !settleSpa;
