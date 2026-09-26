@@ -247,7 +247,40 @@ async function makeClient() {
     return combineConfigured(verdicts);
   }
 
-  return { meta, exec, get, del, post, token, connectorConfigured, connectorHealthy };
+  // Find a record by exact `name` on THIS box, creating it when absent, and
+  // return its IRI. The sweep used to hardcode record UUIDs from another box,
+  // so on any other instance its triage rows investigated a record that did not
+  // exist (get_record -> not_found) and still graded green on shape alone.
+  // Picklist fields are left to module defaults: they take IRIs, and the rows
+  // only need the name + description the agent reads.
+  async function ensureRecord(module, fields) {
+    const found = await request("GET", recordLookupPath(module, fields.name), { token });
+    const iri = firstRecordIri(found.json);
+    if (iri) return { iri, created: false };
+    const res = await request("POST", `${host}/api/3/${module}`, { token, body: fields });
+    const made = res.json && res.json["@id"];
+    if (res.status < 200 || res.status >= 300 || !made) {
+      throw new Error(`ensureRecord ${module} "${fields.name}": HTTP ${res.status} ${String(res.text).slice(0, 200)}`);
+    }
+    return { iri: made, created: true };
+  }
+  function recordLookupPath(module, name) {
+    return `${host}${recordLookupQuery(module, name)}`;
+  }
+
+  return { meta, exec, get, del, post, token, connectorConfigured, connectorHealthy, ensureRecord };
+}
+
+// `/api/3/<module>?name=<exact>` -- FortiSOAR matches a plain field filter exactly.
+function recordLookupQuery(module, name) {
+  return `/api/3/${module}?name=${encodeURIComponent(name)}&$limit=1&$orderby=-createDate`;
+}
+
+// The first record's IRI from a collection response, or null.
+function firstRecordIri(json) {
+  const rows = (json && (json["hydra:member"] || json.data)) || [];
+  const first = rows[0];
+  return (first && first["@id"]) || null;
 }
 
 // Pure half of connectorHealthy(): healthcheck JSON in, three-valued verdict out.
@@ -293,6 +326,8 @@ const FIREWALL_CONNECTORS = ["fortigate-firewall", "fortigate"];
 
 module.exports = {
   makeClient,
+  recordLookupQuery,
+  firstRecordIri,
   CONNECTOR_NAME,
   FIREWALL_CONNECTORS,
   classifyConnectorConfigured,
