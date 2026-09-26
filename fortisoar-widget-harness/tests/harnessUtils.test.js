@@ -285,7 +285,7 @@ describe("lintWidget", () => {
   test("edit.html binds config but edit.controller doesn't inject config -> edit-config-inject error", () => {
     const files = Object.assign({}, baseFiles, {
       "edit.html": `<form><input data-ng-model="config.orientation" /></form>`,
-      // controller injects only $scope — the footgun
+      // controller injects only $scope -- the footgun
       "edit.controller.js": `function editFoo112DevCtrl($scope){ $scope.config = $scope.config || {}; } editFoo112DevCtrl.$inject=["$scope"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
     });
     const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
@@ -310,6 +310,50 @@ describe("lintWidget", () => {
     });
     const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
     expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(false);
+  });
+
+  // Regression: ztpGroupTimer's first edit.html injected $uibModalInstance and
+  // bound config correctly (so edit-config-inject was clean), but had no
+  // .modal-header/.modal-body/.modal-footer at all -- it still compiled and
+  // rendered, just as an unstyled floating field list on the box with no
+  // Save/Cancel. Lint had nothing that looked at the modal shell itself.
+  test("a real $uibModal editor missing the modal shell -> edit-modal-shell error", () => {
+    const files = Object.assign({}, baseFiles, {
+      "edit.html": `<div><input data-ng-model="config.title" /></div>`,
+      "edit.controller.js": `function editFoo112DevCtrl($scope, $uibModalInstance, config){ $scope.config = angular.extend({}, config || {}); } editFoo112DevCtrl.$inject=["$scope","$uibModalInstance","config"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
+    });
+    const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
+    expect(r.errors.some((e) => e.code === "edit-modal-shell")).toBe(true);
+    // No save()/cancel() action anywhere in this template either.
+    expect(r.errors.some((e) => e.code === "edit-modal-no-save")).toBe(true);
+  });
+
+  test("a real $uibModal editor with the full modal shell and a save action is clean", () => {
+    const files = Object.assign({}, baseFiles, {
+      "edit.html": `<form data-ng-submit="save()">
+        <div class="modal-header"><h3>Settings</h3></div>
+        <div class="modal-body"><input data-ng-model="config.title" /></div>
+        <div class="modal-footer">
+          <button type="button" data-ng-click="cancel()">Cancel</button>
+          <button type="submit">Save</button>
+        </div>
+      </form>`,
+      "edit.controller.js": `function editFoo112DevCtrl($scope, $uibModalInstance, config){ $scope.config = angular.extend({}, config || {}); $scope.save = function(){ $uibModalInstance.close($scope.config); }; $scope.cancel = function(){ $uibModalInstance.dismiss(); }; } editFoo112DevCtrl.$inject=["$scope","$uibModalInstance","config"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
+    });
+    const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
+    expect(r.errors.some((e) => e.code === "edit-modal-shell")).toBe(false);
+    expect(r.errors.some((e) => e.code === "edit-modal-no-save")).toBe(false);
+  });
+
+  test("a non-modal (dual-mode ng-include) editor is exempt from the modal-shell check", () => {
+    const files = Object.assign({}, baseFiles, {
+      "edit.html": `<div><input data-ng-model="config.title" /></div>`,
+      // No $uibModalInstance injected -- an overlay editor, not a real modal.
+      "edit.controller.js": `function editFoo112DevCtrl($scope, $injector){ try { var c = $injector.get('config'); if (c) $scope.config = c; } catch(e){} } editFoo112DevCtrl.$inject=["$scope","$injector"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
+    });
+    const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
+    expect(r.errors.some((e) => e.code === "edit-modal-shell")).toBe(false);
+    expect(r.errors.some((e) => e.code === "edit-modal-no-save")).toBe(false);
   });
 
   test("missing required file is an error", () => {
@@ -560,7 +604,7 @@ describe("dollarParamObjectKeys (footgun: $-param serializer drop)", () => {
   test("flags quoted keys too (quoting does not save them)", () => {
     expect(dollarParamObjectKeys('{ "$triggerOnly": true }')).toContain("$triggerOnly");
   });
-  test("URL-string form (?$limit=30) is fine — no object key", () => {
+  test("URL-string form (?$limit=30) is fine -- no object key", () => {
     expect(dollarParamObjectKeys("var u = '/api/3/x?$limit=30&$relationships=true';")).toEqual([]);
   });
   test("ignores commented-out code", () => {
