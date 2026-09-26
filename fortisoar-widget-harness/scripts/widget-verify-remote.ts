@@ -45,7 +45,7 @@ async function pickRecentAlertId(ctx: any, host: string, user: string, pass: str
       data: { credentials: { loginid: user, password: pass } },
       timeout: 20000,
     });
-    if (!authResp.ok()) { log(`  auth ${authResp.status()} — cannot query alerts`); return null; }
+    if (!authResp.ok()) { log(`  auth ${authResp.status()} -- cannot query alerts`); return null; }
     const token = (await authResp.json()).token;
     if (!token) { log("  auth returned no token"); return null; }
 
@@ -78,13 +78,13 @@ async function run(opts: VerifyOpts): Promise<VerifyResult> {
   const log = (m: string): void => { console.log("  " + m); logLines.push(m); };
 
   const browser = await chromium.launch({ headless: true });
-  // Same TLS allowance as the existing harness probe — SOAR dev appliances
+  // Same TLS allowance as the existing harness probe -- SOAR dev appliances
   // ship self-signed certs. CI against a properly-signed instance can drop
   // this by trusting the cert at the OS level.
   const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 } });
   const page = await ctx.newPage();
 
-  // Noisy console messages SOAR's chrome emits on every page load — they
+  // Noisy console messages SOAR's chrome emits on every page load -- they
   // aren't from our widget and just bury the real signal.
   const CONSOLE_IGNORE = [
     /Failed to set referrer policy/i,
@@ -116,7 +116,7 @@ async function run(opts: VerifyOpts): Promise<VerifyResult> {
     await page.waitForSelector('input[name="username"], input[type="text"]', { timeout: 15000 });
     await page.fill('input[name="username"], input[type="text"]', user);
     await page.fill('input[name="password"], input[type="password"]', pass);
-    await page.click('button[type="submit"], button:has-text("Log In"), button:has-text("Login")');
+    await page.click('button[type="submit"], button:has-text("Sign In"), button:has-text("Log In"), button:has-text("Login")');
     // SOAR's networkidle never settles (it polls), so wait on a concrete
     // signal instead: URL leaves /login. Generous timeout because the post-
     // login redirect dashboard takes a moment to render.
@@ -139,7 +139,7 @@ async function run(opts: VerifyOpts): Promise<VerifyResult> {
       }
       // Append the mock query param if the caller (or a widget probe) opted
       // in. Widgets that read `?mock=` from window.location.search will
-      // bypass the live backend and use fixtures — necessary to exercise
+      // bypass the live backend and use fixtures -- necessary to exercise
       // card layouts that only render after a chat turn.
       const mockScenario = opts.mock || process.env.FORTISOAR_PROBE_MOCK;
       if (mockScenario) {
@@ -184,7 +184,7 @@ async function run(opts: VerifyOpts): Promise<VerifyResult> {
     // SOAR renders each drawer widget as a `.sub-block` with
     // `data-ng-click="launchWidget(...)"` and a child <img> whose title
     // attribute is the widget's info.json `title`. Match on either the
-    // widget's name or its display title — caller passes both.
+    // widget's name or its display title -- caller passes both.
     const rootSelector = widgetRootSelectorFor(widgetName);
     const titleAttr = opts.widgetTitle || widgetName;
     const triggerSelectors = [

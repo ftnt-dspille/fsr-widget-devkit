@@ -216,7 +216,48 @@ async function makeClient() {
       (n) => classifyConnectorConfigured(res.json, n)));
   }
 
-  return { meta, exec, get, del, post, token, connectorConfigured };
+  // Is a configured connector actually REACHABLE? Configured is necessary but
+  // not sufficient: a FortiGate whose upstream firewall is down reports
+  // `Disconnected`, the agent's containment search (which keeps only healthy
+  // connectors) then finds nothing to stage, and the row graded that as a
+  // widget regression. Same three-valued contract as connectorConfigured --
+  // only a definite "not Available" may skip; any probe failure is `null`.
+  async function connectorHealthy(nameOrNames) {
+    const names = Array.isArray(nameOrNames) ? nameOrNames : [nameOrNames];
+    let list;
+    try {
+      list = await request("GET",
+        `${host}/api/integration/connectors/?$limit=300`, { token });
+    } catch (_) {
+      return null;
+    }
+    if (!list.json || !Array.isArray(list.json.data)) return null;
+    const verdicts = [];
+    for (const n of names) {
+      const c = list.json.data.find((x) => x && x.name === n);
+      if (!c || !(c.configuration || []).length) { verdicts.push(false); continue; }
+      try {
+        const res = await request("GET",
+          `${host}/api/integration/connectors/healthcheck/${n}/${c.version}/`, { token });
+        verdicts.push(classifyConnectorHealth(res.json));
+      } catch (_) {
+        verdicts.push(null);
+      }
+    }
+    return combineConfigured(verdicts);
+  }
+
+  return { meta, exec, get, del, post, token, connectorConfigured, connectorHealthy };
+}
+
+// Pure half of connectorHealthy(): healthcheck JSON in, three-valued verdict out.
+//   true  -- status "Available"
+//   false -- a definite other status (Disconnected, Deactivated, ...)
+//   null  -- no status at all (malformed / empty) -- callers PROCEED
+function classifyConnectorHealth(json) {
+  const status = json && typeof json.status === "string" ? json.status.trim() : "";
+  if (!status) return null;
+  return status.toLowerCase() === "available";
 }
 
 // Fold the per-name verdicts of an EQUIVALENCE set into one, preserving the
@@ -256,4 +297,5 @@ module.exports = {
   FIREWALL_CONNECTORS,
   classifyConnectorConfigured,
   combineConfigured,
+  classifyConnectorHealth,
 };

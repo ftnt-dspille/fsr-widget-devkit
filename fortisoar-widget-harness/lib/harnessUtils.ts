@@ -67,7 +67,7 @@ function deriveControllerName(name: string, version: unknown): string {
 }
 
 /* Edit controllers follow SOAR's `edit<CapitalizedName><digits>DevCtrl`
-   convention — see e.g. editJinjaEditorWidget113DevCtrl. */
+   convention -- see e.g. editJinjaEditorWidget113DevCtrl. */
 function deriveEditControllerName(name: string, version: unknown): string {
   if (!name) throw new Error("deriveEditControllerName: missing name");
   const digits = String(version || "").split(".").join("");
@@ -82,7 +82,7 @@ function mergeConfig(defaults: Record<string, unknown> | null | undefined, saved
 }
 
 /* localStorage key for a widget's saved config. Stable per widget id so
-   bumping a widget's version starts fresh — matches SOAR's "config attached
+   bumping a widget's version starts fresh -- matches SOAR's "config attached
    to widget instance" semantics closely enough for dev. */
 function configStorageKey(widgetId: string): string {
   return `harness:config:${widgetId}`;
@@ -156,7 +156,7 @@ function extractRegisteredControllers(source: string): string[] {
      1. Ctrl.$inject = ["a", "b"];
      2. .controller("name", ["a", "b", function(a,b){}])
      3. function Ctrl(a, b) {}  + .controller("name", Ctrl)
-   Returns a deduped list. Best-effort only — dynamic constructions are skipped. */
+   Returns a deduped list. Best-effort only -- dynamic constructions are skipped. */
 function extractInjectedDependencies(source: string): string[] {
   if (typeof source !== "string" || !source) return [];
   const seen = new Set<string>();
@@ -201,16 +201,16 @@ function parseRegisteredServices(harnessSource: string): string[] {
 /* Faithful-or-loud stub policy (NS2).
 
    A harness stub for a platform service is either *faithful* (behaves like the
-   real thing — e.g. toaster paints a real toast, localStorageService reads/writes
+   real thing -- e.g. toaster paints a real toast, localStorageService reads/writes
    window.localStorage) or *declared-inert* (a deliberate no-op because the
-   harness drives that path another way — e.g. $uibModalInstance.close/dismiss,
+   harness drives that path another way -- e.g. $uibModalInstance.close/dismiss,
    since the harness toolbar's Save/Cancel drives persist+remount instead of the
    bootstrap modal). Declared-inert methods are wrapped with the in-page `inert()`
    helper in harness.module.js, which records each invocation into
    window.__HARNESS_INERT_INVOCATIONS.
 
    The scar: a no-op stub that a widget actually *depends on* (the original
-   $uibModal modal "mounted" but did nothing) is invisible — a green mount hides a
+   $uibModal modal "mounted" but did nothing) is invisible -- a green mount hides a
    dead feature. This helper turns a silent no-op into a loud, machine-readable
    introspection finding: if a deliberately-inert stub method was invoked during a
    widget's render, the agent is told so it can confirm the behavior wasn't
@@ -222,17 +222,17 @@ function inertStubFinding(inert: Record<string, number> | null | undefined): str
     .sort((a, b) => (inert[b] || 0) - (inert[a] || 0));
   if (entries.length === 0) return null;
   const list = entries.map((k) => `${k} ×${inert[k]}`).join(", ");
-  return `inert stub(s) invoked during render: ${list} — confirm the widget's behavior isn't silently dropped (harness drives these paths another way)`;
+  return `inert stub(s) invoked during render: ${list} -- confirm the widget's behavior isn't silently dropped (harness drives these paths another way)`;
 }
 
 /* ── NS4 contract helpers ────────────────────────────────────────────────────
 
-   The platform's real rules — which playbook-trigger endpoint to use, how csGrid
-   reads its rows — are folklore that bit jsonToGrid and action-renderer (KB §19.3,
+   The platform's real rules -- which playbook-trigger endpoint to use, how csGrid
+   reads its rows -- are folklore that bit jsonToGrid and action-renderer (KB §19.3,
    csgrid_renders_from_list_keypairs). These pure helpers encode each rule ONCE so
    the generator (NS5) emits correct code and the linter rejects the wrong one.
    They are intentionally dependency-free and exposed on window.HarnessUtils, but
-   note: HarnessUtils is a *harness-page* global — it is NOT present on the SOAR
+   note: HarnessUtils is a *harness-page* global -- it is NOT present on the SOAR
    box, so a shipped widget cannot inject it. The contract is enforced two ways:
    (1) the generator pastes the correct inline pattern, (2) lintWidget flags the
    wrong endpoint pattern. selectPlaybookTrigger/buildCsGridPaged are the canonical
@@ -253,7 +253,7 @@ interface PlaybookTriggerOpts {
 
 /* Select the correct trigger ENDPOINT by trigger TYPE (KB §19.3). The classic
    404 ("Resource Not Found In Request") is using the action endpoint by uuid:
-   `ACTION_TRIGGER + uuid` is WRONG — the action endpoint keys off the registered
+   `ACTION_TRIGGER + uuid` is WRONG -- the action endpoint keys off the registered
    ROUTE. A manual / no-record / no-route playbook runs by uuid via the notrigger
    endpoint. This function is the one place that decision lives. */
 function selectPlaybookTrigger(opts: PlaybookTriggerOpts): { url: string; isManual: boolean } {
@@ -269,7 +269,7 @@ function selectPlaybookTrigger(opts: PlaybookTriggerOpts): { url: string; isManu
 
 /* Build the PagedCollection shape csGrid actually paints from
    (csgrid_renders_from_list_keypairs): csGrid renders rows from `list`/`keyPairs`,
-   NOT from `hydra:member` — leaving `list` undefined yields column headers but
+   NOT from `hydra:member` -- leaving `list` undefined yields column headers but
    ZERO body rows. Each row gets a synthesized @id/uuid when missing (csGrid tracks
    selection by IRI). Returns the fields to assign onto the PagedCollection. */
 function buildCsGridPaged(
@@ -288,7 +288,7 @@ function buildCsGridPaged(
 
 /* Detect the wrong playbook-trigger endpoint pattern in controller source:
    `API.ACTION_TRIGGER + <something containing uuid / getEndPathName>`. The action
-   endpoint keys off the registered ROUTE — concatenating a uuid 404s. Returns the
+   endpoint keys off the registered ROUTE -- concatenating a uuid 404s. Returns the
    offending fragment or null. (Correct code is `ACTION_TRIGGER + route`.) */
 function triggerEndpointMisuse(source: string | null | undefined): string | null {
   if (typeof source !== "string" || !source) return null;
@@ -317,7 +317,7 @@ function stripJsComments(source: string): string {
 
 /* SOAR's `/api/3/...` query params are `$`-prefixed ($limit, $relationships,
    $triggerOnly, …). Passed inside a `params` object to $resource/$http, Angular's
-   default param serializer SILENTLY DROPS every key beginning with `$` — the
+   default param serializer SILENTLY DROPS every key beginning with `$` -- the
    request goes out without them and quietly does the wrong thing (this was the
    loadAllPlaybooks bug: `$limit`/`$relationships` dropped → unpaginated/under-
    hydrated results). They must be baked into the URL string instead. Detect a
@@ -336,7 +336,7 @@ function dollarParamObjectKeys(source: string | null | undefined): string[] {
 }
 
 /* A POST to `/api/query` whose body carries `filters:` but no sibling `logic:`
-   has its filters SILENTLY DROPPED — the query returns the unfiltered baseline
+   has its filters SILENTLY DROPPED -- the query returns the unfiltered baseline
    (soar_query_filter_uuid). Heuristic association: for each `filters:` key, look
    at a window around it; if `/api/query` appears in that window and no `logic:`
    does, flag it. Returns true when at least one such site is found. */
@@ -355,7 +355,7 @@ function queryFilterMissingLogic(source: string | null | undefined): boolean {
 }
 
 /* Local <script src> / <link href> references in a template. Returns the
-   widget-relative paths only — absolute (`/…`), protocol (`http(s)://`),
+   widget-relative paths only -- absolute (`/…`), protocol (`http(s)://`),
    protocol-relative (`//cdn…`), and Angular-interpolated (`{{…}}`) srcs are
    skipped (those are SOAR-served / CDN / dynamic, not files we can verify). */
 function referencedLocalAssets(html: string | null | undefined): string[] {
@@ -392,7 +392,7 @@ function absoluteHostUrls(source: string | null | undefined): string[] {
 
 /* Platform services a widget may legitimately inject that are NOT in the scraped
    widgetServiceAPI catalog (lib/soar-services.generated.json) and are NOT angular
-   builtins — taken from the FortiSOAR 8.0 Widget Dev Guide "Widget Dependencies"
+   builtins -- taken from the FortiSOAR 8.0 Widget Dev Guide "Widget Dependencies"
    page. Note `Config` (capital, the app-config service) is distinct from `config`
    (lowercase, the widget-instance $controller local already in ANGULAR_BUILTINS).
    Used together with the generated catalog as the platform-service floor so the
@@ -402,7 +402,7 @@ const SOAR_DEV_GUIDE_INJECTABLES = [
 ];
 
 /* Extract the injectable service names from the generated catalog model
-   (lib/soar-services.generated.json — produced by scripts/gen-soar-types.ts).
+   (lib/soar-services.generated.json -- produced by scripts/gen-soar-types.ts).
    Pure + defensive: returns [] for any non-conforming input. */
 function generatedServiceNames(model: unknown): string[] {
   const services = (model as { services?: unknown })?.services;
@@ -423,7 +423,7 @@ const ANGULAR_BUILTINS = new Set<string>([
   // SOAR injects these as $controller `locals` (not as registered services)
   // when it instantiates a widget controller / opens an edit modal. The
   // harness also registers them as factories so its own bootstrap works,
-  // which makes them look harness-only — they're not, they're real locals.
+  // which makes them look harness-only -- they're not, they're real locals.
   "config", "$uibModalInstance",
   // Third-party vendor modules that ship with SOAR but live outside
   // app.unmin.js (loaded via separate <script> tags on the SOAR page).
@@ -431,7 +431,7 @@ const ANGULAR_BUILTINS = new Set<string>([
 ]);
 
 /* Detect data-ng-controller / ng-controller on the view.html root element.
-   See soar_widget_text_interpolation_stripped.md — SOAR's publish step strips
+   See soar_widget_text_interpolation_stripped.md -- SOAR's publish step strips
    `Dev` from the attribute value and we end up with two parallel scopes. */
 function rootNgControllerError(viewHtmlSource: string): string | null {
   if (typeof viewHtmlSource !== "string" || !viewHtmlSource) return null;
@@ -439,13 +439,13 @@ function rootNgControllerError(viewHtmlSource: string): string | null {
   const m = stripped.match(/<\s*([a-zA-Z][\w-]*)\b([^>]*)>/);
   if (!m) return null;
   if (/\b(data-)?ng-controller\b/.test(m[2] || "")) {
-    return `view.html root <${m[1]}> has ng-controller — collides with the controller injected by the harness/SOAR`;
+    return `view.html root <${m[1]}> has ng-controller -- collides with the controller injected by the harness/SOAR`;
   }
   return null;
 }
 
 /* Balanced-container check for AngularJS templates. A stray or missing closing
-   tag (e.g. an extra </div>) doesn't error anywhere — the browser silently
+   tag (e.g. an extra </div>) doesn't error anywhere -- the browser silently
    reparents the following markup, so a wizard's Back/Next nav can float over
    other controls and it only shows on certain viewport heights. Catch it the
    same way a compiler would: count opens vs closes for the container elements
@@ -594,7 +594,7 @@ function lintWidget(opts?: LintOpts): LintResult {
       }
       let message =
         `${file} injects ${masked.join(", ")}, which only exists as a stub in harness.module.js. ` +
-        `In SOAR these resolve to nothing — the controller will fail with "Unknown provider" and the modal/widget will not render.`;
+        `In SOAR these resolve to nothing -- the controller will fail with "Unknown provider" and the modal/widget will not render.`;
       if (tags.length > 0) {
         message +=
           `\n\nFix: paste the following into ${targetTpl} ` +
@@ -603,7 +603,7 @@ function lintWidget(opts?: LintOpts): LintResult {
       }
       if (noFix.length > 0) {
         message +=
-          `\n\nNo widgetAssets file registers ${noFix.join(", ")} — ship the real implementation ` +
+          `\n\nNo widgetAssets file registers ${noFix.join(", ")} -- ship the real implementation ` +
           `as a <script>-tagged widgetAssets/*.js file, or remove the dependency.`;
       }
       errors.push({
@@ -635,7 +635,7 @@ function lintWidget(opts?: LintOpts): LintResult {
         code: "trigger-endpoint-misuse",
         file: f,
         message:
-          `${f} builds a trigger URL as \`${frag}\` — the action endpoint keys off the ` +
+          `${f} builds a trigger URL as \`${frag}\` -- the action endpoint keys off the ` +
           `registered ROUTE, not the playbook uuid, so this 404s ("Resource Not Found In Request"). ` +
           `Use \`ACTION_TRIGGER + route\` for record-context action triggers, or the manual/notrigger ` +
           `endpoint by uuid for no-record/data-provider playbooks (see HarnessUtils.selectPlaybookTrigger / KB §19.3).`,
@@ -644,7 +644,7 @@ function lintWidget(opts?: LintOpts): LintResult {
   }
 
   // $-prefixed SOAR params in an object literal. NOTE: this is ADVISORY, not a
-  // hard error — empirically (verified against the shipped app's
+  // hard error -- empirically (verified against the shipped app's
   // $httpParamSerializer / $httpParamSerializerJQLike) single-`$` keys are NOT
   // dropped: `{$relationships:true,$export:true}` serializes to
   // `$relationships=true&$export=true`. Only DOUBLE-`$$` keys are stripped (by
@@ -689,7 +689,7 @@ function lintWidget(opts?: LintOpts): LintResult {
     // so view/edit.html legitimately reference e.g.
     // `c3Charts-1.3.0/widgetAssets/js/x.js`. The on-disk listing has no such
     // prefix, so strip the widget's own mount prefix before the existence
-    // check — otherwise the canonical convention false-positives.
+    // check -- otherwise the canonical convention false-positives.
     const mountPrefix = info && info.name && info.version
       ? `${info.name}-${info.version}/`
       : null;
@@ -703,7 +703,7 @@ function lintWidget(opts?: LintOpts): LintResult {
             code: "broken-asset-path",
             file: f,
             message:
-              `${f} references \`${ref}\`, which does not exist in the widget dir — ` +
+              `${f} references \`${ref}\`, which does not exist in the widget dir -- ` +
               `it 404s silently on the box, leaving the widget unstyled or dead. ` +
               `Fix the path or ship the missing file.`,
           });
@@ -716,7 +716,7 @@ function lintWidget(opts?: LintOpts): LintResult {
   // as an INJECTED `config` dependency, NOT via $scope inheritance. An
   // edit.controller that binds config (edit.html has ng-model="config.X") but
   // does not inject `config` shows stale defaults every time it reopens and
-  // closes the modal with a fresh object — the user's saved choices never
+  // closes the modal with a fresh object -- the user's saved choices never
   // persist. This is silent: it lints clean otherwise, unit tests pass, and it
   // only surfaces on the box as "my setting didn't save". Require the inject.
   if (files["edit.controller.js"] && files["edit.html"]) {
@@ -727,7 +727,7 @@ function lintWidget(opts?: LintOpts): LintResult {
     // overlay) cannot list `config` in its static $inject array: the `config`
     // provider only exists under $uibModal, so a static inject throws
     // `unknownProvider` in overlay mode. Such controllers pull the saved config
-    // dynamically via `$injector.get('config')` instead — which satisfies the
+    // dynamically via `$injector.get('config')` instead -- which satisfies the
     // persist requirement just as well. Treat that as an equivalent inject.
     const dynamicConfigGet = /\$injector\s*\.\s*get\s*\(\s*["']config["']\s*\)/.test(editSrc);
     if (bindsConfig && !editDeps.includes("config") && !dynamicConfigGet) {
@@ -736,11 +736,55 @@ function lintWidget(opts?: LintOpts): LintResult {
         file: "edit.controller.js",
         message:
           `edit.html binds widget config (ng-model="config.…") but edit.controller.js does not inject ` +
-          `\`config\`. The host passes the SAVED config in as the injected \`config\` dependency — not on ` +
-          `$scope — so without it the editor shows stale defaults every time it reopens and closes the ` +
+          `\`config\`. The host passes the SAVED config in as the injected \`config\` dependency -- not on ` +
+          `$scope -- so without it the editor shows stale defaults every time it reopens and closes the ` +
           `modal with a fresh object, silently discarding the user's saved choices. Inject \`config\` and ` +
           `bind it: \`$scope.config = angular.extend({<defaults>}, config || {})\`.`,
       });
+    }
+  }
+
+  // Modal shell footgun: SOAR opens edit.html as a $uibModal, not as a plain
+  // page -- a template with no .modal-header/.modal-body/.modal-footer still
+  // COMPILES and RENDERS (this is what let ztpGroupTimer's first edit.html
+  // ship: lint-clean, unit-tests-green, and the box showed an unstyled floating
+  // list of fields with no way to Save or Cancel). Angular never complains
+  // because there's nothing to complain about -- a bare <div> is a perfectly
+  // valid template, just not one the SOAR modal chrome knows how to dress or
+  // close. Require the three modal regions, and something that can actually
+  // save. Only applies to a real $uibModal editor (dual-mode ng-include
+  // overlays don't get platform modal chrome, and legitimately skip this).
+  if (files["edit.controller.js"] && files["edit.html"]) {
+    const editSrc = files["edit.controller.js"] || "";
+    const editHtml = files["edit.html"] || "";
+    const isUibModal = extractInjectedDependencies(editSrc).includes("$uibModalInstance");
+    if (isUibModal) {
+      const hasClass = (name: string) =>
+        new RegExp(`\\bclass\\s*=\\s*["'][^"']*\\b${name}\\b`).test(editHtml);
+      const missing = ["modal-header", "modal-body", "modal-footer"].filter((c) => !hasClass(c));
+      if (missing.length > 0) {
+        errors.push({
+          code: "edit-modal-shell",
+          file: "edit.html",
+          message:
+            `edit.controller.js injects $uibModalInstance (a real SOAR modal editor), but edit.html is ` +
+            `missing ${missing.join(", ")}. Without the modal shell the template still compiles and ` +
+            `renders -- Angular has nothing to complain about -- but on the box it draws as an unstyled ` +
+            `floating list of fields with no Save/Cancel and no way to close. Wrap the form in ` +
+            `<div class="modal-header">/<div class="modal-body">/<div class="modal-footer">, matching ` +
+            `an existing widget's edit.html (e.g. ztpRunReport).`,
+        });
+      }
+      const hasSaveAction = /\b(?:ng-click|ng-submit)\s*=\s*["'][^"']*\bsave\s*\(/.test(editHtml);
+      if (!hasSaveAction) {
+        errors.push({
+          code: "edit-modal-no-save",
+          file: "edit.html",
+          message:
+            `edit.html has no ng-click="save()" or ng-submit="save()" -- a $uibModal editor with no way ` +
+            `to invoke save() can never close with the edited config, so nothing entered in it ever persists.`,
+        });
+      }
     }
   }
 
@@ -754,7 +798,7 @@ function lintWidget(opts?: LintOpts): LintResult {
         file: f,
         message:
           `${f} contains absolute host URL(s): ${urls.join(", ")}. SOAR widgets must call the ` +
-          `platform via proxy-RELATIVE paths (\`api/3/…\`) — an absolute URL works in the harness ` +
+          `platform via proxy-RELATIVE paths (\`api/3/…\`) -- an absolute URL works in the harness ` +
           `but breaks (or CORS-fails) on the box. Make the path relative.`,
       });
     }

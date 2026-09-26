@@ -30,6 +30,7 @@
 const {
   classifyConnectorConfigured,
   combineConfigured,
+  classifyConnectorHealth,
   FIREWALL_CONNECTORS,
 } = require("./live/lib/soarClient");
 
@@ -140,5 +141,27 @@ describe("an equivalence set of names, folded to one verdict", () => {
       (n) => classifyConnectorConfigured(payload, n));
     expect(combineConfigured(verdicts)).toBe(true);
     expect(classifyConnectorConfigured(payload, "fortigate")).toBe(false);
+  });
+});
+
+// Configured is necessary, not sufficient. On .159 the FortiGate is configured
+// but its upstream firewall is down (`Disconnected`), the agent's containment
+// search keeps only healthy connectors, and the row FAILed as a widget
+// regression when it was the box. The health verdict keeps the same
+// three-valued contract: only a definite non-Available status may skip.
+describe("connector health verdict", () => {
+  test("Available is usable", () => {
+    expect(classifyConnectorHealth({ status: "Available" })).toBe(true);
+  });
+  test("a definite other status is not", () => {
+    expect(classifyConnectorHealth({ status: "Disconnected", message: "Fail to request API" })).toBe(false);
+  });
+  test("no status is indeterminate, so the row still runs", () => {
+    expect(classifyConnectorHealth({})).toBe(null);
+    expect(classifyConnectorHealth(null)).toBe(null);
+  });
+  test("one healthy firewall is enough; an unprobeable one blocks a skip", () => {
+    expect(combineConfigured([false, true])).toBe(true);
+    expect(combineConfigured([false, null])).toBe(null);
   });
 });

@@ -6,7 +6,7 @@
 //   node scripts/widget.js verify-remote fsrPlaybookBuilder --alert <iri>
 //
 // Talks to the running harness on $HARNESS_URL (default http://localhost:14400)
-// for packaging + install — the harness already implements that and owns the
+// for packaging + install -- the harness already implements that and owns the
 // SOAR credentials. verify-remote drives Playwright against $FSR_BASE_URL
 // using the username/password in .env.
 
@@ -18,12 +18,51 @@ const fs = require("fs");
 
 import * as readline from "readline";
 import { InfoJson } from "../lib/types";
-const { resolveSoarEnv } = require("../lib/soarEnv");
+const { resolveSoarEnv, resolveActiveSoarEnv } = require("../lib/soarEnv");
 // Default to the same PORT the server reads from .env, so the CLI always points
 // at the harness this same .env launches. Override with HARNESS_URL if needed.
 const HARNESS_URL =
   process.env.HARNESS_URL || `http://localhost:${process.env.PORT || 14400}`;
-const { host: FSR_HOST, user: FSR_USER, pass: FSR_PASS } = resolveSoarEnv();
+// The ACTIVE target -- explicit FSR_ENV_FILE, then the persisted UI pick, then
+// `.env` -- resolved exactly as the server resolves it. resolveSoarEnv() here
+// read the DEFAULT .env, so every banner named that box while the upload
+// (which goes through the harness) went to the picked one.
+const { host: FSR_HOST, user: FSR_USER, pass: FSR_PASS, source: FSR_SOURCE } =
+  resolveActiveSoarEnv();
+
+/** The host the RUNNING harness is actually proxying to.
+ *
+ *  The harness performs the upload, so it -- not this process's view of the
+ *  environment -- is the authority on where a push lands. Returns "" when the
+ *  harness is unreachable or too old to report it. */
+async function harnessHost(): Promise<string> {
+  try {
+    const r = await http(`${HARNESS_URL}/_fsr/info`, { method: "GET" });
+    const j = r.json as Record<string, unknown> | undefined;
+    return (j && typeof j.proxyHost === "string" ? j.proxyHost : "") || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+/** Print the target, and REFUSE if the harness is pointed somewhere else.
+ *
+ *  A banner naming a different box than the artifact reaches is worse than no
+ *  banner: it was believed twice here, costing a verification detour each
+ *  time. A disagreement means a stale `.harness-active-env` or a server started
+ *  against a different env -- either way the operator is about to ship to a box
+ *  they did not choose. */
+async function announceTarget(what: string): Promise<string> {
+  const live = await harnessHost();
+  const mine = String(FSR_HOST || "").replace(/^https?:\/\//, "");
+  if (live && mine && live !== mine) {
+    die(`TARGET MISMATCH: ${what} would go to the harness's box (${live}), ` +
+      `but this CLI resolved ${mine} (${FSR_SOURCE}). ` +
+      `Restart the harness after changing the target, or set FSR_ENV_FILE.`);
+  }
+  info_(`target: ${live || mine || "(unknown)"}  (${FSR_SOURCE})`);
+  return live || mine;
+}
 
 // ─── arg parsing ──────────────────────────────────────────────────────────
 const [, , cmd, idArg, ...rest] = process.argv;
@@ -44,7 +83,7 @@ function usage(code: number): void {
 Talks to the running harness on $HARNESS_URL (default ${HARNESS_URL}); start it
 with \`npm run dev\` first. SOAR connection comes from .env (FSR_BASE_URL / etc).
 
-credentials (OS keychain — keeps the password out of .env):
+credentials (OS keychain -- keeps the password out of .env):
   login [<user>]                    store the FortiSOAR password in the OS keychain
   logout [<user>]                   remove the stored keychain password
   creds                             show what would authenticate (no secret printed)
@@ -78,7 +117,7 @@ const widgetsSrc = path.resolve(__dirname, "..", "widgets-src");
 // (bump/pack/push/rename/lint/info/...) call resolveLocalWidget() to populate
 // these; folderless commands (list/remote-list/pull) skip it. The "id" arg can
 // be the folder name (e.g. "fsrPlaybookBuilder") or the slug-with-version
-// (e.g. "fsrPlaybookBuilder-1.0.10") — any trailing version is stripped.
+// (e.g. "fsrPlaybookBuilder-1.0.10") -- any trailing version is stripped.
 let folderName: string;
 let widgetDir: string;
 let info: InfoJson;
@@ -223,14 +262,14 @@ function promptHidden(question: string): Promise<string> {
 
 async function cmdRename(): Promise<void> {
   resolveLocalWidget();
-  // Local filesystem operation only — does NOT touch the running harness or the
+  // Local filesystem operation only -- does NOT touch the running harness or the
   // SOAR box. SOAR keys a widget by `name`, so a renamed package installs as a
   // NEW widget (new uuid); reconciling the box is a separate, deliberate step.
   // Title is the input; the camelCase `name` (the SOAR widget key) is derived
   // from it. `--name` overrides the derivation for an unusual title.
   const title = typeof flags.title === "string" ? flags.title : null;
   if (!title) die('rename requires --title "New Title"');
-  // Optional display/identity fields — applied to info.json only when passed.
+  // Optional display/identity fields -- applied to info.json only when passed.
   const opts: Record<string, string> = { title };
   if (typeof flags.subtitle === "string") opts.subtitle = flags.subtitle;
   if (typeof flags.description === "string") opts.description = flags.description;
@@ -292,12 +331,13 @@ async function cmdPush(): Promise<void> {
   if (flags.version) payload.version = flags.version;
   if (flags["skip-lint"]) payload.skipLint = true;
   // widgetId carries info.json's CURRENT version, but the server bumps it
-  // (when --bump/--version is set) before packaging — so don't print a version
+  // (when --bump/--version is set) before packaging -- so don't print a version
   // here that's about to change. Report the actual installed version, which
   // the install response echoes back, in the success line below.
   const bumpNote = flags.version ? ` → v${flags.version}`
     : flags.bump ? ` (--bump ${flags.bump})` : "";
-  info_(`pushing ${info.name}${bumpNote} → ${FSR_HOST}`);
+  const target = await announceTarget("this push");
+  info_(`pushing ${info.name}${bumpNote} → ${target}`);
   const r = await http(`${HARNESS_URL}/_fsr/install/${widgetId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -311,8 +351,9 @@ async function cmdPush(): Promise<void> {
 async function cmdVerifyRemote(): Promise<void> {
   resolveLocalWidget();
   if (!FSR_HOST || !FSR_USER || !FSR_PASS) {
-    die("FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD must be set in .env for verify-remote");
+    die(`FSR_BASE_URL/FSR_USERNAME/FSR_PASSWORD must be set in ${FSR_SOURCE} for verify-remote`);
   }
+  await announceTarget("verify-remote");
   // Re-read info in case push just bumped.
   const fresh = JSON.parse(fs.readFileSync(path.join(widgetDir, "info.json"), "utf8"));
   const verifyId = `${fresh.name}-${fresh.version}`;
@@ -347,7 +388,7 @@ async function cmdShip(): Promise<void> {
 async function cmdLogin(): Promise<void> {
   // Store the FortiSOAR password in the OS keychain so it never lives in .env.
   const { Entry } = loadKeyring();
-  const { user: defUser, service } = resolveSoarEnv();
+  const { user: defUser, service } = resolveActiveSoarEnv();
   const user = idArg || (typeof flags.user === "string" ? flags.user : null) || (await prompt("FortiSOAR username", defUser));
   if (!user) die("username required");
   const pass = typeof flags.password === "string" ? flags.password : await promptHidden("FortiSOAR password: ");
@@ -359,21 +400,22 @@ async function cmdLogin(): Promise<void> {
 
 async function cmdLogout(): Promise<void> {
   const { Entry } = loadKeyring();
-  const { user: defUser, service } = resolveSoarEnv();
+  const { user: defUser, service } = resolveActiveSoarEnv();
   const user = idArg || (typeof flags.user === "string" ? flags.user : null) || defUser;
-  if (!user) die("username required — `widget logout <user>`");
+  if (!user) die("username required -- `widget logout <user>`");
   const removed = new Entry(service, user).deletePassword();
   ok(removed ? `removed keychain password for ${user}` : `no keychain entry for ${user}`);
 }
 
 async function cmdCreds(): Promise<void> {
   // Show what WOULD be used to authenticate, without printing any secret.
-  const { host, user, pass, apiKey, service } = resolveSoarEnv();
+  const { host, user, pass, apiKey, service, file, source } = resolveActiveSoarEnv();
   let kr = "(@napi-rs/keyring not installed)";
   try {
     const { Entry } = require("@napi-rs/keyring");
     kr = user && new Entry(service, user).getPassword() ? "present" : "none";
   } catch (_) { /* keep default */ }
+  info_(`env file: ${file || ".env"}  (${source})`);
   info_(`host:     ${host || "(unset)"}`);
   info_(`user:     ${user || "(unset)"}`);
   info_(`password: ${pass ? "resolved" : "MISSING"}`);
@@ -414,7 +456,7 @@ async function cmdRemoteList(): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic response item shape
     .map((w: any) => [w.name, w.version, w.inbuilt ? "inbuilt" : "custom", w.title || "", w.uuid]);
   printTable(["NAME", "VERSION", "KIND", "TITLE", "UUID"], rows);
-  info_(`${rows.length} shown${flags.all ? "" : " (custom only — pass --all for inbuilt)"} of ${all.length} on ${FSR_HOST}`);
+  info_(`${rows.length} shown${flags.all ? "" : " (custom only -- pass --all for inbuilt)"} of ${all.length} on ${FSR_HOST}`);
   if (flags.json) console.log(JSON.stringify(r.json, null, 2));
 }
 
@@ -433,7 +475,7 @@ async function cmdPull(): Promise<void> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic response item shape
       (w: any) => w.uuid === idArg || w.name === idArg || w.title === idArg
     );
-    if (matches.length === 0) die(`no remote widget matches "${idArg}" — try \`widget remote-list\``);
+    if (matches.length === 0) die(`no remote widget matches "${idArg}" -- try \`widget remote-list\``);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic response item shape
     if (matches.length > 1) die(`"${idArg}" is ambiguous (${matches.map((m: any) => m.name).join(", ")}); pass a uuid`);
     uuid = matches[0].uuid;
@@ -486,7 +528,7 @@ function printTable(headers: string[], rows: Array<(string | number | undefined)
 
 async function ensureHarness(): Promise<void> {
   if (await harnessAlive()) return;
-  die(`harness not reachable at ${HARNESS_URL} — run \`pnpm start\` (or \`node server.js\`) first`);
+  die(`harness not reachable at ${HARNESS_URL} -- run \`pnpm start\` (or \`node server.js\`) first`);
 }
 
 // ─── dispatch ────────────────────────────────────────────────────────────

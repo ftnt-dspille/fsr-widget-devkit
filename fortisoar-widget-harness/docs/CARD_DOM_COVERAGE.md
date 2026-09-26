@@ -47,6 +47,7 @@ classified here, and a row for a card that no longer exists fails too.
 | `status_card` | not-a-card | display-only summary. |
 | `info_card` | not-a-card | display-only; the push result arrives this way but carries no control. |
 | `ioc_card` | not-a-card | display-only enrichment. |
+| `verdict_card` | hermetic-only | `widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.verdictCard.spec.js` -- renders disposition badge, severity chip, confidence meter, findings with evidence chips (linked to tool_call blocks), unknowns list, and recommended action buttons. Evidence chips are interactive: known ids highlight the matching tool_call; unknown ids render as unavailable. Action chips pre-fill the composer. NOT claimed: that evidence ids ever reach the wire on a box, or that the full end-to-end flow (verdict → action chain) executes. |
 | `activity` | not-a-card | progress line. |
 | `error` | not-a-card | error display. |
 

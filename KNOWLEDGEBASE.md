@@ -984,6 +984,14 @@ q.getFlatQuery();       // flat k=v form for URL
 q.updateFilter(newFilterObject);
 ```
 
+**`groupby` must land on a scalar.** A picklist needs `.itemValue`; a **lookup**
+needs a field of the linked record (`ztpfDevices.name`) -- bare
+`groupby ztpfDevices` is an HTTP **500** from `/api/query`, not an empty set.
+Read the attribute's `formType` (`picklist` / `lookup`) from module metadata and
+take the display field from the target module's `displayName` template
+(`"{{ name }}"`); don't guess from the field name. (c3charts 1.3.6
+`chartService.groupFieldKinds` -- the Stack Series By = Device chart never drew.)
+
 ### 11.2 `PagedCollection` -- grids & card lists
 
 ```js

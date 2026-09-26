@@ -48,8 +48,8 @@ interface EnvOpts {
 }
 
 // Read a secret from the OS keychain via the OPTIONAL @napi-rs/keyring dep.
-// Returns "" on any failure — not installed, no stored entry, or a headless
-// host with no desktop keyring (CI/Docker) — so resolution falls through to the
+// Returns "" on any failure -- not installed, no stored entry, or a headless
+// host with no desktop keyring (CI/Docker) -- so resolution falls through to the
 // next tier instead of throwing.
 function keyringSecret(account: string, service: string): string {
   if (!account) return "";
@@ -157,7 +157,7 @@ function resolveSoarEnvFile(envPath: string, opts?: EnvOpts): SoarEnvFileResult 
 
 // Discover selectable env files in the harness root: `.env` plus every `.env.*`
 // EXCEPT templates/backups (`.example`, `.bak`). Returns a light summary (no
-// secrets) for the picker — file basename, derived host, and login id.
+// secrets) for the picker -- file basename, derived host, and login id.
 function listEnvFiles(dir?: string): EnvFileSummary[] {
   dir = dir || path.resolve(__dirname, "..");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- require() dynamic module
@@ -202,8 +202,89 @@ function isExplicitHostOverride(
   return envHost !== (fileEnv.FSR_BASE_URL || "").trim() && envHost !== (fileEnv.FORTISOAR_HOST || "").trim();
 }
 
+interface ActiveEnvPick {
+  file: string | null;
+  source: string;
+}
+
+interface ActiveSoarEnvResult extends SoarEnvResult {
+  file: string;
+  source: string;
+}
+
+/**
+ * THE ACTIVE TARGET, resolved the same way everywhere.
+ *
+ * The harness had two notions of "which box", and they disagreed. `server.js`
+ * resolved a target properly -- explicit FSR_ENV_FILE, then the persisted UI
+ * pick in `.harness-active-env`, then the default `.env` -- and proxied there.
+ * But every CLI entry point just called `dotenv.config()` and read the DEFAULT
+ * `.env`, because that precedence chain lived inside server.js and was never
+ * shared.
+ *
+ * The result was not cosmetic. `widget push` printed the default host while
+ * uploading, through the harness, to the picked one -- so the banner named a
+ * box the artifact never reached, which cost a verification detour twice. And
+ * `verify-remote` genuinely drove a browser at the wrong appliance.
+ *
+ * So: one resolver, one precedence chain, used by everything.
+ *
+ *   1. FSR_ENV_FILE=<file>       explicit, wins outright
+ *   2. exported FSR_BASE_URL     explicit host override (isExplicitHostOverride
+ *                                can tell a real export from dotenv's own copy)
+ *   3. .harness-active-env       the target the UI picker persisted
+ *   4. .env                      the default
+ *
+ * `source` is returned alongside, and callers should PRINT it: "target = x
+ * (persisted UI pick .env.81)" is what makes a wrong target obvious rather
+ * than mysterious.
+ */
+function activeEnvFile(dir?: string): ActiveEnvPick {
+  dir = dir || path.resolve(__dirname, "..");
+  const explicit = (process.env.FSR_ENV_FILE || "").trim();
+  if (explicit) return { file: explicit, source: `explicit FSR_ENV_FILE=${explicit}` };
+  if (isExplicitHostOverride()) return { file: null, source: "explicit FSR_BASE_URL override" };
+  try {
+    const p = path.join(dir, ".harness-active-env");
+    if (fs.existsSync(p)) {
+      const want = fs.readFileSync(p, "utf8").trim();
+      if (want && want !== ".env") {
+        return { file: want, source: `persisted UI pick ${want}` };
+      }
+    }
+  } catch (_) { /* fall through to the default */ }
+  return { file: null, source: "default .env" };
+}
+
+/**
+ * Resolve the active SOAR target: the file chosen by activeEnvFile(), read the
+ * way the picker reads it, or the ambient `.env` resolution when nothing is
+ * pinned. Drop-in for resolveSoarEnv() at every call site, plus `file` and
+ * `source` so a caller can say which box it is about to touch.
+ */
+function resolveActiveSoarEnv(dir?: string): ActiveSoarEnvResult {
+  dir = dir || path.resolve(__dirname, "..");
+  const pick = activeEnvFile(dir);
+  if (pick.file) {
+    const p = path.resolve(dir, pick.file);
+    if (fs.existsSync(p)) {
+      return Object.assign({}, resolveSoarEnvFile(p), { file: pick.file, source: pick.source });
+    }
+    // A pinned file that no longer exists is a real misconfiguration, not
+    // something to paper over silently with the default box -- say so and let
+    // the caller decide.
+    return Object.assign({}, resolveSoarEnv(), {
+      file: pick.file,
+      source: `${pick.source} (MISSING -- fell back to .env)`,
+    });
+  }
+  return Object.assign({}, resolveSoarEnv(), { file: ".env", source: pick.source });
+}
+
 export = {
   resolveSoarEnv,
+  resolveActiveSoarEnv,
+  activeEnvFile,
   resolveSoarEnvFile,
   listEnvFiles,
   normalizeHost,
