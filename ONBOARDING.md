@@ -89,7 +89,7 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.65 | `connector-fsr-soc-assistant` 0.5.125 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.67 | `connector-fsr-soc-assistant` 0.5.144 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
 | `socAssistantMonitor` | 1.0.10 | `connector-fsr-soc-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
 | `widget-jinja-editor` (`jinjaEditorWidget`) | 1.2.2 | none | n/a | standalone Monaco/Jinja editor |
 | `c3charts` (`c3Charts`) | 1.3.7 | none (registry-driven) | n/a | chart builder |
