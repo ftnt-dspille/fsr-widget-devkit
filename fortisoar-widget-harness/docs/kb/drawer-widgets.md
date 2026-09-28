@@ -439,6 +439,16 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
     `normalizeBlocks` kind -- the render-pipeline fixture validator's `BLOCK_KINDS`
     set was missing it.
 
+- **YAML precedence: a verified offer card's `final_yaml` beats every prose
+  fence in the turn.** `_extractYaml` (`view.controller.js`) sets `currentYaml` --
+  the bytes Save compiles -- from the first `enhancement_offer` **or
+  `playbook_offer`** carrying `final_yaml`, and only falls back to the last
+  ```` ```yaml ```` fence when no card carries one (trace-built offers don't).
+  Models re-type or illustrate YAML AFTER the verified card (a bare step-list
+  snippet with `next: '...'`, seen on deepseek); letting a fence win saves text no
+  gate ever checked. Pinned by `tests/yaml.offer.precedence.test.js`. The
+  rehydrate scan (`_rehydrateBuildState`, above) still reads fences only.
+
 - **A `$scope` field that both selects a UI mode AND is sent on the wire cannot
   safely take a third value -- keep persona/mode *framing* signals separate from
   the payload-bound `intent`.** `fortiaiAgenticAssistant`'s `uiIntent` doubles as
