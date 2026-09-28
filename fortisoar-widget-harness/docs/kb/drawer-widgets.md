@@ -711,3 +711,39 @@ what makes these paths test-relevant, not cosmetic.
   `visitFirst` option exists for.
 
 ---
+
+### 18.9 Changing the playbook open in the designer (`main.playbookDetail`)
+
+The designer (`PlaybookDesignerCtrl`) loads its playbook ONCE, in the state
+resolve (`new Entity("workflows").get(id,{$relationships,$versions})`), and
+never re-reads it. A server-side `PUT /api/3/workflows/<uuid>` from a drawer
+widget therefore leaves the canvas showing the old steps until a page reload --
+and a later designer Save PUTs those stale steps over the write.
+
+Load a changed playbook into the canvas the way undo/redo does, as UNSAVED
+changes the analyst saves (fortiaiAgenticAssistant `_loadStagedIntoDesigner`):
+
+```js
+var el = document.querySelector('[data-cs-designer-detail]');   // csDesignerDetail
+var d  = angular.element(el).isolateScope();                    // ISOLATED scope
+d.$emit('designerDetail:entityUpdated', angular.extend({}, d.entity, pb), true);
+d.details.$dirty = true;                                        // the details form
+```
+
+- **Two args, never a third `"snapshot"`.** That is the Versions-restore mode: it
+  shows the "loaded version" banner and makes Save ask to confirm replacing it.
+- **`pb` shape:** `steps`, `routes` and `groups` as ARRAYS; each step's `stepType` an
+  OBJECT (the canvas reads `stepType.name` -- the save body's IRI string breaks
+  it); new steps need a `uuid` and `top`/`left`; routes reference steps as
+  `/api/3/workflow_steps/<uuid>` IRIs. Steps without `@id` are created on Save.
+- **Unsaved canvas edits are replaced with no prompt.** Check first: the
+  directive's `details.$dirty` / `previousChanges.length`, and the controller's
+  `stepSelected` / `stepForm.$dirty` (`#designer-container` scope).
+- **Restore point:** the designer's own "save version" is
+  `POST /api/3/workflow_versions` `{note, json: JSON.stringify(preparePlaybookForOverwrite(pb)), workflow: <@id>, modifyDate}`
+  (`playbookService.saveVersion`). The connector's `update_playbook` takes the
+  same snapshot server-side, fail-closed, before staging or writing.
+- After a server-side write, the canvas can be swapped in place with the
+  controller's `refresh(pb)` (`#designer-container` scope), but set
+  `originalPlaybook = angular.copy(pb)` first or the new steps lose their `@id`s
+  and Revert goes back to the pre-write version.
