@@ -78,8 +78,14 @@ Run tests **only through Makefile targets** (`make test-unit WIDGET=<name>`,
 `pnpm exec playwright test` directly. Every widget change ships with tests
 (controller logic → jest, DOM/template → playwright e2e).
 
+**Default iteration is `make loop`** (TESTING.md "The dev loop"). It runs
+local tests + a Frank agent smoke, copies the working trees to the box (not a
+release), and runs a ~30s live smoke in ~2.5 min. Run `make doctor` before
+believing any result. Don't sweep twice after every change: batch changes and
+prove them once through the release path.
+
 **`TESTING.md` "Canonical build → test → deploy flow" is the single, enforced
-pipeline** -- read it before building/shipping. The whole path is one command:
+pipeline for releases** -- read it before building/shipping. The whole path is one command:
 `make ship-verify WIDGET=<name> [BUMP=patch]` (lint → unit → mock-e2e → deploy →
 live-sweep). Invariants it encodes, don't reinvent them:
 - **Connector identity has ONE source** (the widget's `fsrPbAgent.service.js`).

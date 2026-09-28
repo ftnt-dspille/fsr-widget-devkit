@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: loop doctor help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -175,6 +175,15 @@ release: ## GitHub release for one widget: bump info.json -> commit -> push deve
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
 
+# The dev loop and the preflight live in the connector repo (it owns the Python
+# venv with pyfsr); these forward so either repo is a fine place to type them.
+CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
+loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees to the box -> ~35s live smoke (see conn_main scripts/loop.sh)
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop ENV=$(abspath $(HARNESS)/$(SWEEP_ENV))
+
+doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict)
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor ENV=$(abspath $(HARNESS)/$(SWEEP_ENV))
+
 # Derive the sweep spec from the widget name instead of hardcoding it. The old
 # hardcoded `fsrSocAssistant` path went stale at the widget rename, and BOTH
 # call sites failed silently-ish: `make test-live-sweep` died with "No tests
@@ -198,7 +207,15 @@ test-mcp-surface-live: ## LIVE M2 widget-tier proof: the mounted page decides th
 	  PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
 	  pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).mcpSurface.spec.js --reporter=list
 
-test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats (default 1). Prints [[SWEEP-VERIFIED]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
+# ROWS= runs only the named rows (their leading id: ROWS=2,3 or ROWS=1a) -- the
+# fast way to re-check the row an edit touched. A targeted run prints
+# [[SWEEP-PARTIAL]], never [[SWEEP-VERIFIED]]: it cannot stand in for the full
+# proof a release needs. Every run's output is KEPT under
+# test-results/live-sweep/<timestamp>/ -- a failure whose details scrolled away
+# has to be re-driven at ~2 min a row.
+SWEEP_GREP = $(if $(ROWS),--grep "(^| )($(subst $(COMMA),|,$(ROWS)))[a-z]? ",)
+COMMA := ,
+test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats, ROWS=2,3 for a subset. Prints [[SWEEP-VERIFIED]]/[[SWEEP-PARTIAL]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 	@# A hard-down box makes the spec's beforeAll print [[SWEEP-ENV-SKIP]] and
 	@# skip every scenario. Playwright exits 0 on all-skipped, so without this
@@ -214,21 +231,24 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 	@# partial instead of total. Any [[SWEEP-ENV-SKIP]] marker therefore demotes
 	@# the whole run, and says how many rows covered nothing.
 	@set -o pipefail; \
-	n=$${RUNS:-1}; i=1; fail=0; sweep_log=$$(mktemp -t fsr-sweep.XXXXXX); \
+	n=$${RUNS:-1}; i=1; fail=0; \
+	log_dir="$(CURDIR)/test-results/live-sweep/$$(date +%Y%m%d-%H%M%S)"; mkdir -p "$$log_dir"; \
+	sweep_log="$$log_dir/all.log"; : > "$$sweep_log"; \
 	while [ $$i -le $$n ]; do \
 	  echo "===== live-sweep run $$i/$$n ====="; \
 	  ( cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
 	    PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
-	    pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).liveSweep.spec.js --reporter=list ) 2>&1 | tee "$$sweep_log" || fail=1; \
+	    pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).liveSweep.spec.js --reporter=list $(SWEEP_GREP) ) 2>&1 | tee "$$log_dir/run$$i.log" || fail=1; \
+	  cat "$$log_dir/run$$i.log" >> "$$sweep_log"; \
 	  i=$$((i+1)); \
 	done; \
 	if [ $$fail -ne 0 ]; then \
-	  echo "[[SWEEP-FAIL]] live-sweep reported a test failure (see output above) -- widget regression."; \
-	  rm -f "$$sweep_log"; exit 1; \
+	  echo "[[SWEEP-FAIL]] live-sweep reported a test failure (see output above) -- widget regression. Logs: $$log_dir"; \
+	  exit 1; \
 	fi; \
 	ran=$$(grep -F -c '[[SWEEP]]' "$$sweep_log" 2>/dev/null || true); ran=$${ran:-0}; \
 	envskip=$$(grep -F -c '[[SWEEP-ENV-SKIP]]' "$$sweep_log" 2>/dev/null || true); envskip=$${envskip:-0}; \
-	rm -f "$$sweep_log"; \
+	echo "   logs: $$log_dir"; \
 	if [ "$$ran" -eq 0 ]; then \
 	  echo "[[SWEEP-ENV-SKIP]] live-sweep graded 0 scenarios -- NOT live-verified (box down / gate covered nothing). Re-run when the box is up."; \
 	  exit 1; \
@@ -236,6 +256,10 @@ test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n>
 	if [ "$$envskip" -ne 0 ]; then \
 	  echo "[[SWEEP-ENV-SKIP]] live-sweep graded $$ran scenario(s) but env-skipped $$envskip -- NOT live-verified (a capability this box lacks, e.g. an unconfigured connector). The rows that RAN are clean; the skipped ones covered nothing."; \
 	  exit 1; \
+	fi; \
+	if [ -n "$(ROWS)" ]; then \
+	  echo "[[SWEEP-PARTIAL]] live-sweep graded $$ran scenario(s) of ROWS=$(ROWS) -- clean, but a subset is not the full proof."; \
+	  exit 0; \
 	fi; \
 	echo "[[SWEEP-VERIFIED]] live-sweep graded $$ran scenario(s) -- live-verified."; \
 	exit 0

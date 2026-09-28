@@ -97,6 +97,35 @@ The harness renders widgets inside the real FortiSOAR app bundle, served from
 them from your own licensed box. Without it, e2e fails with a
 `/_fsr/templates.min.js` 500 / "harness boot failed". Unit tests don't need this.
 
+## The dev loop -- the default while building the agent
+
+Speed first. Most iterations should never touch the release path below.
+
+```sh
+make doctor        # ~15s, read-only: can a result taken right now be trusted?
+make loop          # ~2.5 min: local -> copy working trees to the box -> live smoke
+make loop LOCAL_ONLY=1   # stage 1 only, no box
+make test-live-sweep ROWS=2   # one UI row (~1 min); prints [[SWEEP-PARTIAL]]
+```
+
+`make loop` (in the connector repo; forwarded from here) runs three stages. It
+stops at the first failure and prints that log's tail.
+
+1. **Local, in parallel.** The connector pytest suite under xdist (~20s), the
+   tool-sweep, and a 3-row agent smoke. The smoke drives your Python source with
+   a Frank model (`LOOP_MODEL`, default deepseek-v4-flash, ~1 min).
+2. **Push.** `dev_push.sh` rsyncs the framework and connector working trees onto
+   the box, recycles once, and waits until every worker reports this tree's
+   `build_id`. The widget is pushed too if its files changed since the last
+   push. About 40s. This is **not a release**: the box keeps its installed
+   version number, and `_DEV_PATCHED` markers record what was pushed.
+3. **Live smoke.** health, compile, validate, resolve and render, plus one LLM
+   turn that must card a containment. About 30s.
+
+Only a release or a proof needs the flow below: `make release-ship`, the full
+sweep ×2, and `make doctor RELEASE=1`. That last one FAILs on a dev-pushed box.
+Sweep logs are kept under `test-results/live-sweep/<timestamp>/`.
+
 ## Canonical build → test → deploy flow (use this, don't improvise)
 
 One pipeline, one command. This is the consolidated path -- every step is a
