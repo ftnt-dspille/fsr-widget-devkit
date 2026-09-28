@@ -165,3 +165,23 @@ describe("connector health verdict", () => {
     expect(combineConfigured([false, null])).toBe(null);
   });
 });
+
+// The probe read only the first page (the endpoint pages with `page_size` and
+// ignores `$limit`), so a configured FortiSIEM on an 81-connector box read as
+// absent and ENV-SKIPped the save-as-playbook row.
+describe("connector list paging", () => {
+  const { CONNECTOR_LIST_PATH } = require("./live/lib/soarClient");
+  test("the list asks for one page big enough for a whole box", () => {
+    expect(CONNECTOR_LIST_PATH).toMatch(/[?&]page_size=\d{3,}/);
+    expect(CONNECTOR_LIST_PATH).not.toMatch(/\$limit/);
+  });
+  test("absent from a truncated page is indeterminate, not absent", () => {
+    const page = { totalItems: 81, data: [{ name: "fortigate-firewall", configuration: [{}] }] };
+    expect(classifyConnectorConfigured(page, "fortinet-fortisiemv2")).toBe(null);
+    expect(classifyConnectorConfigured(page, "fortigate-firewall")).toBe(true);
+  });
+  test("absent from the complete list is absent", () => {
+    const all = { totalItems: 1, data: [{ name: "fortigate-firewall", configuration: [{}] }] };
+    expect(classifyConnectorConfigured(all, "fortinet-fortisiemv2")).toBe(false);
+  });
+});

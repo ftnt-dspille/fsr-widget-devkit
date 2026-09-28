@@ -208,7 +208,7 @@ async function makeClient() {
       // Server-side search is a substring match whose paging could drop the row
       // we care about, and one list is cheaper than N searches anyway.
       res = await request("GET",
-        `${host}/api/integration/connectors/?$limit=300`, { token });
+        `${host}${CONNECTOR_LIST_PATH}`, { token });
     } catch (_) {
       return null;                       // transport failure -- indeterminate
     }
@@ -227,7 +227,7 @@ async function makeClient() {
     let list;
     try {
       list = await request("GET",
-        `${host}/api/integration/connectors/?$limit=300`, { token });
+        `${host}${CONNECTOR_LIST_PATH}`, { token });
     } catch (_) {
       return null;
     }
@@ -313,10 +313,18 @@ function combineConfigured(verdicts) {
 function classifyConnectorConfigured(json, name) {
   if (!json || !Array.isArray(json.data)) return null;
   const found = json.data.find((c) => c && c.name === name);
+  // Absent from ONE page of a longer list is not absent from the box.
+  if (!found && typeof json.totalItems === "number" && json.totalItems > json.data.length) return null;
   // Present but unconfigured counts as absent: the connector is installed, yet
   // nothing on this box can actually execute one of its actions.
   return !!(found && (found.configuration || []).length);
 }
+
+// The installed-connector list in ONE page. This endpoint pages with
+// `page_size`; it ignores `$limit`, so `?$limit=300` returned the first 30 of
+// 81 and every connector past page one read as "not configured" -- a false
+// ENV-SKIP (FortiSIEM on an 81-connector box).
+const CONNECTOR_LIST_PATH = "/api/integration/connectors/?page_size=300";
 
 // The connectors that can satisfy "block an IP on a firewall". Names are the
 // INSTALLED package names, which differ from the vendor word: FortiGate ships
@@ -324,12 +332,18 @@ function classifyConnectorConfigured(json, name) {
 // different firewall.
 const FIREWALL_CONNECTORS = ["fortigate-firewall", "fortigate"];
 
+// The connectors that can answer "search the SIEM for this alert's events".
+// FortiSIEM v2 carries every v1 op, so either satisfies the save-as-playbook row.
+const SIEM_CONNECTORS = ["fortinet-fortisiemv2", "fortinet-fortisiem"];
+
 module.exports = {
   makeClient,
   recordLookupQuery,
   firstRecordIri,
   CONNECTOR_NAME,
+  CONNECTOR_LIST_PATH,
   FIREWALL_CONNECTORS,
+  SIEM_CONNECTORS,
   classifyConnectorConfigured,
   combineConfigured,
   classifyConnectorHealth,
