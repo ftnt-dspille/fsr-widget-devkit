@@ -19,8 +19,8 @@ in the live captures** -- against the keys the renderer reads for that card type
 
 Both sources matter, for different reasons:
 
-- per-type comparison is what catches the #104 shape. `after_yaml` IS read by
-  `patch_proposal`, which is precisely why a file-wide read set would have missed
+- per-type comparison is what catches the #104 shape. `after_yaml` was read by
+  the (since retired) `patch_proposal`, which is precisely why a file-wide read set would have missed
   the enhancement_offer bug.
 - **captures are what catch the #78 shape.** A fixture is its author's belief
   about the wire, so auditing only fixtures makes the audit inherit their blind

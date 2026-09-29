@@ -61,7 +61,7 @@ describe("dispatchTypes reads the renderer, not a list someone maintains", () =>
   test("the real renderer yields the cards #105 names", () => {
     const types = dispatchTypes(fs.readFileSync(RENDERER, "utf8"));
     for (const t of ["approval_request", "manual_input", "action_card",
-      "choice_card", "playbook_offer", "patch_proposal", "enhancement_offer",
+      "choice_card", "playbook_offer", "enhancement_offer",
       "capability_gap"]) {
       expect(types).toContain(t);
     }

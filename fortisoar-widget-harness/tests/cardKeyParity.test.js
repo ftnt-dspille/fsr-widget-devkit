@@ -29,7 +29,7 @@ const CAPTURES = path.join(HARNESS, "tests", "live", "captures");
 // The analyst-actionable cards. Display-only frames (text, tool_use, info_card)
 // are not gated here -- see docs/CARD_DOM_COVERAGE.md for that boundary.
 const CARD_TYPES = ["action_card", "approval_request", "manual_input", "choice_card",
-  "capability_gap", "playbook_offer", "enhancement_offer", "patch_proposal"];
+  "capability_gap", "playbook_offer", "enhancement_offer"];
 
 function docRows() {
   const rows = [];
@@ -123,8 +123,8 @@ function normalizeAlpha(ev) { return { a: ev.alpha_key, c: ev['bracket_key'] }; 
   });
 
   test("branches do not bleed into each other -- that is the whole point", () => {
-    // `after_yaml` is read by patch_proposal, which is exactly why the
-    // enhancement_offer bug survived a file-wide read set.
+    // `after_yaml` was read by the (since retired) patch_proposal, which is
+    // exactly why the enhancement_offer bug survived a file-wide read set.
     expect(keysRead(branchFor(SRC, "beta_card")).has("alpha_key")).toBe(false);
   });
 
