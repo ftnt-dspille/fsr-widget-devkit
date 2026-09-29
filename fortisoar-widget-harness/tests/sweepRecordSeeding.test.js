@@ -8,7 +8,7 @@
 // target box and creates it when absent (soarClient.ensureRecord). These pin
 // the two pure halves of that lookup.
 
-const { recordLookupQuery, firstRecordIri } = require("./live/lib/soarClient");
+const { recordLookupQuery, firstRecordIri, staleFields } = require("./live/lib/soarClient");
 
 describe("sweep record lookup", () => {
   test("filters by the exact name, newest first, one row", () => {
@@ -32,5 +32,22 @@ describe("sweep record lookup", () => {
     expect(firstRecordIri(null)).toBeNull();
     expect(firstRecordIri({})).toBeNull();
     expect(firstRecordIri({ "hydra:member": [{}] })).toBeNull();
+  });
+
+  // A record an older sweep created lacks fields added since: the C2 alert had
+  // its IOCs only in description prose, so a trace-built playbook had nothing
+  // to wire them to (row 5: verified wiring 0 on every run).
+  test("tops up scalar fields the existing record lacks or holds differently", () => {
+    const row = { name: "n", description: "d", sourceIp: "", source: "FortiSIEM" };
+    const want = { name: "n", description: "d", source: "FortiSIEM",
+                   sourceIp: "10.50.60.70", destinationIp: "203.0.113.42" };
+    expect(staleFields(row, want)).toEqual(
+      { sourceIp: "10.50.60.70", destinationIp: "203.0.113.42" });
+  });
+
+  test("a current record needs nothing; name and objects are never patched", () => {
+    const want = { name: "other", description: "d",
+                   severity: { itemValue: "Critical" } };
+    expect(staleFields({ name: "n", description: "d" }, want)).toEqual({});
   });
 });

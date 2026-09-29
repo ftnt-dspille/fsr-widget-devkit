@@ -256,7 +256,20 @@ async function makeClient() {
   async function ensureRecord(module, fields) {
     const found = await request("GET", recordLookupPath(module, fields.name), { token });
     const iri = firstRecordIri(found.json);
-    if (iri) return { iri, created: false };
+    if (iri) {
+      // A record created by an older sweep lacks fields added since (live: the
+      // C2 alert had its IOCs only in description prose, so a trace-built
+      // playbook had no field to wire them to). Top up what differs.
+      const row = ((found.json && (found.json["hydra:member"] || found.json.data)) || [])[0] || {};
+      const patch = staleFields(row, fields);
+      if (Object.keys(patch).length) {
+        const res = await request("PUT", `${host}${iri}`, { token, body: patch });
+        if (res.status < 200 || res.status >= 300) {
+          throw new Error(`ensureRecord ${module} "${fields.name}": top-up HTTP ${res.status} ${String(res.text).slice(0, 200)}`);
+        }
+      }
+      return { iri, created: false, updated: Object.keys(patch) };
+    }
     const res = await request("POST", `${host}/api/3/${module}`, { token, body: fields });
     const made = res.json && res.json["@id"];
     if (res.status < 200 || res.status >= 300 || !made) {
@@ -274,6 +287,18 @@ async function makeClient() {
 // `/api/3/<module>?name=<exact>` -- FortiSOAR matches a plain field filter exactly.
 function recordLookupQuery(module, name) {
   return `/api/3/${module}?name=${encodeURIComponent(name)}&$limit=1&$orderby=-createDate`;
+}
+
+// The scalar fields of `wanted` that `row` lacks or holds differently. Only
+// scalars: picklist/relationship values come back as objects and IRIs, so
+// comparing them would PUT on every run.
+function staleFields(row, wanted) {
+  const out = {};
+  for (const [k, v] of Object.entries(wanted || {})) {
+    if (k === "name" || v == null || typeof v === "object") continue;
+    if (!row || row[k] !== v) out[k] = v;
+  }
+  return out;
 }
 
 // The first record's IRI from a collection response, or null.
@@ -340,6 +365,7 @@ module.exports = {
   makeClient,
   recordLookupQuery,
   firstRecordIri,
+  staleFields,
   CONNECTOR_NAME,
   CONNECTOR_LIST_PATH,
   FIREWALL_CONNECTORS,
