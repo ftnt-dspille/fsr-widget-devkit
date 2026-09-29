@@ -9,10 +9,12 @@ import path from "path";
 import { defineConfig, devices } from "@playwright/test";
 
 // Base port for the per-worker mock servers (worker N → E2E_BASE_PORT + N).
-// Override with E2E_BASE_PORT to run a second e2e invocation concurrently
-// without contending on 14401/14402 (see _isolated.ts, which reads the same
-// var so baseURL and the booted servers agree). Default keeps 14401/14402.
-const E2E_BASE_PORT = Number(process.env.E2E_BASE_PORT) || 14401;
+// Each run claims its OWN free pair (tests/e2e/_port.js) so concurrent runs --
+// another session, the IDE -- never share or tear down each other's servers.
+// E2E_BASE_PORT pins it; E2E_REUSE=1 keeps the legacy 14401/14402 + reuse.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { resolveBasePort } = require("./tests/e2e/_port.js");
+const E2E_BASE_PORT: number = resolveBasePort();
 
 dotenv.config();
 
@@ -94,11 +96,12 @@ export default defineConfig({
   workers: process.env.E2E_LIVE ? 1 : 2,
   fullyParallel: true,
   reporter: "list",
-  // Tests run against a dedicated harness on port 14401 so they never collide
-  // with a developer's `pnpm start` on 14400. Each test invocation boots its
-  // own server; reuseExistingServer:true skips the boot only if 14401 is
-  // already serving (e.g. a previous test run left it running, or you have
-  // another playwright watch running).
+  // Playwright deletes outputDir at the START of a run. Shared, one run wiped
+  // another's traces (and test-results/live captures). Scoped to this run.
+  outputDir: `test-results/e2e-${E2E_BASE_PORT}`,
+  // Tests run against dedicated harness servers (from 14401 up) so they never
+  // collide with a developer's `pnpm start` on 14400. Each invocation boots
+  // its own pair on ports it claimed (see tests/e2e/_port.js).
   use: {
     baseURL: `http://localhost:${E2E_BASE_PORT}`,
     trace: "retain-on-failure",
@@ -113,7 +116,9 @@ export default defineConfig({
   webServer: [E2E_BASE_PORT, E2E_BASE_PORT + 1].map((port) => ({
     command: `node server.js`,
     url: `http://localhost:${port}`,
-    reuseExistingServer: true,
+    // Never adopt a server this run did not boot: it may be another run's (and
+    // vanish mid-test) or an orphan booted with other env. Opt in for a watch.
+    reuseExistingServer: process.env.E2E_REUSE === "1",
     timeout: 60000,
     env: {
       FSR_BASE_URL:

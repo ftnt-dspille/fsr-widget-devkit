@@ -7,7 +7,7 @@
 const { test, expect } = require('@playwright/test');
 const { waitForRender } = require('./_render');
 
-const HARNESS = 'http://localhost:14401';
+const HARNESS = `http://localhost:${Number(process.env.E2E_BASE_PORT) || 14401}`;
 
 // Resolve the mounted widget id (name-version) so the spec survives version
 // bumps instead of hard-coding ztpGroupTimer-1.0.0.

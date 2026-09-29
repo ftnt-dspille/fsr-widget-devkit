@@ -89,6 +89,19 @@ Conventions that matter:
 - Let Playwright auto-retry: `await expect(locator).toHaveText(...)` waits for the
   async Angular mount; no manual sleeps.
 
+### Concurrent e2e runs get their own ports
+
+Several sessions (and the IDE) run e2e on this machine at once. Each run now
+claims a free server pair from 14401 upward (`tests/e2e/_port.js`, a pid lock
+under the OS tmpdir), writes its artifacts to `test-results/e2e-<port>/`, and
+never adopts a server it did not boot. The make targets reap only *orphaned*
+harness servers (`scripts/reap-e2e-orphans.sh`: `server.js` with ppid 1) instead
+of `kill -9`-ing whatever held 14401 -- which is what used to kill a run
+mid-flight (exit 137, or a wall of `net::ERR_CONNECTION_REFUSED`).
+`E2E_BASE_PORT=<n>` pins a pair; `E2E_REUSE=1` restores the fixed 14401 +
+server reuse for a watch session. A spec builds URLs from `baseURL` or
+`process.env.E2E_BASE_PORT`, never a literal port.
+
 ### E2e needs the SOAR app shell
 
 The harness renders widgets inside the real FortiSOAR app bundle, served from

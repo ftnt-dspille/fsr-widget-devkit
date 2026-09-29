@@ -64,7 +64,7 @@ test-e2e-headed: ## Playwright e2e with browser UI (test server on 14401)
 #        make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
 test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on an always-fresh test server
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make test-e2e-widget WIDGET=<widgetName>"; exit 2; fi
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@# E2E_LIVE= forces the MOCK stage to stay mock. playwright.config.js keys
 	@# testIgnore on that variable, so an ambient E2E_LIVE=1 in the caller's
 	@# shell silently un-ignores every *Live*.spec.js and this stage starts
@@ -75,7 +75,7 @@ test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on
 
 test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fresh test server
 	@if [ -z "$(SPEC)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js"; exit 2; fi
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC) --reporter=list
 
 # Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
@@ -90,7 +90,7 @@ SEAMC_PY     := $(HARNESS)/.venv-localdev/bin/python
 SEAMC_SPEC   := ../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.seamHermetic.spec.js
 turn-hermetic: ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
 	-lsof -ti:$(SEAMC_PORT) | xargs kill -9 2>/dev/null || true
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	FSRPB_DEV=1 FSRPB_SIDECAR_HERMETIC=1 FSRPB_SIDECAR_PORT=$(SEAMC_PORT) \
 		$(SEAMC_PY) $(SEAMC_SIDECAR) > /tmp/seamc-sidecar.log 2>&1 & echo $$! > /tmp/seamc-sidecar.pid
 	@echo "▶ waiting for hermetic sidecar on :$(SEAMC_PORT)…"
@@ -206,7 +206,7 @@ test-mcp-surface-live: ## LIVE M2 widget-tier proof: the mounted page decides th
 	@# Its own target rather than `test-e2e-spec SPEC=…` because a live spec needs
 	@# the box env sourced, and test-e2e-spec deliberately does not source one --
 	@# an ambient E2E_LIVE=1 there would un-ignore every live spec in the mock tier.
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
 	  pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).mcpSurface.spec.js --reporter=list
@@ -220,7 +220,7 @@ test-mcp-surface-live: ## LIVE M2 widget-tier proof: the mounted page decides th
 SWEEP_GREP = $(if $(ROWS),--grep "(^| )($(subst $(COMMA),|,$(ROWS)))[a-z]? ",)
 COMMA := ,
 test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats, ROWS=2,3 for a subset. Prints [[SWEEP-VERIFIED]]/[[SWEEP-PARTIAL]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@# A hard-down box makes the spec's beforeAll print [[SWEEP-ENV-SKIP]] and
 	@# skip every scenario. Playwright exits 0 on all-skipped, so without this
 	@# check ship-verify would print "live-verified" over a gate that graded
@@ -341,21 +341,21 @@ grade-export: ## Grade a downloaded widget .events.json chat export offline (EXP
 	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
 test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.playbookListingLive.spec.js --reporter=list
 
 test-ar-jtg-flow-live: ## LIVE action-renderer FULL edit flow (pick JSON-to-Grid playbook -> Run sample via notrigger -> Output) vs .env.box (205). AR_PLAYBOOK_NAME=<name> to override.
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js --reporter=list
 
 test-ar-connector-live: ## LIVE action-renderer CONNECTOR edit flow (pick connector -> operation -> Run sample -> table) vs .env.box. AR_CONNECTOR/AR_OPERATION to override (default mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]]).
-	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \

@@ -1,6 +1,6 @@
 'use strict';
 // Example end-to-end test. Boots the widget in the harness (a headless Chromium
-// driven by Playwright) and exercises the real DOM — the complement to the jest
+// driven by Playwright) and exercises the real DOM -- the complement to the jest
 // unit test, which only covers controller logic. Run with:
 //
 //   npm run test:e2e                      # boots its own harness on :14401
@@ -10,7 +10,7 @@
 
 const { test, expect } = require('@playwright/test');
 
-const HARNESS = 'http://localhost:14401';
+const HARNESS = `http://localhost:${Number(process.env.E2E_BASE_PORT) || 14401}`;
 
 // Resolve the mounted widget id (name-version) so the spec survives version
 // bumps instead of hard-coding helloCounter-1.0.0.

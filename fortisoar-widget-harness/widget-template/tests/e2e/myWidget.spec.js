@@ -1,12 +1,12 @@
 'use strict';
-// End-to-end test — boots the widget in the harness (headless Chromium) and
+// End-to-end test -- boots the widget in the harness (headless Chromium) and
 // exercises the real DOM. The complement to the jest unit test. Run with:
 //
 //   make test-e2e-widget WIDGET=myWidget   # from the dev-kit root
 
 const { test, expect } = require('@playwright/test');
 
-const HARNESS = 'http://localhost:14401';
+const HARNESS = `http://localhost:${Number(process.env.E2E_BASE_PORT) || 14401}`;
 
 // Resolve the mounted widget id (name-version) so the spec survives version
 // bumps instead of hard-coding myWidget-1.0.0.

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// new-widget.ts — spec-driven widget generator (North Star #5).
+// new-widget.ts -- spec-driven widget generator (North Star #5).
 //
 // Emits a CORRECT, harness-wired widget skeleton from a one-line spec so an
 // agent never hand-assembles the parts that cause silent breakage: the
 // controller-name ↔ version digits convention, the record-context wiring, the
-// playbook-trigger endpoint split (KB §19.3 — `action/<route>` vs
+// playbook-trigger endpoint split (KB §19.3 -- `action/<route>` vs
 // `notrigger/<uuid>`), and jest + Playwright scaffolds bound to the harness
 // helpers (waitForRender / the NS1 default fixture layer).
 //
@@ -22,7 +22,7 @@
 //   publisher      metadata.publisher    (default: "Your Team")
 //   compatibility  string[]              (default: ["7.6.0"])
 //   kind           "dashboard" | "record"   (default: "dashboard")
-//   triggersPlaybook  boolean            (default: false) — emits the NS4
+//   triggersPlaybook  boolean            (default: false) -- emits the NS4
 //                  trigger pattern inline + a config form + tests
 //
 // Result: widgets-src/<name>/ (widget + jest unit test) and an e2e spec
@@ -48,7 +48,7 @@ function toTitle(name) {
     const spaced = name.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
     return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
-/** "1.0.0" → "100" — the controller-name suffix the harness/SOAR resolves. */
+/** "1.0.0" → "100" -- the controller-name suffix the harness/SOAR resolves. */
 function versionDigits(version) {
     return version.replace(/\./g, "");
 }
@@ -115,7 +115,7 @@ function buildViewController(spec) {
         return `${copyright}
 "use strict";
 // VIEW controller. The harness/SOAR resolves the controller name as
-// \`<name><numericVersion>DevCtrl\` — ${ctrl} for ${spec.name} v${VERSION}.
+// \`<name><numericVersion>DevCtrl\` -- ${ctrl} for ${spec.name} v${VERSION}.
 // \`widget bump\` rewrites this suffix on a version change; never hand-edit it.
 (function () {
   angular
@@ -129,7 +129,7 @@ function buildViewController(spec) {
 
   function ${ctrl}($scope, config) {
     var defaults = { title: "Hello" };
-    // Guard config — a drawer cold-mount can pass nothing.
+    // Guard config -- a drawer cold-mount can pass nothing.
     $scope.config = angular.extend({}, defaults, config || {});
 
     // Keep view logic pure + small so the jest test can exercise it headless.
@@ -172,10 +172,10 @@ function buildViewController(spec) {
     }
     if (spec.triggersPlaybook) {
         body += `
-    // ── Playbook trigger (KB §19.3 — the endpoint split). The classic silent
+    // ── Playbook trigger (KB §19.3 -- the endpoint split). The classic silent
     // 404 is firing the ACTION endpoint by uuid; it keys off the registered
     // ROUTE. A manual / no-record / no-route playbook runs by uuid via the
-    // notrigger endpoint. selectUrl is the ONE place that decision lives — the
+    // notrigger endpoint. selectUrl is the ONE place that decision lives -- the
     // harness \`trigger-endpoint-misuse\` lint enforces it. Configure the chosen
     // playbook in edit.html (config.playbook = {uuid, route, triggerType}).
     $scope.triggerStatus = null;
@@ -231,7 +231,7 @@ function buildViewController(spec) {
     return `${copyright}
 "use strict";
 // VIEW controller. The harness/SOAR resolves the controller name as
-// \`<name><numericVersion>DevCtrl\` — ${ctrl} for ${spec.name} v${VERSION}.
+// \`<name><numericVersion>DevCtrl\` -- ${ctrl} for ${spec.name} v${VERSION}.
 // \`widget bump\` rewrites this suffix on a version change; never hand-edit it.
 (function () {
   angular
@@ -262,7 +262,7 @@ function buildViewHtml(spec) {
           data-ng-click="runPlaybook()">Run playbook</button>
   <div data-ng-if="triggerStatus" data-testid="${kebab}-status">{{ triggerStatus }}</div>`;
     }
-    return `<!-- VIEW template. Do NOT put data-ng-controller on the root here — the harness
+    return `<!-- VIEW template. Do NOT put data-ng-controller on the root here -- the harness
      (and SOAR after publish) wraps the widget with its own ng-controller; a
      second one creates a dead parallel scope. See KNOWLEDGEBASE.md §widget gotchas. -->
 <div class="${kebab}" data-testid="${kebab}-root">
@@ -287,7 +287,7 @@ function buildEditController(spec) {
     }
     return `${copyright}
 "use strict";
-// EDIT controller — the config editor. It loads only when the host opens
+// EDIT controller -- the config editor. It loads only when the host opens
 // "Edit Config". The SOAR shell opens it as a $uibModal, so wire the modal
 // close/dismiss contract: save() must close with the config; cancel() dismisses.
 (function () {
@@ -301,7 +301,7 @@ function buildEditController(spec) {
     // \`$scope.config\` is bound to the widget config the view will receive.
 ${init}
 
-    // Modal contract — without these, Save/Cancel won't close the SOAR modal.
+    // Modal contract -- without these, Save/Cancel won't close the SOAR modal.
     $scope.save = function () {
       if ($uibModalInstance) $uibModalInstance.close($scope.config);
     };
@@ -344,7 +344,7 @@ function buildEditHtml(spec) {
     </select>
   </div>`;
     }
-    return `<!-- EDIT template — the config form. Bind to object properties (config.X), never
+    return `<!-- EDIT template -- the config form. Bind to object properties (config.X), never
      bare words: ng-include/ng-if/ng-repeat create child scopes and a bare
      ng-model writes shadow the parent. See KNOWLEDGEBASE.md. -->
 <div class="${kebab}-edit">
@@ -437,9 +437,9 @@ ${spec.kind === "record" ? "    FormEntityService = _$injector_.get(\"FormEntity
     }
     if (spec.triggersPlaybook) {
         tests += `
-  // KB §19.3 — the endpoint split. An action playbook runs by ROUTE; a manual /
+  // KB §19.3 -- the endpoint split. An action playbook runs by ROUTE; a manual /
   // no-route playbook runs by UUID. Using the action endpoint by uuid is the
-  // classic silent 404 — assert the controller never does that.
+  // classic silent 404 -- assert the controller never does that.
   test("action playbook → action endpoint by route", () => {
     const { $scope } = makeController({});
     const sel = $scope.selectUrl({ triggerType: "action", route: "my_route", uuid: "PB-1" });
@@ -474,7 +474,7 @@ function buildE2eSpec(spec) {
     const kebab = toKebab(spec.name);
     const ctxSetup = spec.kind === "record"
         ? `      localStorage.setItem('harness.ctx', 'viewpanel');
-      // NS1 default fixture layer serves /api/3/<module>/<id> hermetically — no
+      // NS1 default fixture layer serves /api/3/<module>/<id> hermetically -- no
       // per-spec record stub needed. Seed the module/id the fixture is keyed to.
       localStorage.setItem('harness.module', 'alerts');
       localStorage.setItem('harness.id', 'seed-1');`
@@ -503,7 +503,7 @@ ${ctxSetup.replace(/\n/g, "\n  ")}
   });`;
     }
     return `'use strict';
-// End-to-end test — boots the widget in the harness (headless Chromium) and
+// End-to-end test -- boots the widget in the harness (headless Chromium) and
 // exercises the real DOM. The complement to the jest unit test. Run with:
 //
 //   make test-e2e-widget WIDGET=${spec.name}   # from the dev-kit root
@@ -511,7 +511,7 @@ ${ctxSetup.replace(/\n/g, "\n  ")}
 const { test, expect } = require('@playwright/test');
 const { waitForRender } = require('./_render');
 
-const HARNESS = 'http://localhost:14401';
+const HARNESS = \`http://localhost:\${Number(process.env.E2E_BASE_PORT) || 14401}\`;
 
 // Resolve the mounted widget id (name-version) so the spec survives version
 // bumps instead of hard-coding ${spec.name}-${VERSION}.
@@ -535,7 +535,7 @@ ${ctxSetup}
     }, id);
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     // waitForRender awaits the render state machine (NS-P0/P1) and THROWS on a
-    // swallowed controller/digest error — no magic timeouts, no silent pass.
+    // swallowed controller/digest error -- no magic timeouts, no silent pass.
     await waitForRender(page);
 
 ${assertion}
@@ -589,7 +589,7 @@ function writeWidget(gen, opts) {
         fs.writeFileSync(full, contents);
     }
     // Relocate the e2e spec into the harness tests/e2e/ (Playwright's testDir does
-    // not crawl the widgets-src symlink — a spec left in the widget folder is
+    // not crawl the widgets-src symlink -- a spec left in the widget folder is
     // never discovered).
     let e2ePath = null;
     if (fs.existsSync(opts.harnessE2eDir)) {
@@ -597,7 +597,7 @@ function writeWidget(gen, opts) {
         fs.writeFileSync(e2ePath, gen.e2eContents);
     }
     else {
-        // No harness e2e dir (standalone clone) — keep it with the widget.
+        // No harness e2e dir (standalone clone) -- keep it with the widget.
         e2ePath = path.join(dest, "tests", "e2e", gen.e2eFileName);
         fs.mkdirSync(path.dirname(e2ePath), { recursive: true });
         fs.writeFileSync(e2ePath, gen.e2eContents);
