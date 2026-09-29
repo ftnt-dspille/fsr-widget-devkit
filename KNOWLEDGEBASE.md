@@ -2916,6 +2916,24 @@ Two layers, both build-honored:
   command you are looking for" -- NOT the compiler).
 Avoid the fortiai trap: don't hand-patch the emitted `.js` and then re-emit over
 it -- keep the `.ts` the sole source and re-emit cleanly.
+This trap was hit twice in fortiaiAgenticAssistant: `finalYaml` on
+`playbook_offer` and `allowText` on `choice_card` lived only in the `.js`, so
+the next emit would have silently deleted both features. It is now enforced:
+`tests/renderTsJsParity.test.js` transpiles `fsrPbRender.ts` with the widget's
+tsconfig and fails unless it equals the shipped `.js` byte for byte.
+
+**Record HTML on a card: normalize BEFORE the bare-tag sanitizer.** An
+escape-first sanitizer that re-enables only BARE tags (`<b>`, `<p>`) shows every
+styled tag as literal text. FortiSIEM descriptions are all `<p style=…>` plus a
+key/value `<table><td style=…>`. The fix is fortiaiAgenticAssistant
+`_cardHtml`:
+- turn `<tr>` rows into `<b>Key</b>: value` lines;
+- drop attributes from whitelisted tags and remove every other tag;
+- decode entities;
+- then call the sanitizer.
+
+Truncate after that (`_truncateCardHtml` drops a half-cut trailing tag), never on
+the raw HTML.
 
 ### 32.11 Lint/gate checklist before shipping a widget
 From the dev-kit root:

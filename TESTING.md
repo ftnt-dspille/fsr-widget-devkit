@@ -122,6 +122,25 @@ stops at the first failure and prints that log's tail.
 3. **Live smoke.** health, compile, validate, resolve and render, plus one LLM
    turn that must card a containment. About 30s.
 
+**What's actually failing in real chats?** `make session-health` reads the box's
+stored sessions (`LIMIT=30`, or `SOURCE=local`). It lists every failing tool call
+with its input and output, and classes each one:
+- `model_input`: the tool refused the arguments.
+- `remote_input`: a remote system rejected the input and a rewrite worked.
+- `guard`: a gate refused on purpose.
+- `env`: box or config.
+- `tool_bug`: the tool broke.
+
+It marks whether the model fixed the call later in the same turn. For fixed
+calls, it shows the exact argument paths it changed, which is usually the
+sentence missing from the tool description. Start there before tuning prompts
+or tools. `OUT=report.md` writes it to a file.
+
+**Designer staging, proven live:** `make test-designer-stage-live`. It needs no
+LLM and takes ~45s. It pushes a scratch playbook, applies an edit into the real
+designer, and checks the canvas shows it without a reload and that the server
+copy is unchanged.
+
 Only a release or a proof needs the flow below: `make release-ship`, the full
 sweep ×2, and `make doctor RELEASE=1`. That last one FAILs on a dev-pushed box.
 Sweep logs are kept under `test-results/live-sweep/<timestamp>/`.

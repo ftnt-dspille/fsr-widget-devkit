@@ -735,7 +735,26 @@ d.details.$dirty = true;                                        // the details f
 - **`pb` shape:** `steps`, `routes` and `groups` as ARRAYS; each step's `stepType` an
   OBJECT (the canvas reads `stepType.name` -- the save body's IRI string breaks
   it); new steps need a `uuid` and `top`/`left`; routes reference steps as
-  `/api/3/workflow_steps/<uuid>` IRIs. Steps without `@id` are created on Save.
+  `/api/3/workflow_steps/<uuid>` IRIs. Steps without `@id` are created on Save
+  (`init` copies each step's `uuid` to `_oldUuid` first, and the route resolver
+  `Te()` matches `@id` OR `workflow_steps/<_oldUuid>` -- so a route to a new
+  step resolves through its `uuid`).
+- **Never send a top-level `null`.** `angular.extend` copies nulls, so a null in
+  `pb` REPLACES the entity's real value. `init` reads
+  `playbook.playbookOrigin["@id"]` on its first line: the compiler's
+  `playbookOrigin: null` threw `Cannot read properties of null (reading '@id')`
+  and left the canvas BLANK (no steps). Drop null keys before merging (connector
+  `_canvas_playbook`, and the widget's `_stageIntoDesigner` as a second guard).
+- **The live entity is NOT the save body's shape.** After `init`, `entity.steps` is
+  an OBJECT keyed by uuid (not an array), each route's `sourceStep`/`targetStep` is
+  the step OBJECT itself (not an IRI), `playbookOrigin` is a picklist object and
+  `triggerStep` an IRI. A hand-built stand-in misses all of this, which is how the
+  blank-canvas bug passed. Test staging against the captured real entity
+  (fortiaiAgenticAssistant `tests/fixtures/designerStage.real.json` +
+  `tests/designerStage.contract.test.js`). Prove it end to end with
+  `make test-designer-stage-live`: it pushes a scratch playbook, applies an edit
+  into the real designer, and checks the canvas with no reload and the server copy
+  unchanged. It needs no LLM and takes about 45s.
 - **Unsaved canvas edits are replaced with no prompt.** Check first: the
   directive's `details.$dirty` / `previousChanges.length`, and the controller's
   `stepSelected` / `stepForm.$dirty` (`#designer-container` scope).

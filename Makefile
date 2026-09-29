@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: loop doctor help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -183,6 +183,10 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor ENV=$(abspath $(HARNESS)/$(SWEEP_ENV))
+
+session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) session-health ENV=$(abspath $(HARNESS)/$(SWEEP_ENV)) \
+	  $(if $(LIMIT),LIMIT=$(LIMIT),) $(if $(OUT),OUT=$(abspath $(OUT)),) $(if $(SOURCE),SOURCE=$(SOURCE),)
 
 # Derive the sweep spec from the widget name instead of hardcoding it. The old
 # hardcoded `fsrSocAssistant` path went stale at the widget rename, and BOTH
@@ -356,6 +360,11 @@ test-ar-connector-live: ## LIVE action-renderer CONNECTOR edit flow (pick connec
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.connectorFlowLive.spec.js --reporter=list
+
+test-designer-stage-live: ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
+	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.159) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.159) (box creds)"; exit 2; fi
+	cd $(HARNESS) && set -a && . ./$(or $(LIVE_ENV),.env.159) && set +a && \
+	  E2E_LIVE=1 pnpm test:live tests/live/designerStage.live.test.js
 
 introspect: ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
 	-lsof -ti:$(INTROSPECT_PORT) | xargs kill -9 2>/dev/null || true
