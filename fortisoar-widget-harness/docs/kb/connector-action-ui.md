@@ -14,22 +14,22 @@ connector → operation → params → run flow.
 
 ### Triggering a playbook by API
 
-`playbookService.triggerPlaybookAction({ __uuid, __resource, records })` —
+`playbookService.triggerPlaybookAction({ __uuid, __resource, records })` --
 **`__uuid` must be the playbook's UUID, not the record's**. Sending the
 record UUID gives `404 /api/triggers/1/action/<uuid>`. `records` is the
 list of record IRIs (e.g. `/api/3/alerts/<uuid>`), `__resource` is the
 module name. The widget needs to track the result task ID itself if it
-wants to poll for the playbook output — `triggerPlaybookAction` only
+wants to poll for the playbook output -- `triggerPlaybookAction` only
 fires the trigger.
 
-**Two trigger endpoints — by trigger TYPE (action-renderer).**
+**Two trigger endpoints -- by trigger TYPE (action-renderer).**
 Not every playbook is a record-context "action" trigger. The platform `API`
 constant exposes both endpoints:
-- `API.ACTION_TRIGGER` = `api/triggers/1/action/<route>` — record-context
+- `API.ACTION_TRIGGER` = `api/triggers/1/action/<route>` -- record-context
   **action** triggers. Body `{__uuid, __resource, records}`. The trigger step's
   `arguments.route` is the identifier. This is what `/api/workflows/actions`
   returns (~210 on 205).
-- `API.MANUAL_TRIGGER` = `api/triggers/1/notrigger/<playbookUuid>` — **generic /
+- `API.MANUAL_TRIGGER` = `api/triggers/1/notrigger/<playbookUuid>` -- **generic /
   referenced / manual** playbooks (a plain *Start* trigger step with
   `triggerOnSource`/`triggerOnReplicate` and **no** `route`, e.g. "query critical").
   Body is just the params (`{}` works); returns `{task_id}`. Mirrors the platform's
@@ -37,7 +37,7 @@ constant exposes both endpoints:
 
 So **list all playbooks** (action + manual + referenced + scheduled, ~691 on 205),
 NOT just `/api/workflows/actions` (action-only, ~210). Perf: the full list WITH
-step bodies (`$relationships=true&$triggerOnly=true`) is ~3.7MB/15.7s — too heavy
+step bodies (`$relationships=true&$triggerOnly=true`) is ~3.7MB/15.7s -- too heavy
 for a dropdown and it busts a proxied poll window. Instead **list lightweight**
 (`/api/3/workflows?$limit=1000&isActive=true`, no `$relationships` → no steps,
 ~2MB/8.6s) and **fetch the picked playbook's trigger step on select**
@@ -45,7 +45,7 @@ for a dropdown and it busts a proxied poll window. Instead **list lightweight**
 derive `triggerType` + `inputVariables`. Detect type: `arguments.route` present →
 `triggerType:"action"`; else `"manual"`. Route the fire by `triggerType` (fall
 back to `route` presence for legacy saved configs). Because the pick now fetches,
-`onPlaybookPicked` is async (returns a promise) — await it before reading
+`onPlaybookPicked` is async (returns a promise) -- await it before reading
 `config.source`. The poll/log half (`checkPlaybookExecutionCompletion` →
 `getExecutedPlaybookLogData`) is identical for both trigger types and needs
 `playbookService`, so it only runs in the real app, not the harness.
@@ -61,13 +61,13 @@ SOAR's `app/components/form/fields/input.html` template uses interpolation
 in attributes (`placeholder="{{ ::placeholder }}"`). Real SOAR ships these
 templates pre-compiled into `$templateCache` at build time. When the
 harness lets `$templateRequest` fetch the template at runtime, the
-one-time `::` bind freezes as literal text in the rendered DOM —
+one-time `::` bind freezes as literal text in the rendered DOM --
 the input shows `{{ ::placeholder }}` verbatim.
 
 **Fix**: pre-load a clean template into `$templateCache` before any
 `cs-field` resolves it. Use `data-ng-attr-placeholder="{{placeholder}}"`
 instead of the brittle `::` form, and **keep the original `ng-change`
-and `ng-blur` bindings** — `ng-change="changeMethod(value, field)"` is
+and `ng-blur` bindings** -- `ng-change="changeMethod(value, field)"` is
 what propagates user input up through `cs-field` →
 `cs-connector-field-renderer.onChange` into the parent `params` map.
 Drop it and selects look fine but typed text never reaches `config.params`.
@@ -105,7 +105,7 @@ attribute, this lands `false` → the field renders the read-only
 object is overwritten by the directive's link.
 
 You **cannot** simply pass `data-jinja-default-view="'edit'"` on
-`cs-connector-field-renderer` to fix it — `app.unmin.js:9868` checks
+`cs-connector-field-renderer` to fix it -- `app.unmin.js:9868` checks
 `"edit" === jinjaDefaultView && "text" !== field.type` and flips
 non-text fields (selects, picklists) into `jinja.input` mode (a text
 input with a back-arrow toggle).
@@ -182,7 +182,7 @@ attribute directive that listens to `input` *and* `$watch`es the element's
 
 A widget-built modal (own `.overlay`/`.panel`, not `$uibModal`) that puts
 `overflow:auto` on the whole panel scrolls the header along with the body,
-and the panel scrollbar overlaps the rounded corners — visually a *second*
+and the panel scrollbar overlaps the rounded corners -- visually a *second*
 scrollbar next to the host page's. Make the panel a flex column and let
 **only the body** scroll:
 
@@ -197,7 +197,7 @@ Also neutralize Bootstrap's `.close` leakage (`float:none; opacity:1;
 text-shadow:none`) so the × sits where flex puts it, not floated.
 (fortiaiAgenticAssistant settings/history/export modals.)
 
-### Edit-modal chrome strip — keep stepper/nav INSIDE `.modal-body`, and mind a stray `</div>`
+### Edit-modal chrome strip -- keep stepper/nav INSIDE `.modal-body`, and mind a stray `</div>`
 
 SOAR's "Edit widget config" wraps your `edit.html` with its OWN modal-header and
 Cancel/Save footer, **stripping** any `modal-header`/`modal-footer` you ship. So
@@ -213,23 +213,23 @@ fine on short steps, so it's easy to miss. Guard it cheaply offline: count
 `<div>` vs `</div>` in the stripped template and assert the nav sits between
 `.modal-body` open and `</form>` (`action-renderer/tests/edit.template.test.js`).
 
-Second corollary — **the Save button vanishes on tall steps.** SOAR's edit
+Second corollary -- **the Save button vanishes on tall steps.** SOAR's edit
 modal is a fixed flex column (`header + body + Cancel/Save footer`). When the
 widget ships its **own `.modal-body` wrapped in a `<form>`**, the platform's flex
 height chain stops at the `<form>` (it never reaches `.modal-body`), so a tall
 step grows the body unbounded, the modal exceeds the viewport, and the injected
-**Save/Cancel footer is pushed off the bottom edge — no visible Save button**.
-Renders fine on short steps. Fix: cap the widget body so it scrolls internally —
+**Save/Cancel footer is pushed off the bottom edge -- no visible Save button**.
+Renders fine on short steps. Fix: cap the widget body so it scrolls internally --
 `max-height: calc(100vh - 240px); overflow-y:auto` on `.action-renderer-body`
 (`action-renderer` v1.0.7, live-verified on 205; guard in
 `tests/edit.css.test.js`). Safe here because the Output-step dropdowns are native
-`<select>`; if a step has a **ui-select**, `overflow:auto` would clip its popup —
+`<select>`; if a step has a **ui-select**, `overflow:auto` would clip its popup --
 scope `overflow:visible` while open (see §ui-select clip note).
 
-### Harness gotcha — `el.style.display = ""` falls back to a `display:none` stylesheet rule
+### Harness gotcha -- `el.style.display = ""` falls back to a `display:none` stylesheet rule
 
 When an element is hidden by a **stylesheet** rule (`#x { display:none }`), setting
-`el.style.display = ""` only clears the *inline* style — it falls back to the CSS
+`el.style.display = ""` only clears the *inline* style -- it falls back to the CSS
 rule and stays hidden. To reveal it you must set an explicit value
 (`"block"`/`"flex"`). This bit the harness edit-modal **JSON switcher**: the
 Form/JSON toggle hid the form and set the JSON textarea's inline display to `""`,
@@ -248,7 +248,7 @@ will not match it; use `/hello[- ]world/i`. Confirmed operations:
 | Add Numbers   | number_a, number_b | integer | yes      |
 | Reverse Text  | input_text         | text    | yes      |
 
-Good baseline for connector-flow integration tests — small, deterministic,
+Good baseline for connector-flow integration tests -- small, deterministic,
 and exercises the text-style param path that breaks first when
 `cs-field`/template wiring regresses.
 
@@ -263,7 +263,7 @@ the next digest**. Two pitfalls:
    the `.ng-isolate-scope` class inside your widget-specific wrapper.
 2. To exercise the user-typing path without dispatching real DOM input
    events, call the renderer's `onChange(value, field)` directly on its
-   isolate scope — that's the same callback `cs-field` invokes from its
+   isolate scope -- that's the same callback `cs-field` invokes from its
    internal `ng-change`. After that, `config.params[field.name]` will
    reflect the value.
 
@@ -287,7 +287,7 @@ progress on data, not just clicks:
 - `canAdvance(step)` returns a boolean per step. For connector params,
   walk `connectorParamFields` recursively and require non-empty `value`
   on every `required && editable && visible !== false` field. Jinja
-  expressions count as filled (they resolve at runtime — you can't
+  expressions count as filled (they resolve at runtime -- you can't
   validate them client-side).
 - Track `maxStepReached` in `gotoStep()` and refuse `save()` until
   `maxStepReached >= lastStep && canAdvance(1..N-1)`. Otherwise users
@@ -309,18 +309,18 @@ ng-controller; don't add one to the widget template root.
 
 When wiring up integration tests against the harness:
 
-- Assert `audit.literalInDom === 0` for `{{ ::placeholder }}` — catches
+- Assert `audit.literalInDom === 0` for `{{ ::placeholder }}` -- catches
   the `$templateCache` regression directly.
 - Sweep `[data-cs-field]` rows: if a row has a
   `.jinja-tag-view-container` and **no usable**
-  `input/select/textarea`, that's the empty-bar bug — a height check
+  `input/select/textarea`, that's the empty-bar bug -- a height check
   alone misses it because the bar is a `<div>`, not an `<input>`.
 - Assert at least one input/select has `height >= 20px` (the
   squished-input regression).
 - Assert `canAdvance(2) === false` after wiping required values, then
   `=== true` after filling them.
 - Assert `canSave() === false` on Step 1, then `=== true` after walking
-  to Step N — and that calling `save()` prematurely doesn't close the
+  to Step N -- and that calling `save()` prematurely doesn't close the
   modal.
 
 #### Angular drops query params whose name starts with `$`
@@ -328,7 +328,7 @@ When wiring up integration tests against the harness:
 `$http`/`$resource`'s param serializer treats any key beginning with `$` as
 private and **silently omits it from the request**. So
 `$resource("/api/workflows/actions").get({ $triggerOnly:true, $relationships:true, $limit:500, isActive:true })`
-sent ONLY `?isActive=true` — the `$`-filters never reached the server. For the
+sent ONLY `?isActive=true` -- the `$`-filters never reached the server. For the
 action-renderer "Show all playbooks" list this returned an unfiltered/odd page
 that rendered blank. Fix: bake `$`-params into the URL template
 (`$resource("/api/workflows/actions?$triggerOnly=true&$relationships=true&$limit=500&isActive=true")`)
@@ -349,7 +349,7 @@ scoped and "all" playbook lists.
 
 The directive re-initializes (fields visibly flash/reset) whenever the object
 passed to `data-connector-data` changes by **reference**. Picking a different
-*configuration* only needs the new `config_id`, not a teardown — so mutate the
+*configuration* only needs the new `config_id`, not a teardown -- so mutate the
 existing object in place (`cur.config = …`) and keep the reference stable; swap
 the reference only on a genuine connector/version switch. Recreating it on every
 `onConfigPicked` was the "fields and dropdowns flashing" customer report.
@@ -358,7 +358,7 @@ the reference only on a genuine connector/version switch. Recreating it on every
 
 `cs-connector-field-renderer` binds to a `params` object, but a renderer re-init
 (config switch, onchange subfield reveal) can repopulate the field objects from
-schema defaults without writing through — so user input survives on the field
+schema defaults without writing through -- so user input survives on the field
 objects but not in your bound `params`, and is **lost on save** ("loses the
 configuration when switching fields"). Walk the field tree (incl. visible
 `onchange` children + nested `parameters`) and copy `field.value → params[name]`
@@ -369,33 +369,33 @@ write-through.
 
 `fortisoar-widget-harness/widgets-src` is a symlink to `../widgets-src`.
 Playwright canonicalizes symlinks, sees the real path is OUTSIDE `testDir` (the
-harness), and silently drops every `widgets-src/*/tests/e2e/**` spec — `--list`
+harness), and silently drops every `widgets-src/*/tests/e2e/**` spec -- `--list`
 shows 0 files, no error. So `make ship-verify`'s mock-e2e step finds nothing for
 a widget whose specs live only under `widgets-src/`. Workaround until the config
 is fixed: put live/smoke specs that must run under the harness's own
 `tests/e2e/` (gated by `E2E_LIVE` via a `*[Ll]ive*` filename) so they're
 discoverable. (`examples/*` and the harness's own `tests/e2e/` ARE discovered.)
 
-#### Driving the real SOAR app from Playwright — the WAF/UA/login invariants
+#### Driving the real SOAR app from Playwright -- the WAF/UA/login invariants
 
-To test a widget against the **deployed** FortiSOAR app (not the harness mock —
+To test a widget against the **deployed** FortiSOAR app (not the harness mock --
 e.g. to exercise the real `cs-connector-field-renderer`, which the harness
 stubs), use the shared primitive `fortisoar-widget-harness/lib/soarBrowser.js`
 rather than re-deriving these quirks per spec:
 
 - `launchSoarSession({ headless, env }) → { browser, context, page, base, soar, errors, close }`
-  — launches desktop-UA Chrome, logs in, returns a ready authenticated page.
-- `openRecord(page, base, module, uuid)` — deep-links `/modules/<m>/<uuid>`.
-- `captureApiErrors(page) → { …, meaningful() }` — ≥400 `/api` + console + pageerror.
+  -- launches desktop-UA Chrome, logs in, returns a ready authenticated page.
+- `openRecord(page, base, module, uuid)` -- deep-links `/modules/<m>/<uuid>`.
+- `captureApiErrors(page) → { …, meaningful() }` -- ≥400 `/api` + console + pageerror.
 
 Hard invariants it owns (each silently breaks naive automation):
 
-- **FortiGuard inline IPS blocks the default headless UA** (Attack ID 20000051 —
+- **FortiGuard inline IPS blocks the default headless UA** (Attack ID 20000051 --
   "Web Page Blocked!"), even though authenticated API POSTs pass. Present a real
-  desktop Chrome UA (`DESKTOP_UA`, single source of truth here — `liveUiDriver`
-  re-exports it; don't fork) + `Accept-Language`. This — not SSO — is why the UI
+  desktop Chrome UA (`DESKTOP_UA`, single source of truth here -- `liveUiDriver`
+  re-exports it; don't fork) + `Accept-Language`. This -- not SSO -- is why the UI
   was historically "un-driveable" on forticloud.
-- **The local admin login is a LOCAL login, not SSO** — form `#username` + `#login_password`,
+- **The local admin login is a LOCAL login, not SSO** -- form `#username` + `#login_password`,
   submit `button[type=submit]`; then ~8s app-shell boot.
 - **Record deep-links are `/modules/<module>/<uuid>`** (ui-router
   `main.modulesDetail`); a bare `/<module>/<uuid>` silently redirects to login.
@@ -403,7 +403,7 @@ Hard invariants it owns (each silently breaks naive automation):
   `--ignore-certificate-errors`.
 
 **Placing a widget on a detail template so it actually RENDERS** (two gotchas that
-each make a programmatically-added cell silently vanish — found driving the
+each make a programmatically-added cell silently vanish -- found driving the
 action-renderer live test):
 
 - **A cell needs a unique `config.wid`.** A cell of just `{type, config}` is
@@ -415,7 +415,7 @@ action-renderer live test):
   widgets live at `tabs(config.tabs[]) → tab.widget(type:"rows").config.rows[].columns[].widgets[]`.
   Insert into the primary/first tab's nested widgets array (see
   `viewTemplate.js::pickInsertionTarget`).
-- A module can have **two `isDefault:true` "Base Template" rows SVTs** — resolve
+- A module can have **two `isDefault:true` "Base Template" rows SVTs** -- resolve
   the live one via `/api/views/1/modules-<m>-detail` (don't pick by name/flag).
 - Published SOAR mounts a widget WITHOUT an `ng-controller` attribute in the DOM
   (it strips the dev `…DevCtrl`). To assert "the controller is live" on a real
@@ -425,32 +425,32 @@ action-renderer live test):
 `liveUiDriver.js` (SOC-Assistant drawer flow) is now a thin layer on top of
 `soarBrowser`. To place a widget on a real record's detail view for such a test,
 use `tests/live/lib/viewTemplate.js` (`addActionRendererWidget` /
-`removeActionRendererWidget` — idempotent; cleanup is mandatory since it mutates
+`removeActionRendererWidget` -- idempotent; cleanup is mandatory since it mutates
 the production SVT) and `resolveInstalledActionRendererVersion()` so the version
 never drifts on a `--bump`. Example: `tests/e2e/actionRenderer.liveTemplate.spec.js`
 (gated `FSRPB_LIVE_UI=1`). The SVT API: a module's detail layout is a `type:"rows"`
 system view template; the ACTIVE one's uuid comes from
-`GET /api/views/1/modules-<module>-detail` (don't pick by name — duplicates exist).
+`GET /api/views/1/modules-<module>-detail` (don't pick by name -- duplicates exist).
 
-**Harness-shell EDIT-modal limits (two things the harness can't drive — found
+**Harness-shell EDIT-modal limits (two things the harness can't drive -- found
 working out the action-renderer playbook-listing live test, fix #4):**
 
-- **`playbookService` won't init in the harness** — `getPlaybookService()` logs
+- **`playbookService` won't init in the harness** -- `getPlaybookService()` logs
   `lazyService failed for playbookService … reading 'generate'` and returns null,
   because it transitively needs websocket/`$stomp` platform deps the harness
   stubs don't provide. So any edit path that calls `playbookService.*` (e.g. the
   action-renderer's MODULE-SCOPED playbook list `getActionPlaybooks`) yields an
-  empty result in the harness shell — that path is only verifiable in the real
+  empty result in the harness shell -- that path is only verifiable in the real
   **Application Editor**. The "Show all" branch uses a plain
   `/api/workflows/actions` `$resource` and DOES work against the live box
   (`E2E_LIVE=1` → `FSR_HERMETIC=0` → proxy reaches the box).
-- **AngularJS checkbox `ng-model` doesn't bind in the harness** — clicking a
+- **AngularJS checkbox `ng-model` doesn't bind in the harness** -- clicking a
   `<input type=checkbox data-ng-model=…>` flips the DOM `checked` but NOT the
   scope var (the input directive's change listener isn't wired in the harness's
   vendored Angular; `ng-click` on buttons works fine). To drive a checkbox's
   `ng-change` in a harness-shell test, fire the handler via scope
-  (`sc.flag = true; sc.onToggle(); sc.$apply()`) — same approach the
-  `playbook-dropdown-contrast` spec uses — and assert the checkbox is merely
+  (`sc.flag = true; sc.onToggle(); sc.$apply()`) -- same approach the
+  `playbook-dropdown-contrast` spec uses -- and assert the checkbox is merely
   visible for affordance fidelity. (In the full platform the binding works.)
 
 Live playbook-listing test: `tests/e2e/actionRenderer.playbookListingLive.spec.js`
@@ -462,11 +462,11 @@ SELECT populates `config.source` + param rows.
 
 **Playbook SELECT must NOT hard-depend on `playbookService` (action-renderer bug
 fixed).** `onPlaybookPicked` originally did
-`if (!getPlaybookService()) return;` then `playbookService.getTriggerStep(pb)` —
+`if (!getPlaybookService()) return;` then `playbookService.getTriggerStep(pb)` --
 so in any environment where `playbookService` isn't registered (the harness, and
 notably the *exact* "Show all" path which serves environments without it) picking
 a playbook silently NO-OP'd: `config.source` never populated. Fix: derive the
-trigger step locally when the service is absent — `getTriggerStepFor(pb)` prefers
+trigger step locally when the service is absent -- `getTriggerStepFor(pb)` prefers
 `playbookService.getTriggerStep` but falls back to scanning `pb.steps[]` for the
 step carrying `arguments.route`/`arguments.inputVariables` (action-trigger
 playbooks from `/api/workflows/actions?$triggerOnly=true` expose route +
@@ -475,7 +475,7 @@ keep `steps`, so the fallback has what it needs.
 
 **Two playbook param-gating bugs (same fix):** (1) playbook param rows are bound
 in `edit.html` to `config.params[row.name]`, but `requiredParamsFilled()` read
-`row.value` — a dead mismatch, so playbook required-param gating never worked.
+`row.value` -- a dead mismatch, so playbook required-param gating never worked.
 Read `config.params[r.name]`. (2) `rebuildParamRows` built rows without a
 `required` flag and ignored the inputVariable's `defaultValue`; the live
 inputVariable shape carries both (`{name,type,label,required,defaultValue,…}`).
@@ -488,7 +488,7 @@ A bump that renames the controller (e.g. `…Widget100DevCtrl` →
 `…Widget101DevCtrl` on a 1.0.0→1.0.1 version bump) must be mirrored in the
 test's `CTRL_NAME` constant. `$controller(name)` throws `ctrlreg` ("controller
 … is not registered") for **every** test in the file, so the suite goes 100%
-red at once — easy to misread as "the controller is broken" when it's just the
+red at once -- easy to misread as "the controller is broken" when it's just the
 test name lagging the version. The widget-action-renderer suite sat fully red
 this way (both `view`/`edit` test files pinned to `…100DevCtrl`). Grep
 `grep -rn "DevCtrl" widget/*.controller.js tests/*.js` after any version bump.
@@ -497,7 +497,7 @@ this way (both `view`/`edit` test files pinned to `…100DevCtrl`). Grep
 
 In `view.controller.js buildTable()`, a table whose `rootPath` resolves to a
 bare primitive was normalized as `rows=[{value: rooted}]`, but the auto-mode
-"value" column calls `formatCell(row)` on the **whole row** — so a primitive
+"value" column calls `formatCell(row)` on the **whole row** -- so a primitive
 `7` rendered as the cell text `{"value":7}` (an array-of-primitives root
 rendered correctly because its rows are the primitives themselves). Fix: keep a
 primitive root as `rows=[rooted]` so the "value" column formats it directly.
@@ -506,7 +506,7 @@ Pin it: assert a `{n:7}` result with `rootPath:"n"` yields `tableRows=[["7"]]`.
 #### `resolvePath` auto-descends single-element wrapper arrays
 
 Many FortiGate/generic-playbook responses wrap the real payload in a 1-element
-array — e.g. `gui_response.result` is `[{data:[…]}]` rather than `{data:[…]}`.
+array -- e.g. `gui_response.result` is `[{data:[…]}]` rather than `{data:[…]}`.
 `resolvePath` in both `view.controller.js` and `edit.controller.js` handles this:
 when traversing a dotted-key segment it checks whether the current value is a
 length-1 array and, if so, descends into `v[0]` automatically before looking up
@@ -514,32 +514,32 @@ the next key. This means `rootPath:"data.gui_response.result.data"` reaches
 `result[0].data` without requiring an explicit `[0]` in the path.
 
 - **Only safe for length-1.** A multi-element array is ambiguous and is NOT
-  auto-descended — the path resolves to `undefined`/`{found:false}`. Use an
+  auto-descended -- the path resolves to `undefined`/`{found:false}`. Use an
   explicit index (`result[2].data`) for multi-element arrays.
 - **Explicit `[0]` is always equivalent and preferred when the shape is known**
   (`result[0].data` and `result.data` both work; be explicit in static configs
   to make intent clear).
 - Tested in `edit.controller.test.js` ("resolvePath auto-descends…") and
-  `view.controller.test.js` ("rootPath auto-descends…") — `widget-action-renderer`.
+  `view.controller.test.js` ("rootPath auto-descends…") -- `widget-action-renderer`.
 
-### The harness hot-reload watcher corrupts concurrent e2e — disable it under `FSR_HERMETIC`
+### The harness hot-reload watcher corrupts concurrent e2e -- disable it under `FSR_HERMETIC`
 
 The dev harness (`server.js`) watches each widget dir + `harness.module.js` and
 broadcasts a **soft-remount** over SSE (`/_fsr/events`) on any file event;
 `public/index.html` reacts by calling `mountWidget()` again, which
-**re-instantiates the widget controller** (its in-memory state — `messages`,
-`events`, in-flight turns — resets to empty). Great for live iteration, silently
+**re-instantiates the widget controller** (its in-memory state -- `messages`,
+`events`, in-flight turns -- resets to empty). Great for live iteration, silently
 destructive under e2e: with 2 Playwright workers a stray FS event (a lint
 refresh, macOS FSEvents noise, a sibling spec that writes a widget asset) during
 one test's idle window remounts that test's widget mid-run. Symptom seen: the
 `slow_turn` Stop test deterministically failed under 2 workers (probe showed a
-**fresh** widget — `events:[]`, `msgs:0`, empty console — with no second page
+**fresh** widget -- `events:[]`, `msgs:0`, empty console -- with no second page
 navigation), while passing solo or with `--workers=1`. Tests never edit source
 mid-run, so gate every watcher off in test mode: `if (!HERMETIC) fs.watch(…)` /
 `if (!HERMETIC) for (const w of WIDGETS) attachWatcher(w)` (`HERMETIC =
 process.env.FSR_HERMETIC === "1"`, which `playwright.config.js` sets by default
 for the mock tier). Lesson: any harness "hot-reload" / soft-remount must be off
-under e2e — a mid-test controller re-mount is an un-debuggable state wipe.
+under e2e -- a mid-test controller re-mount is an un-debuggable state wipe.
 
 ---
 
@@ -549,10 +549,10 @@ A widget that talks to a configured connector must pick the config the platform
 would: the connector's **starred DEFAULT** (`configuration[].default === true`),
 falling back to the first. That default is the *visible, admin-controlled*
 switch (FortiSOAR → Connectors → star a config). Do **not** hardcode a preferred
-config name in the widget — it silently overrides the starred default, and an
+config name in the widget -- it silently overrides the starred default, and an
 admin looking at the Connectors UI has no way to tell or change what actually
 runs. (`fortiaiAgenticAssistant` shipped a hidden `PREFERRED_CONFIG='fsrpb-live'`
-that overrode a broken default; removed — the widget now selects
+that overrode a broken default; removed -- the widget now selects
 `configs.find(c => c.default)`.) If a session-scoped override is genuinely
 needed, make it user-initiated, non-persisted, and shown in a banner.
 
@@ -567,24 +567,24 @@ flag** but NOT the config **body**. That does NOT mean bodies are unreadable:
   (pyfsr `client.connectors.update_configuration(name, config_id, config, name=…,
   default=True)`). The `default: true` flag re-stars a config.
 - **Trailing slash is mandatory.** Omitting it yields
-  `403 "Could not validate HMAC fingerprint"` — that error is a *malformed-path*
+  `403 "Could not validate HMAC fingerprint"` -- that error is a *malformed-path*
   symptom, NOT an identity/permission wall. (A GET on `/configuration/{uuid}`
   without slash 403s the same way; don't read it as "the API-key path can't
   touch configs.")
 
 Caveats when flipping the default programmatically:
-- `update_configuration` sends `config` **whole** — you must supply every field,
+- `update_configuration` sends `config` **whole** -- you must supply every field,
   not just `default`. Read the current body first (`connector_detail`), then
   PUT it back with `default=True`.
 - **Secret preservation:** the UI's "update config without changing password"
   round-trips the masked-secret sentinel and the platform keeps the stored
   secret. pyfsr does not model a secret-preserving *set-default* convenience, so
   confirm the read returns the real secret (or the preserve sentinel) before
-  re-PUTting — otherwise you can blank an encrypted key. (NFR candidate:
+  re-PUTting -- otherwise you can blank an encrypted key. (NFR candidate:
   `set_default(connector, config_id)` that reads→writes with secret preservation.)
 
 To grade a config's LLM health without touching key material at all, call the
-connector's own `health_check` op against a specific `config_id` — it runs inside
+connector's own `health_check` op against a specific `config_id` -- it runs inside
 the agent worker and returns `{ok, llm_reachable, llm_error, llm_key_configured,
 llm_provider}` via a free `models.list` probe (how the needs_config help panel
 grades every config).
@@ -603,11 +603,11 @@ as a **natural-language user turn**:
 Execution was therefore at the model's discretion. In a live containment run the
 model ignored the instruction, spent the turn hunting for unrelated FortiEDR
 search ops, and still opened its answer with *"The host was successfully
-isolated"* — an approved containment action that **never ran, reported as
+isolated"* -- an approved containment action that **never ran, reported as
 done**, with nothing in the transcript to contradict it.
 
 **Rule:** an approved card is dispatched deterministically, before the model
-turn, via `dispatch(tool, {**args, "_approved": True}, _internal=True)` — the
+turn, via `dispatch(tool, {**args, "_approved": True}, _internal=True)` -- the
 same internal-only post-approval bypass the framework's legacy tier-3 gate
 (`llm/openai_provider.py::resume`) has always used. The model is then told the
 action **has already been executed** and is handed the real result to narrate.
@@ -619,17 +619,17 @@ Two consequences worth keeping:
   fronting them the stored history shows the assistant discussing an action with
   no record it ran. "The assistant said so" is not an audit record.
 - **On failure, say so.** The failure branch tells the model plainly not to
-  claim success — an approved-but-failed containment is the one case where a
+  claim success -- an approved-but-failed containment is the one case where a
   confident summary is most dangerous.
 
 Regression tests: `tests/test_approved_card_executes.py`.
 
-## A guard is not an error — don't render it red
+## A guard is not an error -- don't render it red
 
 Framework guards (`repeated_call_guard`, `call_once_guard`,
 `forbidden_pivot_guard`, `hunt_floor_guard`, and `kind: "guard_redirect"`)
 return `{ok: false, error: "STOP calling …"}`. The `ok:false` + `error` shape is
-deliberate — it makes the **model** treat the guard as terminal — but it made
+deliberate -- it makes the **model** treat the guard as terminal -- but it made
 the guard indistinguishable from a real failure to
 `fsrPbRender.ts::inferToolStatus`, which keys off exactly those fields.
 
@@ -639,5 +639,55 @@ firing exactly as designed**. `inferToolStatus` now checks the guard keys
 amber **skipped** chip; `view.controller.js`'s export error tally counts only
 `error`, so guards drop out of it automatically.
 
-When adding a new guard, add its key to `GUARD_KEYS` in `fsrPbRender.ts` — this
+When adding a new guard, add its key to `GUARD_KEYS` in `fsrPbRender.ts` -- this
 is a [parallel name list](../../../CLAUDE.md), so it drifts silently otherwise.
+
+## A playbook pause's buttons are the answer, not decoration
+
+A FortiSOAR manual-input step can pause with **no fields at all**: just buttons,
+and the step's description carrying data. The ZTPF "Get Metadata Source Data on
+Device" playbook pauses twice: first to pick a manager and device, then
+"Data Collected" with `Ok` / `Save Example` and the collected firmware list in
+the description. Each button routes the run down a different branch
+(`response_mapping.options[].step_iri`), so which one is pressed is the
+analyst's decision.
+
+What the stack does with that (fortiaiAgenticAssistant + connector):
+- **Who answers:** a pause with fields, or with **two or more** buttons, is the
+  analyst's. It gets a `manual_input` card, and the framework's
+  `TriageDiscipline` stops the model from resuming it. A single-button pause is
+  an acknowledgement the model may give itself. The connector's
+  `is_analyst_form` and the framework's `_paused_on_form` must agree; that is a
+  parallel rule, so change both.
+- **The wire:** the card carries `buttons: [{label, primary}]`. The widget
+  renders one button per label when there are two or more, and sends the label
+  as `respond_manual_input` `option`. The connector matches it to the option
+  case-insensitively and refuses an unknown label (`bad_option`) rather than
+  falling back to the primary. Only the primary button waits for the required
+  fields; `Cancel` / `Save Example` go through as chosen.
+- **Chained pauses:** after a submit, the connector reads the run's *next*
+  pause and appends it as the next card. Before this, the second pause was
+  invisible: the re-await dropped buttons-only forms.
+- **The prompt is the author's markdown** (rich-text HTML on older playbooks),
+  and a results pause puts the run's output there. `renderPromptText` renders
+  both, and keeps YAML fences that the chat renderer drops.
+
+Tests: `tests/manualInput.buttons.test.js`,
+`tests/e2e/fortiaiAgenticAssistant.manualInputChoice.spec.js`; on the connector
+side, `tests/test_manual_input_card.py`.
+
+## "Approve & always allow" writes the persona
+
+A `run_playbook` approval card carries `always_allow: {persona, playbook}` when
+the active persona would have asked (the playbook is not in its
+`run_playbook.auto`). The widget then shows **Approve & always allow**, which
+sends `chat_resume` with `remember: true`. The connector adds the playbook to
+that persona's `run_playbook.allow` and `auto` *before* running it, on the
+record the resolver reads: the `assistant_personas` row when there is one, else
+the Key Store `fsr_assistant_profile:<module>` entry. It also drops that
+worker's cached persona. A failed grant is reported on the response
+(`always_allow: {ok: false, ...}`) and never blocks the approved run.
+Limitation: the persona cache is per (session, module) and lives as long as the
+worker, so another worker that already resolved this session's persona keeps
+the old copy and can still ask in that session. A new session always reads the
+updated persona.

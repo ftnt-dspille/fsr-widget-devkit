@@ -37,6 +37,8 @@ and not yet decided. It is not a synonym for "fine".
 
 | card | key | status | reason |
 |---|---|---|---|
+| `action_card` | `approval_id` | by-design | A tier-3 approval converted to an action card keeps the gate's id for the connector to pop its suspended session. The card's `id` is that same value and is what the widget resumes by. |
+| `action_card` | `tool` | by-design | The tool the converted approval suspended. The card already says what it does through `summary` / `target` / `changes`; a raw tool name is not analyst-facing. |
 | `approval_request` | `args_hash` | by-design | Integrity handle for the connector's own tamper check on approved args. Never displayed; the analyst reads the args, not their hash. |
 | `approval_request` | `cursor` | by-design | Transcript position for the connector's own resume bookkeeping. Nothing for the analyst to read. |
 
