@@ -624,6 +624,37 @@ Two consequences worth keeping:
 
 Regression tests: `tests/test_approved_card_executes.py`.
 
+### An approved card runs once -- and every surface must read "already decided"
+
+Because the approved card executes from its **stored** copy, nothing stopped a
+second approve (double click, a second tab, or the chat drawer and the Monitor
+queue answering the same card) from running the write again. The connector now
+claims the decision per card (`session_card_decisions`); a later
+approve/reject/accept/decline returns
+`{ok:false, error:{code:"already_decided", message, decided:{decision, actor, decided_at}}}`.
+A failed or refused resume releases the claim. `choice` stays re-answerable.
+
+Widget rule: **grade the response, never stamp the click.** The action card used
+to set `_outcome = 'approve'` and "Confirmed by <me>" on any resolved promise --
+with central approval that would show an approval this analyst never made, on a
+card the reviewer rejected. `_resolveCardVia` now renders the earlier decision
+and its actor (`tests/card.decidedElsewhere.test.js`). Send `actor` on every
+resume so the refusal can name who decided.
+
+### Record writes: a list or object sent to a TEXT field is saved as the word "Array"
+
+Live on 8.0: `POST /api/3/ztpf_templates` with `inputParameters: []` (the field is
+`type: string`, a textarea whose real format is newline-separated names) saved
+the literal string `"Array"`; so did `{}` and a list of objects. No error. The
+write tool now reads field types from `/api/3/model_metadatas?type=<module>` and
+refuses a list/object for a `string`/`text` field before the approval card, with
+examples of what other records hold (`tools_records._structured_into_text`).
+
+Related read trap: a plain `GET /api/3/<module>/<uuid>` returns **null** for a
+many-to-many field (e.g. a template's `ztpfMetadataSources`), which reads exactly
+like a link that was never saved. Read back with `?$relationships=true` before
+concluding a write lost its links.
+
 ## A guard is not an error -- don't render it red
 
 Framework guards (`repeated_call_guard`, `call_once_guard`,
