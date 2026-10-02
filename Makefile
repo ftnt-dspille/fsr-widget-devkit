@@ -361,6 +361,14 @@ test-ar-connector-live: ## LIVE action-renderer CONNECTOR edit flow (pick connec
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.connectorFlowLive.spec.js --reporter=list
 
+test-monitor-escalation-live: ## LIVE: a reviewer resolves a real auto-triage escalation in the Monitor. MONITOR_ESC_RECORD=<record name> (seed it first); LIVE_ENV=.env.<box> (default .env.81)
+	@if [ -z "$(MONITOR_ESC_RECORD)" ]; then echo "Usage: make test-monitor-escalation-live MONITOR_ESC_RECORD=<record name> [LIVE_ENV=.env.81]"; exit 2; fi
+	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.81) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.81) (box creds)"; exit 2; fi
+	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
+	cd $(HARNESS) && set -a && . ./$(or $(LIVE_ENV),.env.81) && set +a && \
+	  PORT=$(TEST_PORT) E2E_LIVE=1 MONITOR_ESC_RECORD="$(MONITOR_ESC_RECORD)" \
+	  pnpm test:e2e ../widgets-src/socAssistantMonitor/tests/e2e/socAssistantMonitor.escalation.live.spec.js --reporter=list
+
 test-designer-stage-live: ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
 	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.159) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.159) (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./$(or $(LIVE_ENV),.env.159) && set +a && \
