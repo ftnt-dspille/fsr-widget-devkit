@@ -301,15 +301,16 @@ describe("lintWidget", () => {
     expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(false);
   });
 
-  test("dual-mode edit.controller that pulls config via $injector.get is clean", () => {
+  // $uibModal passes `config` as a controller LOCAL; $injector.get('config')
+  // throws in the real modal (the harness's global factory hid it), so the
+  // dynamic form no longer satisfies the persist requirement.
+  test("edit.controller that pulls config via $injector.get -> edit-config-inject error", () => {
     const files = Object.assign({}, baseFiles, {
       "edit.html": `<form><input data-ng-model="config.orientation" /></form>`,
-      // Dual-mode: no static `config` inject (would throw in overlay mode);
-      // reads the injected saved config dynamically instead.
       "edit.controller.js": `function editFoo112DevCtrl($scope, $injector){ try { var c = $injector.get('config'); if (c) $scope.config = c; } catch(e){} } editFoo112DevCtrl.$inject=["$scope","$injector"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
     });
     const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
-    expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(false);
+    expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(true);
   });
 
   // Regression: ztpGroupTimer's first edit.html injected $uibModalInstance and
@@ -349,7 +350,7 @@ describe("lintWidget", () => {
     const files = Object.assign({}, baseFiles, {
       "edit.html": `<div><input data-ng-model="config.title" /></div>`,
       // No $uibModalInstance injected -- an overlay editor, not a real modal.
-      "edit.controller.js": `function editFoo112DevCtrl($scope, $injector){ try { var c = $injector.get('config'); if (c) $scope.config = c; } catch(e){} } editFoo112DevCtrl.$inject=["$scope","$injector"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
+      "edit.controller.js": `function editFoo112DevCtrl($scope){ $scope.config = $scope.config || {}; } editFoo112DevCtrl.$inject=["$scope"]; angular.module("x").controller("editFoo112DevCtrl", editFoo112DevCtrl);`,
     });
     const r = lintWidget({ info: baseInfo, files, viewControllers: ["foo112DevCtrl"], editControllers: ["editFoo112DevCtrl"] });
     expect(r.errors.some((e) => e.code === "edit-modal-shell")).toBe(false);

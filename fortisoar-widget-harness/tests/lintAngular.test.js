@@ -1,7 +1,7 @@
 "use strict";
 // Rule-level coverage for scripts/lint-angular.js. Drives the compiled CLI
 // against a throwaway WIDGETS_SRC fixture (the linter honours that env, same as
-// the parent Makefile) and asserts on its stdout — so a rule can be proven
+// the parent Makefile) and asserts on its stdout - so a rule can be proven
 // without a real widget checkout. Focused on `copyright-header-missing`
 // (Phase 4 of TYPESCRIPT_STATIC_ANALYSIS_PLAN.md), plus the env-override and
 // warning-severity (non-blocking) contract it relies on.
@@ -76,7 +76,7 @@ describe("copyright-header-missing", () => {
   test("scans .css assets too, and ignores a stray 'Copyright' below the header window", () => {
     writeWidget("cssWidget", {
       "view.html": `${HEADER.replace("/*", "<!--").replace("*/", "-->")}\n<div>ok</div>\n`,
-      // Header markers appear, but only past line 15 — must still be flagged.
+      // Header markers appear, but only past line 15 - must still be flagged.
       "widgetAssets/css/app.css": `${"\n".repeat(20)}/* Copyright start ... Copyright end */\n.x{color:red}\n`,
     });
     const { out } = runLint("cssWidget");
@@ -193,5 +193,35 @@ describe("enablefor state-match", () => {
     });
     const { out } = runLint("goodStates");
     expect(out).not.toMatch(/enablefor-/);
+  });
+});
+
+// The dashboard edit modal passes config/$uibModalInstance as $uibModal LOCALS;
+// fetching them through $injector.get() threw on a real box and Save did nothing.
+describe("edit-modal-locals-via-injector", () => {
+  const edit = (body) =>
+    `${HEADER}\nangular.module('cybersponse').controller('e', e);\ne.$inject = ${body.inject};\n` +
+    `function e(${body.args}){\n${body.code}\n$scope.save = function(){};\n$scope.cancel = function(){};\n}\n`;
+
+  test("flags $injector.get('$uibModalInstance') and $injector.get('config') as errors", () => {
+    writeWidget("viaInjector", {
+      "edit.controller.js": edit({
+        inject: "['$scope','$injector']", args: "$scope, $injector",
+        code: "var m = $injector.get('$uibModalInstance');\nvar c = $injector.get(\"config\");",
+      }),
+    });
+    const { code, out } = runLint("viaInjector");
+    expect(out.match(/edit-modal-locals-via-injector/g)).toHaveLength(2);
+    expect(code).toBe(1);
+  });
+
+  test("does NOT flag a statically injected $uibModalInstance + config", () => {
+    writeWidget("staticInject", {
+      "edit.controller.js": edit({
+        inject: "['$scope','$uibModalInstance','config']", args: "$scope, $uibModalInstance, config",
+        code: "$scope.config = config;",
+      }),
+    });
+    expect(runLint("staticInject").out).not.toMatch(/edit-modal-locals-via-injector/);
   });
 });

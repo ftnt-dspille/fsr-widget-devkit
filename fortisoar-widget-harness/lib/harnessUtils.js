@@ -633,20 +633,18 @@ function lintWidget(opts) {
         const bindsConfig = /ng-model\s*=\s*["'][^"']*\bconfig\./.test(files["edit.html"] || "");
         const editSrc = files["edit.controller.js"] || "";
         const editDeps = extractInjectedDependencies(editSrc);
-        // A dual-mode edit controller (works both as a $uibModal AND as an ng-include
-        // overlay) cannot list `config` in its static $inject array: the `config`
-        // provider only exists under $uibModal, so a static inject throws
-        // `unknownProvider` in overlay mode. Such controllers pull the saved config
-        // dynamically via `$injector.get('config')` instead -- which satisfies the
-        // persist requirement just as well. Treat that as an equivalent inject.
-        const dynamicConfigGet = /\$injector\s*\.\s*get\s*\(\s*["']config["']\s*\)/.test(editSrc);
-        if (bindsConfig && !editDeps.includes("config") && !dynamicConfigGet) {
+        // `$injector.get('config')` does NOT count: $uibModal passes `config` as a
+        // controller LOCAL, not an injector service, so it throws in the real
+        // modal and the editor silently loads defaults (the harness masks this by
+        // registering a global `config` factory). lint-angular errors on that form
+        // as `edit-modal-locals-via-injector`.
+        if (bindsConfig && !editDeps.includes("config")) {
             errors.push({
                 code: "edit-config-inject",
                 file: "edit.controller.js",
                 message: `edit.html binds widget config (ng-model="config.…") but edit.controller.js does not inject ` +
-                    `\`config\`. The host passes the SAVED config in as the injected \`config\` dependency -- not on ` +
-                    `$scope -- so without it the editor shows stale defaults every time it reopens and closes the ` +
+                    `\`config\` in its $inject array. The host passes the SAVED config in as a $uibModal local -- not on ` +
+                    `$scope, and not reachable via $injector.get() -- so without it the editor shows stale defaults every time it reopens and closes the ` +
                     `modal with a fresh object, silently discarding the user's saved choices. Inject \`config\` and ` +
                     `bind it: \`$scope.config = angular.extend({<defaults>}, config || {})\`.`,
             });

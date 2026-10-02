@@ -78,7 +78,7 @@ function checkNgModelDotRule(file, lines) {
 // hazard: it only bites when the read runs during controller construction,
 // before the guard line executes. A read inside a later-invoked function (an
 // event handler, a $scope method, a $watch/promise callback) runs long after
-// construction — the guard has already applied — so flagging it by raw line
+// construction - the guard has already applied - so flagging it by raw line
 // order is a false positive. We judge ordering with a real JS AST: an access is
 // "before defaults" only when it lives in the SAME function scope as the guard
 // and precedes it. The missing-guard hazard ('config-defaults-missing') is
@@ -106,14 +106,14 @@ function checkConfigDefaultsBeforeAccess(file, lines) {
         });
     }
     catch (_b) {
-        // Unparseable (exotic syntax, a partial file) — degrade, don't go dark.
+        // Unparseable (exotic syntax, a partial file) - degrade, don't go dark.
         return checkConfigDefaultsRegex(file, lines);
     }
     // `$scope.config` as a MemberExpression (non-computed .config on .$scope).
     const isScopeConfig = (n) => n && n.type === 'MemberExpression' && !n.computed &&
         n.property && n.property.name === 'config' &&
         n.object && n.object.type === 'Identifier' && n.object.name === '$scope';
-    // A read/write of `$scope.config.X` — a 3-level member whose object is
+    // A read/write of `$scope.config.X` - a 3-level member whose object is
     // `$scope.config`. This naturally excludes the guard's own bare LHS and any
     // `$scope.config || {}` (both 2-level).
     const isScopeConfigDotX = (n) => n && n.type === 'MemberExpression' && isScopeConfig(n.object);
@@ -161,7 +161,7 @@ function checkConfigDefaultsBeforeAccess(file, lines) {
 // Nearest enclosing Function node for an acorn-walk ancestor chain (ancestors
 // includes the node itself as the last element; its own function scope is the
 // last Function among the preceding ancestors). Returns null at module top
-// level (two top-level reads share the `null` scope, which is correct — they
+// level (two top-level reads share the `null` scope, which is correct - they
 // run in the same synchronous construction pass).
 function nearestFn(ancestors) {
     for (let i = ancestors.length - 2; i >= 0; i--) {
@@ -283,7 +283,7 @@ function checkInjectArray(file, lines) {
 }
 // R6: edit.controller.js missing $uibModalInstance + close/dismiss. Even
 // though our overlay path doesn't need it, the same controller is opened as a
-// modal by the SOAR shell — must wire both paths.
+// modal by the SOAR shell - must wire both paths.
 function checkEditModalContract(file, lines) {
     if (!file.endsWith('edit.controller.js'))
         return;
@@ -292,6 +292,16 @@ function checkEditModalContract(file, lines) {
         record('warning', file, 1, 'edit-modal-instance-missing', 'edit.controller.js does not reference $uibModalInstance. When opened by SOAR shell ' +
             'as a $uibModal, save/cancel will not close the modal.');
     }
+    // $uibModal hands `config` and `$uibModalInstance` to the controller as
+    // LOCALS, not injector services, so $injector.get() throws for both in the
+    // real dashboard modal and Save silently does nothing. The harness registers
+    // global factories for both, so only this rule catches it before a box does.
+    lines.forEach((line, i) => {
+        if (/\$injector\.get\(\s*['"](?:config|\$uibModalInstance)['"]/.test(line)) {
+            record('error', file, i + 1, 'edit-modal-locals-via-injector', "$injector.get('config' / '$uibModalInstance') throws inside SOAR's $uibModal (they are " +
+                'controller locals). List them in $inject instead. KB 5.2.');
+        }
+    });
     if (!/save\s*=\s*function|\$scope\.save\s*=/.test(src)) {
         record('warning', file, 1, 'edit-save-missing', 'edit.controller.js does not define a save() handler.');
     }
@@ -316,7 +326,7 @@ function checkDataPrefixOnCsDirectives(file, lines) {
     lines.forEach((line, i) => {
         let m;
         while ((m = re.exec(line)) !== null) {
-            // Allow if the leading char IS 'data-' — check the preceding bytes
+            // Allow if the leading char IS 'data-' - check the preceding bytes
             // before the matched space. The space-prefix in our regex already
             // excludes `data-cs-`. Confirm.
             const before = line.slice(0, m.index);
@@ -354,10 +364,10 @@ function checkInfoJson(file, json) {
     }
     // enableFor entries are UI-Router state names (`main.playbookDetail`,
     // `viewPanel.modulesDetail`) matched against `$state.current.name` by
-    // csDrawerWidgetGroup (KB §18.4). Missing/empty enableFor is legitimate —
-    // it means "always visible" — so we DON'T flag that. We only flag entries
+    // csDrawerWidgetGroup (KB §18.4). Missing/empty enableFor is legitimate -
+    // it means "always visible" - so we DON'T flag that. We only flag entries
     // that can never match any state, i.e. the widget silently appears nowhere:
-    //   - a marketplace *page label* ("Dashboard", "View Panel") — those scope
+    //   - a marketplace *page label* ("Dashboard", "View Panel") - those scope
     //     the dashboard picker, not the router; state names have no spaces.
     //   - a bare segment with no dot ("dashboard" vs "main.dashboard").
     //   - a non-string entry.
@@ -371,7 +381,7 @@ function checkInfoJson(file, json) {
             }
             if (PAGE_LABELS.indexOf(entry) >= 0 || /\s/.test(entry)) {
                 record('error', file, 1, 'enablefor-page-label', 'metadata.view.enableFor entry "' + entry + '" looks like a marketplace page ' +
-                    'label, not a UI-Router state — it will never match $state.current.name so the ' +
+                    'label, not a UI-Router state - it will never match $state.current.name so the ' +
                     'drawer icon appears nowhere. Use a state name like "main.dashboard". KB §18.4.');
                 return;
             }
@@ -404,14 +414,14 @@ function checkConnectorConfigId(file, lines) {
     });
 }
 // R11: Generic CSS class selector with no widget-root prefix. SOAR doesn't
-// scope per-widget CSS — `.card { height: 70px }` from one widget leaks
+// scope per-widget CSS - `.card { height: 70px }` from one widget leaks
 // into every other widget that uses the same class. Caught us when
 // `fortiguardIocSearch`'s `.card { width: 100px; height: 70px }` clamped
 // our choice cards. Flag any rule in <style> blocks or asset CSS whose
 // leftmost selector is a bare generic class.
 function checkUnscopedGenericSelectors(file, lines) {
     // Class names that have global meaning across SOAR / Bootstrap / other
-    // widgets — restyling these without a widget-root prefix leaks out.
+    // widgets - restyling these without a widget-root prefix leaks out.
     const GENERIC = ['card', 'chip', 'step', 'role', 'message', 'messages',
         'content', 'title', 'subtitle', 'actions', 'body', 'header',
         'footer', 'panel', 'btn', 'button', 'modal', 'tag', 'badge',
@@ -447,14 +457,14 @@ function checkUnscopedGenericSelectors(file, lines) {
             if (GENERIC.indexOf(m[1]) < 0)
                 return;
             record('warning', file, i + 1, 'unscoped-generic-css', 'CSS selector "' + trimmed + '" is a generic class with no widget-root prefix. ' +
-                "SOAR doesn't scope widget CSS — this rule will leak into other widgets and theirs " +
+                "SOAR doesn't scope widget CSS - this rule will leak into other widgets and theirs " +
                 'into yours. Prefix with your widget root (e.g. ".fsr-pb-widget .' + m[1] + '").');
         });
     });
 }
 // R12: widget root must use viewport-based height AND composer must be
 // sticky. `height: 100%` collapses in SOAR's drawer; raw `height: 100vh`
-// overflows when there's chrome above the widget — the composer falls
+// overflows when there's chrome above the widget - the composer falls
 // below the visible viewport. The proven pattern (fortisocchatagent):
 // `height: calc(100vh - <px>)` on the root + `position: sticky; bottom:0`
 // on the bottom input row.
