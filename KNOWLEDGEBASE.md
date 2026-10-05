@@ -1552,6 +1552,33 @@ ad-hoc `pyfsr`.
 
 ---
 
+### 20.5 Who called the connector -- trust `X-User`, never a widget-sent actor
+
+A connector's `execute(self, config, operation_name, params, **kwargs)` runs as a
+service account: `kwargs["request"].user` is `hmac_user`, not the analyst. So an
+`actor` the widget puts in `params` is only a claim. The real caller is the
+`X-User` header the platform gateway adds (the person's uuid). Live-verified on
+8.0:
+
+```python
+meta = kwargs["request"]._request.META          # DRF Request -> Django request
+raw = meta.get("HTTP_X_USER")                   # "<people uuid>"
+values = [v.strip() for v in (raw or "").split(",") if v.strip()]
+caller = values[0] if len(values) == 1 else None  # >1 value = forged, refuse
+```
+
+- **The gateway APPENDS, it does not replace.** A client that sends its own
+  `X-User` arrives as `"<forged>, <real>"`. Take the last value only if you must,
+  but treat more than one value as tampering and fail closed.
+- Roles: `GET /api/3/people/<uuid>?$relationships=true` -> `roles` is a list of
+  role IRIs; names via `GET /api/3/roles`. Name = `firstname` + `lastname`.
+- Never read or log `HTTP_FORWARDED_AUTHORIZATION` -- it is a credential.
+- `kwargs` is easy to drop: a dispatcher written `op(config, params)` loses the
+  request entirely. Bind the caller (e.g. a ContextVar) in `execute` itself.
+
+Used by the SOC Assistant connector's reviewer check (`reviewer_roles`,
+`_decision_gate` in `operations.py`).
+
 ## 21. Permissions
 
 ```js
