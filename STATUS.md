@@ -12,6 +12,8 @@ file is the index. Update it when a thread changes state; move finished items to
 > "tracked" once it has a **Plan docs** row; anything still owed also gets an
 > **Open / next up** row.
 
+> **2026-10-06:** this file has not been the live tracker since 2026-08-18 -- current state, priorities and release status live in the tracker `ROADMAP.md` (see `CLAUDE.md`). Rows below are kept for history.
+
 _Last updated: 2026-08-01 (session L). **Test-realism Phase 1.1 landed**: the offline cassette now reports which reads went UNSERVED, and the first 7-row sample showed every row asking for data nobody answers while all but one still graded clean -- the sweep's PASSes are narrower than they read. A hand-audit of those 7 rows agreed with the automated grader on 20/21 calls and caught one **false positive** (`never_acts_on` punished the correct refusal), now fixed. New `make regrade` tier re-grades stored transcripts in ~0.2s / zero tokens, so grader work never re-drives the model again. All uncommitted. Previously: session J. **HARDEN-1 is BUILT on both write
 paths** (fw `d4b576c`, conn `fb72474`) -- the pre-write diff gate refuses a save
 that silently deletes live data, RED-proofed, green offline; **ship + one live
@@ -109,13 +111,13 @@ the remaining step (R1-gated). Prior sessions A-D → `STATUS_ARCHIVE.md`._
 
 ## 🔥 This week -- critical
 
-> ⚠️ **Superseded by [`docs/plans/ROADMAP_2026-08.md`](docs/plans/ROADMAP_2026-08.md) §1 (NOW).**
-> The table below is kept for its problem statements but is **stale on the
-> release state**: framework `v0.6.6` IS cut (HEAD is 4 commits past it) and
-> connector `0.5.66` pins it, so HARDEN-1, the tool-description truncation fix
-> and the no-echo durable fix are **shipped** -- only HARDEN-1's *live proof* is
-> owed. Row #4's "option (a)" is mis-specified; see ROADMAP §4. Full list of
-> tracker corrections: ROADMAP §0.
+> ⚠️ **Superseded by the tracker `ROADMAP.md` §3 (NOW)** (repo
+> `ftnt-dspille/soc-assistant-tracker`; `docs/plans/ROADMAP_2026-08.md` here is
+> only a pointer to it). The table below is kept for its problem statements
+> and is **stale on release state**. As of 2026-10-06: framework `v0.6.61` is
+> the latest tag and connector `0.5.172` pins it; HARDEN-1, the
+> tool-description truncation fix and the no-echo durable fix shipped long ago
+> (in `v0.6.6` / `0.5.66`). Do not read a "ship owed" below as current.
 
 The threads to push on, ordered so the highest-risk one is cleared first.
 
@@ -123,7 +125,7 @@ The threads to push on, ordered so the highest-risk one is cleared first.
 
 | # | Thread | Why now | First concrete action | Doc / detail |
 |---|---|---|---|---|
-| 1 | ✅ **HARDEN-1: save-path pre-write diff -- BUILT 2026-07-31, ship owed** | ~~The only item on this board whose failure mode is destroying customer data rather than erroring.~~ Gate built on **both** write paths (fw `d4b576c`, conn `fb72474`), RED-proofed, suites green offline. Remaining: ship to a box + one live proof. See the Open row. | Ship fw + conn, then drive an edit that drops a step and confirm the widget renders the refusal. | Open row below |
+| 1 | ✅ **HARDEN-1: save-path pre-write diff -- BUILT 2026-07-31, SHIPPED in fw 0.6.6 / conn 0.5.66** | ~~The only item on this board whose failure mode is destroying customer data rather than erroring.~~ Gate built on **both** write paths (fw `d4b576c`, conn `fb72474`), RED-proofed, suites green offline. Remaining: ship to a box + one live proof. See the Open row. | Ship fw + conn, then drive an edit that drops a step and confirm the widget renders the refusal. | Open row below |
 | 1b | ~~**HARDEN-1 (original statement)**~~ | **The only item on this board whose failure mode is destroying customer data rather than erroring.** The widget writes the model's last ` ```yaml ` fence back over the customer's playbook; field loss is silent and has happened twice (`for_each`, then declared `parameters`), both found **by accident** because no test tier can see it. Pure local code -- no box, no network. | Build the pre-write diff gate: decompile the live playbook, diff it against what is about to be written, and **refuse the save** when a field disappears that the requested change does not explain. Fail closed, name the dropped path. Then a test tier that can actually catch it -- pin the OLD impl back and prove the gate goes red (synthesized fixtures inherit the fixer's blind spots). | Open row below; `docs/plans/playbook-compiler-fidelity-and-agent-surface.md` §Phase 1 |
 | 2 | **GA demo on .206** | Top standing priority: make the SOC assistant demo great. Box is live (conn 0.5.37, all connectors configured, 3 seeded alerts). | Resolve the **Z5 scenario** decision (retarget vs flip to `manual_input` -- one-line edit), then an in-browser rehearsal of the triage→contain arc on .206. | `docs/plans/ga-demo-soc-investigation.md`; Open rows Z5 / SKL-MI2 |
 | 3 | **State-derived intent -- Phase 3 + M2 widget-tier** | Phase 0/1/2 + M1/M3 shipped & live (Phase 1 + persona P0 live-verified .206 2026-07-28). | Phase 3 (disposition from state) is **DEPRIORITIZED**; M2 widget-tier proof is now unblocked -- the widget sends page facts, so confirm it emits `module=workflows` from a playbook page + the in-browser per-page surface rehearsal. | `docs/plans/state-derived-intent-and-tool-slicing.md` |
