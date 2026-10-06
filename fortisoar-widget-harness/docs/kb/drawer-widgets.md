@@ -698,6 +698,19 @@ what makes these paths test-relevant, not cosmetic.
   **no entity context**. A broken mount therefore reads as a *passing* test. The
   SPA rewrites a bad route to `/not-found`, so assert on `location.pathname`
   after navigating and fail loudly (`lib/liveUiDriver.ts` `goto()` throws).
+- **A list page still names a module.** On `main.modules.list` there is no
+  record (`$state.params.id` absent) but `$state.params.module` is set, so a
+  drawer can work "in the module" there: `fortiaiAgenticAssistant` keeps a
+  `listContext` (`_listModuleFromState`), resolves the module's persona, sends
+  `entity: {module, view: 'list'}`, and shows a list deck. Two traps:
+  - **A list state at init is not settled.** The router can sit on
+    `main.modules.list` for a beat while moving to a record; treat the list
+    module as provisional and keep the record retry running
+    (`opener.entity.race` / `seed.card.robust` pin this). Short-circuiting the
+    retry on a list state broke 9 tests.
+  - **Persona `ui` keys are whitelisted** in `fsrPbAgent.service.js`
+    `_personaFromUi`; a new key (e.g. `listQuickActions`) is dropped silently
+    until it is added there.
 - **A bare `/dashboard` 404s** -- the dashboard requires its uuid:
   `/dashboard?module=<dashboard-uuid>`. (Moot for this widget per `enableFor`
   above, but true of the route.)
