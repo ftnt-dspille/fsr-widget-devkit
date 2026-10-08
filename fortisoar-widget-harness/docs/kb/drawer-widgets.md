@@ -773,6 +773,16 @@ d.details.$dirty = true;                                        // the details f
 - **Unsaved canvas edits are replaced with no prompt.** Check first: the
   directive's `details.$dirty` / `previousChanges.length`, and the controller's
   `stepSelected` / `stepForm.$dirty` (`#designer-container` scope).
+- **...but a staged Apply is itself unsaved.** After Apply #1 lands in the canvas,
+  that check blocked Apply #2 ("Save or discard") although the only unsaved
+  edits were the assistant's own draft. Record `previousChanges.length` right
+  after staging; if it is unchanged and no step is open, the dirt is ours and a
+  follow-up Apply may replace it (fortiaiAgenticAssistant `_onlyOurStagedDraft`).
+- **The open playbook the connector edits is `entity.playbook_yaml`, seeded once
+  from the SAVED copy.** After a staged Apply the canvas and that seed differ, so
+  the next turn edited the saved (empty) playbook and every `edit_playbook` op
+  failed "no steps yet". The `playbook_staged` info card carries `yaml`; adopt it
+  as `$scope.playbookYaml` when the stage succeeds.
 - **Restore point:** the designer's own "save version" is
   `POST /api/3/workflow_versions` `{note, json: JSON.stringify(preparePlaybookForOverwrite(pb)), workflow: <@id>, modifyDate}`
   (`playbookService.saveVersion`). The connector's `update_playbook` takes the
