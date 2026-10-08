@@ -135,7 +135,7 @@ On every Angular UI-Router `$stateChangeSuccess`, the directive walks every draw
 **The state-name format.** SOAR uses Angular UI-Router with dot-separated parent/child state names:
 
 - `main` is the post-auth app shell (`app.unmin.js:46127`). Sticky state, mounts `app/templates/main.html` into the `content` view, deep-redirects to `main.dashboard`. Every authenticated page is a child.
-- `main.playbookDetail` (`app.unmin.js:32540`) -- URL `/playbooks/:id`, controller `PlaybookDesignerCtrl`, template `app/playbooks/designer/designer.html`. The playbook editor.
+- `main.playbookDetail` (`app.unmin.js:32540`) -- URL `/playbooks/:id`, controller `PlaybookDesignerCtrl`, template `app/playbooks/designer/designer.html`. The playbook editor. Its `playbookEntity` resolve loads `new Entity("workflows")` by `$stateParams.id`, so a playbook is a **`workflows`** record (IRI `/api/3/workflows/<id>`) and the state carries **no `module` param** -- derive the module from the state, not `$state.params.module` (re-checked against the 8.0.0 bundle; `fortiaiAgenticAssistant` `_playbookEntityFromState` does this, and the connector's `MODULE_AFFORDANCE['workflows']` keys the authoring surface off it).
 - Other useful child states visible in the bundle: `main.dashboard`, `main.editor`, `main.workflow`, `main.rules`, `main.search`, `main.security`, `main.profile`, `main.system`. To enumerate, grep `app.unmin.js` for `.state("main.`.
 
 **The matcher uses `_.contains` on the exact `current.name`** -- so `main.playbookDetail.subview` does **not** match `main.playbookDetail`. List each nested state explicitly.
