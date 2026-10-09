@@ -399,3 +399,7 @@ introspect-soar: ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s)
 
 clean: ## Remove harness node_modules + test artifacts
 	rm -rf $(HARNESS)/node_modules $(HARNESS)/test-results test-results
+
+# Cross-repo agreement report (widget dev kit / framework / connector). Reads only.
+agreement: ## Report every cross-repo agreement point; DRIFT exits 1 (REPORT=1 always exits 0)
+	python3 scripts/cross_repo_agreement.py $(if $(REPORT),--report,)
