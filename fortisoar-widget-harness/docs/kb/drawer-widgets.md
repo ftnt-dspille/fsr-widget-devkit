@@ -451,6 +451,19 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   gate ever checked. Pinned by `tests/yaml.offer.precedence.test.js`. The
   rehydrate scan (`_rehydrateBuildState`, above) still reads fences only.
 
+- **Offer cards say what starts the playbook.** `playbook_offer` and
+  `enhancement_offer` may carry `trigger: {kind, modules, label, manual?}`
+  (framework `tools_emit._trigger_summary`, read from the YAML's `trigger:`
+  block). `_offerTrigger` (`fsrPbRender.ts`) keeps `{label, manual}` and drops
+  anything without a `label`; `view.html` prints it as `.po-trigger` under the
+  summary (testids `playbook-offer-trigger-<offerId>` /
+  `enhancement-offer-trigger-<offerId>`). Older connectors send no `trigger`, and
+  then the line is simply absent, so don't default it to "manual". Pinned by
+  `tests/offer.trigger.test.js` and the playbookOffer e2e.
+  ⚠️ A decompiled start_on_create/update trigger can **lose its module** (the
+  compiler then defaults to alerts + incidents), so the label can name modules
+  the designer never set. That's a decompiler bug, not a render bug.
+
 - **A `$scope` field that both selects a UI mode AND is sent on the wire cannot
   safely take a third value -- keep persona/mode *framing* signals separate from
   the payload-bound `intent`.** `fortiaiAgenticAssistant`'s `uiIntent` doubles as
