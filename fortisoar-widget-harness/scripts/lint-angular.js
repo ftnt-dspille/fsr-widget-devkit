@@ -517,10 +517,73 @@ function checkCopyrightHeader(file, lines) {
         '(HTML uses `<!-- Copyright start … Copyright end -->`.)');
 }
 // ─── Driver ───────────────────────────────────────────────────────────────
+// A `$scope.<name>` function that no template and no non-test JS in the widget
+// references is dead UI. The suite calls such functions directly, so they stay
+// "covered" and nothing fails: that is how $scope.respondApproval,
+// $scope.historyNoMatches and the monitor's $scope.isFilterActive survived
+// refactors. Conservative on purpose: any other occurrence of the name as a
+// whole word (in a template, another file, or a comment) counts as a reference,
+// so the rule can miss dead code but never flags a name it cannot see used.
+const SCOPE_FN_DEF = /\$scope\.(\w+)\s*=\s*(?:function\b|\([^)]*\)\s*=>|[\w$]+\s*=>)/;
+function _isTestFile(p) {
+    return /(^|[\\/])(tests?|e2e|__tests__)[\\/]/.test(p) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(p);
+}
+function _isVendorFile(p) {
+    return /\.min\.js$/.test(p) || /[\\/]widgetAssets[\\/]js[\\/]lib[\\/]/.test(p)
+        || /[\\/]node_modules[\\/]/.test(p);
+}
+function _walkFiles(root, exts) {
+    const out = [];
+    if (!fs.existsSync(root))
+        return out;
+    const stack = [root];
+    while (stack.length) {
+        const d = stack.pop();
+        for (const n of fs.readdirSync(d)) {
+            const p = path.join(d, n);
+            let st;
+            try {
+                st = fs.statSync(p);
+            }
+            catch (e) {
+                continue;
+            }
+            if (st.isDirectory())
+                stack.push(p);
+            else if (exts.some((x) => p.endsWith(x)))
+                out.push(p);
+        }
+    }
+    return out;
+}
+function checkDeadScopeFunctions(widgetDir) {
+    const sources = _walkFiles(widgetDir, ['.js', '.html']).filter((f) => !_isVendorFile(f));
+    const prod = sources.filter((f) => !_isTestFile(f));
+    const tests = sources.filter((f) => _isTestFile(f) && f.endsWith('.js'));
+    const lines = new Map();
+    sources.forEach((f) => lines.set(f, readLines(f) || []));
+    prod.filter((f) => f.endsWith('.js')).forEach((file) => {
+        (lines.get(file) || []).forEach((text, i) => {
+            const def = SCOPE_FN_DEF.exec(text);
+            if (!def)
+                return;
+            const word = new RegExp(`\\b${def[1]}\\b`);
+            // Any whole-word hit outside the definition line itself is a reference.
+            const referenced = (files) => files.some((f) => (lines.get(f) || []).some((t, j) => word.test(t) && !(f === file && j === i)));
+            if (referenced(prod))
+                return;
+            const onlyTests = referenced(tests);
+            record('warning', file, i + 1, 'dead-scope-fn', `$scope.${def[1]} is defined but no template or non-test JS references it` +
+                (onlyTests ? ' (only tests call it: the suite keeps it alive, nothing else does)' : '') +
+                ' -- delete it or wire it up');
+        });
+    });
+}
 function lintWidget(widgetDir) {
     let widgetRoot = path.join(widgetDir, 'widget');
     if (!fs.existsSync(widgetRoot))
         widgetRoot = widgetDir;
+    checkDeadScopeFunctions(widgetDir);
     const info = path.join(widgetRoot, 'info.json');
     if (fs.existsSync(info)) {
         const json = readJson(info);
