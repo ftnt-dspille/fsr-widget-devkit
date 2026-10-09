@@ -464,6 +464,18 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   compiler then defaults to alerts + incidents), so the label can name modules
   the designer never set. That's a decompiler bug, not a render bug.
 
+- **An edit can add a playbook, and Apply saves it immediately.**
+  `enhancement_offer.playbooks_added` names reusable child playbooks the edit
+  creates beside the open one (framework `edit_playbook` op `add_playbook`).
+  The designer canvas holds ONE playbook, so the connector's Apply upserts the
+  children into the open playbook's collection first, then stages the open
+  playbook. The staged card's `yaml` is the parent alone, calling the child by
+  `workflowReference`. `_offerTrigger`'s sibling `playbooksAdded`
+  (`fsrPbRender.ts`) feeds `.po-new-playbooks` (testid
+  `enhancement-offer-new-playbooks-<offerId>`). It is the only warning the
+  analyst gets that discarding the canvas will NOT remove the child. Pinned by
+  `tests/enhancementOffer.render.test.js` and the `enhancementNewPlaybook` e2e.
+
 - **A `$scope` field that both selects a UI mode AND is sent on the wire cannot
   safely take a third value -- keep persona/mode *framing* signals separate from
   the payload-bound `intent`.** `fortiaiAgenticAssistant`'s `uiIntent` doubles as
