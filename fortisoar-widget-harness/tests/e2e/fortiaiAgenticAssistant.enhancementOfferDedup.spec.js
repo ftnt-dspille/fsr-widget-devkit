@@ -9,10 +9,9 @@ const { resolveWidgetId, DEFAULT_ID } = require("./_widgetId");
 let WIDGET_ID = DEFAULT_ID;
 test.beforeAll(async ({ request }) => { WIDGET_ID = await resolveWidgetId(request); });
 
-const CARD = '[data-testid="approval-card-ap-unrequested-1"]';
 const OFFER = '[data-testid="enhancement-offer-enh-uc-1"]';
 
-// Boot the widget with unrequested_change mock (contains enhancement_offer after approval)
+// Boot the widget with the unrequested_change mock (its turn carries the enhancement_offer)
 async function boot(page) {
   await page.addInitScript((id) => {
     localStorage.setItem('harness:config:' + id, JSON.stringify({
@@ -37,10 +36,6 @@ async function boot(page) {
   // Submit a message to trigger the turn
   await page.locator('[data-testid="chat-input"]').fill('Explique ce playbook.');
   await page.locator('[data-testid="chat-input"]').press('Enter');
-  await page.locator(CARD).waitFor({ state: 'visible', timeout: 15000 });
-
-  // Approve to get the enhancement_offer
-  await page.locator('[data-testid="approval-approve"]').click();
   await page.locator(OFFER).waitFor({ state: 'visible', timeout: 15000 });
 }
 

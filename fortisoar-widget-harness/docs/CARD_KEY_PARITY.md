@@ -50,8 +50,8 @@ and not yet decided. It is not a synonym for "fine".
      feature:
 
      - the producer is live (`fsr_playbooks/llm/tools.py`), not fixture-only.
-       Its branch is DORMANT, gated on `CHANGE_GATED_TOOLS` -- empty today and
-       deliberately kept armed by a test on that side. So `reason` is `null` on
+       Its branch was DORMANT, gated on `CHANGE_GATED_TOOLS` (empty), and was
+       removed with that gate (simplify Item 1). While it existed, `reason` was `null` on
        every current capture, which is why the audit read absence-from-captures
        as "unverified". Absence was evidence of dormancy, not of safety.
      - it is not redundant with `summary`. `reason` selects the card's FRAMING,
@@ -60,10 +60,9 @@ and not yet decided. It is not a synonym for "fine".
        a suggestion "Approval required: verify_enhancement" -- a raw tool name
        -- over an empty arg table with a green Approve button.
 
-     The widget now reads it (`isOffer`): the head becomes "Suggested change"
-     and the buttons "Draft it" / "No thanks". Covered by
-     `tests/approval.unrequestedChange.test.js`, firing/silencing paired so an
-     ordinary containment approval cannot inherit offer framing. #124. -->
+     The widget read it (`isOffer`) until the gate was removed; the offer
+     framing ("Suggested change", "Draft it" / "No thanks") went with it. The
+     `enhancement_offer` card itself is unchanged. #124. -->
 
 <!-- The table above is now entirely `by-design`. That is a state to hold
      deliberately, not a finish line: UNTRIAGED existing is the gate working,
