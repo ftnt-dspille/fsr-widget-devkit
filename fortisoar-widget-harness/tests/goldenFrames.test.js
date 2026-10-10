@@ -18,15 +18,8 @@ const docs = fs.readdirSync(DIR).filter((f) => f.endsWith(".json")).sort()
   .map((f) => JSON.parse(fs.readFileSync(path.join(DIR, f), "utf8")));
 
 // Golden name -> the field the JS digest does not agree with the framework on.
-const KNOWN_DIVERGENCE = {
-  // The framework reads the enhance path's verify_enhancement.after_yaml;
-  // digestLive reads only yaml / playbook_yaml / currentYaml, so it loses the YAML.
-  enhance_after_yaml_no_fence: "delivered_yaml",
-  // digestLive keeps a fenced block only when it begins playbooks: / steps: /
-  // - name:. The framework takes the last fence whatever it holds, so a fragment
-  // the assistant put in a fence counts as delivered on one side only.
-  fence_only_reply: "delivered_yaml",
-};
+// Empty: the readers agree on every golden. Add a row only with a reason.
+const KNOWN_DIVERGENCE = {};
 
 describe.each(docs.map((d) => [d.name, d]))("golden frames: %s", (name, doc) => {
   const frames = doc.envelope.transcript;

@@ -398,6 +398,17 @@ const RED_FLAG_RULES = [
 // rule applies to live matrix rows for free. A rule added for an offline
 // regression immediately gates the live matrix too -- that is the whole point of
 // the loop (docs/plans/live-chat-eval-and-build-flow-fixes.md).
+// Mirrors fsr_playbooks/harness/frames.py: the offer cards that deliver a
+// playbook, and the argument each YAML-carrying tool takes it in.
+const OFFER_CARD_TYPES = new Set(['playbook_offer', 'enhancement_offer']);
+const YAML_CARRIER = {
+  emit_playbook_offer: 'yaml',
+  verify_playbook: 'yaml_text',
+  push_playbook: 'yaml_text',
+  verify_enhancement: 'after_yaml',
+  emit_card: 'payload',
+};
+
 function digestLive(frames, requests, scenario) {
   // Lazy require breaks the module cycle: exportGrader already requires
   // matrixDriver for scrubSecrets, and matrixDriver requires THIS module for
@@ -420,30 +431,43 @@ function digestLive(frames, requests, scenario) {
       texts.push(row.text);
     }
   });
-  // The authored YAML rides in a build tool's arg or a playbook card payload --
-  // there is no `currentYaml` on the wire the way the export has one. Take the
-  // LAST one seen: the newest revision is what the analyst ends up with.
-  const yamlOf = (o) => (o && typeof o === 'object'
-    && typeof (o.yaml || o.playbook_yaml || o.currentYaml) === 'string')
-    ? (o.yaml || o.playbook_yaml || o.currentYaml) : null;
+  // The playbook the turn DELIVERED, read in the same order as the framework's
+  // fsr_playbooks/harness/frames.py delivered_yaml (the golden-frame corpus
+  // pins the two readers together, tests/goldenFrames.test.js):
+  //   1. the LAST offer card's final_yaml;
+  //   2. the LAST ```yaml fence in the JOINED text -- `text` frames are
+  //      streaming deltas that split the fence, so grading them one by one
+  //      found no YAML at all on live captures;
+  //   3. the LAST YAML-carrying tool argument, where an offer the tool refused
+  //      (result ok:false) resets the carry: it was never delivered, and the
+  //      drafts before it were superseded.
   timeline.forEach((row) => {
-    const y = yamlOf(row.input) || yamlOf(row.result) || yamlOf(row.payload);
-    if (y) finalYaml = y;
+    if (row.kind !== 'card' || !OFFER_CARD_TYPES.has(row.cardType)) return;
+    const y = row.payload && row.payload.final_yaml;
+    if (typeof y === 'string' && y.trim()) finalYaml = y;
   });
-  // ...and most of the time it rides in the assistant's PROSE as a fenced block.
-  // Critically, `text` frames are streaming DELTAS -- a live build turn produced
-  // 612 of them and not one contained "```yaml", because the fence is split
-  // across frames. Grading them individually silently killed every YAML-based
-  // rule on live captures (only the tool-based ones fired). They must be JOINED
-  // first, exactly as digestFrames does. Take the last fenced block: later ones
-  // are corrections of earlier drafts.
   if (!finalYaml) {
-    const joined = texts.join('');
-    const fences = joined.match(/```(?:ya?ml)?\s*\n([\s\S]*?)(?:```|$)/g) || [];
-    const blocks = fences
-      .map((f) => f.replace(/^```(?:ya?ml)?\s*\n/, '').replace(/```$/, ''))
-      .filter((b) => /^\s*(playbooks:|steps:|-\s*name:)/m.test(b));
-    if (blocks.length) finalYaml = blocks[blocks.length - 1];
+    const fences = [...texts.join('').matchAll(/```ya?ml\s*\n([\s\S]*?)```/gi)];
+    const last = fences.length ? fences[fences.length - 1][1].trim() : '';
+    if (last) finalYaml = last;
+  }
+  if (!finalYaml) {
+    let carried = '';
+    timeline.forEach((row) => {
+      if (row.kind !== 'tool_call') return;
+      const input = (row.input && typeof row.input === 'object') ? row.input : (_parse(row.input) || {});
+      const isOffer = row.name === 'emit_playbook_offer'
+        || (row.name === 'emit_card' && OFFER_CARD_TYPES.has(input.card_type));
+      if (isOffer && row.result && row.result.ok === false) { carried = ''; return; }
+      const arg = YAML_CARRIER[row.name];
+      if (!arg) return;
+      let body = input[arg];
+      if (row.name === 'emit_card' && body && typeof body === 'object') {
+        body = body.yaml || body.after_yaml;
+      }
+      if (typeof body === 'string' && body.trim()) carried = body;
+    });
+    if (carried) finalYaml = carried;
   }
   const intent = (requests || []).map((r) => r.intent).filter(Boolean)[0] || null;
   // The module the drawer was MOUNTED on, per the turn's entity context. Needed
