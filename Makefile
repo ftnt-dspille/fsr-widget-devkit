@@ -73,10 +73,16 @@ test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on
 	@# that owns live (test-live-sweep, step 6/6) sets the flag itself.
 	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE= pnpm test:e2e $(WIDGET) --reporter=list
 
-test-e2e-spec: ## Run e2e for one/more specs (SPEC=path[, ...]) on an always-fresh test server
+# SPEC is one or more file patterns, separated by spaces or commas. Each is
+# passed to Playwright as its own single-quoted argument: commas used to reach
+# it as one regex that matched nothing ("No tests found"), and a `|` in a
+# pattern ran as a shell pipe.
+comma := ,
+SPEC_ARGS = $(foreach s,$(subst $(comma), ,$(SPEC)),'$(s)')
+test-e2e-spec: ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) on an always-fresh test server
 	@if [ -z "$(SPEC)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js"; exit 2; fi
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC) --reporter=list
+	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC_ARGS) --reporter=list
 
 # Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
 # turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
