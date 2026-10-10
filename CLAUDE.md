@@ -88,6 +88,10 @@ Rules:
 - No paid LLM batch runs. Prove mechanics with fake-model tests, and quality offline
   on Frank (the free gateway; at most 3 concurrent turns). At most one live paid run,
   and only when the user asks for it.
+- Verify the write, not the card. A rendered card proves nothing. Clicking Apply on a
+  live box found two more bugs behind a card that looked right. Check the effect on the box.
+- Don't run headed targets (`make test-e2e-headed`, or a headed live matrix) unless the
+  user is at the machine. They pop a focus-stealing browser window.
 - Card tests assert content, not shape. "A card exists" is not proof that the
   verdict or record is right.
 - Visual or DOM claims: `make widget-inspect ARGS='--widget <name> [--config <json>] [--click <sel>] ...'`
