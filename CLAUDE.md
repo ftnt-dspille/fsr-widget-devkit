@@ -2,7 +2,7 @@
 
 New here? `ONBOARDING.md` (repos, `make setup`, compat matrix), then
 `CONTRIBUTING.md` (build/test/ship). Each widget under `widgets-src/<name>/` is
-its **own git repo** (e.g. `fortiaiAgenticAssistant` is on `refactor/arch-cleanup`):
+its **own git repo** (check its branch with `git -C widgets-src/<name> branch --show-current`):
 commit inside that repo, not here.
 
 ## Verify before you trust
@@ -97,6 +97,10 @@ Rules:
 - Visual or DOM claims: `make widget-inspect ARGS='--widget <name> [--config <json>] [--click <sel>] ...'`
   (wraps `fortisoar-widget-harness/scripts/widget-inspect.js`; `--help` lists the
   flags). Don't hand-roll Playwright except for a tiny screenshot script.
+  The assistant's mock-state screenshots (quick actions, verdict, action card, offer)
+  come from `widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.docsScreenshots.spec.js`:
+  `DOCS_SHOTS=1 make test-e2e-spec SPEC=fortiaiAgenticAssistant.docsScreenshots` (rewrites
+  that widget's docs/images; it lives in the widget's own repo, so grep there, not here).
 
 ## Chat widget (fortiaiAgenticAssistant)
 
