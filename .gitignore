@@ -88,3 +88,11 @@ docs/demo-deck/
 
 # Local-only infra-leak deny patterns (scripts/check_infra_leaks.py)
 **/infra_patterns.local.json
+
+# Shared Claude Code project config. The global ignore hides all of .claude/, so
+# re-include the project agents; keep local overrides and worktrees ignored.
+!.claude/
+!.claude/agents/
+!.claude/agents/**
+.claude/settings.local.json
+.claude/worktrees/

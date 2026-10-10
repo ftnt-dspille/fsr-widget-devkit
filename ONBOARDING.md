@@ -61,7 +61,7 @@ once it's pushed.
 ```bash
 make dev                                   # drive widgets by hand on :14400
 make test-unit WIDGET=fortiaiAgenticAssistant      # jest (controller logic)
-make test-e2e-widget WIDGET=fortiaiAgenticAssistant# Playwright (DOM/template) on a fresh :14401
+make test-e2e-widget WIDGET=fortiaiAgenticAssistant   # Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js
 make stop                                  # kill both servers
 ```
