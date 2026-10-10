@@ -1,0 +1,157 @@
+{
+  "name": "text_deltas_tool_roundtrip",
+  "description": "Streamed text deltas, a verify_enhancement tool_use and its tool_result (no name on the result), then a yaml fence in the text.",
+  "source": "session store, assistant turn seq 868, scrubbed",
+  "envelope": {
+    "ok": true,
+    "stop_reason": "end_turn",
+    "transcript": [
+      {
+        "type": "text",
+        "text": "I'll update"
+      },
+      {
+        "type": "text",
+        "text": " the alert description from \"ALPHA\" to \"BRAVO\". Let me first verify the current play"
+      },
+      {
+        "type": "text",
+        "text": "book, make the change, and validate it with `verify_enhancement`."
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_01UgEgopwTTr2jMMRPMfjLfp",
+        "name": "verify_enhancement",
+        "input": {
+          "before_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type: insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: ALPHA\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit\n",
+          "after_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type: insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: BRAVO\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit\n"
+        },
+        "tier": 1
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01UgEgopwTTr2jMMRPMfjLfp",
+        "content": {
+          "ok": true,
+          "ready_to_push": true,
+          "required_fixes": [],
+          "warnings": [
+            {
+              "code": "missing_field",
+              "message": "InsertData.arguments.step_variables is missing - every corpus sample for this step type sets this key",
+              "path": "playbooks[0].steps[0].arguments.step_variables",
+              "suggestion": null,
+              "near": null,
+              "severity": "warning"
+            }
+          ],
+          "suppressed_count": 0,
+          "checks_run": [
+            {
+              "name": "compile",
+              "ok": true,
+              "summary": "compile clean"
+            },
+            {
+              "name": "typed_walk",
+              "ok": true,
+              "summary": "1 branch(es); 0 required fix(es)"
+            },
+            {
+              "name": "per_step_schema",
+              "ok": true,
+              "summary": "0 schema issue(s)"
+            }
+          ],
+          "evidence": {
+            "type_trace_path": "/srv/checkout/fsr-playbook-framework/data/verify_traces/043d03c112131d48.json",
+            "typed_walk": {
+              "branch_count": 1,
+              "branches": [
+                {
+                  "name": "start",
+                  "step_count": 2,
+                  "diagnostic_count": 0
+                }
+              ]
+            }
+          },
+          "next_actions": [],
+          "regressions": [],
+          "diff_summary": {
+            "steps_added": [],
+            "steps_removed": [],
+            "steps_modified": [
+              "Emit"
+            ],
+            "unchanged": 1
+          }
+        },
+        "duration_ms": 126
+      },
+      {
+        "type": "usage",
+        "model": "claude-sonnet-4-5-20250929",
+        "input_tokens": 939,
+        "output_tokens": 537,
+        "cost_usd": 0.010872
+      },
+      {
+        "type": "text",
+        "text": "Perfect"
+      },
+      {
+        "type": "text",
+        "text": "! The change has been verified. The diff shows only the \"Emit\" step was modified, changing"
+      },
+      {
+        "type": "text",
+        "text": " the alert description from \"ALPHA\" to \"BRAVO\" as requested. Everything else remains exactly the same.\n\nHere"
+      },
+      {
+        "type": "text",
+        "text": "'s the updated playbook:\n\n```yaml\ncollection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true"
+      },
+      {
+        "type": "text",
+        "text": "\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type:"
+      },
+      {
+        "type": "text",
+        "text": " insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: BRAVO\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:"
+      },
+      {
+        "type": "text",
+        "text": "\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit\n```"
+      },
+      {
+        "type": "usage",
+        "model": "claude-sonnet-4-5-20250929",
+        "input_tokens": 1815,
+        "output_tokens": 275,
+        "cost_usd": 0.00957
+      }
+    ]
+  },
+  "expect": {
+    "assistant_text": "I'll update the alert description from \"ALPHA\" to \"BRAVO\". Let me first verify the current playbook, make the change, and validate it with `verify_enhancement`.Perfect! The change has been verified. The diff shows only the \"Emit\" step was modified, changing the alert description from \"ALPHA\" to \"BRAVO\" as requested. Everything else remains exactly the same.\n\nHere's the updated playbook:\n\n```yaml\ncollection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type: insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: BRAVO\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit\n```",
+    "tool_calls": [
+      {
+        "id": "toolu_01UgEgopwTTr2jMMRPMfjLfp",
+        "name": "verify_enhancement",
+        "args": {
+          "before_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type: insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: ALPHA\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit\n",
+          "after_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type: insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: BRAVO\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit\n"
+        },
+        "has_result": true,
+        "ok": true
+      }
+    ],
+    "delivered_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n- name: ZZ Eval Marker Emitter p4 1784290198-1\n  description: Creates an alert whose description is the current marker.\n  is_active: true\n  trigger_step_id: start\n  steps:\n  - type: insert_record\n    name: Emit\n    arguments:\n      resource:\n        name: ZZ Eval emitted\n        description: BRAVO\n      collection: /api/3/alerts\n  - type: start\n    name: Start\n    module: alerts\n    arguments:\n      route: 2ee1d02b-6da5-5787-8b8e-7947f39b5ccc\n      button_label: Emit marker\n    next: emit",
+    "delivered_source": "fence",
+    "halts": [],
+    "error_messages": [],
+    "outcome": "answered",
+    "pending_halt": null
+  }
+}

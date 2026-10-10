@@ -1,0 +1,436 @@
+{
+  "name": "fence_only_reply",
+  "description": "A text-only reply: the playbook is only in a ```yaml fence, with no tool call and no offer card.",
+  "source": "session store, assistant turn seq 38736, scrubbed",
+  "envelope": {
+    "ok": true,
+    "stop_reason": "stop",
+    "transcript": [
+      {
+        "type": "text",
+        "text": "\n\nThe defect"
+      },
+      {
+        "type": "text",
+        "text": " was in"
+      },
+      {
+        "type": "text",
+        "text": " the `Emit"
+      },
+      {
+        "type": "text",
+        "text": "` step ("
+      },
+      {
+        "type": "text",
+        "text": "type"
+      },
+      {
+        "type": "text",
+        "text": " `create_record`)."
+      },
+      {
+        "type": "text",
+        "text": " Its record body was"
+      },
+      {
+        "type": "text",
+        "text": " written under the"
+      },
+      {
+        "type": "text",
+        "text": " key `"
+      },
+      {
+        "type": "text",
+        "text": "resource_fields:`"
+      },
+      {
+        "type": "text",
+        "text": ":"
+      },
+      {
+        "type": "text",
+        "text": "\n\n```yaml\n"
+      },
+      {
+        "type": "text",
+        "text": "E"
+      },
+      {
+        "type": "text",
+        "text": "mit:"
+      },
+      {
+        "type": "text",
+        "text": "\n  type"
+      },
+      {
+        "type": "text",
+        "text": ": create_record\n"
+      },
+      {
+        "type": "text",
+        "text": "  resource_fields:"
+      },
+      {
+        "type": "text",
+        "text": "\n    description:"
+      },
+      {
+        "type": "text",
+        "text": " ALPHA\n  module"
+      },
+      {
+        "type": "text",
+        "text": ": alerts\n```"
+      },
+      {
+        "type": "text",
+        "text": "\n\n`create_record"
+      },
+      {
+        "type": "text",
+        "text": "` takes only two"
+      },
+      {
+        "type": "text",
+        "text": " step"
+      },
+      {
+        "type": "text",
+        "text": "-level keys"
+      },
+      {
+        "type": "text",
+        "text": ": `module:`"
+      },
+      {
+        "type": "text",
+        "text": " (the"
+      },
+      {
+        "type": "text",
+        "text": " target"
+      },
+      {
+        "type": "text",
+        "text": " module) and `"
+      },
+      {
+        "type": "text",
+        "text": "fields:` (the"
+      },
+      {
+        "type": "text",
+        "text": " flat record body)."
+      },
+      {
+        "type": "text",
+        "text": " `resource_fields:`"
+      },
+      {
+        "type": "text",
+        "text": " is not a valid"
+      },
+      {
+        "type": "text",
+        "text": " argument for"
+      },
+      {
+        "type": "text",
+        "text": " that"
+      },
+      {
+        "type": "text",
+        "text": " handler"
+      },
+      {
+        "type": "text",
+        "text": ", so the resolver"
+      },
+      {
+        "type": "text",
+        "text": " dropped"
+      },
+      {
+        "type": "text",
+        "text": " it as an unknown"
+      },
+      {
+        "type": "text",
+        "text": " key"
+      },
+      {
+        "type": "text",
+        "text": " instead"
+      },
+      {
+        "type": "text",
+        "text": " of error"
+      },
+      {
+        "type": "text",
+        "text": "ing. The step"
+      },
+      {
+        "type": "text",
+        "text": " then executed"
+      },
+      {
+        "type": "text",
+        "text": " with an empty record"
+      },
+      {
+        "type": "text",
+        "text": " body,"
+      },
+      {
+        "type": "text",
+        "text": " which"
+      },
+      {
+        "type": "text",
+        "text": " is why no"
+      },
+      {
+        "type": "text",
+        "text": " alert was"
+      },
+      {
+        "type": "text",
+        "text": " created and the run"
+      },
+      {
+        "type": "text",
+        "text": " only"
+      },
+      {
+        "type": "text",
+        "text": " surfaced the low"
+      },
+      {
+        "type": "text",
+        "text": "-level `insert_data"
+      },
+      {
+        "type": "text",
+        "text": "() takes at least"
+      },
+      {
+        "type": "text",
+        "text": " 2 positional arguments"
+      },
+      {
+        "type": "text",
+        "text": " (1 given)`"
+      },
+      {
+        "type": "text",
+        "text": " error"
+      },
+      {
+        "type": "text",
+        "text": ".\n\nTwo"
+      },
+      {
+        "type": "text",
+        "text": " things made"
+      },
+      {
+        "type": "text",
+        "text": " it sne"
+      },
+      {
+        "type": "text",
+        "text": "aky:\n\n"
+      },
+      {
+        "type": "text",
+        "text": "-"
+      },
+      {
+        "type": "text",
+        "text": " The `"
+      },
+      {
+        "type": "text",
+        "text": "module:"
+      },
+      {
+        "type": "text",
+        "text": " alerts` key was"
+      },
+      {
+        "type": "text",
+        "text": " correct, so the"
+      },
+      {
+        "type": "text",
+        "text": " step's"
+      },
+      {
+        "type": "text",
+        "text": " targeting"
+      },
+      {
+        "type": "text",
+        "text": " looked fine"
+      },
+      {
+        "type": "text",
+        "text": " at"
+      },
+      {
+        "type": "text",
+        "text": " a glance.\n"
+      },
+      {
+        "type": "text",
+        "text": "- The playbook"
+      },
+      {
+        "type": "text",
+        "text": " still"
+      },
+      {
+        "type": "text",
+        "text": " compiled clean, because"
+      },
+      {
+        "type": "text",
+        "text": " the bad"
+      },
+      {
+        "type": "text",
+        "text": " key is ho"
+      },
+      {
+        "type": "text",
+        "text": "isted to the step"
+      },
+      {
+        "type": "text",
+        "text": "'s"
+      },
+      {
+        "type": "text",
+        "text": " top level and silently"
+      },
+      {
+        "type": "text",
+        "text": " discarded rather"
+      },
+      {
+        "type": "text",
+        "text": " than left"
+      },
+      {
+        "type": "text",
+        "text": " behind"
+      },
+      {
+        "type": "text",
+        "text": " as a leftover field"
+      },
+      {
+        "type": "text",
+        "text": " the parser could"
+      },
+      {
+        "type": "text",
+        "text": " flag.\n\nThe fix was"
+      },
+      {
+        "type": "text",
+        "text": " renaming"
+      },
+      {
+        "type": "text",
+        "text": " that"
+      },
+      {
+        "type": "text",
+        "text": " one key: `"
+      },
+      {
+        "type": "text",
+        "text": "resource_fields:` to"
+      },
+      {
+        "type": "text",
+        "text": " `fields:`,"
+      },
+      {
+        "type": "text",
+        "text": " keeping `"
+      },
+      {
+        "type": "text",
+        "text": "description: ALPHA`"
+      },
+      {
+        "type": "text",
+        "text": " as the value"
+      },
+      {
+        "type": "text",
+        "text": ". Everything"
+      },
+      {
+        "type": "text",
+        "text": " else in the step"
+      },
+      {
+        "type": "text",
+        "text": " (and"
+      },
+      {
+        "type": "text",
+        "text": " the `Start"
+      },
+      {
+        "type": "text",
+        "text": "` step"
+      },
+      {
+        "type": "text",
+        "text": ") was already"
+      },
+      {
+        "type": "text",
+        "text": " correct and"
+      },
+      {
+        "type": "text",
+        "text": " was"
+      },
+      {
+        "type": "text",
+        "text": " left untouched."
+      },
+      {
+        "type": "usage",
+        "model": "coding-b200/qwen3.8-27b-nvfp4",
+        "input_tokens": 17036,
+        "output_tokens": 532,
+        "cost_usd": 0.0,
+        "stop_reason": "stop",
+        "dropped_calls": [],
+        "cache_read": 13600,
+        "cache_write": 0
+      }
+    ]
+  },
+  "expect": {
+    "assistant_text": "The defect was in the `Emit` step (type `create_record`). Its record body was written under the key `resource_fields:`:\n\n```yaml\nEmit:\n  type: create_record\n  resource_fields:\n    description: ALPHA\n  module: alerts\n```\n\n`create_record` takes only two step-level keys: `module:` (the target module) and `fields:` (the flat record body). `resource_fields:` is not a valid argument for that handler, so the resolver dropped it as an unknown key instead of erroring. The step then executed with an empty record body, which is why no alert was created and the run only surfaced the low-level `insert_data() takes at least 2 positional arguments (1 given)` error.\n\nTwo things made it sneaky:\n\n- The `module: alerts` key was correct, so the step's targeting looked fine at a glance.\n- The playbook still compiled clean, because the bad key is hoisted to the step's top level and silently discarded rather than left behind as a leftover field the parser could flag.\n\nThe fix was renaming that one key: `resource_fields:` to `fields:`, keeping `description: ALPHA` as the value. Everything else in the step (and the `Start` step) was already correct and was left untouched.",
+    "tool_calls": [],
+    "delivered_yaml": "Emit:\n  type: create_record\n  resource_fields:\n    description: ALPHA\n  module: alerts",
+    "delivered_source": "fence",
+    "halts": [],
+    "error_messages": [],
+    "outcome": "answered",
+    "pending_halt": null
+  }
+}

@@ -1,0 +1,1019 @@
+{
+  "name": "refused_offer",
+  "description": "emit_playbook_offer whose result is ok:false, so the offer was never delivered.",
+  "source": "session store, assistant turn seq 11732, scrubbed",
+  "envelope": {
+    "ok": true,
+    "stop_reason": "stop",
+    "transcript": [
+      {
+        "type": "tool_use",
+        "id": "call_9ba012b90f0f433fa2751fdb",
+        "name": "emit_playbook_offer",
+        "input": {
+          "id": "c2-exfil-investigation",
+          "summary": "Triage playbook for C2 / data exfiltration alerts: cross-module SOAR correlation (alerts + incidents) for the C2 IP and compromised host, enrichment fan-out (VirusTotal IP reputation, FortiGuard IOC search, Shodan IP search) on the external C2 IP, and SIEM blast-radius pivot for other internal hosts communicating with the C2. Built from a confirmed FortiGuard malware IP exfiltration case (analyst-desktop → 203.0.113.11).",
+          "title_suggestion": "C2 Exfiltration Triage - Enrich & Blast Radius"
+        },
+        "tier": 0
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "call_9ba012b90f0f433fa2751fdb",
+        "content": {
+          "ok": false,
+          "code": "empty_trace",
+          "message": "no recorded actions to offer as a playbook",
+          "suggestions": [
+            "offer only after >=1 action was approved & executed"
+          ]
+        },
+        "duration_ms": 0
+      },
+      {
+        "type": "usage",
+        "model": "coding-b200/glm-5.2-nvfp4-highthroughput",
+        "input_tokens": 23835,
+        "output_tokens": 267,
+        "cost_usd": 0.0,
+        "cache_read": 16192,
+        "cache_write": 0
+      },
+      {
+        "type": "text",
+        "text": "The"
+      },
+      {
+        "type": "text",
+        "text": " playbook"
+      },
+      {
+        "type": "text",
+        "text": " offer"
+      },
+      {
+        "type": "text",
+        "text": " couldn"
+      },
+      {
+        "type": "text",
+        "text": "'t"
+      },
+      {
+        "type": "text",
+        "text": " be"
+      },
+      {
+        "type": "text",
+        "text": " generated"
+      },
+      {
+        "type": "text",
+        "text": " -"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " compiler"
+      },
+      {
+        "type": "text",
+        "text": " builds"
+      },
+      {
+        "type": "text",
+        "text": " steps"
+      },
+      {
+        "type": "text",
+        "text": " from"
+      },
+      {
+        "type": "text",
+        "text": " ops"
+      },
+      {
+        "type": "text",
+        "text": " that"
+      },
+      {
+        "type": "text",
+        "text": " actually"
+      },
+      {
+        "type": "text",
+        "text": " **"
+      },
+      {
+        "type": "text",
+        "text": "ran"
+      },
+      {
+        "type": "text",
+        "text": "**"
+      },
+      {
+        "type": "text",
+        "text": " this"
+      },
+      {
+        "type": "text",
+        "text": " session"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " and"
+      },
+      {
+        "type": "text",
+        "text": " every"
+      },
+      {
+        "type": "text",
+        "text": " `"
+      },
+      {
+        "type": "text",
+        "text": "run"
+      },
+      {
+        "type": "text",
+        "text": "_op"
+      },
+      {
+        "type": "text",
+        "text": "`"
+      },
+      {
+        "type": "text",
+        "text": " call"
+      },
+      {
+        "type": "text",
+        "text": " ("
+      },
+      {
+        "type": "text",
+        "text": "V"
+      },
+      {
+        "type": "text",
+        "text": "irus"
+      },
+      {
+        "type": "text",
+        "text": "Total"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " Fort"
+      },
+      {
+        "type": "text",
+        "text": "i"
+      },
+      {
+        "type": "text",
+        "text": "Guard"
+      },
+      {
+        "type": "text",
+        "text": " IOC"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " Sh"
+      },
+      {
+        "type": "text",
+        "text": "od"
+      },
+      {
+        "type": "text",
+        "text": "an"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " SI"
+      },
+      {
+        "type": "text",
+        "text": "EM"
+      },
+      {
+        "type": "text",
+        "text": " piv"
+      },
+      {
+        "type": "text",
+        "text": "ots"
+      },
+      {
+        "type": "text",
+        "text": ")"
+      },
+      {
+        "type": "text",
+        "text": " failed"
+      },
+      {
+        "type": "text",
+        "text": " with"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " same"
+      },
+      {
+        "type": "text",
+        "text": " local"
+      },
+      {
+        "type": "text",
+        "text": " API"
+      },
+      {
+        "type": "text",
+        "text": " connection"
+      },
+      {
+        "type": "text",
+        "text": " error"
+      },
+      {
+        "type": "text",
+        "text": " ("
+      },
+      {
+        "type": "text",
+        "text": "port"
+      },
+      {
+        "type": "text",
+        "text": " "
+      },
+      {
+        "type": "text",
+        "text": "9"
+      },
+      {
+        "type": "text",
+        "text": " refusin"
+      },
+      {
+        "type": "text",
+        "text": "g connection"
+      },
+      {
+        "type": "text",
+        "text": "s)"
+      },
+      {
+        "type": "text",
+        "text": ". Th"
+      },
+      {
+        "type": "text",
+        "text": "e cros"
+      },
+      {
+        "type": "text",
+        "text": "s-modul"
+      },
+      {
+        "type": "text",
+        "text": "e S"
+      },
+      {
+        "type": "text",
+        "text": "OA"
+      },
+      {
+        "type": "text",
+        "text": "R searche"
+      },
+      {
+        "type": "text",
+        "text": "s an"
+      },
+      {
+        "type": "text",
+        "text": "d catalo"
+      },
+      {
+        "type": "text",
+        "text": "g loo"
+      },
+      {
+        "type": "text",
+        "text": "kup"
+      },
+      {
+        "type": "text",
+        "text": "s tha"
+      },
+      {
+        "type": "text",
+        "text": "t "
+      },
+      {
+        "type": "text",
+        "text": "*di"
+      },
+      {
+        "type": "text",
+        "text": "d"
+      },
+      {
+        "type": "text",
+        "text": "* succee"
+      },
+      {
+        "type": "text",
+        "text": "d are"
+      },
+      {
+        "type": "text",
+        "text": "n'"
+      },
+      {
+        "type": "text",
+        "text": "t runnabl"
+      },
+      {
+        "type": "text",
+        "text": "e connecto"
+      },
+      {
+        "type": "text",
+        "text": "r step"
+      },
+      {
+        "type": "text",
+        "text": "s"
+      },
+      {
+        "type": "text",
+        "text": ", s"
+      },
+      {
+        "type": "text",
+        "text": "o ther"
+      },
+      {
+        "type": "text",
+        "text": "e'"
+      },
+      {
+        "type": "text",
+        "text": "s n"
+      },
+      {
+        "type": "text",
+        "text": "o recorde"
+      },
+      {
+        "type": "text",
+        "text": "d trac"
+      },
+      {
+        "type": "text",
+        "text": "e t"
+      },
+      {
+        "type": "text",
+        "text": "o compil"
+      },
+      {
+        "type": "text",
+        "text": "e fro"
+      },
+      {
+        "type": "text",
+        "text": "m.\n"
+      },
+      {
+        "type": "text",
+        "text": "\n*"
+      },
+      {
+        "type": "text",
+        "text": "*T"
+      },
+      {
+        "type": "text",
+        "text": "o sav"
+      },
+      {
+        "type": "text",
+        "text": "e thi"
+      },
+      {
+        "type": "text",
+        "text": "s a"
+      },
+      {
+        "type": "text",
+        "text": "s "
+      },
+      {
+        "type": "text",
+        "text": "a playboo"
+      },
+      {
+        "type": "text",
+        "text": "k"
+      },
+      {
+        "type": "text",
+        "text": ", w"
+      },
+      {
+        "type": "text",
+        "text": "e nee"
+      },
+      {
+        "type": "text",
+        "text": "d a"
+      },
+      {
+        "type": "text",
+        "text": "t leas"
+      },
+      {
+        "type": "text",
+        "text": "t on"
+      },
+      {
+        "type": "text",
+        "text": "e successfu"
+      },
+      {
+        "type": "text",
+        "text": "l enrichmen"
+      },
+      {
+        "type": "text",
+        "text": "t o"
+      },
+      {
+        "type": "text",
+        "text": "r S"
+      },
+      {
+        "type": "text",
+        "text": "IE"
+      },
+      {
+        "type": "text",
+        "text": "M o"
+      },
+      {
+        "type": "text",
+        "text": "p"
+      },
+      {
+        "type": "text",
+        "text": ".*"
+      },
+      {
+        "type": "text",
+        "text": "* Onc"
+      },
+      {
+        "type": "text",
+        "text": "e th"
+      },
+      {
+        "type": "text",
+        "text": "e For"
+      },
+      {
+        "type": "text",
+        "text": "t"
+      },
+      {
+        "type": "text",
+        "text": "iS"
+      },
+      {
+        "type": "text",
+        "text": "OA"
+      },
+      {
+        "type": "text",
+        "text": "R AP"
+      },
+      {
+        "type": "text",
+        "text": "I i"
+      },
+      {
+        "type": "text",
+        "text": "s bac"
+      },
+      {
+        "type": "text",
+        "text": "k u"
+      },
+      {
+        "type": "text",
+        "text": "p:\n"
+      },
+      {
+        "type": "text",
+        "text": "\n"
+      },
+      {
+        "type": "text",
+        "text": "1"
+      },
+      {
+        "type": "text",
+        "text": ". R"
+      },
+      {
+        "type": "text",
+        "text": "e-ru"
+      },
+      {
+        "type": "text",
+        "text": "n th"
+      },
+      {
+        "type": "text",
+        "text": "e enrichmen"
+      },
+      {
+        "type": "text",
+        "text": "t fa"
+      },
+      {
+        "type": "text",
+        "text": "n-ou"
+      },
+      {
+        "type": "text",
+        "text": "t "
+      },
+      {
+        "type": "text",
+        "text": "("
+      },
+      {
+        "type": "text",
+        "text": "Viru"
+      },
+      {
+        "type": "text",
+        "text": "sTota"
+      },
+      {
+        "type": "text",
+        "text": "l "
+      },
+      {
+        "type": "text",
+        "text": "`quer"
+      },
+      {
+        "type": "text",
+        "text": "y_i"
+      },
+      {
+        "type": "text",
+        "text": "p`"
+      },
+      {
+        "type": "text",
+        "text": ", For"
+      },
+      {
+        "type": "text",
+        "text": "t"
+      },
+      {
+        "type": "text",
+        "text": "iGuar"
+      },
+      {
+        "type": "text",
+        "text": "d "
+      },
+      {
+        "type": "text",
+        "text": "`io"
+      },
+      {
+        "type": "text",
+        "text": "c_searc"
+      },
+      {
+        "type": "text",
+        "text": "h`"
+      },
+      {
+        "type": "text",
+        "text": ", S"
+      },
+      {
+        "type": "text",
+        "text": "ho"
+      },
+      {
+        "type": "text",
+        "text": "da"
+      },
+      {
+        "type": "text",
+        "text": "n "
+      },
+      {
+        "type": "text",
+        "text": "`searc"
+      },
+      {
+        "type": "text",
+        "text": "h_i"
+      },
+      {
+        "type": "text",
+        "text": "p"
+      },
+      {
+        "type": "text",
+        "text": "` o"
+      },
+      {
+        "type": "text",
+        "text": "n th"
+      },
+      {
+        "type": "text",
+        "text": "e "
+      },
+      {
+        "type": "text",
+        "text": "C"
+      },
+      {
+        "type": "text",
+        "text": "2 I"
+      },
+      {
+        "type": "text",
+        "text": "P"
+      },
+      {
+        "type": "text",
+        "text": " 20"
+      },
+      {
+        "type": "text",
+        "text": "3"
+      },
+      {
+        "type": "text",
+        "text": ".0."
+      },
+      {
+        "type": "text",
+        "text": "1"
+      },
+      {
+        "type": "text",
+        "text": "13."
+      },
+      {
+        "type": "text",
+        "text": "1"
+      },
+      {
+        "type": "text",
+        "text": "2)"
+      },
+      {
+        "type": "text",
+        "text": " "
+      },
+      {
+        "type": "text",
+        "text": "- "
+      },
+      {
+        "type": "text",
+        "text": "even "
+      },
+      {
+        "type": "text",
+        "text": "one "
+      },
+      {
+        "type": "text",
+        "text": "successful "
+      },
+      {
+        "type": "text",
+        "text": "lookup "
+      },
+      {
+        "type": "text",
+        "text": "will "
+      },
+      {
+        "type": "text",
+        "text": "give "
+      },
+      {
+        "type": "text",
+        "text": "the "
+      },
+      {
+        "type": "text",
+        "text": "compiler "
+      },
+      {
+        "type": "text",
+        "text": "enough "
+      },
+      {
+        "type": "text",
+        "text": "to "
+      },
+      {
+        "type": "text",
+        "text": "build "
+      },
+      {
+        "type": "text",
+        "text": "from."
+      },
+      {
+        "type": "text",
+        "text": "\n2"
+      },
+      {
+        "type": "text",
+        "text": "."
+      },
+      {
+        "type": "text",
+        "text": " "
+      },
+      {
+        "type": "text",
+        "text": "I"
+      },
+      {
+        "type": "text",
+        "text": "'ll"
+      },
+      {
+        "type": "text",
+        "text": " then"
+      },
+      {
+        "type": "text",
+        "text": " immediately"
+      },
+      {
+        "type": "text",
+        "text": " offer"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " playbook"
+      },
+      {
+        "type": "text",
+        "text": " again"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " and"
+      },
+      {
+        "type": "text",
+        "text": " it"
+      },
+      {
+        "type": "text",
+        "text": "'ll"
+      },
+      {
+        "type": "text",
+        "text": " compile"
+      },
+      {
+        "type": "text",
+        "text": " from"
+      },
+      {
+        "type": "text",
+        "text": " those"
+      },
+      {
+        "type": "text",
+        "text": " real"
+      },
+      {
+        "type": "text",
+        "text": " steps"
+      },
+      {
+        "type": "text",
+        "text": ".\n\n"
+      },
+      {
+        "type": "text",
+        "text": "Would"
+      },
+      {
+        "type": "text",
+        "text": " you"
+      },
+      {
+        "type": "text",
+        "text": " like"
+      },
+      {
+        "type": "text",
+        "text": " me"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " retry"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " enrichment"
+      },
+      {
+        "type": "text",
+        "text": " look"
+      },
+      {
+        "type": "text",
+        "text": "ups"
+      },
+      {
+        "type": "text",
+        "text": " now"
+      },
+      {
+        "type": "text",
+        "text": " in"
+      },
+      {
+        "type": "text",
+        "text": " case"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " API"
+      },
+      {
+        "type": "text",
+        "text": " has"
+      },
+      {
+        "type": "text",
+        "text": " recovered"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " or"
+      },
+      {
+        "type": "text",
+        "text": " would"
+      },
+      {
+        "type": "text",
+        "text": " you"
+      },
+      {
+        "type": "text",
+        "text": " prefer"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " wait"
+      },
+      {
+        "type": "text",
+        "text": " and"
+      },
+      {
+        "type": "text",
+        "text": " revisit"
+      },
+      {
+        "type": "text",
+        "text": " this"
+      },
+      {
+        "type": "text",
+        "text": " once"
+      },
+      {
+        "type": "text",
+        "text": " connectivity"
+      },
+      {
+        "type": "text",
+        "text": " is"
+      },
+      {
+        "type": "text",
+        "text": " restored"
+      },
+      {
+        "type": "text",
+        "text": "?"
+      },
+      {
+        "type": "usage",
+        "model": "coding-b200/glm-5.2-nvfp4-highthroughput",
+        "input_tokens": 24028,
+        "output_tokens": 449,
+        "cost_usd": 0.0,
+        "cache_read": 23808,
+        "cache_write": 0
+      }
+    ]
+  },
+  "expect": {
+    "assistant_text": "The playbook offer couldn't be generated - the compiler builds steps from ops that actually **ran** this session, and every `run_op` call (VirusTotal, FortiGuard IOC, Shodan, SIEM pivots) failed with the same local API connection error (port 9 refusing connections). The cross-module SOAR searches and catalog lookups that *did* succeed aren't runnable connector steps, so there's no recorded trace to compile from.\n\n**To save this as a playbook, we need at least one successful enrichment or SIEM op.** Once the FortiSOAR API is back up:\n\n1. Re-run the enrichment fan-out (VirusTotal `query_ip`, FortiGuard `ioc_search`, Shodan `search_ip` on the C2 IP 203.0.113.12) - even one successful lookup will give the compiler enough to build from.\n2. I'll then immediately offer the playbook again, and it'll compile from those real steps.\n\nWould you like me to retry the enrichment lookups now in case the API has recovered, or would you prefer to wait and revisit this once connectivity is restored?",
+    "tool_calls": [
+      {
+        "id": "call_9ba012b90f0f433fa2751fdb",
+        "name": "emit_playbook_offer",
+        "args": {
+          "id": "c2-exfil-investigation",
+          "summary": "Triage playbook for C2 / data exfiltration alerts: cross-module SOAR correlation (alerts + incidents) for the C2 IP and compromised host, enrichment fan-out (VirusTotal IP reputation, FortiGuard IOC search, Shodan IP search) on the external C2 IP, and SIEM blast-radius pivot for other internal hosts communicating with the C2. Built from a confirmed FortiGuard malware IP exfiltration case (analyst-desktop → 203.0.113.11).",
+          "title_suggestion": "C2 Exfiltration Triage - Enrich & Blast Radius"
+        },
+        "has_result": true,
+        "ok": false
+      }
+    ],
+    "delivered_yaml": "",
+    "delivered_source": "none",
+    "halts": [],
+    "error_messages": [],
+    "outcome": "answered",
+    "pending_halt": null
+  }
+}

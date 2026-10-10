@@ -1,0 +1,723 @@
+{
+  "name": "enhance_after_yaml_no_fence",
+  "description": "Enhance-path turn: verify_enhancement carries after_yaml; no offer card and no fence in the text. The turn ends on a provider 400 (a malformed tool-call argument), so it also exercises a provider rejection mid-turn.",
+  "source": "session store, assistant turn seq 29061, scrubbed",
+  "envelope": {
+    "ok": true,
+    "stop_reason": "tool_calls",
+    "transcript": [
+      {
+        "type": "tool_use",
+        "id": "call_90f8525201864818aa35cff2",
+        "name": "get_step_type",
+        "input": {
+          "name": "set_variable"
+        },
+        "tier": 0
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "call_90f8525201864818aa35cff2",
+        "content": {
+          "name": "SetVariable",
+          "label": "Set Variable",
+          "markdown": "# step type: set_variable  (canonical: `SetVariable` · Set Variable)\n\nVariables go under a step-level `vars:` mapping. Optional `message:` posts a comment to the triggered record's collaboration panel; `record:` is only needed when the playbook has no triggered record.\n\n## skeleton\n```yaml\ntype: set_variable\nname: Stash Inputs\nvars:\n  source_ip: '{{ vars.input.records[0].sourceIp }}'\n  verdict: pending\nmessage:\n  content: Triaging {{ vars.input.records[0].sourceIp }}\n  tags:\n  - automation\n```\n\n## pitfalls\n- set: / values: / variables: at step level -- only `vars:` is the recognized sugar key\n- putting message:{} keys under arguments: -- `message:` is a step-level sibling of `vars:`"
+        },
+        "duration_ms": 3
+      },
+      {
+        "type": "usage",
+        "model": "coding-b200/max",
+        "input_tokens": 18399,
+        "output_tokens": 2341,
+        "cost_usd": 0.0,
+        "cache_read": 17536,
+        "cache_write": 0
+      },
+      {
+        "type": "text",
+        "text": "The"
+      },
+      {
+        "type": "text",
+        "text": " analyst"
+      },
+      {
+        "type": "text",
+        "text": " said"
+      },
+      {
+        "type": "text",
+        "text": " \""
+      },
+      {
+        "type": "text",
+        "text": "Saved"
+      },
+      {
+        "type": "text",
+        "text": "\""
+      },
+      {
+        "type": "text",
+        "text": " earlier"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " meaning"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " `"
+      },
+      {
+        "type": "text",
+        "text": "module"
+      },
+      {
+        "type": "text",
+        "text": ":"
+      },
+      {
+        "type": "text",
+        "text": " alerts"
+      },
+      {
+        "type": "text",
+        "text": "`"
+      },
+      {
+        "type": "text",
+        "text": " fix"
+      },
+      {
+        "type": "text",
+        "text": " was"
+      },
+      {
+        "type": "text",
+        "text": " applied"
+      },
+      {
+        "type": "text",
+        "text": "."
+      },
+      {
+        "type": "text",
+        "text": " Now"
+      },
+      {
+        "type": "text",
+        "text": " I"
+      },
+      {
+        "type": "text",
+        "text": " just"
+      },
+      {
+        "type": "text",
+        "text": " need"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " add"
+      },
+      {
+        "type": "text",
+        "text": " one"
+      },
+      {
+        "type": "text",
+        "text": " `"
+      },
+      {
+        "type": "text",
+        "text": "set"
+      },
+      {
+        "type": "text",
+        "text": "_variable"
+      },
+      {
+        "type": "text",
+        "text": "`"
+      },
+      {
+        "type": "text",
+        "text": " step"
+      },
+      {
+        "type": "text",
+        "text": " at"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " end"
+      },
+      {
+        "type": "text",
+        "text": " and"
+      },
+      {
+        "type": "text",
+        "text": " wire"
+      },
+      {
+        "type": "text",
+        "text": " `"
+      },
+      {
+        "type": "text",
+        "text": "E"
+      },
+      {
+        "type": "text",
+        "text": "mit"
+      },
+      {
+        "type": "text",
+        "text": "`"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " it"
+      },
+      {
+        "type": "text",
+        "text": "."
+      },
+      {
+        "type": "text",
+        "text": " Let"
+      },
+      {
+        "type": "text",
+        "text": " me"
+      },
+      {
+        "type": "text",
+        "text": " verify"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " edit"
+      },
+      {
+        "type": "text",
+        "text": "."
+      },
+      {
+        "type": "tool_use",
+        "id": "call_b2f40d0384194d26a5dfc3d7",
+        "name": "verify_enhancement",
+        "input": {
+          "before_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n  - name: ZZ Eval Missing Module\n    description: create_record whose module is missing (fails at runtime, body intact).\n    is_active: true\n    steps:\n      - name: Start\n        type: start\n        next: Emit\n        module: alerts\n        button_label: Emit marker\n\n      - name: Emit\n        type: create_record\n        module: alerts\n        fields:\n          description: created by the eval harness\n",
+          "after_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n  - name: ZZ Eval Missing Module\n    description: create_record whose module is missing (fails at runtime, body intact).\n    is_active: true\n    steps:\n      - name: Start\n        type: start\n        next: Emit\n        module: alerts\n        button_label: Emit marker\n\n      - name: Emit\n        type: create_record\n        module: alerts\n        fields:\n          description: created by the eval harness\n        next: Set Notified\n\n      - name: Set Notified\n        type: set_variable\n        vars:\n          notified: true\n",
+          "user_message": "Add a step at the end that sets a variable named notified to true. Keep everything else exactly as it is."
+        },
+        "tier": 1
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "call_b2f40d0384194d26a5dfc3d7",
+        "content": {
+          "ok": true,
+          "ready_to_push": true,
+          "required_fixes": [],
+          "warnings": [
+            {
+              "code": "instance_mismatch",
+              "message": "reference catalog was warmed from a DIFFERENT SOAR than the configured target '203.0.113.10:9'; picklist IRIs / connector configs may mis-resolve",
+              "path": "",
+              "suggestion": "re-run warmup against the target instance, or unset FSR_BASE_URL to compile stable-only",
+              "near": null,
+              "severity": "warning",
+              "check": null
+            }
+          ],
+          "suppressed_count": 0,
+          "checks_run": [
+            {
+              "name": "compile",
+              "ok": true,
+              "summary": "compile clean"
+            },
+            {
+              "name": "typed_walk",
+              "ok": true,
+              "summary": "1 branch(es); 0 required fix(es)"
+            },
+            {
+              "name": "per_step_schema",
+              "ok": true,
+              "summary": "0 schema issue(s)"
+            }
+          ],
+          "evidence": {
+            "type_trace_path": "/srv/checkout/fsr-playbook-framework/data/verify_traces/a8c7e4ad04d0c146.json",
+            "typed_walk": {
+              "branch_count": 1,
+              "branches": [
+                {
+                  "name": "start",
+                  "step_count": 3,
+                  "diagnostic_count": 0
+                }
+              ]
+            }
+          },
+          "next_actions": [],
+          "regressions": [
+            {
+              "kind": "behavior_changed_outside_diff",
+              "step": "Emit",
+              "before": {
+                "type": "create_record",
+                "arguments": {
+                  "module": "alerts",
+                  "fields": {
+                    "description": "created by the eval harness"
+                  }
+                },
+                "next": null,
+                "branches": {},
+                "unlabeled_next": [],
+                "for_each": null,
+                "comment": null
+              },
+              "after": {
+                "type": "create_record",
+                "arguments": {
+                  "module": "alerts",
+                  "fields": {
+                    "description": "created by the eval harness"
+                  }
+                },
+                "next": "set_notified",
+                "branches": {},
+                "unlabeled_next": [],
+                "for_each": null,
+                "comment": null
+              },
+              "severity": "warning",
+              "message": "step 'Emit' changed but was not referenced in the user's message; confirm this was intended"
+            }
+          ],
+          "diff_summary": {
+            "steps_added": [
+              "Set Notified"
+            ],
+            "steps_removed": [],
+            "steps_modified": [
+              "Emit"
+            ],
+            "unchanged": 1,
+            "changes": [
+              {
+                "playbook": "ZZ Eval Missing Module",
+                "step": "Set Notified",
+                "kind": "added",
+                "type": "set_variable",
+                "before": null,
+                "after": {
+                  "type": "set_variable",
+                  "arguments": {
+                    "arg_list": [
+                      {
+                        "name": "notified",
+                        "value": true
+                      }
+                    ]
+                  },
+                  "next": null,
+                  "branches": {},
+                  "unlabeled_next": [],
+                  "for_each": null,
+                  "comment": null
+                },
+                "changed_fields": []
+              },
+              {
+                "playbook": "ZZ Eval Missing Module",
+                "step": "Emit",
+                "kind": "modified",
+                "type": "create_record",
+                "before": {
+                  "type": "create_record",
+                  "arguments": {
+                    "module": "alerts",
+                    "fields": {
+                      "description": "created by the eval harness"
+                    }
+                  },
+                  "next": null,
+                  "branches": {},
+                  "unlabeled_next": [],
+                  "for_each": null,
+                  "comment": null
+                },
+                "after": {
+                  "type": "create_record",
+                  "arguments": {
+                    "module": "alerts",
+                    "fields": {
+                      "description": "created by the eval harness"
+                    }
+                  },
+                  "next": "set_notified",
+                  "branches": {},
+                  "unlabeled_next": [],
+                  "for_each": null,
+                  "comment": null
+                },
+                "changed_fields": [
+                  "next"
+                ]
+              }
+            ]
+          },
+          "acknowledged_drops": [],
+          "verified_id": "48451d80ef49cb99",
+          "how_to_apply": "Call emit_card(card_type='enhancement_offer', payload={verified_id: ...}) to apply this edit. That is the ONLY way the edit reaches the analyst's playbook. Do not re-type the YAML into your reply -- the offer card carries the exact text verified here."
+        },
+        "duration_ms": 192
+      },
+      {
+        "type": "usage",
+        "model": "coding-b200/max",
+        "input_tokens": 18622,
+        "output_tokens": 9012,
+        "cost_usd": 0.0,
+        "cache_read": 18368,
+        "cache_write": 0
+      },
+      {
+        "type": "text",
+        "text": "The"
+      },
+      {
+        "type": "text",
+        "text": " verification"
+      },
+      {
+        "type": "text",
+        "text": " passed"
+      },
+      {
+        "type": "text",
+        "text": "."
+      },
+      {
+        "type": "text",
+        "text": " The"
+      },
+      {
+        "type": "text",
+        "text": " diff"
+      },
+      {
+        "type": "text",
+        "text": " is"
+      },
+      {
+        "type": "text",
+        "text": " exactly"
+      },
+      {
+        "type": "text",
+        "text": " what"
+      },
+      {
+        "type": "text",
+        "text": " you"
+      },
+      {
+        "type": "text",
+        "text": " asked"
+      },
+      {
+        "type": "text",
+        "text": " for"
+      },
+      {
+        "type": "text",
+        "text": " -"
+      },
+      {
+        "type": "text",
+        "text": " one"
+      },
+      {
+        "type": "text",
+        "text": " new"
+      },
+      {
+        "type": "text",
+        "text": " step"
+      },
+      {
+        "type": "text",
+        "text": " added"
+      },
+      {
+        "type": "text",
+        "text": " at"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " end"
+      },
+      {
+        "type": "text",
+        "text": ","
+      },
+      {
+        "type": "text",
+        "text": " and"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " only"
+      },
+      {
+        "type": "text",
+        "text": " other"
+      },
+      {
+        "type": "text",
+        "text": " change"
+      },
+      {
+        "type": "text",
+        "text": " is"
+      },
+      {
+        "type": "text",
+        "text": " wiring"
+      },
+      {
+        "type": "text",
+        "text": " `"
+      },
+      {
+        "type": "text",
+        "text": "E"
+      },
+      {
+        "type": "text",
+        "text": "mit"
+      },
+      {
+        "type": "text",
+        "text": "`"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " point"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " it"
+      },
+      {
+        "type": "text",
+        "text": " ("
+      },
+      {
+        "type": "text",
+        "text": "which"
+      },
+      {
+        "type": "text",
+        "text": " is"
+      },
+      {
+        "type": "text",
+        "text": " required"
+      },
+      {
+        "type": "text",
+        "text": " for"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " flow"
+      },
+      {
+        "type": "text",
+        "text": " to"
+      },
+      {
+        "type": "text",
+        "text": " reach"
+      },
+      {
+        "type": "text",
+        "text": " the"
+      },
+      {
+        "type": "text",
+        "text": " new"
+      },
+      {
+        "type": "text",
+        "text": " step"
+      },
+      {
+        "type": "text",
+        "text": ")."
+      },
+      {
+        "type": "text",
+        "text": " Everything"
+      },
+      {
+        "type": "text",
+        "text": " else"
+      },
+      {
+        "type": "text",
+        "text": " is"
+      },
+      {
+        "type": "text",
+        "text": " byte"
+      },
+      {
+        "type": "text",
+        "text": "-"
+      },
+      {
+        "type": "text",
+        "text": "ident"
+      },
+      {
+        "type": "text",
+        "text": "ical"
+      },
+      {
+        "type": "text",
+        "text": "."
+      },
+      {
+        "type": "tool_use",
+        "id": "call_79688ad5007744a18e41bf84",
+        "name": "emit_card",
+        "input": {
+          "__bad_tool_arguments__": "arguments were not valid JSON (Expecting value: line 1 column 47 (char 46))"
+        },
+        "tier": 0
+      },
+      {
+        "type": "tool_result",
+        "tool_use_id": "call_79688ad5007744a18e41bf84",
+        "content": {
+          "ok": false,
+          "code": "bad_tool_arguments",
+          "message": "emit_card: arguments were not valid JSON (Expecting value: line 1 column 47 (char 46)). Re-issue the call with a single valid JSON object as the arguments.",
+          "suggestions": []
+        },
+        "duration_ms": 0
+      },
+      {
+        "type": "usage",
+        "model": "coding-b200/max",
+        "input_tokens": 19847,
+        "output_tokens": 343,
+        "cost_usd": 0.0,
+        "cache_read": 18560,
+        "cache_write": 0
+      },
+      {
+        "type": "error",
+        "message": "OpenAI rejected the request: Error code: 400 - {'is_bifrost_error': False, 'status_code': 400, 'error': {'message': 'Assistant tool call function.arguments must be valid JSON.'}, 'extra_fields': {'routing_info': {'provider': 'cod"
+      }
+    ]
+  },
+  "expect": {
+    "assistant_text": "The analyst said \"Saved\" earlier, meaning the `module: alerts` fix was applied. Now I just need to add one `set_variable` step at the end and wire `Emit` to it. Let me verify the edit.The verification passed. The diff is exactly what you asked for - one new step added at the end, and the only other change is wiring `Emit` to point to it (which is required for the flow to reach the new step). Everything else is byte-identical.",
+    "tool_calls": [
+      {
+        "id": "call_90f8525201864818aa35cff2",
+        "name": "get_step_type",
+        "args": {
+          "name": "set_variable"
+        },
+        "has_result": true,
+        "ok": null
+      },
+      {
+        "id": "call_b2f40d0384194d26a5dfc3d7",
+        "name": "verify_enhancement",
+        "args": {
+          "before_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n  - name: ZZ Eval Missing Module\n    description: create_record whose module is missing (fails at runtime, body intact).\n    is_active: true\n    steps:\n      - name: Start\n        type: start\n        next: Emit\n        module: alerts\n        button_label: Emit marker\n\n      - name: Emit\n        type: create_record\n        module: alerts\n        fields:\n          description: created by the eval harness\n",
+          "after_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n  - name: ZZ Eval Missing Module\n    description: create_record whose module is missing (fails at runtime, body intact).\n    is_active: true\n    steps:\n      - name: Start\n        type: start\n        next: Emit\n        module: alerts\n        button_label: Emit marker\n\n      - name: Emit\n        type: create_record\n        module: alerts\n        fields:\n          description: created by the eval harness\n        next: Set Notified\n\n      - name: Set Notified\n        type: set_variable\n        vars:\n          notified: true\n",
+          "user_message": "Add a step at the end that sets a variable named notified to true. Keep everything else exactly as it is."
+        },
+        "has_result": true,
+        "ok": true
+      },
+      {
+        "id": "call_79688ad5007744a18e41bf84",
+        "name": "emit_card",
+        "args": {
+          "__bad_tool_arguments__": "arguments were not valid JSON (Expecting value: line 1 column 47 (char 46))"
+        },
+        "has_result": true,
+        "ok": false
+      }
+    ],
+    "delivered_yaml": "collection: ZZ FSRPB Eval Fixtures\ndescription: Throwaway fixtures for the build-persona eval harness. Safe to delete.\nvisible: true\nplaybooks:\n  - name: ZZ Eval Missing Module\n    description: create_record whose module is missing (fails at runtime, body intact).\n    is_active: true\n    steps:\n      - name: Start\n        type: start\n        next: Emit\n        module: alerts\n        button_label: Emit marker\n\n      - name: Emit\n        type: create_record\n        module: alerts\n        fields:\n          description: created by the eval harness\n        next: Set Notified\n\n      - name: Set Notified\n        type: set_variable\n        vars:\n          notified: true\n",
+    "delivered_source": "carrier",
+    "halts": [],
+    "error_messages": [
+      "OpenAI rejected the request: Error code: 400 - {'is_bifrost_error': False, 'status_code': 400, 'error': {'message': 'Assistant tool call function.arguments must be valid JSON.'}, 'extra_fields': {'routing_info': {'provider': 'cod"
+    ],
+    "outcome": "provider_error",
+    "pending_halt": null
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "transport_error_envelope",
+  "description": "The connector's stream_end when the gateway is unreachable: a pre-wrapped 'Could not reach the OpenAI endpoint' error, ok:false, stop_reason:error.",
+  "source": "session store turn_progress stream_end, scrubbed",
+  "envelope": {
+    "type": "stream_end",
+    "stop_reason": "error",
+    "transcript": [
+      {
+        "type": "error",
+        "message": "Could not reach the OpenAI endpoint at https://gw.example.com/v1 - check network connectivity and the base URL."
+      }
+    ],
+    "ok": false,
+    "error": "Could not reach the OpenAI endpoint at https://gw.example.com/v1 - check network connectivity and the base URL.",
+    "turn_id": "8115b43304014a75ad61f33042977a59",
+    "contract_version": "2.8.0",
+    "last_assistant_yaml": null
+  },
+  "expect": {
+    "assistant_text": "",
+    "tool_calls": [],
+    "delivered_yaml": "",
+    "delivered_source": "none",
+    "halts": [],
+    "error_messages": [
+      "Could not reach the OpenAI endpoint at https://gw.example.com/v1 - check network connectivity and the base URL."
+    ],
+    "outcome": "transport_error",
+    "pending_halt": null
+  }
+}
