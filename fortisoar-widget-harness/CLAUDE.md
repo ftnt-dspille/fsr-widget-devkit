@@ -2,20 +2,23 @@
 
 ## Starting the dev server
 
-**Always use `Bash` with `run_in_background: true` to start the harness.** Never use TaskCreate -- it kills long-running processes.
+The interactive harness is started by the parent Makefile, so `make stop` can find
+it. Run it from the repo root:
 
 ```
-command: pnpm dev
-cwd: <path-to>/fortisoar-widget-harness
-run_in_background: true
+make dev        # or: make start   -> http://localhost:14400
+make stop       # kills the dev (14400) and test (14401) servers
 ```
 
-Before starting, check if it is already running:
+Start it in the background (`Bash` with `run_in_background: true`). Never use
+TaskCreate; it kills long-running processes. Check first:
 ```
-curl -s http://localhost:4401/ > /dev/null && echo "already running"
+curl -s http://localhost:14400/ > /dev/null && echo "already running"
 ```
 
-The harness listens on **port 4401** (set via `.env`). Always use `http://localhost:4401` -- never 3000 or 4400.
+`pnpm dev` from this directory also works. It reads `PORT` from `.env` (currently
+4401), so the two entry points can end up on different ports. Use `make dev`
+unless you have a reason not to.
 
 ## Inspecting/validating a widget's DOM (dropdown size, grid rows, clipping…)
 
@@ -30,7 +33,7 @@ Full reference + the foot-guns it owns: `SOAR_TEST_KIT_DESIGN.md` §4.4. Self-te
 
 ## Testing & deploying widgets -- go through the parent Makefile, never by hand
 
-This `pnpm dev` server is for **interactive** use only. Builds, tests, and
+The dev server is for **interactive** use only. Builds, tests, and
 deploys run from the **parent repo's Makefile** -- see `../TESTING.md` (canonical
 build→test→deploy flow) and `../CONTRIBUTING.md`:
 
@@ -41,8 +44,8 @@ build→test→deploy flow) and `../CONTRIBUTING.md`:
   sessions never share or kill each other's servers). Specs must build URLs from
   `baseURL` / `process.env.E2E_BASE_PORT`, never a literal port. `E2E_BASE_PORT`
   pins a pair; `E2E_REUSE=1` reuses already-running servers on 14401. Never
-  hand-start these -- `make` boots and tears them down. The dev `:4401` is
-  unrelated to e2e.
+  hand-start these -- `make` boots and tears them down. The dev server
+  (14400) is unrelated to e2e.
 - The **mock e2e tier is hermetic**: `FSR_HERMETIC=1` (set by `playwright.config.js`
   for non-live runs) disables the forticloud proxy fallthrough; an un-snapshotted
   request returns a loud `599 HERMETIC-MISS` and the `globalTeardown` fails the
