@@ -24,7 +24,7 @@
 // same rules that grade downloaded `.events.json` exports -- so a known-bad flow
 // signature caught once offline gates the live matrix forever after.
 //
-// MATRIX_GATE=strict,xfail runs ONLY the gating rows (`make test-matrix-gate`).
+// MATRIX_GATE=strict,xfail runs ONLY the gating rows (`make test-matrix-live MATRIX_GATE=strict,xfail`).
 "use strict";
 
 const fs = require("fs");

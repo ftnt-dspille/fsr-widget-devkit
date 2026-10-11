@@ -58,7 +58,7 @@ Tier ladder, cheapest first. All targets run from the repo root:
 1. `make test-unit WIDGET=<name>[,<name>]` (jest; `WIDGET=all` for every widget).
    Controller logic. Must exit 0.
 2. `make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"` for scoped
-   runs, or `make test-e2e-widget WIDGET=<name>` for one widget. DOM and template.
+   runs, or `make test-e2e-spec WIDGET=<name>` for one widget. DOM and template.
    Space- or comma-separated.
 3. `make loop`: the default iteration (above).
 4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
@@ -75,6 +75,9 @@ Rules:
   `599 HERMETIC-MISS` and `globalTeardown` fails the run on any leak.
 - Every widget change ships with a test: controller logic gets jest, DOM/CSS gets
   e2e. Iterate every input in integration tests and assert on all of them.
+- Testing a widget worktree: the harness resolves `widgets-src` through its real path,
+  so a test run from a worktree silently tests the shared checkout. Put the widget
+  worktree at `<scratch>/x/widgets-src/<name>` and pass `WIDGETS_SRC=<scratch>/x/widgets-src`.
 - **A test for a fix must be shown red without the fix.** Remove the fix (in a
   scratch worktree, not the shared checkout), run the test, see it fail, restore.
   A jest test once passed with or without its fix. Tests written from the same

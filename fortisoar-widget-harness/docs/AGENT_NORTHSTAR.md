@@ -1,6 +1,6 @@
 # North star: an agent-automatable widget harness
 
-> **⚠ DONE / superseded — kept for history.** NS1–NS6 (fixture layer, atomic
+> **⚠ DONE / superseded - kept for history.** NS1-NS6 (fixture layer, atomic
 > bump, HARNESS_RENDERING spec, `make new-widget` generator, etc.) shipped. The
 > **active reference is `../../KNOWLEDGEBASE.md`** (widget-building knowledgebase)
 > + the harness Makefile / `SOAR_TEST_KIT_DESIGN.md` test kit. (Not archived
@@ -40,16 +40,16 @@ scar behind it.
 ## The three pillars
 
 ### 1. Deterministic & observable runtime
-The agent must be able to *await* a render and *read* its outcome — never poll
+The agent must be able to *await* a render and *read* its outcome - never poll
 with magic timeouts or guess.
 
 - **Render is a state machine.** `window.__HARNESS_RENDER_STATE`
   `{phase, mountId, lastError}` + `window.__harness.settle()` + `waitForRender()`
-  test helper. *(shipped — P0/P1.)*
+  test helper. *(shipped - P0/P1.)*
 - **No silent stubs.** A stubbed platform service is either *faithful* (renders
-  like the real thing — e.g. the real `$uibModal` now) or *loud* (a visible
+  like the real thing - e.g. the real `$uibModal` now) or *loud* (a visible
   panel/console error the moment it's invoked). A green mount must never hide a
-  dead feature. (`__HARNESS_STUB_HITS` already tracks usage — surface it.)
+  dead feature. (`__HARNESS_STUB_HITS` already tracks usage - surface it.)
 - **Zero benign noise.** Console/error channels carry only real problems, so an
   agent can treat "any error == failure". (Fixed `module is not defined`.)
 - **No unbounded waits.** Every upstream/proxy call is time-bounded so a dead
@@ -58,17 +58,17 @@ with magic timeouts or guess.
 ### 2. Hermetic by default, *complete* by default
 The mock tier must need **zero box and zero per-spec stubbing** for the common
 platform surface. Today every record-context spec re-stubs `/api/3/<module>/<id>`,
-`/api/integration/connectors/`, metadata, triggers — and forgets one, and leaks.
+`/api/integration/connectors/`, metadata, triggers - and forgets one, and leaks.
 
 - **A default fixture layer** serves the platform calls every widget makes:
   the seeded record (so `__HARNESS_RECORD` is set and viewpanel widgets mount),
   connector list, module metadata, picklists, playbook trigger/poll. A spec only
   stubs what's *unique* to its scenario.
 - **Record fixtures are first-class.** Seeding `harness.id`/`module` should serve
-  a believable record locally — no proxy, no 599. (This single gap currently
+  a believable record locally - no proxy, no 599. (This single gap currently
   reds the whole action-renderer mock e2e suite.)
 - **The leak gate stays**, but with a complete default layer it fires only on
-  genuinely novel calls — a *signal*, not a chore.
+  genuinely novel calls - a *signal*, not a chore.
 
 ### 3. Scaffolding & contracts for *creation*
 Testing is half the loop; the agent also has to *create* correctly.
@@ -82,9 +82,9 @@ Testing is half the loop; the agent also has to *create* correctly.
   bumps run through the CLI and rewrite source **and tests** atomically. The
   auto-fix that rewrites controller names must rewrite the matching test
   references too (the desync that broke jest this session).
-- **Contracts are encoded, not folklore.** The platform's real rules — playbook
+- **Contracts are encoded, not folklore.** The platform's real rules - playbook
   trigger endpoints (`notrigger/<uuid>` vs `action/<route>`), csGrid's
-  `list/keyPairs` render path, drawer `enableFor` — live as harness affordances
+  `list/keyPairs` render path, drawer `enableFor` - live as harness affordances
   and lint rules, so an agent can't pick the wrong one. (KB §19.3 documents the
   trigger split; the next step is a helper widgets call so they *can't* get it
   wrong.)
@@ -101,7 +101,7 @@ Keep the agent's required vocabulary tiny and stable:
 - **Create:** `make new-widget SPEC=…` → correct skeleton + passing stub tests.
 - **Run/observe:** `pnpm dev`; `window.__harness.settle()` / `.renderState()` /
   `.dump()`.
-- **Test:** `make test-unit WIDGET=…`, `make test-e2e-widget WIDGET=…` (hermetic,
+- **Test:** `make test-unit WIDGET=…`, `make test-e2e-spec WIDGET=…` (hermetic,
   complete-by-default), `make test-…-live` (the only box-touching tier).
 - **Ship:** `make ship-verify WIDGET=…` (lint → unit → mock → deploy → live).
 
@@ -111,31 +111,31 @@ Everything else is an implementation detail the agent should never have to learn
 
 ## Roadmap (each item retires a scar)
 
-1. ✅ **Default hermetic fixture layer** incl. a real record fixture — *unblocks all
+1. ✅ **Default hermetic fixture layer** incl. a real record fixture - *unblocks all
    record-context widgets in the mock tier; biggest single win.* **DONE
   .** `server.ts` serves `/api/3/<module>/<id>` (per-widget
    `widgetAssets/fixtures/api3/record.json` else a synthesised scaffold) +
    `/api/integration/connectors/` (fixture else empty `{…,data:[]}` envelope) under
    `FSR_HERMETIC`; the page declares the mounting widget via `POST /_fsr/active-widget`
    so handlers resolve the right fixtures. Reserved platform heads still
-   `HERMETIC-MISS`. Fixtures captured faithfully from the live box (192.0.2.205) —
+   `HERMETIC-MISS`. Fixtures captured faithfully from the live box (192.0.2.205) -
    action-renderer seeded. 6 jest regressions (`tests/hermeticFixtures.test.ts`),
    171 harness jest green. Doc: `TESTING.md` → "Default fixture layer".
 2. ✅ **Stub policy: faithful-or-loud** + introspect check for no-op stub hits on
    mount. **DONE.** Declared-inert stub methods (no-ops the harness
-   drives another way — `$uibModalInstance.close`/`dismiss`,
+   drives another way - `$uibModalInstance.close`/`dismiss`,
    `localStorageService.clearAll`) are now wrapped with an in-page `inert(label)`
    helper in `harness.module.ts` that records each invocation into
    `window.__HARNESS_INERT_INVOCATIONS`. The introspect rig reads that map and,
    via `HarnessUtils.inertStubFinding`, emits a **loud, machine-readable finding**
    when a widget's render actually depended on a no-op (the original `$uibModal`
-   "mounted but did nothing" scar) — a green mount can no longer hide a dead
+   "mounted but did nothing" scar) - a green mount can no longer hide a dead
    feature. Faithful stubs (toaster paints a real toast, localStorageService
    reads/writes real storage) are untouched. 4 jest regressions in
    `tests/harnessUtils.test.js`; live-verified the DI bootstrap still mounts
-   (helloCounter: clean mount, `inertInvocations: {}` — no false positive).
+   (helloCounter: clean mount, `inertInvocations: {}` - no false positive).
 3. ✅ **Versioning single-source**: bump rewrites tests with source; remove the
-   hand-bump footgun. **DONE.** Fixed the CLI bump wiring bug —
+   hand-bump footgun. **DONE.** Fixed the CLI bump wiring bug -
    `POST /_fsr/fix-info/:id` now accepts `{bump}` (was silently ignored; only
    `{patch}` worked), computes the new version and calls `syncSourceToInfoJson`
    so source controllers **and** the sibling `tests/` tree rewrite atomically.
@@ -149,12 +149,12 @@ Everything else is an implementation detail the agent should never have to learn
    endpoint choice is impossible to get wrong; same for csGrid wiring. **DONE
   .** `lib/harnessUtils.ts` now holds the canonical, unit-tested
    encoding of both contracts: `selectPlaybookTrigger({triggerType,route,
-   noRecordExecution,uuid,API})` → `{url,isManual}` (the KB §19.3 endpoint split —
+   noRecordExecution,uuid,API})` → `{url,isManual}` (the KB §19.3 endpoint split -
    action-by-route vs notrigger-by-uuid) and `buildCsGridPaged(rows)` →
-   `{list,keyPairs,visited}` (the csGrid render contract — rows come from
+   `{list,keyPairs,visited}` (the csGrid render contract - rows come from
    `list`/`keyPairs`, not `hydra:member`). The "impossible to get wrong" guarantee
    is a **lint rule**: `lintWidget` now emits `trigger-endpoint-misuse` (error)
-   when a controller builds `ACTION_TRIGGER + <uuid|getEndPathName>` — the classic
+   when a controller builds `ACTION_TRIGGER + <uuid|getEndPathName>` - the classic
    silent-404 bug that only shows up against the box. **Design note:** the helpers
    are NOT injected into shipped widgets (`HarnessUtils` is a harness-page global,
    absent on the SOAR box); the two existing widgets already encode the split
@@ -164,11 +164,11 @@ Everything else is an implementation detail the agent should never have to learn
    positives on action-renderer + jsonToGrid's real controllers.
 5. ✅ **Generator** (`make new-widget`) emitting harness-wired tests. **DONE
   .** `scripts/new-widget.ts` is a spec-driven generator (the old
-   bash scaffold is now a thin shim over it). It emits three variants from a spec
-   — **dashboard**, **record** (View-Panel; reads the open record via
+   bash scaffold is now a thin shim over it). It emits three variants from a spec -
+   **dashboard**, **record** (View-Panel; reads the open record via
    `FormEntityService`, wired to the NS1 default fixture layer so it's green on
    mock e2e with *zero* per-spec platform stubs), and **playbook-triggering**
-   (the NS4 endpoint split inline — `action/<route>` vs `notrigger/<uuid>` — plus
+   (the NS4 endpoint split inline - `action/<route>` vs `notrigger/<uuid>` - plus
    a config form). Every emitted skeleton carries the controller-name ↔
    version-digits convention, a jest unit test, and a Playwright e2e bound to
    `waitForRender()` (the NS-P0/P1 render state machine, which *throws* on a
@@ -177,7 +177,7 @@ Everything else is an implementation detail the agent should never have to learn
    inline flags (`--spec`, `--kind`, `--triggers-playbook`, `--category`, …) and
    the back-compat positional form are all accepted. Generated widgets lint clean
    (`lint-angular` now recognizes the `angular.extend({},defaults,config||{})`
-   defaults guard — a pre-existing false positive that flagged the template too)
+   defaults guard - a pre-existing false positive that flagged the template too)
    and `make test-unit WIDGET=<name>` is green immediately. 16 jest regressions
    (`tests/newWidget.test.js`) including real angular instantiation of each
    variant and a lint-clean integration check.
@@ -187,8 +187,8 @@ Everything else is an implementation detail the agent should never have to learn
    render-state snapshot fields, the safety digest + disable flag, and the
    faithful-or-loud stub policy (cross-refs KB §18 + TESTING.md). Render
    primitives pinned by 22 jest self-tests (`tests/harnessRender.test.ts`).
-   *(Deferred: the full e2e rendering suite — render-state phases, `$uibModal`
-   faithfulness, empty-state ×N stability — needs the parent Makefile +
+   *(Deferred: the full e2e rendering suite - render-state phases, `$uibModal`
+   faithfulness, empty-state ×N stability - needs the parent Makefile +
    widgets-src; noted at the bottom of HARNESS_RENDERING.md.)*
 
 Done already this session: P0/P1 render-settle + state, real `$uibModal`,
@@ -196,6 +196,6 @@ Done already this session: P0/P1 render-settle + state, real `$uibModal`,
 (KB §19.3 + action-renderer/jsonToGrid fixes), `_probe` robustness.
 
 **Definition of done for the north star:** a fresh agent scaffolds a
-record-context widget, runs `make test-e2e-widget`, and it is green on the first
-try with no hand-written platform stubs — and `make …-live` confirms it against
+record-context widget, runs `make test-e2e-spec`, and it is green on the first
+try with no hand-written platform stubs - and `make …-live` confirms it against
 the box.

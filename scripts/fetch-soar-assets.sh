@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# fetch-soar-assets.sh — populate fsr_src/ with the FortiSOAR app shell assets
+# fetch-soar-assets.sh - populate fsr_src/ with the FortiSOAR app shell assets
 # the harness needs to RENDER widgets in a browser (required for e2e tests).
 #
 # These assets (the app bundle + the angular template cache) are Fortinet's
-# platform JS — we do NOT redistribute them. Instead each developer fetches them
+# platform JS - we do NOT redistribute them. Instead each developer fetches them
 # from their OWN licensed FortiSOAR instance (the same box FSR_BASE_URL points
 # at). Unit tests (jest) do NOT need this; only e2e (Playwright) does.
 #
 # What it does:
 #   1. Authenticate to FSR_BASE_URL (POST /auth/authenticate, user/pass from .env)
 #   2. Parse the SOAR index.html for js/app.min.<hash>.js + js/templates.min.<hash>.js
-#   3. Download them into fsr_src/ (app bundle saved as app.unmin.js — the harness
+#   3. Download them into fsr_src/ (app bundle saved as app.unmin.js - the harness
 #      parses it by string/regex, so the minified bundle works)
 #   4. Extract the template cache into fsr_src/templates-extracted/ via
 #      fsr_src/extract-templates.js
@@ -34,7 +34,7 @@ ok()   { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m! %s\033[0m\n' "$*" >&2; }
 die()  { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
-[ -f "$ENV_FILE" ] || die "no .env at $ENV_FILE — copy fortisoar-widget-harness/.env.example and fill it in"
+[ -f "$ENV_FILE" ] || die "no .env at $ENV_FILE - copy fortisoar-widget-harness/.env.example and fill it in"
 [ -f "$EXTRACTOR" ] || die "missing $EXTRACTOR (the template extractor must ship with the kit)"
 
 # shellcheck disable=SC1090
@@ -46,7 +46,7 @@ HOST="https://${RAW#http*://}"; HOST="${HOST%/}"
 FSR_USER="${FSR_USERNAME:-}"; FSR_PASS="${FSR_PASSWORD:-}"
 [ -n "$FSR_USER" ] && [ -n "$FSR_PASS" ] || die "FSR_USERNAME / FSR_PASSWORD not set in $ENV_FILE"
 
-# TLS: verify by default — this request transmits credentials. Skipping
+# TLS: verify by default - this request transmits credentials. Skipping
 # verification must be explicit, via the harness's FSR_VERIFY_SSL=false
 # convention (or FSR_INSECURE_TLS=1), and only for a trusted lab box with a
 # self-signed cert. Prefer pointing at the lab CA instead: FSR_CA_CERT=/path.
@@ -55,7 +55,7 @@ if [ -n "${FSR_CA_CERT:-}" ]; then
   CURL_TLS=(--cacert "$FSR_CA_CERT")
 elif [ "${FSR_VERIFY_SSL:-true}" = "false" ] || [ "${FSR_INSECURE_TLS:-0}" = "1" ]; then
   CURL_TLS=(-k)
-  warn "TLS verification DISABLED (FSR_VERIFY_SSL=false) — only acceptable for a trusted lab box; credentials are sent over this connection"
+  warn "TLS verification DISABLED (FSR_VERIFY_SSL=false) - only acceptable for a trusted lab box; credentials are sent over this connection"
 fi
 
 say "host: $HOST"
@@ -91,11 +91,11 @@ say "extracting templates → fsr_src/templates-extracted/"
 ( cd "$OUT" && node "$EXTRACTOR" "$TPL_FILE" )
 
 ok "SOAR assets ready in fsr_src/. e2e tests can now render widgets:"
-echo "    make test-e2e-widget WIDGET=helloCounter"
+echo "    make test-e2e-spec WIDGET=helloCounter"
 
 # ---------------------------------------------------------------------------
 # Optional: stock FortiSOAR theme CSS for the persona theme builder (scripts/).
-# These are proprietary platform artifacts (NOT redistributed) — fetched here
+# These are proprietary platform artifacts (NOT redistributed) - fetched here
 # from your OWN licensed box. Best-effort: a failure does not block e2e.
 # ---------------------------------------------------------------------------
 THEME_OUT="$REPO_DIR/scripts"
@@ -105,10 +105,10 @@ fetched_theme=0
 for name in steel dark light; do
   rel="$(printf '%s' "$THEME_HTML" | grep -oE "css/themes/${name}\.[a-f0-9]+\.css" | head -1)"
   [ -n "$rel" ] || rel="$(printf '%s' "$THEME_HTML" | grep -oE "${name}\.[a-f0-9]+\.css" | head -1 | sed "s#^#css/themes/#")"
-  [ -n "$rel" ] || { warn "could not locate ${name} theme css in index.html — skipping"; continue; }
+  [ -n "$rel" ] || { warn "could not locate ${name} theme css in index.html - skipping"; continue; }
   curl -s "${CURL_TLS[@]}" --max-time 60 "$HOST/$rel" -H "Authorization: Bearer $TOKEN" -o "$THEME_OUT/$(basename "$rel")" \
     && { ok "  $(basename "$rel")"; fetched_theme=$((fetched_theme+1)); } \
     || warn "  failed to download $rel"
 done
-[ "$fetched_theme" -gt 0 ] && ok "theme CSS in scripts/ — persona theme builder ready" \
+[ "$fetched_theme" -gt 0 ] && ok "theme CSS in scripts/ - persona theme builder ready" \
   || warn "no theme CSS fetched (theme builder needs steel/dark/light.<hash>.css copied from your box)"
