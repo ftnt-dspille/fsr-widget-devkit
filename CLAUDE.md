@@ -9,8 +9,7 @@ commit inside that repo, not here.
 
 - Docs, trackers and memory go stale. Before acting on "release owed", "X is
   broken" or "pin is Y", check git and code: `info.json` version, the connector's
-  `requirements.txt` pin, `git log`. In Aug 2026 three docs claimed a shipped
-  release was still owed, and the widget README's pin table was wrong on every row.
+  `requirements.txt` pin, `git log`.
 - Box, version and env state comes from `make doctor` (~15s, `LOCAL=1` for no box).
   Run it before believing any live result.
 - If grep finds nothing in a file you know exists, use `/usr/bin/grep`: the
@@ -24,13 +23,11 @@ Four promises: **P1** investigate with cited verdicts · **P2** tier-gated,
 analyst-approved actions · **P3** reach on-prem targets · **P4** bottle each
 investigation into a playbook. The widget is the window; the connector is the engine.
 
-- **Roadmap:** `ROADMAP.md` in the tracker repo (`~/PycharmProjects/soc-assistant-tracker`,
-  private). It is the source, not a mirror: edit it there, the user pushes. §1-2 is
-  the fastest context load; §3 supersedes the "this week" table in `STATUS.md`.
+- **Roadmap:** `ROADMAP.md` in `~/PycharmProjects/soc-assistant-tracker` (private) is
+  the source: edit it there, the user pushes. §1-2 is the fastest context load.
 - **Board:** https://github.com/users/ftnt-dspille/projects/1. **Claim a card before
-  working it**; several agents run in parallel. Use `scripts/tracker.sh` (in the
-  framework repo: `show|comment|close|reopen|create|status|list`), not raw `gh issue`,
-  which is broken on this board. Post findings and close or update the card in the same session.
+  working it** (several agents run in parallel) and close or update it in the same
+  session. Card ops: the framework's `scripts/tracker.sh`, never raw `gh issue`.
 - **Local-only detail:** `docs/plans/` is gitignored because it carries box details.
   Index: `docs/plans/INDEX.md`.
 
@@ -62,7 +59,7 @@ Tier ladder, cheapest first. All targets run from the repo root:
    Controller logic. Must exit 0.
 2. `make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"` for scoped
    runs, or `make test-e2e-widget WIDGET=<name>` for one widget. DOM and template.
-   Space-separated paths; comma-separated lists arrive with branch `harness/spec-quoting`.
+   Space- or comma-separated.
 3. `make loop`: the default iteration (above).
 4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
    sweep. Releases only, and the user runs it.
@@ -82,9 +79,7 @@ Rules:
   scratch worktree, not the shared checkout), run the test, see it fail, restore.
   A jest test once passed with or without its fix. Tests written from the same
   model as the fix inherit its blind spots.
-- **A skip is not a pass.** Report skipped tests as not run, with the reason. A
-  skip policy is being built on branch `harness/mutants-skips` in the connector repo
-  and is not merged yet; a `make mutants` red-check target comes with it.
+- **A skip is not a pass.** Report skipped tests as not run, with the reason.
 - No paid LLM batch runs. Prove mechanics with fake-model tests, and quality offline
   on Frank (the free gateway; at most 3 concurrent turns). At most one live paid run,
   and only when the user asks for it.
@@ -94,6 +89,8 @@ Rules:
   user is at the machine. They pop a focus-stealing browser window.
 - Card tests assert content, not shape. "A card exists" is not proof that the
   verdict or record is right.
+- To verify a finished widget change, delegate to the `widget-change-verifier` agent
+  (runs these gates and the red check, reports evidence, changes nothing).
 - Visual or DOM claims: `make widget-inspect ARGS='--widget <name> [--config <json>] [--click <sel>] ...'`
   (wraps `fortisoar-widget-harness/scripts/widget-inspect.js`; `--help` lists the
   flags). Don't hand-roll Playwright except for a tiny screenshot script.
@@ -105,7 +102,8 @@ Rules:
 ## Chat widget (fortiaiAgenticAssistant)
 
 - Connector identity has one source: the widget's `fsrPbAgent.service.js`. Test
-  infra derives it through `tests/live/lib/connectorIdentity.js`. Never hardcode a copy.
+  infra derives it through `fortisoar-widget-harness/tests/live/lib/connectorIdentity.js`.
+  Never hardcode a copy.
 - `widgetAssets/js/fsrPbRender.js` is compiled from `fsrPbRender.ts`. Edit both, or
   edit the `.ts` and regenerate. `tests/renderTsJsParity.test.js` enforces parity.
 - Analyst-facing text never shows tool names, ids, enum values or JSON paths. It
@@ -126,8 +124,6 @@ Rules:
 
 ## Public-repo hygiene
 
-No lab IPs, appliance hostnames, box ports, credentials, usernames or capture dates in
-tracked files, including code comments, docstrings and test headers. Say
-"live-verified on <version>" or "captured from a live appliance". Use placeholders
-(`fortisoar.example.com`, `<your-password>`). Box details belong only in gitignored
-places: `docs/plans/`, `scratch/`, `.env*`, the auto-memory directory.
+No lab IPs, hostnames, box ports, credentials or capture dates in tracked files
+(comments and test headers included). Use placeholders; box details go only in
+gitignored `docs/plans/`, `scratch/`, `.env*` or memory.
