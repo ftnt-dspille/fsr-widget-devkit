@@ -198,7 +198,7 @@ describe("rewriteForVersion", () => {
     expect(content).toContain("myWidget-utils.md");
   });
 
-  test("is idempotent — rewriting twice gives the same result", () => {
+  test("is idempotent - rewriting twice gives the same result", () => {
     makeWidget(tmpDir, "1.0.0");
     rewriteForVersion(tmpDir, "myWidget", "2.0.0");
     const after1 = fs.readFileSync(path.join(tmpDir, "view.controller.js"), "utf8");
@@ -243,7 +243,7 @@ describe("rewriteForVersion", () => {
 });
 
 // ---------------------------------------------------------------------------
-// packageWidget — integration (runs real tar)
+// packageWidget - integration (runs real tar)
 // ---------------------------------------------------------------------------
 describe("packageWidget", () => {
   let srcDir, outDir;
@@ -290,6 +290,28 @@ describe("packageWidget", () => {
     expect(result.version).toBe("1.0.0");
     expect(result.size).toBeGreaterThan(0);
     expect(fs.existsSync(result.archivePath)).toBe(true);
+  });
+
+  test("builds the widget repo's TypeScript assets into the archive", async () => {
+    // The harness packs <repo>/widget/; the repo root above it holds the
+    // tsconfig.json whose compiled .js must ship (FortiSOAR loads .js only).
+    const widgetDir = path.join(srcDir, "widget");
+    makeFullWidget(widgetDir, "testWidget", "1.0.0");
+    fs.mkdirSync(path.join(widgetDir, "widgetAssets", "js"), { recursive: true });
+    fs.writeFileSync(
+      path.join(widgetDir, "widgetAssets", "js", "helper.ts"),
+      "const answer: number = 42;\n"
+    );
+    fs.writeFileSync(
+      path.join(srcDir, "tsconfig.json"),
+      JSON.stringify({
+        compilerOptions: { target: "ES2017", module: "CommonJS", strict: true, skipLibCheck: true, ignoreDeprecations: "5.0" },
+        include: ["widget/widgetAssets/js/*.ts"],
+      })
+    );
+    const result = await packageWidget(widgetDir, outDir);
+    const listing = require("child_process").execFileSync("tar", ["-tzf", result.archivePath]).toString();
+    expect(listing).toMatch(/widgetAssets\/js\/helper\.js\n/);
   });
 
   test("result includes correct fileCount", async () => {
@@ -342,7 +364,7 @@ describe("packageWidget", () => {
     const info = JSON.parse(fs.readFileSync(infoPath, "utf8"));
     info.version = "2.0.0";
     fs.writeFileSync(infoPath, JSON.stringify(info, null, 2));
-    // packageWidget runs rewriteForVersion internally so it self-heals — to
+    // packageWidget runs rewriteForVersion internally so it self-heals - to
     // trigger the drift error we have to bypass it. Confirm validateWidget
     // catches the drift directly instead.
     const report = validateWidget(srcDir, info);
@@ -471,7 +493,7 @@ describe("suggestInfoFix", () => {
   test("returns null when only optional fields are missing", () => {
     const patch = suggestInfoFix({
       name: "w", version: "1.0.0",
-      metadata: { pages: ["Dashboard"] }, // no windowClass/size/standalone — those are warnings, not auto-suggested
+      metadata: { pages: ["Dashboard"] }, // no windowClass/size/standalone - those are warnings, not auto-suggested
     });
     expect(patch).toBeNull();
   });

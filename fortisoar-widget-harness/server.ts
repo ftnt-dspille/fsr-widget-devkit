@@ -2678,6 +2678,9 @@ if (require.main === module) {
     );
     process.exit(1);
   }
+  // Widget TypeScript (gitignored .js next to each .ts) must exist before the
+  // widget is served; see lib/widgetAssets.js.
+  require("./lib/widgetAssets").buildAllWidgetAssets(WIDGET_ROOTS);
   app.listen(PORT, async () => {
     console.log(`\nharness  http://localhost:${PORT}`);
     console.log(`proxy    ${HOST}\n`);

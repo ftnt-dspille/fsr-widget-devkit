@@ -15,6 +15,10 @@ function widgetRoots() {
 }
 const WIDGET_ROOTS = widgetRoots();
 
+// Compile each widget's own TypeScript assets (gitignored .js, see
+// lib/widgetAssets.js) before any widget test requires them.
+require("./lib/widgetAssets").buildAllWidgetAssets(WIDGET_ROOTS);
+
 // All widget dirs (across every root) that carry a tests/ folder, as
 // { name, dir } -- the candidate set for the WIDGET filter.
 function testableWidgets() {

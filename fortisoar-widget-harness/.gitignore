@@ -77,3 +77,36 @@ FSR_PLAYBOOK_BUILDER_*
 
 # Introspection rig output (generated; baselines are committed separately)
 /introspection-reports/
+
+# Compiled from the .ts sources in tsconfig "include" (tsc emits .js next to
+# each .ts). Build output, never tracked: `pnpm install` (prepare) and `pnpm build`
+# regenerate them, and the Makefile targets that run harness code depend on
+# `harness-build`. The hand-maintained .js siblings of the .ts files NOT in
+# "include" (tests/e2e/*, tests/live/lib/*, playwright.config.js, ...) stay tracked.
+/harness.module.js
+/lib/chatSession.js
+/lib/domCapture.js
+/lib/harnessDrawer.js
+/lib/harnessRender.js
+/lib/harnessUtils.js
+/lib/liveUiDriver.js
+/lib/localUiDriver.js
+/lib/soarBrowser.js
+/lib/soarEnv.js
+/lib/types.js
+/lib/widgetTypecheck.js
+/packager.js
+/scripts/drive-live-widget.js
+/scripts/extract-templates.js
+/scripts/gen-soar-types.js
+/scripts/introspect-gate.js
+/scripts/introspect.js
+/scripts/introspectSoar.js
+/scripts/lint-angular.js
+/scripts/lint-testids.js
+/scripts/new-widget.js
+/scripts/probe-bootstrap.js
+/scripts/typecheck-widgets.js
+/scripts/widget-verify-remote.js
+/scripts/widget.js
+/server.js

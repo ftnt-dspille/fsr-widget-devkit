@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -23,16 +23,19 @@ setup: install widgets ## One-shot bootstrap: install harness deps + clone widge
 install: ## Install harness deps (pnpm)
 	cd $(HARNESS) && pnpm install
 
+harness-build: ## Compile the harness TypeScript into its gitignored .js (tsc). Prerequisite of every target that runs harness node code, so a fresh clone or a pull never runs stale compiled code
+	cd $(HARNESS) && pnpm build
+
 widgets: ## Clone/update widget repos into widgets-src/ from widgets.manifest
 	bash scripts/clone-widgets.sh
 
-assets: ## Fetch the FortiSOAR app shell into fsr_src/ (needed for e2e; reads harness .env)
+assets: harness-build ## Fetch the FortiSOAR app shell into fsr_src/ (needed for e2e; reads harness .env)
 	bash scripts/fetch-soar-assets.sh
 
-refresh-soar-types: ## Regenerate lib/soar-platform.d.ts from contenthub widgetServiceAPI docs (cross-checks fsr_src/app.unmin.js if present)
+refresh-soar-types: harness-build ## Regenerate lib/soar-platform.d.ts from contenthub widgetServiceAPI docs (cross-checks fsr_src/app.unmin.js if present)
 	cd $(HARNESS) && pnpm build && pnpm gen-types
 
-new-widget: ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSummary [KIND=record] [TRIGGER=1] [TITLE="…"]
+new-widget: harness-build ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSummary [KIND=record] [TRIGGER=1] [TITLE="…"]
 	@if [ -n "$(SPEC)" ]; then \
 	  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/new-widget.js --spec $(CURDIR)/$(SPEC); \
 	elif [ -n "$(NAME)" ]; then \
@@ -41,7 +44,7 @@ new-widget: ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSum
 	  echo "Usage: make new-widget SPEC=spec.json   (or)   make new-widget NAME=<camelCase> [KIND=record] [TRIGGER=1] [TITLE=\"…\"]"; exit 2; \
 	fi
 
-dev: ## Run the harness you drive by hand -- http://localhost:14400
+dev: harness-build ## Run the harness you drive by hand -- http://localhost:14400
 	cd $(HARNESS) && PORT=$(DEV_PORT) pnpm start
 
 start: dev ## Alias for dev
@@ -52,17 +55,17 @@ stop: ## Kill both the dev (14400) and test (14401) servers
 
 test: test-unit ## Full check: jest unit tests (use test-e2e-widget WIDGET=<name> for e2e)
 
-test-unit: ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
+test-unit: harness-build ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
 	cd $(HARNESS) && WIDGET="$(WIDGET)" pnpm test
 
-test-e2e-headed: ## Playwright e2e with browser UI (test server on 14401)
+test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on 14401)
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e:headed
 
 # Scoped e2e for one or more specs. Kills any stale test-port server first
 # (the recurring stale-server breakage) so Playwright always boots a fresh one.
 # Usage: make test-e2e-spec SPEC=tests/e2e/fsrSocAssistant.c2Hunt.spec.js
 #        make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
-test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on an always-fresh test server
+test-e2e-widget: harness-build ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on an always-fresh test server
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make test-e2e-widget WIDGET=<widgetName>"; exit 2; fi
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@# E2E_LIVE= forces the MOCK stage to stay mock. playwright.config.js keys
@@ -79,7 +82,7 @@ test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on
 # pattern ran as a shell pipe.
 comma := ,
 SPEC_ARGS = $(foreach s,$(subst $(comma), ,$(SPEC)),'$(s)')
-test-e2e-spec: ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) on an always-fresh test server
+test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) on an always-fresh test server
 	@if [ -z "$(SPEC)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js"; exit 2; fi
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC_ARGS) --reporter=list
@@ -94,7 +97,7 @@ SEAMC_PORT   := 4778
 SEAMC_SIDECAR := $(HARNESS)/scripts/local-connector-sidecar.py
 SEAMC_PY     := $(HARNESS)/.venv-localdev/bin/python
 SEAMC_SPEC   := ../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.seamHermetic.spec.js
-turn-hermetic: ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
+turn-hermetic: harness-build ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
 	-lsof -ti:$(SEAMC_PORT) | xargs kill -9 2>/dev/null || true
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	FSRPB_DEV=1 FSRPB_SIDECAR_HERMETIC=1 FSRPB_SIDECAR_PORT=$(SEAMC_PORT) \
@@ -115,7 +118,7 @@ turn-hermetic: ## Seam C: real widget ↔ real connector, box-free (hermetic sid
 # Needs the dev server up (pnpm dev on :4401, or pass BASE=). Pass-through flags
 # via ARGS. See scripts/widget-inspect.js --help for the full flag list.
 #   make widget-inspect ARGS='--widget counter --config {"start":7} --text [data-testid=counter-value]'
-widget-inspect: ## Mount a widget in the running harness + measure it as JSON (ARGS='--widget <name> ...')
+widget-inspect: harness-build ## Mount a widget in the running harness + measure it as JSON (ARGS='--widget <name> ...')
 	@if [ -z "$(ARGS)" ]; then cd $(HARNESS) && node scripts/widget-inspect.js --help; exit 0; fi
 	cd $(HARNESS) && $(if $(BASE),HARNESS_BASE=$(BASE) ,)node scripts/widget-inspect.js $(ARGS)
 
@@ -125,7 +128,7 @@ BUMP ?= patch
 # meant editing shared state. `SHIP_ENV=.env.206` targets one box explicitly.
 SHIP_ENV ?= .env
 
-ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
+ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
 	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
@@ -177,7 +180,7 @@ ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deplo
 	  esac; \
 	  echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed$$lv_msg."
 
-widget-push: ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
+widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> SHIP_ENV=.env.<box> [BUMP=patch]"; exit 2; fi
 	@if [ "$(origin SHIP_ENV)" != "command line" ]; then echo "widget-push: pass SHIP_ENV=.env.<box> explicitly (no silent default box)"; exit 2; fi
 	@cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
@@ -186,7 +189,7 @@ widget-push: ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE wi
 	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV) (dev path: NOT e2e/live-verified; use ship-verify for a release)"
 
-release: ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
+release: harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
 
@@ -217,7 +220,7 @@ SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
 # pointed at the wrong box".
 SWEEP_ENV ?= .env.159
 
-test-mcp-surface-live: ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (SWEEP_ENV=.env.159)
+test-mcp-surface-live: harness-build ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (SWEEP_ENV=.env.159)
 	@# Its own target rather than `test-e2e-spec SPEC=…` because a live spec needs
 	@# the box env sourced, and test-e2e-spec deliberately does not source one --
 	@# an ambient E2E_LIVE=1 there would un-ignore every live spec in the mock tier.
@@ -234,7 +237,7 @@ test-mcp-surface-live: ## LIVE M2 widget-tier proof: the mounted page decides th
 # has to be re-driven at ~2 min a row.
 SWEEP_GREP = $(if $(ROWS),--grep "(^| )($(subst $(COMMA),|,$(ROWS)))[a-z]? ",)
 COMMA := ,
-test-live-sweep: ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats, ROWS=2,3 for a subset. Prints [[SWEEP-VERIFIED]]/[[SWEEP-PARTIAL]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
+test-live-sweep: harness-build ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats, ROWS=2,3 for a subset. Prints [[SWEEP-VERIFIED]]/[[SWEEP-PARTIAL]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@# A hard-down box makes the spec's beforeAll print [[SWEEP-ENV-SKIP]] and
 	@# skip every scenario. Playwright exits 0 on all-skipped, so without this
@@ -297,7 +300,7 @@ MATRIX_BOX := $(patsubst .env.%,%,$(notdir $(MATRIX_ENV)))
 MATRIX_SCENARIOS ?= $(if $(wildcard $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.json))
 # MATRIX_GATE filters rows by their `gate` field (see matrixDriver.gateRow).
 # Unset = every runnable row.
-test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10/P1-P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
+test-matrix-live: harness-build ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10/P1-P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
 	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
 	@# A missing scenario file used to warn and exit 0 -- "the matrix passed"
 	@# over zero rows (PLAN_testing_that_can_fail 0.2). MATRIX_ALLOW_SKIP=1 is
@@ -315,7 +318,7 @@ test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T
 	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
 
-test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
+test-matrix-gate: harness-build ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
 	@$(MAKE) test-matrix-live MATRIX_GATE=strict,xfail MATRIX_ENV=$(MATRIX_ENV)
 
 # ── The LOCAL matrix ────────────────────────────────────────────────────────
@@ -342,7 +345,7 @@ test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean 
 # The driver preflights both and refuses -- rather than silently grading the
 # box's deployed connector -- if the harness is not wired to the sidecar.
 MATRIX_LOCAL_BASE ?= http://localhost:4401
-test-matrix-local: ## LOCAL matrix: the same graded rows against the harness + connector sidecar (no ship, no box login). Needs the LOCAL_DEV.md loop running. MATRIX_IDS=Z3,Z5 for a subset.
+test-matrix-local: harness-build ## LOCAL matrix: the same graded rows against the harness + connector sidecar (no ship, no box login). Needs the LOCAL_DEV.md loop running. MATRIX_IDS=Z3,Z5 for a subset.
 	@echo "▶ matrix (LOCAL): base=$(MATRIX_LOCAL_BASE) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"
 	@echo "  grading your WORKING TREE -- this does not prove the deployed path (use test-matrix-live for that)"
 	cd $(HARNESS) && \
@@ -351,37 +354,37 @@ test-matrix-local: ## LOCAL matrix: the same graded rows against the harness + c
 	  $(if $(MATRIX_SCENARIOS_LOCAL),MATRIX_SCENARIOS="$(MATRIX_SCENARIOS_LOCAL)",) \
 	    pnpm test:live tests/live/matrix.live.test.js
 
-grade-export: ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
+grade-export: harness-build ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
 	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
 	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
-test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
+test-ar-playbook-live: harness-build ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.playbookListingLive.spec.js --reporter=list
 
-test-ar-jtg-flow-live: ## LIVE action-renderer FULL edit flow (pick JSON-to-Grid playbook -> Run sample via notrigger -> Output) vs .env.box (205). AR_PLAYBOOK_NAME=<name> to override.
+test-ar-jtg-flow-live: harness-build ## LIVE action-renderer FULL edit flow (pick JSON-to-Grid playbook -> Run sample via notrigger -> Output) vs .env.box (205). AR_PLAYBOOK_NAME=<name> to override.
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js --reporter=list
 
-test-ar-connector-live: ## LIVE action-renderer CONNECTOR edit flow (pick connector -> operation -> Run sample -> table) vs .env.box. AR_CONNECTOR/AR_OPERATION to override (default mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]]).
+test-ar-connector-live: harness-build ## LIVE action-renderer CONNECTOR edit flow (pick connector -> operation -> Run sample -> table) vs .env.box. AR_CONNECTOR/AR_OPERATION to override (default mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]]).
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
 	  pnpm test:e2e tests/e2e/actionRenderer.connectorFlowLive.spec.js --reporter=list
 
-test-designer-stage-live: ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
+test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
 	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.159) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.159) (box creds)"; exit 2; fi
 	cd $(HARNESS) && set -a && . ./$(or $(LIVE_ENV),.env.159) && set +a && \
 	  E2E_LIVE=1 pnpm test:live tests/live/designerStage.live.test.js
 
-introspect: ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
+introspect: harness-build ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
 	-lsof -ti:$(INTROSPECT_PORT) | xargs kill -9 2>/dev/null || true
 	@echo "▶ Starting introspection harness on port $(INTROSPECT_PORT)…"
 	@( cd $(HARNESS) && PORT=$(INTROSPECT_PORT) node server.js > /dev/null 2>&1 & \
@@ -395,11 +398,11 @@ introspect: ## Hermetic widget-render introspection (builds baseline reports; in
 	  cd $(HARNESS) && HARNESS_URL=http://localhost:$(INTROSPECT_PORT) pnpm node scripts/introspect.js; \
 	)
 
-introspect-gate: introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors). GATE_WIDGET=<name> scopes the pass/fail to one widget.
+introspect-gate: harness-build introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors). GATE_WIDGET=<name> scopes the pass/fail to one widget.
 	@echo "▶ Checking regressions against baseline…"
 	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js $(GATE_WIDGET)
 
-introspect-soar: ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. Source the box env first (e.g. `set -a; . .env.159; set +a`). ENV=.env.159 to point it; ARGS='--offline' to re-diff without driving the box.
+introspect-soar: harness-build ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. Source the box env first (e.g. `set -a; . .env.159; set +a`). ENV=.env.159 to point it; ARGS='--offline' to re-diff without driving the box.
 	@echo "▶ Rendering deployed widget(s) live + diffing vs harness baseline…"
 	@cd $(HARNESS) && set -a; [ -n "$(ENV)" ] && . ./$(ENV); set +a; pnpm node scripts/introspectSoar.js $(ARGS)
 

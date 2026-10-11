@@ -18,6 +18,12 @@ const E2E_BASE_PORT: number = resolveBasePort();
 
 dotenv.config();
 
+// Compile each widget's own TypeScript assets (gitignored .js, see
+// lib/widgetAssets.js) after .env is loaded, so a WIDGETS_SRC from .env applies.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const widgetAssets = require("./lib/widgetAssets");
+widgetAssets.buildAllWidgetAssets(widgetAssets.widgetRoots());
+
 // In the monorepo, widgets-src is a SYMLINK to ../widgets-src. Playwright's
 // spec walker does not descend symlinked directories, so per-widget specs under
 // it (c3charts, widget-action-renderer, …) were silently skipped -- discovery

@@ -4,6 +4,11 @@ import os = require("os");
 import path = require("path");
 import { InfoJson } from "./lib/types";
 const { spawn } = require("child_process");
+// Compiles the widget's own TypeScript assets (gitignored .js) before packaging.
+const { buildWidgetAssets, widgetRepoDir } = require("./lib/widgetAssets") as {
+  buildWidgetAssets: (widgetDir: string) => boolean;
+  widgetRepoDir: (widgetDir: string) => string;
+};
 
 const REQUIRED_FILES = [
   "info.json",
@@ -67,7 +72,7 @@ interface RewriteOpts {
   rewritePaths?: boolean;
 }
 
-// Rewrites controller references to `<name><numericVersion>DevCtrl` — the
+// Rewrites controller references to `<name><numericVersion>DevCtrl` - the
 // shape SOAR resolves at install time when `development: true`. Mirrors
 // the four regex passes in ~/.local/bin/package-widget-simp. Extends the
 // reference by also rewriting view.html (ng-controller + versioned
@@ -117,7 +122,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
     fs.writeFileSync(absPath, contents);
   }
 
-  // `rewritePaths: true` everywhere — controllers can also carry versioned
+  // `rewritePaths: true` everywhere - controllers can also carry versioned
   // refs (e.g. `'fsrPlaybookBuilder-1.0.1'` as a localStorage key fallback,
   // or `<script>`-loaded asset paths). Restricting path rewrites to HTML
   // files left bare-ID strings in controllers stale and tripped the
@@ -133,7 +138,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
   // so without sweeping them too every bump silently reds the unit/e2e suite
   // until someone fixes them by hand. Sweep the sibling tests/ tree with the
   // identical idempotent rewrite. (During packaging `dir` is a tmp copy with
-  // no tests sibling — the walk simply finds nothing.)
+  // no tests sibling - the walk simply finds nothing.)
   const testsDir = path.join(dir, "..", "tests");
   if (fs.existsSync(testsDir)) {
     const walk = (d: string): void => {
@@ -151,7 +156,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
   }
 }
 
-// Convenience alias — same function is used by packageWidget (against a
+// Convenience alias - same function is used by packageWidget (against a
 // tmp copy) and by the bump endpoint (against the source dir).
 const syncSourceToInfoJson = rewriteForVersion;
 
@@ -198,7 +203,7 @@ function nameVariationPairs(oldName: string, newName: string): Array<[string, st
 // numeric version suffix), this swaps the widget identity old -> new wherever
 // it appears: info.json `name`, controller registrations + `$inject` + function
 // names, ng-controller refs, and versioned asset path prefixes. Each variation
-// is a plain global replace — the two case forms are not substrings of one
+// is a plain global replace - the two case forms are not substrings of one
 // another, and a distinctive camelCase widget name is not a substring of the
 // internal abbreviation prefixes (e.g. `fsrPb*`), so those are left untouched.
 // Returns the list of files actually changed (for reporting/tests).
@@ -267,7 +272,7 @@ interface RenameWidgetResult {
 // string wherever it appears, then move the folder so the directory name
 // matches the new identity. `srcRoot` is the widgets-src dir; the widget lives
 // at `<srcRoot>/<oldName>/widget`. Optional `opts`: `title`, `subtitle`,
-// `description` (→ metadata.description), `releaseNotes` — each applied only
+// `description` (→ metadata.description), `releaseNotes` - each applied only
 // when provided. Throws (without moving) if the new name is invalid, unchanged,
 // or its target folder already exists, so a failed rename never leaves a
 // half-moved tree. Returns a report; `changedFiles` paths point at the moved
@@ -382,7 +387,7 @@ interface ValidationReport {
 }
 
 // Hard-required info.json metadata. windowClass and size are load-bearing for
-// $uibModal — without them the edit modal launches with no CSS class/size and
+// $uibModal - without them the edit modal launches with no CSS class/size and
 // renders invisibly in real SOAR (the harness wraps the controller itself, so
 // dev preview hides the bug). standalone + pages are required by SOAR's widget
 // registry.
@@ -415,23 +420,23 @@ function validateInfoMetadata(info: unknown): ValidationReport {
     const val = metaObj[k];
     if (typeof val !== "string" || !(val as string).trim()) {
       warnings.push(
-        `info.json: metadata.${k} not set — fine for most widgets; set "Full Width" + "lg" if your edit modal looks cramped or invisible`
+        `info.json: metadata.${k} not set - fine for most widgets; set "Full Width" + "lg" if your edit modal looks cramped or invisible`
       );
     }
   }
   if (typeof metaObj.standalone !== "boolean") {
-    warnings.push("info.json: metadata.standalone not set (boolean) — defaults vary by SOAR version");
+    warnings.push("info.json: metadata.standalone not set (boolean) - defaults vary by SOAR version");
   }
   const hasPages = Array.isArray(metaObj.pages) && (metaObj.pages as unknown[]).length > 0;
   const hasContexts = Array.isArray(metaObj.contexts) && (metaObj.contexts as unknown[]).length > 0;
   const metaView = metaObj.view && typeof metaObj.view === "object" ? metaObj.view as Record<string, unknown> : null;
   const hasEnableFor = metaView && Array.isArray(metaView.enableFor) && (metaView.enableFor as unknown[]).length > 0;
   if (!hasPages && !hasContexts && !hasEnableFor) {
-    errors.push("info.json: metadata.pages must be a non-empty array (or set metadata.contexts / metadata.view.enableFor) — SOAR needs at least one placement hint");
+    errors.push("info.json: metadata.pages must be a non-empty array (or set metadata.contexts / metadata.view.enableFor) - SOAR needs at least one placement hint");
   }
 
   if (!Array.isArray(metaObj.compatibility) || (metaObj.compatibility as unknown[]).length === 0) {
-    warnings.push("info.json: metadata.compatibility empty — widget may not surface on any SOAR version");
+    warnings.push("info.json: metadata.compatibility empty - widget may not surface on any SOAR version");
   }
   if (!metaObj.category) warnings.push("info.json: metadata.category missing");
   if (metaObj.publisher == null || metaObj.publisher === "") {
@@ -541,7 +546,7 @@ function validateControllers(dir: string, info: unknown): ValidationReport {
             if (testDigits !== expectedDigits) {
               const relPath = path.relative(dir, testFile);
               errors.push(
-                `${relPath}: CTRL_NAME references '${testCtrlName}' with version digits '${testDigits}' but info.json version '${obj.version}' -> '${expectedDigits}' — run \`widget bump ${obj.name}\` to sync`
+                `${relPath}: CTRL_NAME references '${testCtrlName}' with version digits '${testDigits}' but info.json version '${obj.version}' -> '${expectedDigits}' - run \`widget bump ${obj.name}\` to sync`
               );
             }
           }
@@ -556,7 +561,7 @@ function validateControllers(dir: string, info: unknown): ValidationReport {
             if (testDigits !== expectedDigits) {
               const relPath = path.relative(dir, testFile);
               errors.push(
-                `${relPath}: .controller('${testCtrlName}') has version digits '${testDigits}' but info.json version '${obj.version}' -> '${expectedDigits}' — run \`widget bump ${obj.name}\` to sync`
+                `${relPath}: .controller('${testCtrlName}') has version digits '${testDigits}' but info.json version '${obj.version}' -> '${expectedDigits}' - run \`widget bump ${obj.name}\` to sync`
               );
             }
           }
@@ -576,9 +581,9 @@ function validateControllers(dir: string, info: unknown): ValidationReport {
 
 // Suggests a minimal JSON merge patch (RFC 7396 shape) that, when deep-merged
 // into the widget's info.json, would clear every error from validateInfoMetadata.
-// Conservative defaults — caller is expected to surface them in the harness UI
+// Conservative defaults - caller is expected to surface them in the harness UI
 // so the user knows what's about to be written. Returns null when no fixable
-// errors are present (warnings are intentionally left alone — they're judgment
+// errors are present (warnings are intentionally left alone - they're judgment
 // calls, not silent rewrites).
 function suggestInfoFix(info: unknown): Record<string, unknown> | null {
   const safe = info && typeof info === "object" ? (info as Record<string, unknown>) : ({} as Record<string, unknown>);
@@ -674,6 +679,7 @@ interface PackageWidgetResult {
 }
 
 async function packageWidget(widgetDir: string, outputDir: string): Promise<PackageWidgetResult> {
+  buildWidgetAssets(widgetRepoDir(widgetDir));
   const infoPath = path.join(widgetDir, "info.json");
   if (!fs.existsSync(infoPath)) throw new Error("info.json not found");
   const info: InfoJson = JSON.parse(fs.readFileSync(infoPath, "utf8"));
