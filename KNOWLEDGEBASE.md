@@ -2965,7 +2965,7 @@ the raw HTML.
 ### 32.11 Lint/gate checklist before shipping a widget
 From the dev-kit root:
 - `make test-unit WIDGET=<name>` -- jest (controller + pure logic).
-- `make test-e2e-widget WIDGET=<name>` -- Playwright hermetic.
+- `make test-e2e-spec WIDGET=<name>` -- Playwright hermetic.
 - `cd fortisoar-widget-harness && node scripts/typecheck-widgets.js <name>` --
   tsc checkJs gate.
 - `node scripts/lint-angular.js <name>` -- AngularJS lint (ng-model-dot,

@@ -18,7 +18,7 @@ Inputs: the widget name, and optionally the spec file(s) that cover the change.
       `renderTsJsParity.test.js` when `fsrPbRender.ts` changed.
    b. Template or CSS change: `make test-e2e-spec SPEC="<spec files>"` for the specs
       that cover the changed element. If no spec covers it, say so. Do not report a pass.
-      For a whole-widget run use `make test-e2e-widget WIDGET=<name>`.
+      For a whole-widget run use `make test-e2e-spec WIDGET=<name>`.
    c. Visual or DOM claim: `make widget-inspect ARGS='--widget <name> ...'` and quote the JSON.
 3. Red check. If the change claims to fix a bug, the new test must fail without the fix.
    Do the check in a scratch worktree (`git worktree add <scratch>/wt_verify <branch>`),

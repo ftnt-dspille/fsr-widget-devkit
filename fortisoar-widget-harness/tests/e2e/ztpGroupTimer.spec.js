@@ -2,7 +2,7 @@
 // End-to-end test -- boots the widget in the harness (headless Chromium) and
 // exercises the real DOM. The complement to the jest unit test. Run with:
 //
-//   make test-e2e-widget WIDGET=ztpGroupTimer   # from the dev-kit root
+//   make test-e2e-spec WIDGET=ztpGroupTimer   # from the dev-kit root
 
 const { test, expect } = require('@playwright/test');
 const { waitForRender } = require('./_render');

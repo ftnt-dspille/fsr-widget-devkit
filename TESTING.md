@@ -12,7 +12,7 @@ ones that otherwise cost an afternoon. Read it before writing your first spec.
 | Runs in | jsdom (no browser) | headless Chromium |
 | Needs SOAR assets? | **No** | **Yes** -- `make assets` first |
 | Spec lives in | `widgets-src/<widget>/tests/*.test.js` | `fortisoar-widget-harness/tests/e2e/<widget>.spec.js` |
-| Run with | `make test-unit WIDGET=<widget>` | `make test-e2e-widget WIDGET=<widget>` |
+| Run with | `make test-unit WIDGET=<widget>` | `make test-e2e-spec WIDGET=<widget>` |
 
 Always run through the Makefile -- it owns the dev (14400) / test (14401) ports
 and kills stale servers. Never hand-start a server or call `playwright` directly.
@@ -178,7 +178,7 @@ runs, in order, failing fast:
    no CI, no git-hook ran them) -- they're now wired here so their rules actually
    enforce on every ship. Don't "simplify" by dropping back to just `widget.js lint`.
 2. **unit** -- `make test-unit` (jest; must exit 0 -- see "trustworthy green" below)
-3. **e2e (mock)** -- `make test-e2e-widget` (all non-live specs; `[Ll]ive` excluded)
+3. **e2e (mock)** -- `make test-e2e-spec` (all non-live specs; `[Ll]ive` excluded)
 4. **introspect-gate** -- hermetic DOM/payload/console regression vs baseline,
    **scoped to the shipped widget** (`GATE_WIDGET=<w>`) so an unrelated widget's
    stale baseline can't block your ship. It still *renders* the whole fleet
@@ -196,7 +196,7 @@ runs, in order, failing fast:
 > `ENV=<path>`.) ship.sh's target-mismatch guard will abort if a stale
 > `.harness-active-env` disagrees with `.env`.
 >
-> **Hermetic-tier specs must self-skip in the mock gate.** `make test-e2e-widget`
+> **Hermetic-tier specs must self-skip in the mock gate.** `make test-e2e-spec`
 > globs *all* of a widget's e2e specs, but specs that need the **Seam C hermetic
 > sidecar** (e.g. `*.seamHermetic.spec.js`) only work under `make turn-hermetic`
 > (which starts the sidecar and sets `FSRPB_SEAMC_URL`). Guard them with
@@ -208,7 +208,7 @@ Sub-commands you'll also use directly:
 | Command | What |
 |---|---|
 | `make test-unit WIDGET=<w>` | jest only |
-| `make test-e2e-widget WIDGET=<w>` | mock e2e only |
+| `make test-e2e-spec WIDGET=<w>` | mock e2e only |
 | `make test-live-sweep [RUNS=n]` | the live UI bug-hunt sweep, repeated `n`× |
 | `make ship-verify WIDGET=<w> BUMP=<p>` | the whole pipeline above |
 
@@ -219,7 +219,7 @@ already covers, and nothing below it can substitute.
 
 | Tier | Command | Widget | Connector | Model | Data | Proves |
 |---|---|---|---|---|---|---|
-| mock e2e | `make test-e2e-widget` | real | client-side mock | -- | stubs | render / DOM behaviour |
+| mock e2e | `make test-e2e-spec` | real | client-side mock | -- | stubs | render / DOM behaviour |
 | Seam C | `make turn-hermetic` | real | **real**, in-process | fake | cassette | the widget↔connector contract, deterministically, box-free |
 | local matrix | `make test-matrix-local` | real | **real**, sidecar | **real** | box (proxy) | **agent behaviour on your working tree, graded** -- no ship |
 | live matrix | `make test-matrix-live` | deployed | deployed | real | box | the **shipped** path |

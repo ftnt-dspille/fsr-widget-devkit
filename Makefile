@@ -12,10 +12,10 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
 
 help:
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 setup: install widgets ## One-shot bootstrap: install harness deps + clone widgets from the manifest
 	@echo "Setup complete. Copy fortisoar-widget-harness/.env.example to .env, then 'make dev'."
@@ -50,7 +50,7 @@ stop: ## Kill both the dev (14400) and test (14401) servers
 	-lsof -ti:$(DEV_PORT)  | xargs kill -9 2>/dev/null || true
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 
-test: test-unit ## Full check: jest unit tests (use test-e2e-widget WIDGET=<name> for e2e)
+test: test-unit ## Full check: jest unit tests (use test-e2e-spec WIDGET=<name> for e2e)
 
 test-unit: ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
 	cd $(HARNESS) && WIDGET="$(WIDGET)" pnpm test
@@ -58,12 +58,19 @@ test-unit: ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>]
 test-e2e-headed: ## Playwright e2e with browser UI (test server on 14401)
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e:headed
 
-# Scoped e2e for one or more specs. Kills any stale test-port server first
-# (the recurring stale-server breakage) so Playwright always boots a fresh one.
-# Usage: make test-e2e-spec SPEC=tests/e2e/fsrSocAssistant.c2Hunt.spec.js
-#        make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
-test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on an always-fresh test server
-	@if [ -z "$(WIDGET)" ]; then echo "Usage: make test-e2e-widget WIDGET=<widgetName>"; exit 2; fi
+# Scoped e2e on a fresh test server: kills any stale test-port server first (the
+# recurring stale-server breakage) so Playwright always boots a fresh one.
+#   make test-e2e-spec SPEC=tests/e2e/fsrSocAssistant.c2Hunt.spec.js
+#   make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
+#   make test-e2e-spec WIDGET=fortiaiAgenticAssistant   # every e2e spec of one widget
+# SPEC is one or more file patterns, separated by spaces or commas. Each is passed
+# to Playwright as its own single-quoted argument: commas used to reach it as one
+# regex that matched nothing ("No tests found"), and a `|` in a pattern ran as a
+# shell pipe.
+comma := ,
+SPEC_ARGS = $(foreach s,$(subst $(comma), ,$(SPEC)),'$(s)')
+test-e2e-spec: ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) or every e2e spec of one widget (WIDGET=<name>) on an always-fresh test server
+	@if [ -z "$(SPEC)$(WIDGET)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js   (or WIDGET=<widgetName>)"; exit 2; fi
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@# E2E_LIVE= forces the MOCK stage to stay mock. playwright.config.js keys
 	@# testIgnore on that variable, so an ambient E2E_LIVE=1 in the caller's
@@ -71,18 +78,10 @@ test-e2e-widget: ## Run all e2e specs for one widget (WIDGET=fsrSocAssistant) on
 	@# driving a real box -- ship-verify's step 3/6 then fails on live-only
 	@# preconditions long before the deploy it is supposed to gate. The stage
 	@# that owns live (test-live-sweep, step 6/6) sets the flag itself.
-	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE= pnpm test:e2e $(WIDGET) --reporter=list
+	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=$(if $(WIDGET),,$$E2E_LIVE) pnpm test:e2e $(if $(WIDGET),$(WIDGET),$(SPEC_ARGS)) --reporter=list
 
-# SPEC is one or more file patterns, separated by spaces or commas. Each is
-# passed to Playwright as its own single-quoted argument: commas used to reach
-# it as one regex that matched nothing ("No tests found"), and a `|` in a
-# pattern ran as a shell pipe.
-comma := ,
-SPEC_ARGS = $(foreach s,$(subst $(comma), ,$(SPEC)),'$(s)')
-test-e2e-spec: ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) on an always-fresh test server
-	@if [ -z "$(SPEC)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js"; exit 2; fi
-	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e $(SPEC_ARGS) --reporter=list
+# Old name for `test-e2e-spec WIDGET=<name>`.
+test-e2e-widget: test-e2e-spec
 
 # Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
 # turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
@@ -132,7 +131,7 @@ ship-verify: ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deplo
 	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-testids.js $(WIDGET)
 	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
 	@echo "▶ 2/6 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
-	@echo "▶ 3/6 e2e (mock)"; $(MAKE) test-e2e-widget WIDGET=$(WIDGET)
+	@echo "▶ 3/6 e2e (mock)"; $(MAKE) test-e2e-spec WIDGET=$(WIDGET)
 	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"; \
 	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; \
 	  else $(MAKE) introspect-gate GATE_WIDGET=$(WIDGET); fi
@@ -315,8 +314,9 @@ test-matrix-live: ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T
 	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
 
-test-matrix-gate: ## LIVE matrix, GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
-	@$(MAKE) test-matrix-live MATRIX_GATE=strict,xfail MATRIX_ENV=$(MATRIX_ENV)
+# Old name for `test-matrix-live MATRIX_GATE=strict,xfail`: GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
+test-matrix-gate: MATRIX_GATE = strict,xfail
+test-matrix-gate: test-matrix-live
 
 # ── The LOCAL matrix ────────────────────────────────────────────────────────
 #
@@ -355,26 +355,31 @@ grade-export: ## Grade a downloaded widget .events.json chat export offline (EXP
 	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
 	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
-test-ar-playbook-live: ## LIVE action-renderer EDIT playbook-listing test vs the box that has playbooks (.env.box = 205). AR_ALERT_UUID=<uuid> to override the alert.
+# LIVE action-renderer edit flows, one per MODE, on the box in LIVE_ENV (default
+# .env.159, the documented default box). Needs the box creds file.
+#   playbook   the playbook listing (AR_ALERT_UUID=<uuid> overrides the alert)
+#   jtg        JSON-to-Grid, full edit flow (AR_PLAYBOOK_NAME=<name> overrides it)
+#   connector  connector edit flow (AR_CONNECTOR / AR_OPERATION; default
+#              mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]])
+LIVE_ENV ?= .env.159
+AR_SPEC_playbook  := tests/e2e/actionRenderer.playbookListingLive.spec.js
+AR_SPEC_jtg       := tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js
+AR_SPEC_connector := tests/e2e/actionRenderer.connectorFlowLive.spec.js
+test-ar-live: ## LIVE action-renderer edit flow: MODE=playbook|jtg|connector (LIVE_ENV=.env.159 by default; AR_* vars per mode)
+	@case "$(MODE)" in playbook|jtg|connector) ;; *) echo "usage: make test-ar-live MODE=playbook|jtg|connector [LIVE_ENV=.env.<box>]"; exit 2 ;; esac
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
-	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
+	@if [ ! -f $(HARNESS)/$(LIVE_ENV) ]; then echo "missing $(HARNESS)/$(LIVE_ENV) (box creds)"; exit 2; fi
+	cd $(HARNESS) && set -a && . ./$(LIVE_ENV) && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 \
-	  pnpm test:e2e tests/e2e/actionRenderer.playbookListingLive.spec.js --reporter=list
+	  pnpm test:e2e $(AR_SPEC_$(MODE)) --reporter=list
 
-test-ar-jtg-flow-live: ## LIVE action-renderer FULL edit flow (pick JSON-to-Grid playbook -> Run sample via notrigger -> Output) vs .env.box (205). AR_PLAYBOOK_NAME=<name> to override.
-	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
-	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
-	  PORT=$(TEST_PORT) E2E_LIVE=1 \
-	  pnpm test:e2e tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js --reporter=list
-
-test-ar-connector-live: ## LIVE action-renderer CONNECTOR edit flow (pick connector -> operation -> Run sample -> table) vs .env.box. AR_CONNECTOR/AR_OPERATION to override (default mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]]).
-	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	@if [ ! -f $(HARNESS)/.env.box ]; then echo "missing $(HARNESS)/.env.box (box creds)"; exit 2; fi
-	cd $(HARNESS) && set -a && . ./.env.box && set +a && \
-	  PORT=$(TEST_PORT) E2E_LIVE=1 \
-	  pnpm test:e2e tests/e2e/actionRenderer.connectorFlowLive.spec.js --reporter=list
+# Old names for `test-ar-live MODE=...`.
+test-ar-playbook-live: MODE = playbook
+test-ar-playbook-live: test-ar-live
+test-ar-jtg-flow-live: MODE = jtg
+test-ar-jtg-flow-live: test-ar-live
+test-ar-connector-live: MODE = connector
+test-ar-connector-live: test-ar-live
 
 test-designer-stage-live: ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
 	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.159) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.159) (box creds)"; exit 2; fi

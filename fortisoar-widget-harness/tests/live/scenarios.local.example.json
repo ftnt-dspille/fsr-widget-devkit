@@ -54,7 +54,7 @@
     "When Phase 3 ships they should report XPASS (promote): flip them to gate:'strict'.",
     "",
     "Box: run against 206 (where the build flow failed) with `make test-matrix-live MATRIX_ENV=.env.206`.",
-    "`make test-matrix-gate` runs the gating rows only (strict + xfail), skipping the soft ones."
+    "`make test-matrix-live MATRIX_GATE=strict,xfail` runs the gating rows only (strict + xfail), skipping the soft ones."
   ],
   "module": "alerts",
   "scenarios": [

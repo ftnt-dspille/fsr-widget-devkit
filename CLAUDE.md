@@ -58,7 +58,7 @@ Tier ladder, cheapest first. All targets run from the repo root:
 1. `make test-unit WIDGET=<name>[,<name>]` (jest; `WIDGET=all` for every widget).
    Controller logic. Must exit 0.
 2. `make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"` for scoped
-   runs, or `make test-e2e-widget WIDGET=<name>` for one widget. DOM and template.
+   runs, or `make test-e2e-spec WIDGET=<name>` for one widget. DOM and template.
    Space- or comma-separated.
 3. `make loop`: the default iteration (above).
 4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
