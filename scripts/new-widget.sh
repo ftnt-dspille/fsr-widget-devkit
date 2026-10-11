@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# new-widget.sh — scaffold a new widget from widgets-src/_template.
+# new-widget.sh - scaffold a new widget from widgets-src/_template.
 #
 # Unlike `widget rename` (which renames an EXISTING widget and deliberately
 # leaves sibling tests/ alone), this is for STARTING a new widget: it copies the
-# template and replaces every placeholder form — camelCase name, kebab-case
-# testids/classes, and the display title — across the widget AND its tests, so
+# template and replaces every placeholder form - camelCase name, kebab-case
+# testids/classes, and the display title - across the widget AND its tests, so
 # `make test-unit WIDGET=<name>` passes immediately.
 #
 # Usage:
@@ -64,7 +64,7 @@ find "$DEST" -depth -name '*myWidget*' | while IFS= read -r p; do
   mv "$p" "$(dirname "$p")/$(basename "$p" | sed "s/myWidget/$NAME/g")"
 done
 
-# Relocate the e2e spec into the harness's tests/e2e/ — Playwright's testDir is
+# Relocate the e2e spec into the harness's tests/e2e/ - Playwright's testDir is
 # the harness and it does NOT crawl through the widgets-src symlink, so a spec
 # left in the widget folder is never discovered. This matches the convention the
 # real widgets use (harness/tests/e2e/<widget>.*.spec.js). The jest UNIT test
@@ -81,4 +81,4 @@ echo "✓ created widgets-src/$NAME  (title: \"$TITLE\", kebab: $KEBAB)"
 echo "  next:"
 echo "    make test-unit WIDGET=$NAME           # jest"
 echo "    make dev                              # then pick \"$TITLE\" at http://localhost:14400"
-echo "    make test-e2e-widget WIDGET=$NAME     # Playwright"
+echo "    make test-e2e-spec WIDGET=$NAME     # Playwright"
