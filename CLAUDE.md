@@ -75,6 +75,9 @@ Rules:
   `599 HERMETIC-MISS` and `globalTeardown` fails the run on any leak.
 - Every widget change ships with a test: controller logic gets jest, DOM/CSS gets
   e2e. Iterate every input in integration tests and assert on all of them.
+- Testing a widget worktree: the harness resolves `widgets-src` through its real path,
+  so a test run from a worktree silently tests the shared checkout. Put the widget
+  worktree at `<scratch>/x/widgets-src/<name>` and pass `WIDGETS_SRC=<scratch>/x/widgets-src`.
 - **A test for a fix must be shown red without the fix.** Remove the fix (in a
   scratch worktree, not the shared checkout), run the test, see it fail, restore.
   A jest test once passed with or without its fix. Tests written from the same

@@ -21,7 +21,9 @@ Inputs: the widget name, and optionally the spec file(s) that cover the change.
       For a whole-widget run use `make test-e2e-spec WIDGET=<name>`.
    c. Visual or DOM claim: `make widget-inspect ARGS='--widget <name> ...'` and quote the JSON.
 3. Red check. If the change claims to fix a bug, the new test must fail without the fix.
-   Do the check in a scratch worktree (`git worktree add <scratch>/wt_verify <branch>`),
-   never by editing the shared checkout. Report whether you ran it.
+   Do the check in a scratch worktree (`git -C widgets-src/<name> worktree add <scratch>/x/widgets-src/<name> <branch>`),
+   never by editing the shared checkout. Put the worktree at
+   `<scratch>/x/widgets-src/<name>` and run the gates with `WIDGETS_SRC=<scratch>/x/widgets-src`;
+   without it the harness tests the shared checkout. Report whether you ran it.
 4. Report, one line per gate: PASS, FAIL (with the first failing assertion), or
    SKIPPED (count and reason). A skip is not a pass. Keep the report under 200 words.
