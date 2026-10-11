@@ -1,7 +1,7 @@
 # Prompt + flow test plan - FortiAI Agentic Assistant (triage & playbook creation)
 
 _Status: plan authored. Matrix infra BUILT + executed (runs 1-N):
-`make matrix` drives the rows in `tests/live/scenarios.local.json` (gitignored; template
+`make test-matrix-live` drives the rows in `tests/live/scenarios.local.json` (gitignored; template
 `scenarios.local.example.json`). Live state + per-run verdicts: `../../STATUS.md` + memory
 `matrix_run1_findings`. T1 + T11 PASS; T2/T4/T7 are box-env-limited, P1 is the one
 real defect found (see RUN 9)._

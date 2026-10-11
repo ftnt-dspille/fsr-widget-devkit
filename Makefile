@@ -75,7 +75,7 @@ SPEC_ARGS = $(foreach s,$(subst $(comma), ,$(SPEC)),'$(s)')
 test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) or every e2e spec of one widget (WIDGET=<name>) on an always-fresh test server
 	@if [ -z "$(SPEC)$(WIDGET)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js   (or WIDGET=<widgetName>)"; exit 2; fi
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	@# E2E_LIVE= forces the MOCK stage to stay mock. playwright.config.js keys
+	@# E2E_LIVE= forces the MOCK stage to stay mock. playwright.config.ts keys
 	@# testIgnore on that variable, so an ambient E2E_LIVE=1 in the caller's
 	@# shell silently un-ignores every *Live*.spec.js and this stage starts
 	@# driving a real box -- ship-verify's step 3/6 then fails on live-only
@@ -114,12 +114,12 @@ turn-hermetic: harness-build ## Seam C: real widget ↔ real connector, box-free
 
 # Ad-hoc one-shot widget inspector: mount a widget in the RUNNING dev harness and
 # answer a visual/DOM question as JSON (dropdown clipped? grid row count? size?).
-# Needs the dev server up (pnpm dev on :4401, or pass BASE=). Pass-through flags
+# Needs the dev server up (make dev on DEV_PORT, or pass BASE=). Pass-through flags
 # via ARGS. See scripts/widget-inspect.js --help for the full flag list.
 #   make widget-inspect ARGS='--widget counter --config {"start":7} --text [data-testid=counter-value]'
 widget-inspect: harness-build ## Mount a widget in the running harness + measure it as JSON (ARGS='--widget <name> ...')
 	@if [ -z "$(ARGS)" ]; then cd $(HARNESS) && node scripts/widget-inspect.js --help; exit 0; fi
-	cd $(HARNESS) && $(if $(BASE),HARNESS_BASE=$(BASE) ,)node scripts/widget-inspect.js $(ARGS)
+	cd $(HARNESS) && HARNESS_BASE=$(or $(BASE),http://localhost:$(DEV_PORT)) node scripts/widget-inspect.js $(ARGS)
 
 BUMP ?= patch
 # Which box `ship-verify` deploys to. Defaults to the harness `.env`; the deploy
@@ -192,8 +192,8 @@ release: harness-build ## GitHub release for one widget: bump info.json -> commi
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
 
-# The dev loop and the preflight live in the connector repo (it owns the Python
-# venv with pyfsr); these forward so either repo is a fine place to type them.
+# The dev loop, doctor and session-health live in the connector repo (it owns the
+# Python venv with pyfsr); these forward so either repo is a fine place to type them.
 CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
 loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees to the box -> ~35s live smoke (see conn_main scripts/loop.sh)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop ENV=$(abspath $(HARNESS)/$(SWEEP_ENV))
@@ -318,7 +318,7 @@ test-matrix-live: harness-build ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TES
 	fi
 
 # Old name for `test-matrix-live MATRIX_GATE=strict,xfail`: GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
-test-matrix-gate: harness-build MATRIX_GATE = strict,xfail
+test-matrix-gate: MATRIX_GATE = strict,xfail
 test-matrix-gate: test-matrix-live
 
 # ── The LOCAL matrix ────────────────────────────────────────────────────────
@@ -329,7 +329,7 @@ test-matrix-gate: test-matrix-live
 # ship, no box login. Use it to iterate; use test-matrix-live to certify.
 #
 # Where it sits among the tiers (each proves something the others cannot):
-#   make test-e2e         mocked connector      → DOM/render only
+#   make test-e2e-spec    mocked connector      → DOM/render only
 #   make turn-hermetic    real connector, FAKE  → deterministic contract, box-free
 #                         LLM + cassette data
 #   make test-matrix-local real connector, REAL → agent behaviour on YOUR working
@@ -365,9 +365,9 @@ grade-export: harness-build ## Grade a downloaded widget .events.json chat expor
 #   connector  connector edit flow (AR_CONNECTOR / AR_OPERATION; default
 #              mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]])
 LIVE_ENV ?= .env.159
-AR_SPEC_playbook  := tests/e2e/actionRenderer.playbookListingLive.spec.js
-AR_SPEC_jtg       := tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js
-AR_SPEC_connector := tests/e2e/actionRenderer.connectorFlowLive.spec.js
+AR_SPEC_playbook  := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.playbookListingLive.spec.js
+AR_SPEC_jtg       := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js
+AR_SPEC_connector := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.connectorFlowLive.spec.js
 test-ar-live: harness-build ## LIVE action-renderer edit flow: MODE=playbook|jtg|connector (LIVE_ENV=.env.159 by default; AR_* vars per mode)
 	@case "$(MODE)" in playbook|jtg|connector) ;; *) echo "usage: make test-ar-live MODE=playbook|jtg|connector [LIVE_ENV=.env.<box>]"; exit 2 ;; esac
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
@@ -377,11 +377,11 @@ test-ar-live: harness-build ## LIVE action-renderer edit flow: MODE=playbook|jtg
 	  pnpm test:e2e $(AR_SPEC_$(MODE)) --reporter=list
 
 # Old names for `test-ar-live MODE=...`.
-test-ar-playbook-live: harness-build MODE = playbook
+test-ar-playbook-live: MODE = playbook
 test-ar-playbook-live: test-ar-live
-test-ar-jtg-flow-live: harness-build MODE = jtg
+test-ar-jtg-flow-live: MODE = jtg
 test-ar-jtg-flow-live: test-ar-live
-test-ar-connector-live: harness-build MODE = connector
+test-ar-connector-live: MODE = connector
 test-ar-connector-live: test-ar-live
 
 test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
