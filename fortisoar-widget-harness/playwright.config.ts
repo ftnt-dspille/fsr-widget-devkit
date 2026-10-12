@@ -31,9 +31,12 @@ widgetAssets.buildAllWidgetAssets(widgetAssets.widgetRoots());
 // the symlink to its real path and give it its own project testDir below so the
 // walker actually traverses it. In a standalone GitHub clone the symlink is
 // absent; realWidgetsSrc() returns null and the project is simply not added.
+// WIDGETS_SRC wins, as in lib/widgetAssets.js widgetRoots(): a worktree run
+// used to serve the worktree's widget but walk the SHARED checkout's specs, so
+// a spec changed or added in the worktree never ran.
 function realWidgetsSrc(): string | null {
   try {
-    return fs.realpathSync(path.join(__dirname, "widgets-src"));
+    return fs.realpathSync(process.env.WIDGETS_SRC || path.join(__dirname, "widgets-src"));
   } catch {
     return null;
   }
