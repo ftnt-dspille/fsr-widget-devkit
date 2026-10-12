@@ -60,7 +60,7 @@ bootstrap failure instantly. Layer 2 shrinks to the irreducibly-browser interact
 - A repo guard (grep test or eslint rule) **fails CI if a spec contains `waitForTimeout`**.
 - Test URLs use `?mode=instant`; the mock service maps `instant`→0ms (today it has
   `fast`→≤30ms and `instant`→0 already -- we standardize on `instant` for tests).
-- `playwright.config.js`: `timeout: 10000`, `retries: 0` locally (`process.env.CI ? 1 : 0`).
+- `playwright.config.ts`: `timeout: 10000`, `retries: 0` locally (`process.env.CI ? 1 : 0`).
 
 ## 4. The reusable SOAR Test Kit
 

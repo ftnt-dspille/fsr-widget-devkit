@@ -7,7 +7,7 @@
 // failures. The old config papered over that with retries (flaky-green), which
 // we reject -- a test that fails once is a failure.
 //
-// Instead each worker gets its OWN dev server (playwright.config.js boots one
+// Instead each worker gets its OWN dev server (playwright.config.ts boots one
 // per port: 14401 + parallelIndex), so the workers never contend. This fixture
 // points every spec that imports it at its worker's own server via baseURL.
 //

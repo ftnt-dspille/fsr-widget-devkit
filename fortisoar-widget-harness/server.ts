@@ -76,7 +76,7 @@ let PROXY_VERBOSE = process.env.PROXY_VERBOSE === "1";
 // to the real FortiSOAR box is DISABLED. Anything not served locally returns a
 // loud `599 HERMETIC-MISS: <path>` instead of silently proxying -- converting an
 // invisible forticloud dependency into a visible, fixable worklist item. The
-// e2e webServer sets FSR_HERMETIC=1 by default (see playwright.config.js) so the
+// e2e webServer sets FSR_HERMETIC=1 by default (see playwright.config.ts) so the
 // mock gate can never red on a box outage. Set FSR_HERMETIC=0 to allow proxying.
 const HERMETIC = process.env.FSR_HERMETIC === "1";
 // Records every distinct hermetic miss so a test run can dump the worklist.

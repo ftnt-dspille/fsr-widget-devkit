@@ -46,7 +46,7 @@ build→test→deploy flow) and `../CONTRIBUTING.md`:
   pins a pair; `E2E_REUSE=1` reuses already-running servers on 14401. Never
   hand-start these -- `make` boots and tears them down. The dev server
   (14400) is unrelated to e2e.
-- The **mock e2e tier is hermetic**: `FSR_HERMETIC=1` (set by `playwright.config.js`
+- The **mock e2e tier is hermetic**: `FSR_HERMETIC=1` (set by `playwright.config.ts`
   for non-live runs) disables the forticloud proxy fallthrough; an un-snapshotted
   request returns a loud `599 HERMETIC-MISS` and the `globalTeardown` fails the
   run if any leaked. Live runs (`E2E_LIVE=1`) set `FSR_HERMETIC=0`.

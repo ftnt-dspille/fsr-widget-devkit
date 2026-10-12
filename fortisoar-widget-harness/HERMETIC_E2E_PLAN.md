@@ -1,6 +1,6 @@
 # Plan: make the mock e2e tier hermetic (zero forticloud dependency)
 
-> **⚠ DONE / superseded — kept for history.** The hermetic mock-e2e tier is live
+> **⚠ DONE / superseded - kept for history.** The hermetic mock-e2e tier is live
 > (`FSR_HERMETIC` gate + local Monaco + boot stubs). **Active reference:
 > `../TESTING.md` §"Two tiers: hermetic mock gate vs live sweep"** and the
 > `globalTeardown` leak gate. (Not archived because `server.js`/`server.ts` cite
@@ -9,21 +9,21 @@
 ## Problem (why this exists)
 The "mock" e2e suite is only *half* isolated. Two distinct flake sources:
 
-1. **Local boot contention** — historically both Playwright workers shared one
+1. **Local boot contention** - historically both Playwright workers shared one
    `node server.js`; Node serves the heavy AngularJS app-shell single-threaded, so
    two simultaneous widget boots starved each other → "boot timeout" failures.
    The old config hid these with `retries: 1` (flaky-green), which we reject.
    → **Already addressed** (this branch): one dev server **per worker**
-   (`playwright.config.js` boots ports 14401+`parallelIndex`), `retries: 0`,
+   (`playwright.config.ts` boots ports 14401+`parallelIndex`), `retries: 0`,
    `_isolated.js` baseURL fixture. *Remaining: wire specs to the fixture (Phase 0).*
 
-2. **Proxied platform calls to forticloud** — the harness serves widget assets +
+2. **Proxied platform calls to forticloud** - the harness serves widget assets +
    `public/` + `lib/` + `fsr_src/templates-extracted/` locally, but
    **falls through to the forticloud proxy** (`server.js` proxy at ~:1661,
    `fallthrough:true`) for anything not snapshotted: the SOAR SPA shell, vendor
    bundles, and uncached `/api/3` metadata. A real-box 502 then fails a *mock*
    test (it 502'd `fortiaiAgenticAssistant.history` empty-state). **Per-worker servers
-   make this WORSE** — two proxies now hammer the same box.
+   make this WORSE** - two proxies now hammer the same box.
 
 This plan eliminates #2 so the mock tier never touches forticloud, and
 `retries: 0` holds against both classes.
@@ -35,38 +35,38 @@ Evidence-gathered, not assumed:
 |---|---|---|---|
 | SOAR SPA shell `index.html`, vendor JS | every widget boot | proxy fallthrough | **snapshot locally** (Phase 1) |
 | `/app/...` angular templates not yet extracted | render | `fsr_src/templates-extracted` (partial) | **complete the snapshot** (Phase 1) |
-| `/api/integration/connectors/?search=assistant` | only the **real push** path (`_executeReal`) | `fsrPbAgent.service.js:34` | smoke "Create Playbook … via the live connector" specs are **intentionally live** — see Phase 3 |
+| `/api/integration/connectors/?search=assistant` | only the **real push** path (`_executeReal`) | `fsrPbAgent.service.js:34` | smoke "Create Playbook … via the live connector" specs are **intentionally live** - see Phase 3 |
 | `/api/3/<module>/<id>?$relationships=true` | drawer/record entity-context only | `view.controller.js:2447` | **stub** in the harness `/api/3` mock layer (Phase 2) |
 | auth / `whoami` / `usersService` | boot | proxy / `$injector` | harness already degrades (no usersService) → **stub the HTTP ones** (Phase 2) |
 
 NB: connector *turns* (LLM, connector worker-pool, `history.db`) are already fully
 mocked client-side (`executeAction` → `fsrPbMockConnectorService` when a
 `?mock=` scenario is active) and never hit forticloud. This plan does NOT touch
-that — it only closes the *platform* hole.
+that - it only closes the *platform* hole.
 
 ## Status
-- **Phase 0 — DONE + validated.** All harness e2e specs import `./_isolated`
+- **Phase 0 - DONE + validated.** All harness e2e specs import `./_isolated`
   (via `_fixtures.js` → `_isolated`), `_widgetId.js`/`counter.spec.js` use the
   request fixture's per-worker baseURL (relative paths). `fortiaiAgenticAssistant.history`
   green with 2 workers + `retries:0`.
-- **Phase 1 — DONE.** `FSR_HERMETIC` loud-miss gate in `server.js` (599
+- **Phase 1 - DONE.** `FSR_HERMETIC` loud-miss gate in `server.js` (599
   `HERMETIC-MISS` + `/_fsr/hermetic-misses` worklist endpoint); on by default for
-  non-live e2e (`playwright.config.js`). Monaco served locally from
-  `node_modules/monaco-editor` (pinned **0.47.0** = the box's version) — it was the
+  non-live e2e (`playwright.config.ts`). Monaco served locally from
+  `node_modules/monaco-editor` (pinned **0.47.0** = the box's version) - it was the
   one boot-critical asset (`await preloadMonaco()`). `/_fsr/stylesheets` short-
   circuits to `[]` under hermetic (was an outbound call returning un-servable
   `/css/...` hrefs). **Full fortiaiAgenticAssistant suite: zero HERMETIC-MISS.**
-- **Phase 2 — DONE (boot reads).** Harness stubs for `/api/3/actors/current` +
+- **Phase 2 - DONE (boot reads).** Harness stubs for `/api/3/actors/current` +
   `/api/system/fixtures` (the only platform `/api/3` reads that surfaced). No
   drawer entity-context `?$relationships=true` miss appeared in the suite, so that
-  fixture mechanism isn't needed yet — add per the plan if a future spec hits it.
-- **Phase 3 — DONE (moot).** The smoke "live connector" push specs mock the
+  fixture mechanism isn't needed yet - add per the plan if a future spec hits it.
+- **Phase 3 - DONE (moot).** The smoke "live connector" push specs mock the
   connector via `page.route()`, so they're *already* box-independent. The 17
   failures were never hermetic leaks; they were three real bugs (see the
   below). The only genuinely-live spec is `createPlaybookLive.spec.js`, excluded
-  unless `E2E_LIVE=1`. **No genuinely-live mock specs remain** — the mock tier is
+  unless `E2E_LIVE=1`. **No genuinely-live mock specs remain** - the mock tier is
   fully hermetic.
-- **Phase 4 — DONE.** `TESTING.md` two-tier section added; CI/ship-verify
+- **Phase 4 - DONE.** `TESTING.md` two-tier section added; CI/ship-verify
   enforcement wired via a Playwright `globalTeardown`
   (`tests/e2e/_hermeticTeardown.js`) that queries each per-worker server's
   `/_fsr/hermetic-misses` after the suite and **throws if any miss was recorded**
@@ -77,7 +77,7 @@ that — it only closes the *platform* hole.
 
 ## Update - the 17 "pre-existing" failures fixed; suite 85/0
 
-The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite is
+The 17 red specs were NOT hermetic leaks - three real bugs, now fixed (suite is
 **85 passed / 0 failed**):
 1. **Stale connector name in route mocks.** Widget repointed
    `fsr-playbook-builder` → `connector-fsr-soc-assistant`, but `smoke.spec.js` /
@@ -97,7 +97,7 @@ The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite i
 
 ## Phases
 
-### Phase 0 — finish the per-worker wiring (small, unblocks the gate)
+### Phase 0 - finish the per-worker wiring (small, unblocks the gate)
 - Re-point fortiaiAgenticAssistant e2e spec imports `require('@playwright/test')` →
   `require('<rel>/_isolated')` (harness specs: `./_isolated`; widget specs:
   `../../../../tests/e2e/_isolated`).
@@ -106,18 +106,18 @@ The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite i
 - Validate: `make test-e2e-spec SPEC="fortiaiAgenticAssistant.history"` green with 2
   workers + `retries:0`.
 
-### Phase 1 — snapshot the platform shell so the proxy is never hit for chrome
+### Phase 1 - snapshot the platform shell so the proxy is never hit for chrome
 - Extend `scripts/fetch-soar-assets.sh` to also capture: the SPA `index.html`,
   the referenced vendor bundles, and a **full** template-cache extraction into
   `fsr_src/templates-extracted/` (today it's partial → the misses fall through).
 - Add a harness "hermetic mode" (env `FSR_HERMETIC=1`, default ON under
-  Playwright): when set, the proxy fallthrough is **disabled** — a cache miss
+  Playwright): when set, the proxy fallthrough is **disabled** - a cache miss
   returns a loud `599 HERMETIC-MISS: <path>` instead of silently proxying. This
   converts "silent forticloud dependency" into a visible, fixable miss.
 - Iterate: run the full suite under `FSR_HERMETIC=1`, collect every
   `HERMETIC-MISS`, add each to the snapshot (or to the Phase-2 stub) until zero.
 
-### Phase 2 — stub the residual `/api/3` reads in the harness
+### Phase 2 - stub the residual `/api/3` reads in the harness
 - For the handful of metadata/entity `/api/3` GETs the widget makes at render
   (entity-context `?$relationships=true`, any module metadata), add deterministic
   fixtures served by the harness's existing local `/api/3` layer (same mechanism
@@ -125,10 +125,10 @@ The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite i
 - Fixtures live next to the widget (`widgetAssets/fixtures/api3/...`) so they
   version with the widget.
 
-### Phase 3 — separate the genuinely-live specs from the mock gate
+### Phase 3 - separate the genuinely-live specs from the mock gate
 - The smoke specs that exercise `_executeReal` ("Create Playbook: compiles then
   pushes **via the live connector**", push_failure, compile_failure) are not
-  mock tests — they need forticloud. Two options (pick in review):
+  mock tests - they need forticloud. Two options (pick in review):
   - (a) tag them `*.live.spec.js` so they run only under `E2E_LIVE=1`
     (the existing live lane, serial), OR
   - (b) add a mock for the push path (`_executeReal` honors `?mock=`), keeping a
@@ -137,7 +137,7 @@ The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite i
 - Outcome: the mock gate has **no** intentionally-live specs, so a forticloud
   outage can never red it.
 
-### Phase 4 — enforce + document
+### Phase 4 - enforce + document
 - CI/`ship-verify` runs e2e with `FSR_HERMETIC=1` so a new silent proxy
   dependency fails fast (`HERMETIC-MISS`) instead of becoming a future flake.
 - Document the two-tier model in `TESTING.md`: mock gate = hermetic + parallel +
@@ -154,7 +154,7 @@ The 17 red specs were NOT hermetic leaks — three real bugs, now fixed (suite i
 
 ## Risk / cost
 - Phase 1 is the bulk (snapshot completeness is iterative). The `HERMETIC-MISS`
-  loud-miss mechanism makes it tractable — it's a finite worklist, not a guess.
+  loud-miss mechanism makes it tractable - it's a finite worklist, not a guess.
 - Snapshotted platform assets are Fortinet's proprietary JS → keep them
   **gitignored** (as today), re-fetchable via `make assets`. No redistribution.
 - Phase 3 may reduce what the mock gate asserts about the real push; the live

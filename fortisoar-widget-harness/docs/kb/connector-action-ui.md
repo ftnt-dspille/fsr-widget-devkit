@@ -50,7 +50,7 @@ back to `route` presence for legacy saved configs). Because the pick now fetches
 `getExecutedPlaybookLogData`) is identical for both trigger types and needs
 `playbookService`, so it only runs in the real app, not the harness.
 
-**Live-spec gating gotcha:** `playwright.config.js` `testIgnore` drops any
+**Live-spec gating gotcha:** `playwright.config.ts` `testIgnore` drops any
 `*[Ll]ive*.spec.js` unless **`E2E_LIVE=1`** (which also flips `FSR_HERMETIC=0` so
 the proxy reaches the box). `FSRPB_LIVE_UI=1` alone → "No tests found" for
 `actionRenderer.liveTemplate.spec.js`. Set both for the real-UI live blocks.
@@ -537,7 +537,7 @@ one test's idle window remounts that test's widget mid-run. Symptom seen: the
 navigation), while passing solo or with `--workers=1`. Tests never edit source
 mid-run, so gate every watcher off in test mode: `if (!HERMETIC) fs.watch(…)` /
 `if (!HERMETIC) for (const w of WIDGETS) attachWatcher(w)` (`HERMETIC =
-process.env.FSR_HERMETIC === "1"`, which `playwright.config.js` sets by default
+process.env.FSR_HERMETIC === "1"`, which `playwright.config.ts` sets by default
 for the mock tier). Lesson: any harness "hot-reload" / soft-remount must be off
 under e2e -- a mid-test controller re-mount is an un-debuggable state wipe.
 

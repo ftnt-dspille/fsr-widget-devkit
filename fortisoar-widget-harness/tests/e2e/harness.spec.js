@@ -1,6 +1,6 @@
 "use strict";
 // E2E tests for the dev harness UI.
-// The harness server is started automatically by Playwright (see playwright.config.js).
+// The harness server is started automatically by Playwright (see playwright.config.ts).
 // API calls to /api/** and Monaco assets are intercepted so no real SOAR is needed.
 
 const { test, expect } = require("./_fixtures");

@@ -15,7 +15,7 @@
 // written to process.env, which the workers inherit -- so the config, the
 // per-worker fixtures (_isolated / _widgetId) and the hermetic teardown agree.
 //
-// Plain CommonJS on purpose: both playwright.config.ts and .js require it, so
+// Plain CommonJS on purpose: playwright.config.ts requires it, so
 // there is ONE copy of this logic.
 const fs = require("fs");
 const os = require("os");

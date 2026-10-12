@@ -82,7 +82,7 @@ FSR_PLAYBOOK_BUILDER_*
 # each .ts). Build output, never tracked: `pnpm install` (prepare) and `pnpm build`
 # regenerate them, and the Makefile targets that run harness code depend on
 # `harness-build`. The hand-maintained .js siblings of the .ts files NOT in
-# "include" (tests/e2e/*, tests/live/lib/*, playwright.config.js, ...) stay tracked.
+# "include" (tests/e2e/*, tests/live/lib/*, playwright.config.ts, ...) stay tracked.
 /harness.module.js
 /lib/chatSession.js
 /lib/domCapture.js

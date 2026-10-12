@@ -29,7 +29,7 @@ convention, and a blocked mount makes **every** e2e for that widget fail with
 | edit | `edit<PascalName><numericVersion>DevCtrl` | `editIncidentSummary100DevCtrl` |
 
 `<numericVersion>` = the `info.json` version with dots removed (1.0.0 → `100`).
-`scripts/new-widget.sh` and `widget bump` generate/rewrite these for you -- don't
+`make new-widget` and `widget bump` generate/rewrite these for you -- don't
 hand-edit the digits. If e2e fails to render, check the harness error panel: a
 `[edit-controller-mismatch]` / `[stale-version-ref]` lint there is the cause.
 
@@ -252,7 +252,7 @@ mutation-proved (break the check, watch the test go red).
 
 The mock e2e tier is **hermetic** -- it must never touch the FortiSOAR box, so a
 box outage can't red a mock test. The harness enforces this with `FSR_HERMETIC=1`
-(set by default for non-live e2e in `playwright.config.js`):
+(set by default for non-live e2e in `playwright.config.ts`):
 
 - **Proxy fallthrough is disabled.** Anything not served from a local
   snapshot/stub returns a loud `599 HERMETIC-MISS: <path>` instead of silently

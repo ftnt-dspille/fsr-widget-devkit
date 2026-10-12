@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 #
-# fetch-soar-assets.sh — populate fsr_src/ with the FortiSOAR app shell assets
+# fetch-soar-assets.sh - populate fsr_src/ with the FortiSOAR app shell assets
 # the harness needs to RENDER widgets in a browser (required for e2e tests).
 #
 # These assets (the app bundle + the angular template cache) are Fortinet's
-# platform JS — we do NOT redistribute them. Each developer fetches them from
+# platform JS - we do NOT redistribute them. Each developer fetches them from
 # their OWN licensed FortiSOAR instance (the box FSR_BASE_URL points at). Unit
 # tests (jest) do NOT need this; only e2e (Playwright) does.
 #
 # What it does:
 #   1. Authenticate to FSR_BASE_URL (POST /auth/authenticate, user/pass from .env)
 #   2. Parse the SOAR index.html for js/app.min.<hash>.js + js/templates.min.<hash>.js
-#   3. Download them into fsr_src/ (app bundle saved as app.unmin.js — the harness
+#   3. Download them into fsr_src/ (app bundle saved as app.unmin.js - the harness
 #      parses it by string/regex, so the minified bundle works)
 #   4. Extract the template cache into fsr_src/templates-extracted/
+#
+# This is the ONE copy. Both entry points run it: `npm run assets` (harness
+# package.json) and `make assets` (monorepo Makefile, which runs it from here).
 #
 # Usage:  npm run assets        (or: bash scripts/fetch-soar-assets.sh)
 #
@@ -25,9 +28,12 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # the harness root
 ENV_FILE="${FSR_ENV_FILE:-$REPO_DIR/.env}"
 EXTRACTOR="$REPO_DIR/scripts/extract-templates.js"
-# Match server.js: monorepo sibling ../fsr_src when present, else inside-harness.
+# Match server.ts: monorepo sibling ../fsr_src when present, else inside-harness.
+# The monorepo case also holds the stock theme CSS in the monorepo scripts/.
+MONOREPO=0
 if [ -d "$REPO_DIR/../fsr_src" ]; then
   OUT="$(cd "$REPO_DIR/.." && pwd)/fsr_src"
+  MONOREPO=1
 else
   OUT="$REPO_DIR/fsr_src"
 fi
@@ -37,7 +43,7 @@ ok()   { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m! %s\033[0m\n' "$*" >&2; }
 die()  { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
-[ -f "$ENV_FILE" ] || die "no .env at $ENV_FILE — copy .env.example to .env and fill it in"
+[ -f "$ENV_FILE" ] || die "no .env at $ENV_FILE - copy .env.example to .env and fill it in"
 [ -f "$EXTRACTOR" ] || die "missing $EXTRACTOR"
 
 # shellcheck disable=SC1090
@@ -49,7 +55,7 @@ HOST="https://${RAW#http*://}"; HOST="${HOST%/}"
 FSR_USER="${FSR_USERNAME:-}"; FSR_PASS="${FSR_PASSWORD:-}"
 [ -n "$FSR_USER" ] && [ -n "$FSR_PASS" ] || die "FSR_USERNAME / FSR_PASSWORD not set in $ENV_FILE"
 
-# TLS: verify by default — this request transmits credentials. Skipping
+# TLS: verify by default - this request transmits credentials. Skipping
 # verification must be explicit, via FSR_VERIFY_SSL=false (or FSR_INSECURE_TLS=1),
 # and only for a trusted lab box with a self-signed cert. Prefer the lab CA:
 # FSR_CA_CERT=/path/to/lab-ca.pem.
@@ -58,7 +64,7 @@ if [ -n "${FSR_CA_CERT:-}" ]; then
   CURL_TLS=(--cacert "$FSR_CA_CERT")
 elif [ "${FSR_VERIFY_SSL:-true}" = "false" ] || [ "${FSR_INSECURE_TLS:-0}" = "1" ]; then
   CURL_TLS=(-k)
-  warn "TLS verification DISABLED (FSR_VERIFY_SSL=false) — only acceptable for a trusted lab box; credentials are sent over this connection"
+  warn "TLS verification DISABLED (FSR_VERIFY_SSL=false) - only acceptable for a trusted lab box; credentials are sent over this connection"
 fi
 
 say "host: $HOST"
@@ -102,17 +108,41 @@ say "downloading system fixtures → ${OUT##*/}/system_fixtures.json"
 curl -s "${CURL_TLS[@]}" --max-time 60 "$HOST/api/system/fixtures" \
   -H "Authorization: Bearer $TOKEN" -o "$OUT/system_fixtures.json"
 node -e "const j=require('$OUT/system_fixtures.json');if(!Array.isArray(j)||!j.length)process.exit(1)" \
-  || warn "system_fixtures.json looks empty — grid e2e may fail (loadFields picklists)"
+  || warn "system_fixtures.json looks empty - grid e2e may fail (loadFields picklists)"
 
 # System settings: timezone / date format / pagination defaults the grid path
 # reads once it renders. server.js serves this snapshot from the hermetic
-# /api/3/system_settings stub. Contains branding/site data — kept per-dev
+# /api/3/system_settings stub. Contains branding/site data - kept per-dev
 # (gitignored), never committed.
 say "downloading system settings → ${OUT##*/}/system_settings.json"
 curl -s "${CURL_TLS[@]}" --max-time 60 "$HOST/api/3/system_settings" \
   -H "Authorization: Bearer $TOKEN" -o "$OUT/system_settings.json"
 node -e "const j=require('$OUT/system_settings.json');if(!j['hydra:member'])process.exit(1)" \
-  || warn "system_settings.json looks malformed — grid e2e may leak a hermetic miss"
+  || warn "system_settings.json looks malformed - grid e2e may leak a hermetic miss"
+
+# ---------------------------------------------------------------------------
+# Optional: stock FortiSOAR theme CSS (steel/dark/light) for the persona theme
+# builder. Merged in from the old root copy. It lands in the monorepo scripts/
+# (gitignored: scripts/{steel,dark,light}.*.css), so it runs only in the monorepo
+# layout. These are proprietary platform artifacts (NOT redistributed), fetched
+# from your OWN licensed box. Best-effort: a failure does not block e2e.
+# ---------------------------------------------------------------------------
+if [ "$MONOREPO" = 1 ]; then
+  THEME_OUT="$(cd "$REPO_DIR/.." && pwd)/scripts"
+  say "fetching stock theme CSS (steel/dark/light) → ${THEME_OUT##*/}/ (best-effort)…"
+  THEME_HTML="$(curl -s "${CURL_TLS[@]}" --max-time 30 "$HOST/" -H "Authorization: Bearer $TOKEN")"
+  fetched_theme=0
+  for name in steel dark light; do
+    rel="$(printf '%s' "$THEME_HTML" | grep -oE "css/themes/${name}\.[a-f0-9]+\.css" | head -1)"
+    [ -n "$rel" ] || rel="$(printf '%s' "$THEME_HTML" | grep -oE "${name}\.[a-f0-9]+\.css" | head -1 | sed "s#^#css/themes/#")"
+    [ -n "$rel" ] || { warn "could not locate ${name} theme css in index.html - skipping"; continue; }
+    curl -s "${CURL_TLS[@]}" --max-time 60 "$HOST/$rel" -H "Authorization: Bearer $TOKEN" -o "$THEME_OUT/$(basename "$rel")" \
+      && { ok "  $(basename "$rel")"; fetched_theme=$((fetched_theme+1)); } \
+      || warn "  failed to download $rel"
+  done
+  [ "$fetched_theme" -gt 0 ] && ok "theme CSS in scripts/ - persona theme builder ready" \
+    || warn "no theme CSS fetched (theme builder needs steel/dark/light.<hash>.css copied from your box)"
+fi
 
 ok "SOAR assets ready in $OUT. e2e tests can now render widgets:"
 echo "    npm run test:e2e"

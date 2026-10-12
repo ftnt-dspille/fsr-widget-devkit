@@ -33,7 +33,7 @@ pipeline works for any palette.
 | `<persona>.palette` | Color mapping file (`OLD_HEX  NEW_HEX` per line) for one persona. |
 | `personas-overrides.css` | Shared structural CSS -- hairline borders, focus glows, uppercase headings, scrollbars, toaster accents. Per-persona `body.theme-X` blocks define CSS variables; the rest of the rules read those variables, so all six personas share one rule-set. |
 | `icons/<persona>.svg` | 24×24 monochrome stroke icons for an eventual picker widget. Currently unused by `install.sh` (rides along inside the bundle). |
-| `dark.*.css` / `light.*.css` / `steel.*.css` | Reference copies of the shipped SOAR themes -- used as recolor bases and for diffing. **Proprietary Fortinet build artifacts: not redistributed.** Run `make assets` (or `scripts/fetch-soar-assets.sh`) to pull them from your own licensed box. |
+| `dark.*.css` / `light.*.css` / `steel.*.css` | Reference copies of the shipped SOAR themes -- used as recolor bases and for diffing. **Proprietary Fortinet build artifacts: not redistributed.** Run `make assets` (or `fortisoar-widget-harness/scripts/fetch-soar-assets.sh`) to pull them from your own licensed box. |
 
 ## Building the bundle
 

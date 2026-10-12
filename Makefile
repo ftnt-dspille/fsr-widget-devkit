@@ -30,7 +30,7 @@ harness-build: ## Compile the harness TypeScript into its gitignored .js (tsc). 
 	cd $(HARNESS) && pnpm build
 
 assets: harness-build ## Fetch the FortiSOAR app shell into fsr_src/ (needed for e2e; reads harness .env)
-	bash scripts/fetch-soar-assets.sh
+	bash fortisoar-widget-harness/scripts/fetch-soar-assets.sh
 
 refresh-soar-types: harness-build ## Regenerate lib/soar-platform.d.ts from contenthub widgetServiceAPI docs (cross-checks fsr_src/app.unmin.js if present)
 	cd $(HARNESS) && pnpm build && pnpm gen-types

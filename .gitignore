@@ -18,7 +18,7 @@ templates-extracted/
 
 # FortiSOAR platform assets -- proprietary Fortinet JS, NOT redistributed.
 # Each developer fetches their own from a licensed box via `make assets`
-# (scripts/fetch-soar-assets.sh). Only the extractor tooling + docs are tracked.
+# (fortisoar-widget-harness/scripts/fetch-soar-assets.sh). Only the extractor tooling + docs are tracked.
 fsr_src/app_min/app.unmin.js
 fsr_src/app_min/*.min.js
 fsr_src/app_min/app.beautified.js
@@ -65,7 +65,7 @@ test-results/
 playwright-report/
 
 # Proprietary Fortinet platform artifacts -- NOT tracked/redistributed.
-# Re-fetchable: theme CSS via `make assets` (scripts/fetch-soar-assets.sh);
+# Re-fetchable: theme CSS via `make assets` (fortisoar-widget-harness/scripts/fetch-soar-assets.sh);
 # the dev-guide PDF from Fortinet docs (see ONBOARDING.md).
 FortiSOAR-*.pdf
 scripts/steel.*.css
