@@ -1,5 +1,5 @@
 "use strict";
-// Example unit test — the pattern every widget follows. Runs under jsdom with
+// Example unit test - the pattern every widget follows. Runs under jsdom with
 // angular + angular-mocks resolved from the harness's node_modules (see the
 // harness jest.config.js `moduleDirectories`). Run it with:
 //
@@ -18,7 +18,10 @@ require("angular-mocks");
 angular.module("cybersponse", []); // eslint-disable-line no-undef
 require("../widget/view.controller.js");
 
-const CTRL_NAME = "helloCounter100DevCtrl";
+// Derived, never hard-coded: a version bump renames the controller, and a
+// literal name here broke the day the example went to 1.0.1.
+const widgetInfo = require("../widget/info.json");
+const CTRL_NAME = `${widgetInfo.name}${widgetInfo.version.replace(/\./g, "")}DevCtrl`;
 const ngModule = window.angular.mock.module; // eslint-disable-line no-undef
 const ngInject = window.angular.mock.inject; // eslint-disable-line no-undef
 

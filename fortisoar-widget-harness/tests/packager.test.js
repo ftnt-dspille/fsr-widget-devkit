@@ -312,7 +312,9 @@ describe("packageWidget", () => {
     const result = await packageWidget(widgetDir, outDir);
     const listing = require("child_process").execFileSync("tar", ["-tzf", result.archivePath]).toString();
     expect(listing).toMatch(/widgetAssets\/js\/helper\.js\n/);
-  });
+    // A real tsc run: a cold compiler alone can pass jest's 5s default on a
+    // busy machine, which failed this test with no product change.
+  }, 30000);
 
   test("result includes correct fileCount", async () => {
     makeFullWidget(srcDir, "testWidget", "1.0.0");
