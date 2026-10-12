@@ -133,11 +133,13 @@ ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e
 	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
 	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-testids.js $(WIDGET)
 	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
-	@echo "▶ 2/6 unit";       $(MAKE) test-unit WIDGET=$(WIDGET)
-	@echo "▶ 3/6 e2e (mock)"; $(MAKE) test-e2e-spec WIDGET=$(WIDGET)
-	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"; \
-	  if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; \
-	  else $(MAKE) introspect-gate GATE_WIDGET=$(WIDGET); fi
+	@echo "▶ 2/6 unit"
+	@$(MAKE) test-unit WIDGET=$(WIDGET)
+	@echo "▶ 3/6 e2e (mock)"
+	@$(MAKE) test-e2e-spec WIDGET=$(WIDGET)
+	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"
+	@if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; fi
+	@$(if $(SKIP_INTROSPECT),,$(MAKE) introspect-gate GATE_WIDGET=$(WIDGET))
 	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
 	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
@@ -146,38 +148,8 @@ ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e
 	@# same thing it reports when it passes -- and it already burned us once at
 	@# the widget rename (see SWEEP_WIDGET). Skipping is now an explicit choice
 	@# (SKIP_LIVE_SWEEP=1), and the completion line says which gates actually ran.
-	@echo "▶ 6/6 live-sweep"; \
-	  lv_status="unverified"; \
-	  if [ -n "$(SKIP_LIVE_SWEEP)" ]; then \
-	    echo "  ⚠️  SKIP_LIVE_SWEEP set -- this build is NOT live-verified."; \
-	    lv_status="skip"; \
-	  elif [ -f "widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js" ]; then \
-	    sweep_log=$$(mktemp -t fsr-ship-sweep.XXXXXX); \
-	    $(MAKE) test-live-sweep WIDGET=$(WIDGET) 2>&1 | tee "$$sweep_log"; \
-	    if grep -F -q '[[SWEEP-ENV-SKIP]]' "$$sweep_log"; then \
-	      echo "  ⚠️  box down / [[SWEEP-ENV-SKIP]] -- this build is NOT live-verified."; \
-	      lv_status="envskip"; \
-	    elif grep -F -q '[[SWEEP-VERIFIED]]' "$$sweep_log"; then \
-	      lv_status="verified"; \
-	    else \
-	      echo "✗ live-sweep FAILED -- widget regression, not shipped (see output above)."; \
-	      rm -f "$$sweep_log"; exit 1; \
-	    fi; \
-	    rm -f "$$sweep_log"; \
-	  else \
-	    echo "✗ no live sweep spec at widgets-src/$(WIDGET)/tests/e2e/$(WIDGET).liveSweep.spec.js"; \
-	    echo "  ship-verify's live gate would cover NOTHING, so it fails instead of"; \
-	    echo "  claiming 'live-verified'. Write the spec, or pass SKIP_LIVE_SWEEP=1"; \
-	    echo "  to ship knowing this build is unverified against a box."; \
-	    exit 1; \
-	  fi; \
-	  case "$$lv_status" in \
-	    verified) lv_msg=" and live-verified";; \
-	    skip) lv_msg=" -- NOT live-verified (SKIP_LIVE_SWEEP)";; \
-	    envskip) lv_msg=" -- NOT live-verified (box down / [[SWEEP-ENV-SKIP]])";; \
-	    *) lv_msg=" -- NOT live-verified";; \
-	  esac; \
-	  echo "✅ ship-verify complete: $(WIDGET) gated (server+angular+testid lint, typecheck, unit, mock-e2e, introspect-gate), deployed$$lv_msg."
+	@echo "▶ 6/6 live-sweep"
+	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) bash scripts/ship-verify-sweep.sh
 
 widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> SHIP_ENV=.env.<box> [BUMP=patch]"; exit 2; fi
