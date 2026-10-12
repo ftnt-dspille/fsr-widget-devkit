@@ -99,7 +99,7 @@ SEAMC_SPEC   := ../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticA
 turn-hermetic: harness-build ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
 	-lsof -ti:$(SEAMC_PORT) | xargs kill -9 2>/dev/null || true
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	FSRPB_DEV=1 FSRPB_SIDECAR_HERMETIC=1 FSRPB_SIDECAR_PORT=$(SEAMC_PORT) \
+	CONN_REPO="$(CONN_REPO)" FSRPB_DEV=1 FSRPB_SIDECAR_HERMETIC=1 FSRPB_SIDECAR_PORT=$(SEAMC_PORT) \
 		$(SEAMC_PY) $(SEAMC_SIDECAR) > /tmp/seamc-sidecar.log 2>&1 & echo $$! > /tmp/seamc-sidecar.pid
 	@echo "▶ waiting for hermetic sidecar on :$(SEAMC_PORT)…"
 	@for i in $$(seq 1 30); do \

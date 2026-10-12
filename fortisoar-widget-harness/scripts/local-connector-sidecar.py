@@ -31,12 +31,16 @@ import sys
 import types
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-# --- locations (keep in sync with setup-localdev-venv.sh) -------------------
+# --- locations ---------------------------------------------------------------
+# The connector repo and framework clone come from the environment (the
+# Makefile passes CONN_REPO / FSR_SRC). The defaults are the main checkouts:
+# a hard-coded path once pinned this sidecar to a stale side clone, so the
+# "real connector" tier ran month-old connector code.
 HARNESS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONNECTOR_DIR = (
-    "/Users/dylanspille/PycharmProjects/ConnectorsV2/fsr-playbook-builder/"
-    "connector-fsr-soc-assistant"
-)
+_HOME = os.path.expanduser("~")
+CONN_REPO = os.environ.get("CONN_REPO") or os.path.join(
+    _HOME, "PycharmProjects", "ConnectorsV2", "conn_main")
+CONNECTOR_DIR = os.path.join(CONN_REPO, "connector-fsr-soc-assistant")
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "localdev.env")
 PORT = int(os.environ.get("FSRPB_SIDECAR_PORT", "4771"))
 
@@ -91,7 +95,8 @@ os.environ.setdefault("FSRPB_DEV", "1")
 # Make probes._env find the framework's tooling dir (for run_op's box client)
 # and ensure fsr_playbooks resolves -- editable install covers it, but this is
 # belt-and-suspenders if the venv wasn't built editable.
-_FRAMEWORK = "/Users/dylanspille/PycharmProjects/fsr-playbook-framework"
+_FRAMEWORK = os.environ.get("FSR_SRC") or os.path.join(
+    _HOME, "PycharmProjects", "fsr-playbook-framework")
 for p in (os.path.join(_FRAMEWORK, "tooling"), _FRAMEWORK):
     if p not in sys.path:
         sys.path.insert(0, p)
@@ -188,30 +193,50 @@ if __name__ == "__main__" and "--reload" in sys.argv and not os.environ.get("FSR
     _supervise()
     sys.exit(0)
 
-# --- import the connector as a synthetic package ----------------------------
-# The folder name "connector-fsr-soc-assistant" contains a dash (illegal as a
-# module name) and the package ships no __init__.py. Register a module whose
-# __path__ points at the dir so `from .storage import ...` (deferred inside the
-# functions) resolves. The relative imports only fire when an op runs, so the
-# package just needs a __path__ to anchor them.
+# --- import the connector --------------------------------------------------
 if not os.path.isdir(CONNECTOR_DIR):
     sys.exit(f"connector dir not found: {CONNECTOR_DIR}")
-_pkg = types.ModuleType("fsrpb_connector")
-_pkg.__path__ = [CONNECTOR_DIR]
-sys.modules["fsrpb_connector"] = _pkg
-# On a real FortiSOAR box the connector dir is put directly on sys.path, so
-# operations.py's bare `import fsr_soc_triage` (a sibling-package import, not
-# a relative one) resolves as a top-level module. The synthetic
-# "fsrpb_connector" package above only covers RELATIVE imports
-# (`from .storage import ...`); it does NOT make `fsr_soc_triage` importable
-# as a top-level name. Without this, that bare import silently fails inside
-# operations.py's broad `except Exception`, the triage system prompt falls
-# back to a stub, and the triage tool registry (search_module_records,
-# get_record, SIEM/FAZ/FMG tools) never gets injected -- the model then
-# flails hunting for a nonexistent generic "search" connector op instead.
-if CONNECTOR_DIR not in sys.path:
-    sys.path.insert(0, CONNECTOR_DIR)
-operations_mod = importlib.import_module("fsrpb_connector.operations")
+HERMETIC = str(os.environ.get("FSRPB_SIDECAR_HERMETIC", "")).strip().lower() in (
+    "1", "true", "yes", "on")
+_lt = None  # the connector's local_turn module (hermetic mode only)
+
+
+def _import_hermetic():
+    """Load the connector exactly as the connector's own local_turn does
+    (its test bootstrap names it `connector_fsr_soc_assistant`), so the
+    offline seams local_turn installs patch the SAME module this sidecar
+    dispatches through."""
+    global _lt
+    for p in (CONN_REPO, os.path.join(CONN_REPO, "scripts")):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    import local_turn as lt  # noqa: E402 -- path just set up
+    lt._bootstrap()
+    _lt = lt
+    return importlib.import_module("connector_fsr_soc_assistant.operations")
+
+
+def _import_live():
+    """The folder name "connector-fsr-soc-assistant" contains a dash (illegal
+    as a module name) and the package ships no __init__.py. Register a module
+    whose __path__ points at the dir so `from .storage import ...` (deferred
+    inside the functions) resolves.
+
+    On a real FortiSOAR box the connector dir is put directly on sys.path, so
+    operations.py's bare `import fsr_soc_triage` (a sibling-package import)
+    resolves as a top-level module. Without that, the bare import silently
+    fails inside operations.py's broad `except Exception`, the triage system
+    prompt falls back to a stub, and the triage tool registry never gets
+    injected."""
+    _pkg = types.ModuleType("fsrpb_connector")
+    _pkg.__path__ = [CONNECTOR_DIR]
+    sys.modules["fsrpb_connector"] = _pkg
+    if CONNECTOR_DIR not in sys.path:
+        sys.path.insert(0, CONNECTOR_DIR)
+    return importlib.import_module("fsrpb_connector.operations")
+
+
+operations_mod = _import_hermetic() if HERMETIC else _import_live()
 OPERATIONS = operations_mod.operations  # {name: _sim_aware(_mock_aware(fn))}
 print(f"[sidecar] loaded {len(OPERATIONS)} ops from {CONNECTOR_DIR}", flush=True)
 
@@ -235,22 +260,15 @@ def _build_config(config_name: str | None) -> dict:
 
 # --------------------------------------------------------------------------
 # Hermetic mode (Seam C -- stability plan Phase 0.4).
-#
-# FSRPB_SIDECAR_HERMETIC=1 swaps the two live seams for the box-free ones the
-# connector's own `scripts/local_turn.py` already implements -- a FAKE LLM
-# (deterministic, no gateway, no credits) and a CASSETTE FSR client (reads
-# replayed in-process; any write raises). The result: the REAL widget
-# controller drives the REAL operations.py with ZERO box/network dependency,
-# so `make turn-hermetic` can gate the widget↔connector contract in CI.
-#
-# We REUSE the connector's helpers (never reimplement them) so the hermetic
-# seams can't drift from what local_turn.py / the connector test suite already
-# vet: `_install_fake_provider`, `_CassetteClient`, `_cassette_rules`.
+# FSRPB_SIDECAR_HERMETIC=1 runs the REAL operations.py on the connector's own
+# box-free seams: a FAKE LLM (deterministic, no gateway, no credits) and the
+# cassette FSR client (reads replayed in-process; the box URL sealed). The
+# seams are installed by local_turn's `install_offline_seams` /
+# `install_fake_llm`, never re-implemented here: this file's earlier copy
+# drifted (no box seal, no replay client) and its turns called the appliance.
 # --------------------------------------------------------------------------
-HERMETIC = str(os.environ.get("FSRPB_SIDECAR_HERMETIC", "")).strip().lower() in (
-    "1", "true", "yes", "on")
-_lt = None  # the connector's local_turn module, imported lazily in hermetic mode
-_shared = None
+_SCOPE = None        # process-lifetime PatchScope (never closed)
+_FAKE_CONFIG: dict = {}
 _CASSETTE_READS: list = []  # shared-format read rules seeded from FSRPB_SIDECAR_CASSETTE
 
 
@@ -262,11 +280,6 @@ def _load_cassette(path: str) -> list:
     Format::
 
         { "reads": [ { "match": "/api/3/alerts/", "body": { ... } }, ... ] }
-
-    A rule's `body` is served for any GET whose URL contains `match` (first hit
-    wins), exactly as `_CassetteClient` replays it. These rules are appended
-    after the persona fixture, so a cassette seeds the connector-internal reads
-    (get_record / search_module_records) a scripted turn makes -- box-free.
     """
     if not path:
         return []
@@ -286,47 +299,29 @@ def _load_cassette(path: str) -> list:
 
 
 def _init_hermetic() -> None:
-    """Import the connector's local_turn seam helpers and install the fake LLM
-    provider once. Cassette reads are (re)wired per request from the mounted
-    module's persona."""
-    global _lt, _shared
-    _CONN_SCRIPTS = os.path.join(os.path.dirname(CONNECTOR_DIR), "scripts")
-    if _CONN_SCRIPTS not in sys.path:
-        sys.path.insert(0, _CONN_SCRIPTS)
-    import local_turn as lt  # noqa: E402 -- path just set up
-    from fsr_playbooks.mcp_server import _shared as shared  # noqa: E402
-    _lt, _shared = lt, shared
-    # Install the fake provider onto the SAME operations module the sidecar
-    # dispatches through (patches operations_mod._build_provider).
-    _lt._install_fake_provider(operations_mod, "fake-1")
-    global _CASSETTE_READS
+    global _SCOPE, _FAKE_CONFIG, _CASSETTE_READS
+    _SCOPE = _lt.PatchScope()
+    _FAKE_CONFIG = _lt.install_fake_llm(_SCOPE, operations_mod)
     _CASSETTE_READS = _load_cassette(os.environ.get("FSRPB_SIDECAR_CASSETTE", ""))
     print("[sidecar] HERMETIC mode: fake LLM + cassette reads (box-free)", flush=True)
 
 
 def _hermetic_config(op: str, params: dict) -> dict:
-    """Rewire the cassette FSR client for this request's mounted module and
-    return the fake LLM config. Mirrors local_turn.run_turn's seam setup."""
+    """Re-install the offline seams for this request's mounted module (its
+    persona fixture) and return the fake LLM config."""
     entity = params.get("entity") if isinstance(params.get("entity"), dict) else None
     module = (params.get("module")
               or (entity.get("module") if entity else None))
-    # Fresh cassette per request: persona fixture + any shared-format cassette
-    # reads (extra_reads), then a 200-empty miss so read tools "find nothing"
-    # rather than error-flail (behavioral-grade semantics).
-    rules = _lt._cassette_rules(module, "fixture", None, _CASSETTE_READS or None)
-    cassette = _lt._CassetteClient(
-        base_url=os.environ.get("FSR_BASE_URL", "https://fsr.local"),
-        rules=rules, miss_status=200)
-    _shared._LIVE_CLIENT_CACHE["client"] = cassette
-    _shared._live_client = lambda: cassette
-    _shared._invalidate_live_client = lambda: None
-    # Persona cache is process-global; clear so this request's fixture applies.
+    # A 200-empty miss so read tools "find nothing" rather than error-flail.
+    _lt.install_offline_seams(
+        _SCOPE, module=module, extra_reads=_CASSETTE_READS or None,
+        session_id=params.get("session_id"), cassette_miss_status=200)
     try:
         operations_mod._PROFILE_CACHE.clear()
         operations_mod._PROFILE_NEG_TS.clear()
     except Exception:
         pass
-    return {"anthropic_api_key": "sk-local-not-real", "model": "fake-1"}
+    return dict(_FAKE_CONFIG)
 
 
 if HERMETIC:
