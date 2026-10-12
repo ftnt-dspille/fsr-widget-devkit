@@ -51,7 +51,7 @@ cd fortisoar-widget-harness && scripts/ship.sh fortiaiAgenticAssistant --bump pa
 To start a new widget:
 
 ```bash
-scripts/new-widget.sh myWidget "My Widget"        # scaffolds from widgets-src/_template/, tests pass immediately
+make new-widget NAME=myWidget TITLE="My Widget"   # scaffolds the widget; its tests pass immediately
 ```
 
 ## Documentation map

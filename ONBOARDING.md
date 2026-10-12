@@ -122,7 +122,7 @@ FortiSOAR **8.0**.
 - **`fortisoar-widget-harness/examples/helloCounter/`** -- a minimal working
   widget to read or copy.
 - **`widgets-src/_template/`** -- scaffold for a new widget. Start one with
-  `scripts/new-widget.sh <camelName> "Title"` (copies the template and fills in
-  every placeholder, incl. tests, so `make test-unit WIDGET=<camelName>` passes
+  `make new-widget NAME=<camelName> TITLE="Title"` (the spec-driven generator
+  writes the widget, incl. tests, so `make test-unit WIDGET=<camelName>` passes
   right away). Use `widget rename` only to rename an *existing* widget.
 - **`CONTRIBUTING.md`** -- how we build, test, and ship widgets.

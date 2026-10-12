@@ -60,7 +60,7 @@ the first success.
 **Specs live in `fortisoar-widget-harness/tests/e2e/`, not in the widget folder.**
 Playwright's `testDir` is the harness, and it does **not** crawl through the
 `widgets-src` symlink -- a spec left under `widgets-src/<w>/tests/e2e/` is silently
-never discovered. `scripts/new-widget.sh` puts it in the right place.
+never discovered. `make new-widget` puts it in the right place.
 
 The harness mounts widgets by `info.json` **name**, and selects which to render
 from `localStorage`. Seed it before page scripts run:
