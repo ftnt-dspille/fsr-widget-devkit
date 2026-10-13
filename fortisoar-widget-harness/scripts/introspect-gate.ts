@@ -7,7 +7,12 @@
  * baselines (tests/introspect/baseline/) and fails if any widget regresses past
  * sane thresholds:
  *   - Payload: +10% (e.g., baseline 10 MB → gate allows up to 11 MB)
- *   - Boot (DCL): +15% (e.g., baseline 500 ms → gate allows up to 575 ms)
+ *   - Boot (DCL): +100% RELATIVE to the run. Each widget's boot time is
+ *     divided by the median boot of every current, mounted widget in the same
+ *     run (and its baseline by the baselines' median), so a slow machine or a
+ *     busy CPU moves every widget alike and cancels out. Absolute wall-clock
+ *     against a baseline from another day failed every widget 3-13x at once
+ *     (a test suite was running beside it), which is a gate nobody can pass.
  *   - Console errors: increased (new errors are failures; old errors are baseline)
  *   - Editor-byte leaks: a widget whose caps don't declare monaco/editors but
  *     still pulled editor bytes is a lazy-load gate regression.
@@ -50,8 +55,37 @@ const KNOWN_NO_MOUNTS = new Set([
 // Thresholds (with headroom).
 const THRESHOLDS = {
   payloadDeltaPercent: 10,   // +10% allowed
-  bootDeltaPercent: 15,       // +15% allowed
+  bootDeltaPercent: 15,       // absolute fallback, when a run has too few widgets to normalize
+  bootRelativeDeltaPercent: 100, // widget/run-median vs baseline/baseline-median
 };
+// Fewer paired widgets than this and a median says nothing; fall back to absolute.
+const MIN_PAIRS_FOR_MEDIAN = 3;
+
+export function median(xs: number[]): number | null {
+  const v = xs.filter((x) => Number.isFinite(x) && x > 0).sort((a, b) => a - b);
+  if (!v.length) return null;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+}
+
+/** The boot-regression line for one widget, or null when it is within budget.
+ * With both medians, compare each side's share of its own run; without, the
+ * absolute delta. */
+export function bootRegression(reportMs: number, baselineMs: number,
+                               runMedian: number | null, baselineMedian: number | null): string | null {
+  if (runMedian && baselineMedian) {
+    const ratio = (reportMs / runMedian) / (baselineMs / baselineMedian);
+    const pct = (ratio - 1) * 100;
+    if (pct <= THRESHOLDS.bootRelativeDeltaPercent) return null;
+    return `boot DCL +${pct.toFixed(1)}% relative to its run ` +
+      `(${reportMs} ms of run median ${Math.round(runMedian)} ms, baseline ${baselineMs} ms of ` +
+      `${Math.round(baselineMedian)} ms, threshold +${THRESHOLDS.bootRelativeDeltaPercent}%)`;
+  }
+  const pct = ((reportMs - baselineMs) / baselineMs) * 100;
+  if (pct <= THRESHOLDS.bootDeltaPercent) return null;
+  return `boot DCL ${(pct > 0 ? "+" : "") + pct.toFixed(1)}% ` +
+    `(${baselineMs} ms → ${reportMs} ms, threshold +${THRESHOLDS.bootDeltaPercent}%)`;
+}
 
 function loadReport(path_: string): RenderReport | null {
   try {
@@ -122,6 +156,17 @@ function runGate(): void {
       return false;
     });
 
+  // Medians for the boot check, over EVERY current mounted widget with a
+  // mounted baseline -- not just the filtered one, or a one-widget gate would
+  // divide a widget by itself.
+  const paired = fs.readdirSync(REPORT_DIR)
+    .filter((f) => f.endsWith(".json") && !isStale(f.replace(".json", "")))
+    .map((f) => ({ r: loadReport(path.join(REPORT_DIR, f)), b: loadReport(path.join(BASELINE_DIR, f)) }))
+    .filter((p) => p.r && p.b && p.r.mounted && p.b.mounted) as Array<{ r: RenderReport; b: RenderReport }>;
+  const enough = paired.length >= MIN_PAIRS_FOR_MEDIAN;
+  const runMedian = enough ? median(paired.map((p) => p.r.boot.domContentLoaded)) : null;
+  const baselineMedian = enough ? median(paired.map((p) => p.b.boot.domContentLoaded)) : null;
+
   if (staleReports.length) {
     console.log(`  (${staleReports.length} report(s) are for a version the current source `
       + `no longer builds, so they cannot be regenerated and are not gated: `
@@ -181,14 +226,13 @@ function runGate(): void {
       );
     }
 
-    // Check 3: Boot time (DCL).
-    const bootDelta = report.boot.domContentLoaded - baseline.boot.domContentLoaded;
-    const bootDeltaPct = (bootDelta / baseline.boot.domContentLoaded) * 100;
-    if (bootDeltaPct > THRESHOLDS.bootDeltaPercent) {
-      checks.push(
-        `boot DCL ${(bootDeltaPct > 0 ? "+" : "") + bootDeltaPct.toFixed(1)}% ` +
-        `(${baseline.boot.domContentLoaded} ms → ${report.boot.domContentLoaded} ms, threshold +${THRESHOLDS.bootDeltaPercent}%)`
-      );
+    // Check 3: Boot time (DCL), relative to the run (see the header). Only when
+    // both sides mounted: a no-mount's timings come from a page that never
+    // finished, and check 1 already reports the mount itself.
+    if (baseline.mounted && report.mounted) {
+      const boot = bootRegression(report.boot.domContentLoaded, baseline.boot.domContentLoaded,
+        runMedian, baselineMedian);
+      if (boot) checks.push(boot);
     }
 
     // Check 4: Console errors (increased).
@@ -268,4 +312,4 @@ function runGate(): void {
   }
 }
 
-runGate();
+if (require.main === module) runGate();

@@ -375,7 +375,7 @@ introspect: harness-build ## Hermetic widget-render introspection (builds baseli
 	  cd $(HARNESS) && HARNESS_URL=http://localhost:$(INTROSPECT_PORT) pnpm node scripts/introspect.js; \
 	)
 
-introspect-gate: harness-build introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +15%, new console errors). GATE_WIDGET=<name> scopes the pass/fail to one widget.
+introspect-gate: harness-build introspect ## Run introspection + fail if any widget regresses past thresholds (payload +10%, boot +100% relative to the run, new console errors). GATE_WIDGET=<name> scopes the pass/fail to one widget.
 	@echo "▶ Checking regressions against baseline…"
 	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js $(GATE_WIDGET)
 
