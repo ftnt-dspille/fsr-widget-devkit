@@ -99,6 +99,15 @@ function normalizeHost(raw: string | undefined, port: string | undefined): strin
 
 function resolveSoarEnv(env?: Record<string, string | undefined>, opts?: EnvOpts): SoarEnvResult {
   const useDefaultEnv = !env; // explicit env (tests) => don't touch the .env file
+  // An explicit FSR_ENV_FILE is the caller naming the box. Without this the
+  // live UI driver read `.env` instead: a rehearsal run with
+  // FSR_ENV_FILE=.env.159 signed in to a different appliance and reported the
+  // .159 record as not found.
+  const named = useDefaultEnv ? (process.env.FSR_ENV_FILE || "").trim() : "";
+  if (named) {
+    const p = path.resolve(path.resolve(__dirname, ".."), named);
+    if (fs.existsSync(p)) return resolveSoarEnvFile(p, opts);
+  }
   env = env || process.env;
   const fileEnv = useDefaultEnv ? parseDotenvFile() : {};
   const service = (opts && opts.service) || KEYRING_SERVICE;
