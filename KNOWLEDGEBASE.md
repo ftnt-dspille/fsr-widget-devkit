@@ -1235,6 +1235,21 @@ Template:
 
 When calling external services that need a theme name, **map `steel` → `steel`** (older connectors expect the literal `steel`).
 
+### 14.1 Style every input type you render, not just `type="text"`
+
+On a dark theme the platform makes form-control text light, but it doesn't
+give the control a dark background. If your CSS sets background and color for
+`input[type="text"]`, `select` and `textarea` only, an `input type="number"`
+or `type="password"` keeps the browser's white background with the theme's
+white text: the value is invisible. The SOC Assistant's action card showed
+an integer device id this way, and the analyst approved a value they could
+not read. List every input type the template can emit (number, password,
+email, date, ...) in the same rule, and include the `:focus` rule. To test
+it, inject the dark theme plus `input { color: #fff }` and compare each control's
+computed `backgroundColor` and `color` with the themed text input. Leave
+borders out of the comparison, because a border transition makes them flaky
+(`fortiaiAgenticAssistant.actionCardInputContrast.spec.js`).
+
 ---
 
 ## 15. WebSocket subscriptions
