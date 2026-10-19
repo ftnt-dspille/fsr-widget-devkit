@@ -53,6 +53,7 @@ stop: ## Kill both the dev (14400) and test (14401) servers
 	-lsof -ti:$(DEV_PORT)  | xargs kill -9 2>/dev/null || true
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 
+# alias of test-unit
 test: test-unit ## Full check: jest unit tests (use test-e2e-spec WIDGET=<name> for e2e)
 
 test-unit: harness-build ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
@@ -122,10 +123,24 @@ widget-inspect: harness-build ## Mount a widget in the running harness + measure
 	cd $(HARNESS) && HARNESS_BASE=$(or $(BASE),http://localhost:$(DEV_PORT)) node scripts/widget-inspect.js $(ARGS)
 
 BUMP ?= patch
-# Which box `ship-verify` deploys to. Defaults to the harness `.env`; the deploy
-# target used to be HARDCODED to it, so shipping the same build to a second box
-# meant editing shared state. `SHIP_ENV=.env.206` targets one box explicitly.
-SHIP_ENV ?= .env
+
+# --- Box/env selection: ONE knob -------------------------------------------
+# `ENV` is the single canonical box selector. Pass `ENV=.env.206` once and the
+# sweep / matrix / live / loop / doctor targets all follow. The per-area vars
+# below (SWEEP_ENV / MATRIX_ENV / LIVE_ENV / SHIP_ENV) are backward-compat
+# shims: each still accepts its own explicit override (e.g. `SWEEP_ENV=.env.81`)
+# and each keeps its historical DEFAULT, so existing invocations are unchanged.
+# `soarEnv.ts` (FSR_ENV_FILE → .harness-active-env → .env) remains the runtime
+# resolver; this block only decides which file the Make targets hand it.
+ENV ?= .env.159
+
+# Which box `ship-verify` deploys to. Historically defaulted to the harness
+# `.env` (NOT .env.159), and the deploy target used to be HARDCODED to it, so
+# shipping the same build to a second box meant editing shared state.
+# `SHIP_ENV=.env.206` still targets one box explicitly. To preserve the old
+# default, SHIP_ENV falls back to `.env` when ENV is left at its own default;
+# an explicit `ENV=.env.<box>` flows through to the ship box too.
+SHIP_ENV ?= $(if $(filter .env.159,$(ENV)),.env,$(ENV))
 
 ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
@@ -160,6 +175,10 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV) (dev path: NOT e2e/live-verified; use ship-verify for a release)"
 
+push: harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. ENV=.env.<box> SSH_HOST=<box> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
+	@ENV="$(ENV)" SSH_HOST="$(SSH_HOST)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
+	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
+
 release: harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
@@ -189,7 +208,8 @@ SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
 # after shipping elsewhere silently [[SWEEP-ENV-SKIP]]s with "connector not
 # present/configured" -- which reads like a box outage rather than "you are
 # pointed at the wrong box".
-SWEEP_ENV ?= .env.159
+# Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
+SWEEP_ENV ?= $(ENV)
 
 test-mcp-surface-live: harness-build ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (SWEEP_ENV=.env.159)
 	@# Its own target rather than `test-e2e-spec SPEC=…` because a live spec needs
@@ -257,7 +277,8 @@ test-live-sweep: harness-build ## LIVE forticloud UI bug-hunt sweep (real connec
 	echo "[[SWEEP-VERIFIED]] live-sweep graded $$ran scenario(s) -- live-verified."; \
 	exit 0
 
-MATRIX_ENV ?= .env.159
+# Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
+MATRIX_ENV ?= $(ENV)
 # MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
 # (the connector-repo Makefile passes one). Boxes: .env.159 (8.0 triage),
 # .env.206 (ZTPF + the build/authoring flows -- where the P6 rows belong).
@@ -336,7 +357,8 @@ grade-export: harness-build ## Grade a downloaded widget .events.json chat expor
 #   jtg        JSON-to-Grid, full edit flow (AR_PLAYBOOK_NAME=<name> overrides it)
 #   connector  connector edit flow (AR_CONNECTOR / AR_OPERATION; default
 #              mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]])
-LIVE_ENV ?= .env.159
+# Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
+LIVE_ENV ?= $(ENV)
 AR_SPEC_playbook  := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.playbookListingLive.spec.js
 AR_SPEC_jtg       := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js
 AR_SPEC_connector := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.connectorFlowLive.spec.js

@@ -1,0 +1,949 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SOC Assistant System Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a field manual. Sticky chapter rail on the left, one long readable column, wide tables scroll in place. */
+:root{
+  --bg:#f6f8f8; --surface:#ffffff; --ink:#15201f; --muted:#56635f; --line:#d7dfdc;
+  --accent:#0d6b63; --accent-soft:#e1f0ed; --warn:#9a5b00; --warn-soft:#fbefd9; --danger:#a1262b; --danger-soft:#f8e3e3; --ok:#2b6b2f; --ok-soft:#e4f1e3;
+  --code-bg:#eef2f1;
+  --f-display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1514; --surface:#161e1d; --ink:#e3ebe9; --muted:#9aaba6; --line:#2a3634;
+  --accent:#5cc4b6; --accent-soft:#16312d; --warn:#e7b25c; --warn-soft:#33281a; --danger:#f08a8e; --danger-soft:#3a1d1f; --ok:#8fd08f; --ok-soft:#1b2e1c;
+  --code-bg:#1d2826; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1514; --surface:#161e1d; --ink:#e3ebe9; --muted:#9aaba6; --line:#2a3634;
+  --accent:#5cc4b6; --accent-soft:#16312d; --warn:#e7b25c; --warn-soft:#33281a; --danger:#f08a8e; --danger-soft:#3a1d1f; --ok:#8fd08f; --ok-soft:#1b2e1c;
+  --code-bg:#1d2826; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16.5px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+code,kbd{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:.08em .35em;border-radius:4px;overflow-wrap:anywhere}
+pre{font-family:var(--f-mono);font-size:.85em;background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;line-height:1.5}
+pre code{background:none;padding:0}
+
+.shell{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px}
+nav.rail{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;max-height:100vh;overflow-y:auto;padding-block:32px 24px;font-size:.92rem}
+nav.rail .brand{font-family:var(--f-display);font-weight:700;font-size:1.05rem;letter-spacing:.01em;margin-bottom:4px}
+nav.rail .sub{color:var(--muted);font-size:.82rem;margin-bottom:20px}
+nav.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:ch}
+nav.rail li a{display:flex;gap:10px;padding:5px 8px;border-radius:5px;text-decoration:none;color:var(--ink)}
+nav.rail li a:hover{background:var(--accent-soft)}
+nav.rail li a .n{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);min-width:1.6em;padding-top:2px}
+main{min-width:0;padding-top:32px}
+.content{max-width:960px}
+.content p,.content ul,.content ol,.content h2,.content h3,.content h4,.content .callout,.content details,.content .who,.content .steps{max-width:76ch}
+
+header.hero{padding-block:8px 28px;border-bottom:1px solid var(--line);margin-bottom:36px}
+.eyebrow{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(2rem,4.5vw,2.9rem);line-height:1.1;margin:.3em 0 .4em;text-wrap:balance;letter-spacing:-.01em}
+.lede{font-size:1.15rem;color:var(--muted);max-width:62ch;margin:0}
+h2{font-family:var(--f-display);font-weight:700;font-size:1.75rem;line-height:1.2;margin:0 0 .5em;text-wrap:balance;scroll-margin-top:16px}
+h2 .n{font-family:var(--f-mono);font-size:.9rem;color:var(--accent);font-weight:600;display:block;margin-bottom:4px;letter-spacing:.06em}
+h3{font-family:var(--f-display);font-weight:600;font-size:1.2rem;margin:1.8em 0 .4em;text-wrap:balance}
+h4{font-family:var(--f-body);font-weight:700;font-size:1rem;margin:1.4em 0 .3em}
+section.chapter{padding-block:12px 48px;border-bottom:1px solid var(--line);margin-bottom:40px}
+section.chapter:last-of-type{border-bottom:0}
+p{margin:.6em 0}
+ul,ol{padding-left:1.3em}
+li{margin:.25em 0}
+
+.callout{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:14px 18px;margin:18px 0}
+.callout.key{border-color:var(--accent);background:var(--accent-soft)}
+.callout.warn{border-color:var(--warn);background:var(--warn-soft)}
+.callout .label{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--accent);display:block;margin-bottom:4px}
+.callout.warn .label{color:var(--warn)}
+
+.who{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.who > div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-width:0}
+.who h4{margin:0 0 6px;font-family:var(--f-display);font-size:1.02rem}
+.who ul{margin:0;padding-left:1.1em;font-size:.94rem}
+@media (max-width:760px){.who{grid-template-columns:minmax(0,1fr)}}
+
+.tablewrap{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:620px}
+th,td{text-align:left;vertical-align:top;padding:8px 12px;border-bottom:1px solid var(--line)}
+th{font-family:var(--f-body);font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--code-bg)}
+tr:last-child td{border-bottom:0}
+td code{font-size:.82em}
+
+.pill{display:inline-block;font-family:var(--f-mono);font-size:.72rem;padding:1px 8px;border-radius:999px;white-space:nowrap;font-weight:600}
+.p-free{background:var(--ok-soft);color:var(--ok)}
+.p-frank{background:var(--accent-soft);color:var(--accent)}
+.p-box{background:var(--warn-soft);color:var(--warn)}
+.p-high{background:var(--danger-soft);color:var(--danger)}
+
+details{border:1px solid var(--line);border-radius:8px;background:var(--surface);margin:12px 0}
+details > summary{cursor:pointer;padding:10px 16px;font-weight:600;list-style:none}
+details > summary::-webkit-details-marker{display:none}
+details > summary::before{content:"+";font-family:var(--f-mono);color:var(--accent);display:inline-block;width:1.2em}
+details[open] > summary::before{content:"\2212"}
+details > .inner{padding:0 18px 14px}
+
+.qa{display:flex;flex-direction:column;gap:10px;margin:16px 0}
+.qa details{margin:0}
+
+.diagram{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;margin:16px 0}
+.diagram pre.mermaid{background:none;margin:0;padding:0;font-family:var(--f-body)}
+
+.steps{counter-reset:s;list-style:none;padding:0;margin:14px 0;display:flex;flex-direction:column;gap:10px}
+.steps > li{counter-increment:s;display:grid;grid-template-columns:2.2em minmax(0,1fr);gap:10px;margin:0}
+.steps > li::before{content:counter(s);font-family:var(--f-mono);font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:50%;width:1.9em;height:1.9em;display:grid;place-items:center;font-size:.82rem}
+
+.where{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;margin:18px 0}
+.shots.stack{grid-template-columns:minmax(0,1fr);gap:26px}
+figure{margin:0;min-width:0;display:flex;flex-direction:column;gap:8px}
+figure img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;background:#111517}
+figure.solo{max-width:340px}
+figure.full img{max-width:100%}
+figcaption{font-size:.88rem;color:var(--muted);line-height:1.45}
+figcaption strong{color:var(--ink);font-weight:600}
+.shotnote{font-size:.84rem;color:var(--muted)}
+.foot{color:var(--muted);font-size:.88rem;margin-top:40px}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:0}
+  nav.rail{position:static;max-height:none;padding-block:20px 0;border-bottom:1px solid var(--line)}
+  nav.rail ol{flex-direction:row;flex-wrap:wrap;gap:4px 6px;padding-bottom:16px}
+  nav.rail li a{padding:3px 8px;background:var(--surface);border:1px solid var(--line)}
+}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<div class="shell">
+<nav class="rail" aria-label="Chapters">
+  <div class="brand">SOC Assistant</div>
+  <div class="sub">System guide, as built</div>
+  <ol>
+    <li><a href="#map"><span class="n">00</span>The map</a></li>
+    <li><a href="#turn"><span class="n">01</span>One turn, end to end</a></li>
+    <li><a href="#builder"><span class="n">02</span>The playbook builder</a></li>
+    <li><a href="#controls"><span class="n">03</span>What controls it</a></li>
+    <li><a href="#library"><span class="n">04</span>fsr_playbooks</a></li>
+    <li><a href="#connector"><span class="n">05</span>The connector</a></li>
+    <li><a href="#widgets"><span class="n">06</span>The widgets</a></li>
+    <li><a href="#autonomy"><span class="n">07</span>Autonomy and oversight</a></li>
+    <li><a href="#harness"><span class="n">08</span>Harness and deploy</a></li>
+    <li><a href="#testing"><span class="n">09</span>Testing and evals</a></li>
+    <li><a href="#why"><span class="n">10</span>Why it is this way</a></li>
+    <li><a href="#questions"><span class="n">11</span>Demo questions</a></li>
+    <li><a href="#edges"><span class="n">12</span>Sharp edges</a></li>
+    <li><a href="#connectors"><span class="n">13</span>Connector creation</a></li>
+    <li><a href="#glossary"><span class="n">14</span>Glossary</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Field manual &middot; verified against the code, Oct 17 2026</div>
+  <h1>SOC Assistant System Guide</h1>
+  <p class="lede">How the widget, the connector, the fsr_playbooks library and the build and deploy tooling fit together. For each part: what it does, how it decides, what keeps it safe, and why it was built that way. File references are to the working trees on the build Mac.</p>
+</header>
+
+<div class="content">
+
+<!-- 00 -->
+<section class="chapter" id="map">
+<h2><span class="n">00</span>The map</h2>
+<p>The product line is <strong>"AI finds the pattern. A playbook runs it forever."</strong> It makes four promises:</p>
+<ul>
+  <li><strong>P1</strong> Investigate a record and return a verdict where every finding cites the tool call it came from.</li>
+  <li><strong>P2</strong> Propose containment actions that a human approves, gated by risk tier.</li>
+  <li><strong>P3</strong> Reach on-prem targets through the analyst's chosen connector config.</li>
+  <li><strong>P4</strong> Bottle an investigation, or a request, into a FortiSOAR playbook that runs without the AI.</li>
+</ul>
+
+<p>Four pieces deliver it. The widget is the window; the connector is the engine; fsr_playbooks is the brain's rulebook; the harness is how we build and ship all of it.</p>
+
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  A[Analyst] --> W["Chat widget<br/>fortiaiAgenticAssistant"]
+  L[SOC lead] --> M["Monitor widget<br/>socAssistantMonitor"]
+  W -- "chat_turn / chat_poll / chat_resume" --> C["Connector<br/>connector-fsr-soc-assistant"]
+  M -- "list_usage, list_pending, policy ops" --> C
+  C -- "imports, runs in process" --> F["fsr_playbooks<br/>agent loop, tools, compiler, verifier, guards"]
+  F -- "LLM provider" --> P[(Anthropic / OpenAI / FortiAI proxy)]
+  F -- "reads catalog" --> DB[(Reference DB<br/>connectors, ops, modules)]
+  C -- "REST /api/3" --> S[(FortiSOAR records,<br/>playbooks, connectors)]
+  C --> Q[(SQLite session store)]
+</pre></div>
+
+<h3>Who decides what</h3>
+<p>This is the one idea to hold onto. The model proposes. Deterministic code checks. A human commits.</p>
+<div class="who">
+  <div><h4>The model</h4><ul><li>Reads the request</li><li>Picks tools, connectors, operations</li><li>Drafts YAML or edit operations</li><li>Reacts to fix lists</li><li>Writes the prose and the verdict</li></ul></div>
+  <div><h4>The code</h4><ul><li>Which tools exist this turn</li><li>Whether each call is allowed</li><li>Whether a playbook compiles and verifies</li><li>Which exact bytes can be offered</li><li>Whether a save would lose data</li><li>Risk tier of every action</li></ul></div>
+  <div><h4>The analyst</h4><ul><li>Clicks Apply or Save on a playbook</li><li>Confirms each tier 3 or 4 action</li><li>Answers choice and manual-input cards</li><li>Reviewers own the autonomy policy</li></ul></div>
+</div>
+
+<h3>Where each piece lives</h3>
+<div class="tablewrap"><table>
+<tr><th>Piece</th><th>Repo</th><th>Version today</th><th>Ships as</th></tr>
+<tr><td>Chat widget</td><td><code>fsr_all_widgets/widgets-src/fortiaiAgenticAssistant</code> (own git repo)</td><td>1.2.74</td><td>widget tgz</td></tr>
+<tr><td>Monitor widget</td><td><code>fsr_all_widgets/widgets-src/socAssistantMonitor</code> (own git repo)</td><td>1.0.18</td><td>widget tgz</td></tr>
+<tr><td>Connector</td><td><code>~/PycharmProjects/ConnectorsV2/conn_main</code></td><td>0.5.180</td><td>connector tgz</td></tr>
+<tr><td>fsr_playbooks</td><td><code>~/PycharmProjects/fsr-playbook-framework</code></td><td>0.7.3</td><td>PyPI wheel, pinned in the connector's <code>requirements.txt</code></td></tr>
+<tr><td>Widget harness + build tooling</td><td><code>fsr_all_widgets</code> root (Makefile, <code>scripts/</code>, <code>fortisoar-widget-harness/</code>)</td><td>n/a</td><td>not shipped</td></tr>
+<tr><td>Roadmap and board</td><td><code>~/PycharmProjects/soc-assistant-tracker/ROADMAP.md</code></td><td>n/a</td><td>private</td></tr>
+</table></div>
+<p class="where">Live versions come from <code>make doctor</code>, not from this page.</p>
+</section>
+
+<!-- 01 -->
+<section class="chapter" id="turn">
+<h2><span class="n">01</span>One turn, end to end</h2>
+<p>Every interaction is a "turn". The widget never waits on a long HTTP request. It starts the turn detached and then polls for progress, because FortiSOAR's uWSGI workers kill requests after a few minutes and a playbook build can take longer.</p>
+
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  participant A as Analyst
+  participant W as Widget
+  participant C as Connector
+  participant L as Agent loop (fsr_playbooks)
+  participant M as LLM
+  A->>W: message or quick action
+  W->>C: chat_turn {messages[], intent, entity, detached:true}
+  C-->>W: {accepted}
+  C->>C: resolve intent, persona, model, plan, system prompt, tools
+  C->>L: run_agent_turn(provider, system, messages, tools)
+  loop up to 40 rounds
+    L->>M: prompt + advertised tools
+    M-->>L: text and tool calls
+    L->>L: gates: advertised? args valid? plan allows? tier?
+    L-->>C: events become frames in turn_progress
+  end
+  loop every 700 ms
+    W->>C: chat_poll(session, cursor)
+    C-->>W: new frames
+  end
+  C-->>W: stream_end (full transcript, committed once)
+</pre></div>
+
+<ol class="steps">
+  <li><div><strong>Widget sends the whole conversation.</strong> <code>_runTurnNow</code> sends <code>chat_turn</code> with every prior message (old tool results capped at 2048 chars), the page facts, the record or open playbook as <code>entity</code>, and <code>detached:true</code>. The connector builds model context from <code>messages[]</code> only. It never reads its own store back as context. <span class="where">view.controller.js:3947</span></div></li>
+  <li><div><strong>Connector prepares the turn.</strong> It works out the intent (an explicit intent wins, otherwise page facts decide), loads the persona from the Key Store, lets the persona choose a model, warms the connector catalog if cold, and reserves a turn number atomically. <span class="where">ops_chat.py:252-401</span></div></li>
+  <li><div><strong>Connector plans the turn.</strong> <code>plan_turn</code> builds a TurnPlan from structural state: is a playbook open, is there a trace, which page. The plan sets the prompt layers and the refusal rules for this turn. <span class="where">turn_plan.py:438, ops_turn_state.py:459</span></div></li>
+  <li><div><strong>The agent loop runs.</strong> One shared <code>run_loop</code> serves every LLM provider. Each round, the model returns text and tool calls. Each call passes the gates before it runs, and calls in a round run in parallel up to the first that needs approval. <span class="where">agent_loop.py:325, 801-842</span></div></li>
+  <li><div><strong>Frames stream back.</strong> Every event is written as a frame to the <code>turn_progress</code> table. The widget polls <code>chat_poll</code> every 700 ms and renders a live preview. A heartbeat thread marks the turn alive; a turn silent for 420 s is failed rather than left hanging.</div></li>
+  <li><div><strong>The turn ends in a card.</strong> A triage ends in a verdict card and maybe an action card. A build ends in a playbook offer or an enhancement offer. If the model verified a playbook but forgot to deliver it, the loop delivers the offer itself. If the turn still ends without one, the connector salvages an offer from the last YAML block or the last verified draft. <span class="where">agent_loop.py:688-716, ops_offers.py:96-245</span></div></li>
+  <li><div><strong>The analyst answers the card.</strong> Buttons send <code>chat_resume</code>. The connector routes on the stored card (never on what the browser claims) and runs the decision once. <span class="where">ops_resume.py:50</span></div></li>
+</ol>
+
+<details><summary>Frame types and resume calls</summary><div class="inner">
+<p><strong>Frames:</strong> text, tool_use, tool_result, usage, activity, approval_request, error, the card events (action, choice, capability_gap, manual_input, playbook_offer, enhancement_offer, verdict, info, ioc, status), turn_start and stream_end. Wire contract version 2.8.0; the widget banners a major mismatch.</p>
+<p><strong>Resume calls:</strong> approval (carries <code>approval_id</code>), choice (<code>choice_id</code>, value), action card (<code>card_id</code>, args, grant, config), offer (<code>offer_id</code>, title, edits, <code>workflow_iri</code>, <code>apply_to</code>), and manual input (<code>respond_manual_input</code>, which resumes a paused FortiSOAR playbook run).</p>
+<p><strong>History:</strong> the last 4 turns replay as real tool_use/tool_result pairs. Collapsing history into text like "[called x(...)]" taught the model to type tool calls as text in 3 of 4 runs, so it was replaced.</p>
+</div></details>
+</section>
+
+<!-- 02 -->
+<section class="chapter" id="builder">
+<h2><span class="n">02</span>The playbook builder</h2>
+<div class="callout key"><span class="label">In one paragraph</span>
+The LLM never writes FortiSOAR JSON and never saves anything. It drafts a small, friendly YAML format. The fsr_playbooks library compiles that YAML against a catalog of the box's real connectors, operations and modules, then verifies it: compile, a typed walk of every path, per-step schema checks, an offline walk of every branch, and an inventory of what the playbook changes. A passing draft gets a content hash, the <code>verified_id</code>, and only those exact bytes can reach an offer card. The save happens in the connector, only when the analyst clicks Apply, after diffing against the live playbook, refusing any unacknowledged loss and taking a snapshot. The model supplies intent and drafting. The library supplies correctness and safety.
+</div>
+
+<h3>The build loop</h3>
+<ol class="steps">
+  <li><div><strong>Read what is open.</strong> In the designer, the widget calls <code>decompile_playbook</code> at mount and sends the playbook as YAML with every turn. The next turn always edits the current draft.</div></li>
+  <li><div><strong>Discover.</strong> The model calls <code>find</code> (one entry point for connectors, operations, examples, recipes, fields, Jinja) and <code>get_op_schema</code> for parameters and the known output shape. Answers come from the reference catalog, which is warmed from the box, so it only sees connectors that exist.</div></li>
+  <li><div><strong>Draft.</strong> For a new playbook, the model writes YAML. For an open playbook, it sends <code>edit_playbook</code> operations: add, update, rename or remove a step; set or remove a route; add or remove a parameter. The tool applies them to the open playbook, so any step the model did not name is carried over untouched.</div></li>
+  <li><div><strong>Verify.</strong> <code>verify_playbook</code> (new) or the verify built into <code>edit_playbook</code> (edits) returns <code>ready_to_push</code> plus a structured list of required fixes.</div></li>
+  <li><div><strong>Fix and retry.</strong> The model reads the fix list and tries again. Repeating an identical failed call is refused, and a stall detector ends a turn that keeps failing.</div></li>
+  <li><div><strong>Offer.</strong> <code>emit_card(enhancement_offer, {verified_id})</code> for an edit, or <code>emit_card(playbook_offer)</code> for a new playbook, which re-verifies the exact bytes it carries.</div></li>
+  <li><div><strong>Apply.</strong> The analyst clicks Apply. The connector compiles the card's stored YAML, checks it against the live playbook with the prewrite guard, snapshots, and saves or stages it into the open canvas as unsaved changes.</div></li>
+</ol>
+
+<h3>How it decides</h3>
+<h4>Intent comes from state, not wording</h4>
+<p>The TurnPlan reads structure: <code>has_open_playbook</code>, <code>has_trace</code> and <code>page</code>. A playbook is open, so this is an edit turn; creating a second playbook is refused and the model is pointed at <code>edit_playbook</code>. Nothing is open, so edit tools are refused. The house rule, written in <code>docs/GUARDS.md</code>, is "never decide by parsing wording". <span class="where">turn_plan.py:107, 311-345</span></p>
+
+<h4>Prompt layers</h4>
+<ul>
+  <li>The intent prompt for build or triage (<code>fsr_playbooks/agent/system_prompt_build.md</code>).</li>
+  <li>A context block of page facts plus a disposition paragraph.</li>
+  <li>A constraints block: round budget, approval tiers, "never dead-end the analyst".</li>
+  <li>The persona or grounding layer, then the invariant house rules, then a note on which log sources are available.</li>
+</ul>
+
+<h4>Which tools it sees</h4>
+<p>The framework registers 77 tools for its MCP server. The agent sees about 26 per turn: 16 framework tools plus the connector's record and triage tools. The list is kept nearly constant so the prompt cache stays warm, then trimmed per turn of anything the plan would refuse (<code>advertised_for_turn</code>). Older docs call this "slicing by intent". The real focusing now comes from the plan's prompt and its dispatch refusals.</p>
+<p>On a build turn the record and triage tools (<code>run_op</code>, <code>get_record</code>, record search, SIEM and EDR lookups) are withheld. Everything else the plan might refuse stays listed, so the model learns about a refusal (an offer while a playbook is open, an edit with nothing open) only by calling the tool, which costs a round. The list also changes when a draft becomes the open playbook or a turn is read-only, and that change re-bills the cached prompt prefix at those boundaries. <span class="where">ops_tools.py:96-167, tools.py:1697-1729</span></p>
+
+<h4>The conversation's own draft counts as open</h4>
+<p>After a build turn offers or saves a playbook, the connector grounds later build turns in the same chat on that draft, so "now also add X" edits it with <code>edit_playbook</code> instead of re-typing it (re-typed refinements once dropped an alert link). The side effect: asking for an unrelated second playbook in the same chat starts as an edit of the first, and a new-playbook offer is refused until the model raises the "modify or create new" choice. A playbook open in the designer always wins over the draft. <span class="where">ops_tools.py:534-577</span></p>
+
+<h4>When it asks instead of acting</h4>
+<p>Removing steps an analyst did not name brings up a <code>playbook_scope</code> choice card: modify this playbook, or create a new one. Missing inputs become choice or manual-input cards. The constraints block forbids ending on a dead end.</p>
+
+<h4>When it stops</h4>
+<div class="tablewrap"><table>
+<tr><th>Limit</th><th>Value</th><th>Where</th></tr>
+<tr><td>Rounds per turn</td><td>40 (<code>MAX_TOOL_TURNS</code>)</td><td><span class="where">_loop_helpers.py:353</span></td></tr>
+<tr><td>Self-repair rounds for a failing YAML fence</td><td>2</td><td><span class="where">_loop_helpers.py</span></td></tr>
+<tr><td>Parallel tools per round</td><td>8</td><td><span class="where">_loop_helpers.py</span></td></tr>
+<tr><td>Soft budget warning</td><td>at 3 rounds left</td><td><span class="where">turn_plan.py:58</span></td></tr>
+<tr><td>Rounds on a resume (after a card answer)</td><td>8</td><td><span class="where">ops_resume.py:1874-1887</span></td></tr>
+<tr><td>Stall detector</td><td>ProgressMeter ends the turn after 3 repeat-only rounds or 6 all-error rounds</td><td><span class="where">_loop_helpers.py:2570</span></td></tr>
+<tr><td>Budget exhausted</td><td>forced wrap-up or a budget card</td><td><span class="where">agent_loop.py:897-920</span></td></tr>
+</table></div>
+
+<h3>Measured: what build turns actually do</h3>
+<p>From 1,871 build turns in a local connector store. This is eval and simulator traffic on several open-weight models, not live analysts, so treat it as the behaviour of the loop, not of real users.</p>
+<div class="tablewrap"><table>
+<tr><th>Measure</th><th>Value</th><th>What it means</th></tr>
+<tr><td>Model rounds per turn</td><td>median 6, mean 8.0, p90 16; new builds 9.1, edits 6.6, explain 2 to 3</td><td>Most of a build is discovery before the first draft</td></tr>
+<tr><td><code>find</code> + <code>get_step_type</code></td><td>41% of all tool calls</td><td><code>get_step_type</code> runs in 68% of turns, often 4 or more times; 87 calls guessed a step type that does not exist ("send_email", "schedule", "ForEach")</td></tr>
+<tr><td>Good build ending</td><td><code>verify_playbook</code> then an offer card</td><td>Good and failed turns share the same discovery prefix; they differ only at the close</td></tr>
+<tr><td>Builds that end with no output</td><td>9% end in prose, 5% on a non-offer card</td><td>No Apply or Save button for the analyst</td></tr>
+<tr><td>Turns with a guard-refused card</td><td>10%</td><td>Top codes: unconfigured connector in the offer, offer not afforded on this turn, offer not verified</td></tr>
+<tr><td>Forced stops</td><td>7%</td><td>Delivery, budget, verdict or stall guards ended the turn</td></tr>
+<tr><td>Top verify fixes</td><td><code>missing_field_on_step_output</code> (305 calls), <code>connector_config_missing</code> (243)</td><td>A read of an output field the operation does not produce; a connector that is not configured on the box</td></tr>
+<tr><td>Offer delivery</td><td>generic <code>emit_card</code> about 15x the retired dedicated offer tools</td><td>The merged card tool is what models actually use</td></tr>
+<tr><td>Tools that misfire on build turns</td><td>record search 70% error, <code>why_did_playbook_fail</code> 100% (no runs yet)</td><td>Offered or reached on turns where they cannot help</td></tr>
+</table></div>
+<p>The simulator's "does it run" grade sets the real bar: 28 of 30 canvases met the stated requirements, but only 21 actually ran. The failures were invented record fields, reads past the connector envelope, and parameters read off the record.</p>
+
+<h3>Designer Apply, in sequence</h3>
+<div class="diagram"><pre class="mermaid">
+sequenceDiagram
+  participant A as Analyst
+  participant W as Widget
+  participant C as Connector
+  participant D as Designer canvas
+  W->>C: decompile_playbook at mount
+  C-->>W: YAML (sent with every turn)
+  A->>W: "only block when malicious"
+  W->>C: chat_turn {intent: build, entity.playbook_yaml}
+  C-->>W: enhancement_offer {verified_id, diff}
+  A->>W: Apply
+  W->>W: refuse if analyst has own unsaved edits
+  W->>C: chat_resume {accept, workflow_iri, apply_to: canvas}
+  C->>C: compile stored YAML, prewrite guard, snapshot
+  C-->>W: info_card playbook_staged
+  W->>D: load as unsaved edits (undo works)
+  A->>D: Save (the real write)
+</pre></div>
+<div class="shots">
+  <figure><img src="img/designer-quick-actions.png" alt="Assistant open in the playbook designer with six authoring starters" loading="lazy" width="566" height="889"><figcaption><strong>In the designer.</strong> The widget switches to build intent and authoring starters. Explain and Find issues run as read-only turns.</figcaption></figure>
+  <figure><img src="img/chat-enhancement-offer.png" alt="Proposed change card with a diff summary and Apply change button" loading="lazy" width="566" height="889"><figcaption><strong>Enhancement offer.</strong> A verified edit with a diff summary. Apply also saves a new child playbook the edit introduced.</figcaption></figure>
+  <figure><img src="img/chat-playbook-offer.png" alt="Save as Playbook card listing the investigation steps" loading="lazy" width="566" height="889"><figcaption><strong>Playbook offer (P4).</strong> Built from the operations the triage actually ran. The model wrote no YAML for it.</figcaption></figure>
+</div>
+<p>Applying into the canvas as unsaved edits exists because an earlier version saved behind the open canvas. The change stayed invisible until reload, and the analyst's next Save overwrote it.</p>
+
+<h3>Model choice</h3>
+<p>One <code>LLMProvider</code> protocol with four providers: anthropic, openai, lmstudio and fortiai-proxy. All share the same loop; capabilities a provider lacks are emulated by the host. The model catalog marks <code>claude-sonnet-5</code> and <code>gpt-5.4-mini</code> as tested defaults, several Claude models as supported, and <code>haiku-4-5</code>, <code>gpt-4.1-mini</code> and <code>o4-mini</code> as discouraged after measured gate failures. <span class="where">model_catalog.py:62-140</span></p>
+</section>
+
+<!-- 03 -->
+<section class="chapter" id="controls">
+<h2><span class="n">03</span>What controls it</h2>
+<p>Every control below is code, not a prompt instruction. The prompt explains the rules so the model wastes fewer rounds; the code enforces them whether or not the model listened.</p>
+<div class="tablewrap"><table>
+<tr><th>Control</th><th>What it prevents</th><th>Where</th></tr>
+<tr><td>Not-advertised, repeat-failure and duplicate-offer checks</td><td>Calling tools outside this turn's list, retry loops, two offer cards</td><td><span class="where">agent_loop.py:391-446</span></td></tr>
+<tr><td>Argument gate</td><td>Malformed calls. Runs before authorization, so a bad call never raises an approval card</td><td><span class="where">tools.py:1802, llm/arg_gate.py</span></td></tr>
+<tr><td>Turn-plan gate</td><td>Running ops or action cards on a build turn; editing with nothing open; a second playbook while one is open. If state cannot be worked out, open-playbook actions are refused (<code>state_unresolved</code>)</td><td><span class="where">turn_plan.py:187-346</span></td></tr>
+<tr><td>Read-only turns</td><td>"Explain" and "find issues" chips writing anything</td><td><span class="where">tools.py:1700</span></td></tr>
+<tr><td><code>verify_playbook</code></td><td>Unverified drafts: elision markers, compile errors, type errors on every path, unknown connectors or ops, missing params, unreachable steps (blocking), plus offline-walk and effect warnings</td><td><span class="where">tools_verify.py:616-930</span></td></tr>
+<tr><td><code>verify_enhancement</code></td><td>Dropped or silently renamed steps. The baseline is FortiSOAR's copy of the playbook, not one the model typed</td><td><span class="where">tools_enhancement.py:524-708</span></td></tr>
+<tr><td><code>verified_id</code> binding</td><td>Offering bytes that never passed verify. The offer tool accepts an id, not YAML</td><td><span class="where">_verified_yaml.py, tools_emit.py:1183-1282</span></td></tr>
+<tr><td>Create-offer re-verify</td><td>Re-typed YAML, offers with no action step, connectors not configured on the box</td><td><span class="where">tools_emit.py:1085-1150</span></td></tr>
+<tr><td>Fence neutralising</td><td>A failing YAML block in chat being saved anyway</td><td><span class="where">agent_loop.py:627-643</span></td></tr>
+<tr><td>Prewrite guard (<code>would_drop_fields</code>)</td><td>Silent loss of steps, routes, fields or parameters at save. Fails closed if the live copy cannot be read</td><td><span class="where">compiler/prewrite.py:475</span></td></tr>
+<tr><td>Derived <code>acknowledged_drops</code></td><td>The model widening what may be deleted. Acks come from the verify verdict and are stored on the card, never taken from the browser</td><td><span class="where">tools_enhancement.py:950, ops_resume.py:732</span></td></tr>
+<tr><td>Snapshot before save</td><td>Irreversible edits (a Versions snapshot named <code>ai-pre-edit</code>)</td><td><span class="where">ops_playbooks_persist.py:1079</span></td></tr>
+<tr><td>Approval tiers + <code>authorize()</code></td><td>Unapproved side effects. Tier 3 and up suspends for a card</td><td><span class="where">llm/authorization.py:216-240</span></td></tr>
+<tr><td><code>_approved</code> rejection + HMAC sessions</td><td>The model, or a tampered request, approving its own action</td><td><span class="where">tools.py:1671, approvals.py:181</span></td></tr>
+<tr><td>Caller identity + reviewer roles</td><td>A forged actor deciding a card; double clicks running a write twice (decided-once table)</td><td><span class="where">ops_approvals.py:95-204</span></td></tr>
+<tr><td>Analyst Apply</td><td>Any playbook write without a human click</td><td><span class="where">ops_resume.py:88-104</span></td></tr>
+<tr><td>Connector offer salvage</td><td>A build turn ending with no offer card. Synthesises one from the last YAML block or last verified draft, only if it verifies. Does not check read-only turns</td><td><span class="where">ops_offers.py:96-245, ops_chat.py:793</span></td></tr>
+</table></div>
+<p>Counted end to end there are about 35 checkpoints a build call or turn can pass through: about 14 at dispatch, about 12 round-level guards after the model stops calling tools, 4 in the connector after the loop returns, and the save-path checks. Each nudge that continues a turn costs a model round. The framework's <code>docs/ARCHITECTURE_AGENT_LOOP.md</code> lists them in order.</p>
+
+<h3>Approval tiers</h3>
+<div class="tablewrap"><table>
+<tr><th>Tier</th><th>Meaning</th><th>Examples</th><th>Default</th></tr>
+<tr><td>0</td><td>Local compute, card emission</td><td><code>validate_yaml</code>, <code>emit_card</code></td><td>runs</td></tr>
+<tr><td>1</td><td>Reads FortiSOAR</td><td><code>find</code>, <code>verify_playbook</code>, <code>why_did_playbook_fail</code></td><td>runs</td></tr>
+<tr><td>2</td><td>Reads an external system</td><td>a safe <code>run_op</code> query</td><td>runs</td></tr>
+<tr><td>3</td><td>Changes FortiSOAR data</td><td><code>push_playbook</code>, <code>run_playbook</code>, management ops</td><td>approval card</td></tr>
+<tr><td>4</td><td>Third-party side effect</td><td>block IP, isolate host, any op tagged unsafe or named with a destructive verb</td><td>approval card</td></tr>
+</table></div>
+<p><code>authorize()</code> decides in this order: already approved, then below the floor (tier 3, or tier 1 when <code>FSR_AUTO_APPROVE_READONLY=0</code>), then a matching once/always grant, then an eval policy, otherwise a card. Playbook Apply is not part of this ladder. It is the analyst's own click on an offer card.</p>
+
+<div class="callout warn"><span class="label">Gaps to know</span>
+<ul>
+<li>With <code>reviewer_roles</code> empty (the default), anyone who can call the op can approve.</li>
+<li>Claude Code talking to the raw fsr_playbooks MCP server gets all 77 tools with no tier gate. <code>run_op</code> is protected only by <code>confirm=True</code>, which the caller sets.</li>
+<li>The connector's prewrite guard fails open if an old framework lacks it.</li>
+</ul></div>
+</section>
+
+<!-- 04 -->
+<section class="chapter" id="library">
+<h2><span class="n">04</span>fsr_playbooks, the library</h2>
+<p>Most of the system's power is here. The library is a compiler from YAML to FortiSOAR playbook JSON, a reference store describing what exists on a box, and the tools the agent uses. The connector imports it and runs it in process. You can also use it without the agent: the <code>fsrpb</code> CLI, an MCP server for Claude Code, and pyfsr's playbook extra.</p>
+
+<h3>The compile pipeline</h3>
+<div class="callout key"><span class="label">The core idea</span>
+Errors are <strong>data, not strings</strong>. Every check, at every stage, emits a structured diagnostic: a code, a path to the exact step or field, a severity, and often a suggested fix. The compiler never prints. That is what lets the agent read its own fix list and repair the draft, and what lets a human tool show a precise red badge instead of a stack trace. <span class="where">compiler/errors.py</span></div>
+<p>A compile is a fixed sequence of stages. Each stage adds diagnostics to a shared list; a blocking error stops the emit, warnings do not. The order matters: resolve has to run before anything can be type-checked against the catalog, and the graph checks run last because they need the whole resolved playbook.</p>
+<div class="diagram"><pre class="mermaid">
+flowchart LR
+  Y["friendly<br/>YAML"] --> P[parse] --> L["raw<br/>lint"] --> RL["reference<br/>lint"] --> R["resolve vs<br/>reference DB"] --> A["typed arg<br/>validate"] --> C["corpus<br/>validate"] --> O["connector<br/>output refs"] --> G["graph / Jinja /<br/>cycle validate"] --> E["emit<br/>FSR JSON"]
+  E -. decompile .-> Y
+</pre></div>
+<div class="tablewrap"><table>
+<tr><th>Stage</th><th>What it does</th><th>What it catches</th><th>Where</th></tr>
+<tr><td>Parse</td><td>Reads the YAML into the internal step model (the IR)</td><td>Malformed YAML, a step missing a type or name</td><td><span class="where">compiler/pipeline.py</span></td></tr>
+<tr><td>Raw lint</td><td>Foot-gun rules on the raw text and IR, before any catalog lookup</td><td>The YAML "Norway problem" (<code>no</code>&rarr;false), illegal step-name characters, a mock step with no <code>mock_result</code>; each rule carries its own blocking-or-warning policy</td><td><span class="where">compiler/linter.py</span></td></tr>
+<tr><td>Reference lint</td><td>The light, existence-only subset of the typed walk, wired into every compile as <strong>warnings</strong></td><td>A connector, operation or module that is not in the catalog, surfaced early and cheaply without the heavy verify path</td><td><span class="where">compiler/reference_lint.py</span></td></tr>
+<tr><td>Resolve</td><td>Binds every connector, operation, module and picklist to the real thing in the reference DB</td><td>Unknown connector or op, a picklist value that does not exist on this box</td><td><span class="where">compiler/resolver/</span></td></tr>
+<tr><td>Typed arg validate</td><td>Checks each step's parameters against the canonical handler's real signature</td><td>A required parameter missing, an unknown parameter (unless the handler takes <code>**kwargs</code>); framework-injected params are excluded</td><td><span class="where">compiler/arg_validator.py</span></td></tr>
+<tr><td>Corpus validate</td><td>Checks the draft against patterns learned from a corpus of real playbooks</td><td>Shapes that compile but that no working playbook has ever used</td><td><span class="where">compiler/corpus_validator.py</span></td></tr>
+<tr><td>Connector output refs</td><td>Rewrites and checks references to a connector step's output</td><td>Reads of an output field the operation does not produce</td><td><span class="where">compiler/connector_output_refs.py</span></td></tr>
+<tr><td>Graph / Jinja / cycle validate</td><td>Whole-playbook invariants once everything is resolved</td><td>Not exactly one Start, a path that never reaches End, a decision branch whose condition is not a boolean, a cycle, a reserved variable key, a bad Jinja block</td><td><span class="where">compiler/validator.py</span></td></tr>
+<tr><td>Emit</td><td>Produces the FortiSOAR WorkflowCollection JSON</td><td>(only runs when there are no blocking errors)</td><td><span class="where">compiler/emitter.py</span></td></tr>
+</table></div>
+<p>A final <strong>teaching</strong> pass (<code>enrich_diagnostics</code>) rewrites raw diagnostics into messages the model can act on, and a <strong>self-check</strong> (<code>E10</code>) catches the case where the installed wheel is older than the reference DB it is reading. The <strong>decompiler</strong> runs the pipeline in reverse, turning a live playbook back into the friendly YAML so an open playbook can be edited and diffed. <span class="where">compiler/pipeline.py:114, decompiler.py:194</span></p>
+
+<h3>The YAML step types</h3>
+<p>Triggers (<code>start</code>, <code>start_on_create</code>, <code>start_on_update</code>, <code>start_on_delete</code>, <code>api_endpoint</code>); logic (<code>set_variable</code>, <code>decision</code>); <code>connector</code>; records (<code>find_record</code>, <code>create_record</code>, <code>update_record</code>, <code>delete_record</code>); human and timing (<code>manual_input</code>, <code>delay</code>, <code>approval</code>, <code>create_task</code>); and others (<code>code_snippet</code>, <code>send_email</code>, <code>workflow_reference</code>, <code>end</code>, ...). Any step can carry <code>when</code>, <code>retry</code>, <code>for_each</code>, <code>ignore_errors</code> and similar modifiers.</p>
+
+<h3>Verification beyond compile</h3>
+<p>Compile proves the playbook is well-formed and every reference exists. <strong>Verification</strong> goes further and asks whether the data actually flows: does every value a step reads actually get produced upstream, and does every write trace back to something the playbook computed. These checks are the forcing function before a draft can be offered to the analyst.</p>
+<ul>
+  <li><strong>Typed walker:</strong> walks the playbook as a DAG, synthesizing the output shape of every step (<code>vars.steps.&lt;step&gt;</code>), accumulating it per branch, and checking every downstream <code>vars.steps.X.y</code> read against the shape that actually exists at that point. Offline and pure: no box, no HTTP, no DB. <span class="where">compiler/typed_walker.py</span></li>
+  <li><strong>Offline walk (<code>walk_paths</code>):</strong> renders the playbook's Jinja locally down the default path and once per decision branch and manual-input option, and reports reads that come out empty. Branches are pinned, so it proves each path is wired, not that a branch fires at runtime. <span class="where">compiler/render_paths.py</span></li>
+  <li><strong>Effect inventory:</strong> lifts every record write and connector action into an inventory and records which upstream steps feed each written value. It flags a verdict or write built only from literals after the playbook computed something real, and a containment playbook with no effect step at all. It proves linkage, not runtime truth; <code>make eval-effect</code> reads the real value back on a box. <span class="where">compiler/effect_inventory.py</span></li>
+  <li><strong>Grounded output shapes:</strong> output shapes measured from real runs, so reads like <code>data.attributes.last_analysis_stats</code> are checked against what VirusTotal actually returns, not a guess. <span class="where">compiler/grounded_shapes.py</span></li>
+</ul>
+<p>Two tools package this for the agent, and one guard stands at the save:</p>
+<div class="tablewrap"><table>
+<tr><th>Gate</th><th>When</th><th>What it runs</th><th>Where</th></tr>
+<tr><td><code>verify_playbook</code></td><td>Before offering a <strong>new</strong> playbook</td><td>A four-stage fan-out: compile, the typed DAG walk, a per-step schema check, and a live safe-op probe. Returns <code>ready_to_push</code> and the structured fix list. Check groups can be toggled</td><td><span class="where">mcp_server/tools_verify.py</span></td></tr>
+<tr><td><code>verify_enhancement</code></td><td>Before offering an <strong>edit</strong> to an open playbook</td><td>Everything <code>verify_playbook</code> does, plus a structural diff against the before-YAML to catch a dropped or silently renamed step or a stripped annotation. The baseline is FortiSOAR's copy, not one the model typed</td><td><span class="where">mcp_server/tools_enhancement.py</span></td></tr>
+<tr><td>Prewrite guard (<code>would_drop_fields</code>)</td><td>At <strong>save</strong>, in the connector</td><td>A semantic diff of the pending save against the live playbook. Fails closed and names every dropped step, route, field or parameter; a deliberate delete must be acknowledged. Additions and in-place changes are never refused</td><td><span class="where">compiler/prewrite.py</span></td></tr>
+</table></div>
+
+<h3>The reference DB</h3>
+<p>Path resolution: <code>$FSRPB_DB</code>, then the full dev cache <code>data/fsr_reference.db</code> (about 92 MB), then the slim packaged copy inside the wheel (2.7 MB).</p>
+<div class="tablewrap"><table>
+<tr><th>Table</th><th>Full dev DB</th><th>Slim packaged DB</th></tr>
+<tr><td>connectors</td><td>738</td><td>12</td></tr>
+<tr><td>operations</td><td>7,241</td><td>244</td></tr>
+<tr><td>modules</td><td>78</td><td>39</td></tr>
+<tr><td>picklists</td><td>948</td><td>205 (values only)</td></tr>
+<tr><td>recipes</td><td>8</td><td>122</td></tr>
+<tr><td>op_safety</td><td>0</td><td>0</td></tr>
+</table></div>
+<p>On a box, <strong>warmup</strong> fills the catalog from <code>/api/3/connectors/</code>, so the agent sees that box's actual connectors, and derives <code>op_safety</code> from each op's category. A <code>_catalog_meta</code> stamp records which box and when, so a stale or cross-box catalog is detected.</p>
+
+<h3>Tool catalog (what the agent uses)</h3>
+<div class="tablewrap"><table>
+<tr><th>Tool</th><th>Tier</th><th>Does</th><th>Impact and guard</th></tr>
+<tr><td><code>find</code></td><td>1</td><td>One lookup for connectors, ops, examples, recipes, fields, Jinja, playbooks</td><td>Empty on a cold catalog; returns a re-warm hint. API and example lookups need the optional vendor catalog, which boxes do not have; they return <code>catalog_unavailable</code> with a hint</td></tr>
+<tr><td><code>get_op_schema</code>, <code>get_step_type</code>, <code>picklist</code></td><td>0</td><td>Parameters, output shape, step schema, picklist values and IRIs</td><td>Picklist IRIs are null until warmup. Exact output paths exist only for operations with a recorded run; others get the generic envelope rule</td></tr>
+<tr><td><code>list_configured_connectors</code></td><td>1</td><td>Which connectors are configured and healthy</td><td>Read only</td></tr>
+<tr><td><code>validate_yaml</code></td><td>0</td><td>Compiler dry run with structured errors</td><td>Read only</td></tr>
+<tr><td><code>analyze_playbook</code></td><td>0</td><td>Simulated run with render analysis; live ops off by default</td><td>Replaced <code>dry_run_playbook</code>, retired because it ran real side effects</td></tr>
+<tr><td><code>verify_playbook</code></td><td>1</td><td>The gate before offering a new playbook</td><td>Checks are only as good as the warmed catalog. Its live probe is on by default: it runs the playbook's safe read-only operations on the box to ground output shapes</td></tr>
+<tr><td><code>edit_playbook</code></td><td>1</td><td>Applies edit operations in memory, then verifies, returns <code>verified_id</code></td><td>Writes nothing to the box</td></tr>
+<tr><td><code>verify_enhancement</code></td><td>1</td><td>Diffs an edited playbook against the open one</td><td>Mostly superseded by <code>edit_playbook</code></td></tr>
+<tr><td><code>build_playbook_from_trace</code></td><td>0</td><td>Turns the ops a triage actually ran into a playbook, wiring inputs by value matching (P4)</td><td>No YAML from the model on this path</td></tr>
+<tr><td><code>emit_card</code></td><td>0</td><td>Delivers every card type</td><td>Offers need verified bytes</td></tr>
+<tr><td><code>run_op</code></td><td>2 to 4</td><td>Runs a connector operation</td><td>Tier per call from category, <code>op_safety</code>, destructive verbs</td></tr>
+<tr><td><code>run_playbook</code></td><td>3</td><td>Triggers a live run</td><td>Tier 2 only for persona allow-listed playbooks</td></tr>
+<tr><td><code>why_did_playbook_fail</code></td><td>1</td><td>Finds the last failed run, decompiles it, renders every Jinja block against that run's variables</td><td>Read only. Useless on a new build, which has no runs</td></tr>
+<tr><td>Native MCP tools</td><td>1 or 3</td><td>FortiSOAR 8.0 <code>/mcp/*</code> tools materialized as agent tools</td><td>Only with a connector allow-list; each server declared read-only or mutating</td></tr>
+</table></div>
+<p>Retired tool names still dispatch to their replacements (<code>RETIRED_TO_UNION</code>), so old persona allow-lists keep working. The tool merges ("B3a") cut 41 advertised tools, about 40k characters of schema, to one per capability, and dropped turn tokens about 15%.</p>
+
+<h3>Releases and pinning</h3>
+<ul>
+<li>The version comes from the git tag. <code>make release VERSION=</code> requires main, a clean tree and a version above PyPI's, waits for CI, tags, and publishes.</li>
+<li>The connector pins <code>fsr-playbooks==X</code> in <code>requirements.txt</code>, and that is the only place. At import it asserts the running framework matches the pin.</li>
+<li>The connector's dev venv uses an editable clone, so it tests whatever branch is checked out. The pre-push CI-mirror hook builds a clean venv from the pin, and that is the real gate.</li>
+<li>Framework changes reach a box only through a release plus a pin bump, or through <code>ship-dev</code>, which leaves the box reporting the wheel version while running other code.</li>
+</ul>
+</section>
+
+<!-- 05 -->
+<section class="chapter" id="connector">
+<h2><span class="n">05</span>The connector</h2>
+<p><code>connector-fsr-soc-assistant</code> is a normal FortiSOAR connector with 47 operations. Each op runs synchronously inside FortiSOAR's integration workers and wraps the async framework in <code>asyncio.run()</code>. Lifecycle hooks (start, add config, update config, activate) start a background catalog warmup.</p>
+
+<h3>Operations by purpose</h3>
+<div class="tablewrap"><table>
+<tr><th>Group</th><th>Ops</th></tr>
+<tr><td>Chat transport</td><td><code>chat_turn</code>, <code>chat_poll</code>, <code>chat_resume</code>, <code>chat_history</code>, <code>list_sessions</code>, <code>rate_session</code>, <code>respond_manual_input</code>, <code>resolve_persona</code></td></tr>
+<tr><td>Tools and MCP</td><td><code>list_agent_tools</code>, <code>call_mcp_tool</code>, <code>list_mcp_tools</code>, <code>list_mcp_servers</code>, <code>probe_native_mcp</code>, <code>get_session_trace</code></td></tr>
+<tr><td>Playbooks</td><td><code>compile_yaml</code>, <code>validate_yaml</code>, <code>resolve_yaml</code>, <code>push_playbook</code>, <code>update_playbook</code> (Apply), <code>decompile_playbook</code>, <code>dry_run_playbook</code>, <code>render_jinja</code></td></tr>
+<tr><td>Autonomy and schedules</td><td><code>auto_triage</code>, <code>set_auto_triage</code>, <code>resolve_escalation</code>, <code>undo_action</code>, <code>get/set_autonomy_policy</code>, <code>list_shadow_decisions</code>, scheduled task CRUD and run-now, <code>notify_finding</code></td></tr>
+<tr><td>Monitor and cost</td><td><code>list_usage</code>, <code>get_usage_summary</code>, <code>get_audit_trail</code>, <code>list_pending</code>, <code>list_active_sessions</code></td></tr>
+<tr><td>Config and health</td><td><code>health_check</code> (includes a <code>build_id</code>), <code>list_models</code>, <code>warmup</code>, <code>query_store</code>, <code>echo_param_types</code></td></tr>
+</table></div>
+
+<h3>Configuration</h3>
+<ul>
+<li><strong>LLM:</strong> <code>llm_provider</code> is anthropic, openai or fortiai-proxy, and each reveals its own key, model and URL fields. <code>persona_models</code> lets a persona pick its own model. <code>simulation_mode</code> serves live tools from simulated data.</li>
+<li><strong>MCP:</strong> <code>mcp_access</code> (all or selected servers), <code>mcp_tier</code> (read-only or mutating), <code>mcp_auth</code>, and a JSON <code>mcp_allowlist</code> escape hatch.</li>
+<li><strong>Approval:</strong> <code>reviewer_roles</code>. Empty means the reviewer gate is off. There is no approval-tier field; the floor is the environment variable <code>FSR_AUTO_APPROVE_READONLY</code>.</li>
+</ul>
+
+<h3>State: one SQLite file per host</h3>
+<p><code>~/.connector_fsr_soc_assistant.db</code>, one connection per op, 15 s busy timeout, <code>BEGIN IMMEDIATE</code> writes. Main table groups:</p>
+<ul>
+<li><strong>Chat and streaming:</strong> <code>chat_turns</code>, <code>chat_messages</code>, <code>turn_progress</code> (the poll feed), <code>turn_runs</code> (owner and heartbeat), <code>session_transcript</code>.</li>
+<li><strong>Approvals:</strong> <code>suspended_sessions</code> (pickled, 600 s TTL), <code>session_cards</code>, <code>session_card_decisions</code> (decided once), <code>session_card_executions</code> (the source for undo).</li>
+<li><strong>Resume re-binding:</strong> <code>session_intent</code>, <code>session_playbook</code>, <code>session_read_only</code>, <code>session_playbook_scope</code> and similar. A resume often lands on a cold worker with no context, so everything the turn knew is stored and re-bound.</li>
+<li><strong>Monitor:</strong> <code>agent_usage</code>, <code>agent_tool_calls</code>, <code>chat_sessions</code>, <code>scheduled_tasks</code>.</li>
+</ul>
+
+<h3>Two approve routes</h3>
+<p>An <strong><code>approval_id</code></strong> pops a framework gate that suspended mid-tool and continues the loop. A <strong><code>card_id</code> approve on an action card</strong> runs <code>run_op</code> deterministically, before the model is involved. Both record the execution, which undo depends on. The deterministic route exists because an approved isolate was once only narrated and never ran.</p>
+
+<h3>Autonomy</h3>
+<p>The policy lives in the Key Store record <code>fsr_autonomy_policy</code>, cached 15 s so the kill switch acts within seconds. Every card gets a "shadow" decision: what the policy would have done. Enforcement needs <code>enabled</code> and <code>mode: enforce</code>, and happens only in unattended <code>auto_triage</code>. In an analyst's chat, cards always wait for a click. Editing the policy requires <code>reviewer_roles</code>.</p>
+
+<h3>Undo</h3>
+<p><code>undo_action</code> takes the reverse op from the policy or a built-in pair (FortiGate block and unblock), uses the args that actually ran, restores record fields from their prior values, and claims each undo once.</p>
+</section>
+
+<!-- 06 -->
+<section class="chapter" id="widgets">
+<h2><span class="n">06</span>The widgets</h2>
+<p>A FortiSOAR widget is an AngularJS 1.x controller plus an HTML template, mounted into a slot on a FortiSOAR page. <code>info.json</code> drives its name, version, pages and compatibility. The controller name embeds the version (<code>fortiaiAgenticAssistant1274DevCtrl</code> is 1.2.74), which is why versions are only bumped by the CLI.</p>
+
+<h3>Chat widget: fortiaiAgenticAssistant</h3>
+<ul>
+<li><strong>Where it appears:</strong> a drawer on alerts, cases, war rooms, list and detail pages, and the playbook designer.</li>
+<li><strong>Files that matter:</strong> <code>view.controller.js</code> (about 5,950 lines), <code>view.html</code> (with CSS), <code>fsrPbAgent.service.js</code> (all connector I/O and the one source of the connector's name), <code>fsrPbRender.ts</code> (pure render pipeline, compiled to <code>.js</code> with a parity test), <code>contract.d.ts</code> (wire types), and a mock connector with fixtures.</li>
+<li><strong>Talking to the connector:</strong> <code>executeConnectorAction</code> with the starred default config, resolved at run time. A stale resolution busts the cache and retries once.</li>
+<li><strong>State in the browser:</strong> one thread per record in <code>localStorage</code>. Everything else is on the server and replayed by <code>chat_history</code> on reload.</li>
+</ul>
+
+<h3>Cards and what their buttons do</h3>
+<div class="tablewrap"><table>
+<tr><th>Card</th><th>Buttons</th><th>Server side</th></tr>
+<tr><td>Verdict</td><td>evidence chips, suggested next step</td><td>None. A chip scrolls to the tool call it cites; a chip with no matching call shows as missing. A suggested step pre-fills the composer</td></tr>
+<tr><td>Action</td><td>Confirm and Execute, Cancel, always allow, Runs on</td><td>Runs the op once; a second click gets "already decided" with who decided</td></tr>
+<tr><td>Approval request</td><td>Approve, Reject, Approve and always allow</td><td>Pops the HMAC-bound suspended session. The widget grades the real result: executed, failed, denied, expired</td></tr>
+<tr><td>Playbook offer</td><td>Save as Playbook, Not now</td><td>Builds from the trace or the verified YAML, compiles, pushes</td></tr>
+<tr><td>Enhancement offer</td><td>Apply, Decline</td><td>Prewrite guard, snapshot, then save or stage into the open canvas</td></tr>
+<tr><td>Choice</td><td>chips, free text, Continue</td><td>Continues the conversation</td></tr>
+<tr><td>Manual input</td><td>the playbook's own buttons</td><td>Resumes the paused playbook run; refuses answers after the deadline</td></tr>
+</table></div>
+
+<h3>What the cards look like</h3>
+<p class="shotnote">Captured at drawer width (the widget opens as a half-width drawer) from the hermetic mock scenarios, so the data is sample data.</p>
+<div class="shots">
+  <figure><img src="img/chat-quick-actions.png" alt="Quick start tiles over an alert" loading="lazy" width="566" height="889"><figcaption><strong>Quick starts.</strong> Opened on an alert: a record summary and six investigation starters.</figcaption></figure>
+  <figure><img src="img/chat-reasoning.png" alt="Collapsed tool rows with timings under How I worked this out" loading="lazy" width="566" height="889"><figcaption><strong>Tool rows.</strong> Each call reads as an action with its timing. Expanding a row shows the raw result.</figcaption></figure>
+  <figure><img src="img/chat-verdict.png" alt="Verdict card with severity, confidence, findings and evidence chips" loading="lazy" width="566" height="889"><figcaption><strong>Verdict (P1).</strong> Each finding carries chips naming the call it came from. "Not verified" lists what the agent could not check.</figcaption></figure>
+  <figure><img src="img/chat-triage-full-turn.png" alt="Reputation table, summary and an action card to block an IP" loading="lazy" width="566" height="889"><figcaption><strong>Triage into action (P2).</strong> Four reputation sources, a summary, then an action card with editable arguments.</figcaption></figure>
+  <figure><img src="img/chat-action-card.png" alt="Two action cards, one with a Runs on picker" loading="lazy" width="566" height="889"><figcaption><strong>Action cards (P3).</strong> "Runs on" picks the connector config, including one behind an on-prem agent. Confirm runs it once.</figcaption></figure>
+  <figure><img src="img/chat-approval-request.png" alt="Approval required card with Approve and Reject" loading="lazy" width="566" height="889"><figcaption><strong>Approval request.</strong> A tier 3 call suspended mid-loop. Approve resumes the signed session.</figcaption></figure>
+  <figure><img src="img/chat-choice.png" alt="Choice card with two chips and a free text box" loading="lazy" width="566" height="889"><figcaption><strong>Choice card.</strong> The agent asks instead of guessing. Chips or free text continue the turn.</figcaption></figure>
+  <figure><img src="img/chat-capability-gap.png" alt="Capability gap card with setup steps and alternatives" loading="lazy" width="566" height="889"><figcaption><strong>Capability gap.</strong> A needed connector is missing. Setup steps plus alternatives, never a dead end.</figcaption></figure>
+  <figure><img src="img/chat-info-cards.png" alt="Connector health, IOC and saved playbook info cards" loading="lazy" width="566" height="889"><figcaption><strong>Info cards.</strong> Connector health, an IOC scorecard, and a saved-playbook confirmation.</figcaption></figure>
+</div>
+
+<h3>Rules the widget enforces</h3>
+<ul>
+<li>Analyst-facing text never shows tool names, ids, enum values or JSON paths, and has no emoji or em dashes. Tool rows read as actions. The model ignored these prompt rules live, so the renderer enforces what it can.</li>
+<li>Only a verified offer card loads YAML into the playbook. YAML the model types into prose is held back. A read-only question once returned a whole playbook, and scraping that block made it the open playbook.</li>
+<li>Apply is refused when the analyst has unsaved edits of their own.</li>
+<li>Guards and approvals live in the connector and framework, so a modified widget cannot bypass them.</li>
+</ul>
+
+<h3>Monitor widget: socAssistantMonitor</h3>
+<p>A dashboard for SOC leads with tabs for Overview, Sessions, Pending, Users, Scheduled, Audit Trail and Autonomy. It reads only from the connector's store (usage, pending approvals and escalations, audit trail, sessions, scheduled tasks, shadow decisions) and can approve from the queue, resolve escalations, undo actions and edit the autonomy policy. "Open in chat" hands a session to the chat widget through a one-shot <code>localStorage</code> key. The tabs are shown in the next chapter.</p>
+</section>
+
+<!-- 07 -->
+<section class="chapter" id="autonomy">
+<h2><span class="n">07</span>Autonomy and oversight</h2>
+<p>Autonomy is how the assistant moves from "proposes, a human clicks" toward "acts on its own" without anyone losing control. It works in three stages, and every stage is visible in the Monitor.</p>
+
+<h3>How a record is handled without an analyst</h3>
+<div class="diagram"><pre class="mermaid">
+flowchart TD
+  R[New alert created] --> T["On-create playbook<br/>installed by set_auto_triage"]
+  T --> A["auto_triage<br/>one unattended agent turn"]
+  A --> V[Verdict + proposed action card]
+  V --> P{"Autonomy policy<br/>matching rule?"}
+  P -- no rule --> Q[Card waits in Pending]
+  P -- rule --> S{Policy mode}
+  S -- shadow --> SD["Record shadow decision:<br/>would run it / would ask"] --> Q
+  S -- "enforce + enabled" --> E{"All rule conditions met?<br/>verdict, confidence, target, limits"}
+  E -- no --> Q
+  E -- yes --> X["Execute as system:autonomy<br/>then read the result back"]
+  X --> L[Audit trail + undo available]
+  Q --> H[Reviewer approves or rejects in chat or Monitor]
+  H --> L
+</pre></div>
+<ul>
+<li><strong>Shadow mode</strong> is the default. Every card gets a shadow decision: what the policy would have done. Nothing runs without a human.</li>
+<li><strong>Enforce</strong> needs the policy <code>enabled</code> and <code>mode: enforce</code>. It applies only to unattended <code>auto_triage</code>. In an analyst's chat, cards always wait for a click.</li>
+<li><strong>Earning it:</strong> the Monitor states that a rule can be enforced only after two weeks with no "would run it, rejected". In those cases the policy would have acted and a human disagreed.</li>
+<li><strong>Kill switch:</strong> the policy is a Key Store record cached for 15 seconds, so turning it off takes effect within seconds.</li>
+<li><strong>Who can change it:</strong> saving a policy requires a configured <code>reviewer_roles</code> list. The JSON is validated by the framework's policy parser, and an invalid policy is refused with nothing changed.</li>
+</ul>
+
+<h3>The life of an action card</h3>
+<div class="diagram"><pre class="mermaid">
+stateDiagram-v2
+  [*] --> Proposed: agent emits card (tier 3 or 4)
+  Proposed --> Claimed: Approve (initiator or reviewer)
+  Proposed --> Rejected: Reject
+  Proposed --> Retired: decided in another tab or the Monitor
+  Claimed --> Executed: op ran, result read back
+  Claimed --> Failed: op error (claim released, retry possible)
+  Executed --> Undone: undo_action with the args that actually ran
+  Rejected --> [*]
+  Executed --> [*]
+  Undone --> [*]
+</pre></div>
+<p>Each decision is claimed once in the connector's store, so a double click or a second tab cannot run a write twice. The execution record stores the arguments that actually ran, which is what undo reverses.</p>
+
+<h3>The Monitor, tab by tab</h3>
+<p class="shotnote">The Monitor is a full-width dashboard widget. Mock data from its hermetic e2e fixtures.</p>
+<div class="shots stack">
+  <figure><img src="img/monitor-overview.png" alt="Monitor overview with turns, tokens, cost and pending tiles and a cost chart" loading="lazy" width="1366" height="632"><figcaption><strong>Overview.</strong> Turns, tokens, cost and pending approvals for the range, with cost over time.</figcaption></figure>
+  <figure><img src="img/monitor-sessions.png" alt="Sessions table with status, user, record, prompt and Open in chat" loading="lazy" width="1366" height="579"><figcaption><strong>Sessions.</strong> Live status per conversation, worked out when the tab loads. "Open in chat" jumps to the record with the thread restored.</figcaption></figure>
+  <figure><img src="img/monitor-pending.png" alt="Pending queue with an escalation and an approval waiting" loading="lazy" width="1366" height="736"><figcaption><strong>Pending.</strong> Escalations from auto-triage plus approvals waiting on someone. Approve or reject from here.</figcaption></figure>
+  <figure><img src="img/monitor-audit.png" alt="Audit trail of LLM calls with model, intent, tokens, cost and status" loading="lazy" width="1366" height="623"><figcaption><strong>Audit Trail.</strong> One row per LLM call: who, which model, intent, tokens, cost, status.</figcaption></figure>
+  <figure><img src="img/monitor-users.png" alt="Per-user turns, tokens, cost and share" loading="lazy" width="1366" height="509"><figcaption><strong>Users.</strong> Usage and cost share per analyst.</figcaption></figure>
+  <figure><img src="img/monitor-scheduled.png" alt="Scheduled tasks with cron, intent, runs and Run button" loading="lazy" width="1366" height="472"><figcaption><strong>Scheduled.</strong> Recurring agent tasks (for example a daily alert review) with a run-now button.</figcaption></figure>
+  <figure><img src="img/monitor-policy-rules.png" alt="Autonomy tab with rule definition, shadow tallies and recent decisions" loading="lazy" width="1366" height="918"><figcaption><strong>Autonomy.</strong> The rule in plain words, the shadow tallies (would run it or would ask, against what the human did), and recent decisions with the reason a rule held back.</figcaption></figure>
+  <figure><img src="img/monitor-policy-editor.png" alt="Policy JSON editor with Save policy and Cancel" loading="lazy" width="1366" height="560"><figcaption><strong>Policy editor.</strong> Validated JSON, saved only by a reviewer role. An invalid policy changes nothing.</figcaption></figure>
+</div>
+</section>
+
+<!-- 07 -->
+<section class="chapter" id="harness">
+<h2><span class="n">08</span>Harness and deploy</h2>
+<p>The root repo <code>fsr_all_widgets</code> is the dev kit: the Makefile, <code>scripts/</code>, the knowledge base, the template, and the harness. Each widget under <code>widgets-src/</code> is its own git repo. Commit inside the widget's repo, not the root.</p>
+
+<h3>What the harness adds</h3>
+<ul>
+<li><strong>Dev server on :14400</strong> that renders widgets inside the real FortiSOAR app shell and proxies <code>/api/*</code> to a lab box.</li>
+<li><strong>Lint at mount.</strong> A widget that fails lint does not boot.</li>
+<li><strong>Hermetic mock e2e.</strong> Any request the mocks do not serve returns <code>599 HERMETIC-MISS</code> and fails the run, so a box outage can no longer turn the mock tier red.</li>
+<li><strong>Per-run ports</strong> claimed with a lock, so parallel runs stop killing each other.</li>
+<li><strong><code>turn-hermetic</code></strong>: the real widget against the real connector code in a local sidecar, with a fake LLM.</li>
+</ul>
+
+<h3>Make targets by risk</h3>
+<div class="tablewrap"><table>
+<tr><th>Target</th><th>Does</th><th>Touches</th></tr>
+<tr><td><code>make setup</code>, <code>make assets</code></td><td>Install, clone widgets, fetch the app shell</td><td><span class="pill p-free">local</span></td></tr>
+<tr><td><code>make dev</code> / <code>make stop</code></td><td>Interactive harness</td><td><span class="pill p-free">local</span></td></tr>
+<tr><td><code>make test-unit WIDGET=</code></td><td>Tier 1: jest controller logic</td><td><span class="pill p-free">local</span></td></tr>
+<tr><td><code>make test-e2e-spec WIDGET=|SPEC=</code></td><td>Tier 2: hermetic Playwright</td><td><span class="pill p-free">local</span></td></tr>
+<tr><td><code>make widget-inspect ARGS=</code></td><td>DOM facts for a mounted widget</td><td><span class="pill p-free">local</span></td></tr>
+<tr><td><code>make doctor [LOCAL=1]</code></td><td>Read-only health of repos, pins, box versions, dev-patch marker, box LLM</td><td><span class="pill p-box">box read</span></td></tr>
+<tr><td><code>make loop</code></td><td>Tier 3: local tests, free LLM smoke, copy working trees to the box, 35 s live smoke</td><td><span class="pill p-box">box</span></td></tr>
+<tr><td><code>make widget-push WIDGET= SHIP_ENV=.env.&lt;box&gt;</code></td><td>Lint, unit, deploy one widget (1-2 min)</td><td><span class="pill p-box">box</span></td></tr>
+<tr><td><code>make push ENV= SSH_HOST= [DRY_RUN=1]</code></td><td>Connector, framework and every changed widget, idempotent</td><td><span class="pill p-box">box</span></td></tr>
+<tr><td><code>make ship-verify WIDGET=</code></td><td>Tier 4 release gate: lints, unit, e2e, introspect, deploy (bumps), live sweep</td><td><span class="pill p-high">release</span></td></tr>
+<tr><td><code>make release WIDGET=</code></td><td>Bump, commit, push to <code>develop</code>, GitHub release</td><td><span class="pill p-high">public</span></td></tr>
+<tr><td><code>make release-ship [FW=next]</code> (connector repo)</td><td>Framework PyPI release, wait for PyPI, pin bump, connector ship</td><td><span class="pill p-high">release</span></td></tr>
+</table></div>
+<p>Release targets are run by you, never by an agent. Agents commit on branches and stop.</p>
+
+<h3>Connector ship mechanics</h3>
+<ul>
+<li><strong><code>make ship</code></strong>: test gate, bump, build, check the box can resolve the pin, install, verify workers, force a warmup.</li>
+<li><strong><code>make dev-push</code></strong>: rsyncs working trees and waits for every worker to report the new <code>build_id</code>. FortiSOAR registers ops at install, so a new op or config field needs a bumped install; <code>dev_push.sh</code> detects this and escalates.</li>
+<li><strong><code>make ship-dev ACTION=status</code></strong> must say <code>clean</code> before you trust a version number. <code>release-ship</code> does not clear the dev-patch marker; <code>ACTION=restore</code> does.</li>
+<li><strong>Remotes:</strong> <code>origin</code> (GitLab) is authoritative and runs CI; <code>fndn</code> is fetch-only. History was scrubbed of lab details.</li>
+</ul>
+
+<h3>How do I...</h3>
+<div class="tablewrap"><table>
+<tr><th>Task</th><th>Command</th></tr>
+<tr><td>Check whether the box and env can be trusted</td><td><code>make doctor</code></td></tr>
+<tr><td>Drive a widget by hand</td><td><code>make dev</code>, open localhost:14400</td></tr>
+<tr><td>Unit test one widget</td><td><code>make test-unit WIDGET=&lt;name&gt;</code></td></tr>
+<tr><td>Mock e2e for one widget</td><td><code>make test-e2e-spec WIDGET=&lt;name&gt;</code></td></tr>
+<tr><td>Scaffold a widget</td><td><code>make new-widget NAME=&lt;camelCase&gt; TITLE="..."</code></td></tr>
+<tr><td>Deploy one widget to a lab box</td><td><code>make widget-push WIDGET=&lt;name&gt; SHIP_ENV=.env.&lt;box&gt;</code></td></tr>
+<tr><td>Deploy everything that changed</td><td><code>make push ENV=.env.&lt;box&gt; SSH_HOST=&lt;alias&gt; DRY_RUN=1</code>, then without <code>DRY_RUN</code></td></tr>
+<tr><td>Daily agent iteration</td><td><code>make loop</code></td></tr>
+<tr><td>Test a widget from a worktree</td><td>Put it at <code>&lt;scratch&gt;/x/widgets-src/&lt;name&gt;</code> and pass <code>WIDGETS_SRC=&lt;scratch&gt;/x/widgets-src</code></td></tr>
+<tr><td>Check render size and boot regressions</td><td><code>make introspect-gate GATE_WIDGET=&lt;name&gt;</code></td></tr>
+</table></div>
+</section>
+
+<!-- 08 -->
+<section class="chapter" id="testing">
+<h2><span class="n">09</span>Testing and evals</h2>
+<p>The ladder runs cheapest first. "Frank" is the free internal LLM gateway, limited to 3 concurrent turns. Paid LLM batch runs are not used; quality is measured on Frank.</p>
+<div class="tablewrap"><table>
+<tr><th>Target</th><th>Proves</th><th>Cost</th></tr>
+<tr><td><code>make test</code> (connector)</td><td>The whole shuffled suite; the ship and CI gate</td><td><span class="pill p-free">free</span></td></tr>
+<tr><td><code>make tool-sweep</code></td><td>Contract invariants over every tool, about 2 s</td><td><span class="pill p-free">free</span></td></tr>
+<tr><td><code>make mutants</code></td><td>Reverts each recorded fix and expects its test to fail</td><td><span class="pill p-free">free</span></td></tr>
+<tr><td><code>make regrade DUMP=</code></td><td>Re-grades stored transcripts with no model</td><td><span class="pill p-free">free</span></td></tr>
+<tr><td><code>make t1-scenarios</code>, <code>conv-suite</code></td><td>Single-turn invariants, multi-turn continuity and resume</td><td><span class="pill p-frank">Frank</span></td></tr>
+<tr><td><code>make known-answer</code></td><td>Triage verdicts against recorded worlds</td><td><span class="pill p-frank">Frank</span></td></tr>
+<tr><td><code>make analyst-sim</code></td><td>An LLM plays the analyst through a whole build: vague asks, choices, Apply, refinements. Each failure is attributed to tool, framework, connector, widget, environment or model</td><td><span class="pill p-frank">Frank</span></td></tr>
+<tr><td><code>make session-health</code></td><td>Classifies failing tool calls in real sessions and whether the model recovered</td><td><span class="pill p-free">free</span></td></tr>
+<tr><td><code>make eval-effect</code></td><td>Pushes a fixture playbook, runs it, reads back that the computed value landed</td><td><span class="pill p-box">box, no LLM</span></td></tr>
+<tr><td><code>make live MODE=...</code></td><td>The installed connector on a box; <code>integration</code> is the post-ship gate</td><td><span class="pill p-box">box</span></td></tr>
+<tr><td><code>make test-live-sweep</code></td><td>Widget rows on a live box. A <code>SWEEP-ENV-SKIP</code> means not verified</td><td><span class="pill p-box">box</span></td></tr>
+</table></div>
+
+<div class="callout key"><span class="label">What analyst-sim found this week</span>
+The analyst asked to block only on "malicious". The agent made the right edit with the right tool and verify passed, but Apply was refused twice. A side check matched step names against the model's own one-line summary, didn't find the decision step's name, and that removed the permission Apply needed to replace the old branch. Fixed in the framework (commit <code>689056d</code>, local) with a test that fails without the fix. This class of bug is why the simulator exists: the unit tests were green.
+</div>
+
+<h3>Rules for tests</h3>
+<ul>
+<li><strong>Red-check every fix.</strong> Remove the fix in a scratch worktree, watch the test fail, restore. Tests written by the same model as the fix share its blind spots; one feature shipped 13 green tests and failed its first live save.</li>
+<li><strong>A skip is not a pass.</strong> A release gate once skipped its live sweep after a rename and still printed "live-verified".</li>
+<li><strong>Verify the write, not the card.</strong> A card that looks right proves nothing; read the result back from the box.</li>
+<li><strong>Re-grade, never re-drive.</strong> Grade stored transcripts offline instead of paying for new turns.</li>
+</ul>
+</section>
+
+<!-- 09 -->
+<section class="chapter" id="why">
+<h2><span class="n">10</span>Why it is this way</h2>
+<p>Most rules in this system were written after something broke. This is the decision log.</p>
+<div class="tablewrap"><table>
+<tr><th>Rule</th><th>What happened</th></tr>
+<tr><td>The LLM writes YAML, never FSR JSON</td><td>FSR JSON is verbose, full of UUIDs and IRIs, and has nothing to check it against. A DSL plus a compiler gives deterministic, catalog-checked, diffable output, the same for every surface</td></tr>
+<tr><td>Edits are operations, not re-typed documents</td><td>An agent re-typed a verified playbook to deliver an edit, dropped two links, and the saved playbook ran only its first step</td></tr>
+<tr><td><code>verified_id</code>: offers carry an id, not YAML</td><td>The model re-typed a verified playbook three times, and the widget saved the last version, which no gate had seen</td></tr>
+<tr><td>Prewrite guard on every save</td><td>Data loss shipped twice: <code>for_each</code> blocks and playbook parameters vanished on save</td></tr>
+<tr><td>Decide on structure, never wording</td><td>A phrase-list guard was added and removed the same day; regex intent is brittle and fails silently. <code>GUARDS.md</code> lists the remaining guards with fire counts</td></tr>
+<tr><td>Library-first validation</td><td>A parallel validator would have been "a fifth copy of the same SQL". New checks extend the fsr_playbooks validators</td></tr>
+<tr><td>One right way per tool</td><td>Overlapping tools confused the model and cost about 40k characters of schema per turn</td></tr>
+<tr><td>Detached turns plus heartbeat</td><td>uWSGI killed long builds mid-request; turns hung on dead workers</td></tr>
+<tr><td>Deterministic action-card execution</td><td>An approved isolate was narrated as done and never ran</td></tr>
+<tr><td>Reviewer gate and decided-once</td><td>The widget's actor field could be forged; a double click ran a write twice</td></tr>
+<tr><td>Resume re-binds stored session state</td><td>Resumes land on cold workers with no context, which turned off read-only mode and grounding</td></tr>
+<tr><td>Config-scoped MCP; declared mutating tools</td><td>A worker leaked another config's MCP servers, and <code>block_indicator</code> ran at tier 1 because its server was marked read-only</td></tr>
+<tr><td>Apply stages into the canvas</td><td>A save behind the open designer stayed invisible and was overwritten by the analyst's next Save</td></tr>
+<tr><td>Connector name has one source in the widget</td><td>After a rename, a hardcoded old name kept talking to a frozen install and silently missed every later fix</td></tr>
+<tr><td>Hermetic mock e2e</td><td>The mock tier fell through to a real proxy, so a box outage turned it red; 17 "pre-existing" failures turned out to be 3 real bugs</td></tr>
+<tr><td>Never hand-start servers</td><td>A stale harness held the port; the new one died silently and pushes went to the wrong box</td></tr>
+<tr><td>Explicit <code>SHIP_ENV</code> and <code>SSH_HOST</code></td><td>Deploys used whichever box was last in <code>.env</code>; a mismatched pair overwrote another session's push</td></tr>
+<tr><td>No en or em dashes; latin-1</td><td>The connector is decoded as latin-1 on the box; a dash in a playbook name arrived as a control byte</td></tr>
+<tr><td>Ordered release-ship</td><td>Connectors shipped before PyPI served the pinned framework, or pinned a version missing a symbol</td></tr>
+<tr><td>Agents never release or push</td><td>An agent ran a release, a ship and pushes on three repos based on an earlier "you can release"</td></tr>
+<tr><td>Free Frank gateway as the LLM test tier</td><td>With a fake provider, "two models agree" meant no model ran</td></tr>
+</table></div>
+</section>
+
+<!-- 10 -->
+<section class="chapter" id="questions">
+<h2><span class="n">11</span>Demo questions, with answers</h2>
+<div class="qa">
+<details><summary>What stops the AI from deleting steps from my playbook?</summary><div class="inner"><p>Four layers. Edits are operations that name only what changes, so other steps are carried over untouched. Verify treats a dropped step as an error unless the analyst named that step and asked for a deletion. At save, the prewrite guard diffs against the live playbook and refuses any loss not acknowledged by the verify verdict, and the AI cannot add acknowledgements. A Versions snapshot is taken before every save.</p></div></details>
+<details><summary>How do you know the playbook it built works?</summary><div class="inner"><p>Before it is offered, it compiles against this box's real connector catalog, passes a typed check of every variable read on every path, passes per-step schema checks, and is walked offline down every branch to find empty reads. Safe read-only operations can be called live to confirm output shapes. Static checks cannot prove what happens at runtime, so the effect read-back eval runs a playbook on a box and checks the written value.</p></div></details>
+<details><summary>What if the model invents a connector or operation?</summary><div class="inner"><p>Compile fails with <code>unknown_connector</code> or <code>unknown_operation</code> and a near-match suggestion. A playbook offer is refused if it uses a connector not configured on the box. An approval card is never raised for an operation that does not exist.</p></div></details>
+<details><summary>Why not let the LLM write FortiSOAR JSON directly?</summary><div class="inner"><p>It is verbose, full of UUIDs and internal IRIs, and there is nothing to check it against. The YAML format is compact, the compiler resolves it against the real catalog, errors come back as structured fix lists the model can act on, and the decompiler turns any live playbook back into YAML for editing.</p></div></details>
+<details><summary>Can the AI approve its own action?</summary><div class="inner"><p>No. Tiers are assigned by code. An approval flag in a model's tool call is rejected. Suspended sessions are HMAC-signed so a resume cannot be forged, and with reviewer roles configured, only the session's initiator or a reviewer can decide, once.</p></div></details>
+<details><summary>Is it prompt-steered or code-steered?</summary><div class="inner"><p>Mostly code. The prompt explains the rules so the model spends fewer rounds. Tool availability, refusals, verification, tiers and the save guard are enforced in code whether or not the model followed the prompt.</p></div></details>
+<details><summary>What if it loops forever?</summary><div class="inner"><p>A turn has at most 40 rounds, a budget warning at 3 left, a stall detector that ends repeated or all-failing rounds, and a refusal of any identical call that already failed.</p></div></details>
+<details><summary>Which model does it use? Can I use our own?</summary><div class="inner"><p>Any of four providers through one interface: Anthropic, OpenAI-compatible endpoints, LM Studio, or the FortiAI proxy. The tested defaults are Claude Sonnet 5 and GPT-5.4 mini. A persona can pick its own model.</p></div></details>
+<details><summary>What does the analyst still have to do?</summary><div class="inner"><p>Click Apply or Save on any playbook change and confirm every action that changes data or touches a third-party system. Autonomy can take over tier decisions only in unattended auto-triage, only in enforce mode, under a policy that reviewers own and can switch off within seconds.</p></div></details>
+<details><summary>How does an investigation become a playbook?</summary><div class="inner"><p>At the end of a triage, the offer lists the steps that actually ran. Accepting runs <code>build_playbook_from_trace</code>, which replays those operations and wires their inputs by matching values. The model does not write any YAML on this path.</p></div></details>
+</div>
+</section>
+
+<!-- 11 -->
+<section class="chapter" id="edges">
+<h2><span class="n">12</span>Sharp edges and stale docs</h2>
+<h3>Behaviour to know</h3>
+<ul>
+<li>The action card shows the connector operation id (for example <code>fortinet-fortigate.add_to_address_group</code>) as a de-emphasised technical chip beside the human title. That is deliberate and covered by tests. The editable parameter names are now humanised ("Time to live", not <code>time_to_live</code>), matching the approval card.</li>
+<li>The approval reviewer gate is off by default (<code>reviewer_roles</code> empty).</li>
+<li>The raw fsr_playbooks MCP server has no tier gate. Claude Code connected to it can push playbooks directly.</li>
+<li><code>op_safety</code> is empty in both local DBs, so offline tiering leans on op category and verbs. A box warmup fills it.</li>
+<li><code>verified_id</code> lives in one process, capped at 32. A worker recycle between verify and Apply fails with <code>unknown_verified_id</code>.</li>
+<li>Per-worker caches (MCP servers, persona, roles, policy) mean behaviour can depend on which worker answers.</li>
+<li>The connector's SQLite store is per host and reportedly wiped on upgrade.</li>
+<li>Stop in the chat only stops the browser; the server finishes the turn.</li>
+<li>The designer integration reaches into FortiSOAR UI internals, so a FortiSOAR UI change can break Apply. It logs <code>designer_stage_failed</code>.</li>
+<li>After any redeploy, analysts must hard-refresh.</li>
+<li>The connector's offer salvage ignores read-only turns, so an explain turn that prints a changed, verifying YAML block can still get an Apply card. The store shows explain turns that edited or offered (13 of about 200).</li>
+<li>An unrelated second playbook asked for in the same chat is treated as an edit of the first one's draft until the model raises the scope choice.</li>
+<li>The build-only tool list exists twice, in the framework (<code>intents.py</code>) and the connector (<code>ops_prompts.py</code>), and the two already differ.</li>
+<li>Number and password fields on an action card painted white text on a white background under dark themes, so an analyst approved a device id they could not read. Fixed on a widget branch, not yet shipped.</li>
+<li>CI runs Python 3.11; the box runs 3.12.</li>
+</ul>
+<h3>Deploy traps</h3>
+<ul>
+<li><code>ship.sh</code> kills anything on :14400, including your <code>make dev</code>.</li>
+<li><code>ship-verify</code> bumps by default and still defaults <code>SHIP_ENV</code> to <code>.env</code>.</li>
+<li>A red ship-verify does not mean "not shipped": step 5 deploys before step 6 can fail.</li>
+<li><code>make push</code> defaults to a hardcoded box and is not committed yet.</li>
+<li><code>widget.js</code> ignores <code>WIDGETS_SRC</code>, so lint, bump and rename from a worktree hit the shared checkout.</li>
+<li>A dev-patched box reports the wheel version while running other code.</li>
+</ul>
+<h3>Docs that are wrong today</h3>
+<ul>
+<li><code>widgets.manifest</code> lists an old widget name and misses <code>fortiaiAgenticAssistant</code>, so <code>make setup</code> on a fresh Mac will not reproduce the current set.</li>
+<li>The Monitor widget keeps a second hardcoded copy of the connector name, and its <code>info.json</code> claims it reads <code>llm_activity_logs</code>, which it does not.</li>
+<li>Connector <code>info.json</code> still says "Stub in 0.0.1" for <code>chat_turn</code>; <code>health_check</code> mentions only Anthropic; the audit log hardcodes provider "anthropic".</li>
+<li>The chat widget README pins two different connector versions; both widgets declare compatibility 7.6.5 while the docs say 8.0.</li>
+<li>Framework README says "~16 tools" (that is the agent slice; the server has 77). <code>ARCHITECTURE_AGENT_LOOP.md</code> described a loop inside each provider, tool slicing by intent, and collapsed history; a rewrite matching the shared loop is on a framework branch, not merged.</li>
+<li>Two guard docstrings lag their code: <code>CreateDeliveryGuard</code> still describes a pinned model round (the loop now delivers directly), and <code>VerdictDeliveryGuard</code> says triage-only.</li>
+<li>The technical deck's generated pptx is current with its script, but some of its asset screenshots are still from an older widget build.</li>
+<li><code>STATUS.md</code> has been idle since August; the tracker's <code>ROADMAP.md</code> is the live plan.</li>
+</ul>
+</section>
+
+<!-- 12 -->
+<section class="chapter" id="connectors">
+<h2><span class="n">13</span>Connector creation, today and agentic</h2>
+<p>Most of the pieces for building connectors already exist on this Mac, spread across eight places with nothing tying them into one flow. There is no OpenAPI-to-connector converter and no agent tool or prompt for connector work.</p>
+<div class="tablewrap"><table>
+<tr><th>Asset</th><th>What it gives you</th><th>State</th></tr>
+<tr><td><code>Miscellaneous/fortisoar/fsr_connector_toolkit</code></td><td>Linter with stable codes, anti-pattern checks, replay of <code>operations.py</code> against recorded vendor responses with no box, test scaffolding, a corpus of about 32k recorded API calls, a 3,200-line building guide, a read-only MCP server</td><td>Working; hardcoded paths</td></tr>
+<tr><td><code>pyfsr</code> <code>api/connectors.py</code></td><td>Validate source against the importer's real rules, pack, install, configure, health-check, execute, dev-mode file edits</td><td>Working, tested</td></tr>
+<tr><td><code>Miscellaneous/fortisoar/connectors/</code></td><td>51 probes of what the 8.0 importer rejects; an overlay pattern for extending vendor connectors</td><td>Canonical research</td></tr>
+<tr><td><code>fortisoar-connector-vscode</code></td><td>New Connector, Add Operation, Run, Check Health, Scaffold Tests, Export</td><td>Released v0.0.2</td></tr>
+<tr><td>ninjaone, ansible, inoreader connectors</td><td><code>info.json</code> generated from code with a drift check; live matrix that records fixtures; mock vendor server</td><td>Per-connector patterns</td></tr>
+<tr><td>fsr-playbook-framework <code>provision_connector.py</code></td><td>Registers a dev connector in the reference DB so the playbook builder can use it</td><td>Working</td></tr>
+<tr><td><code>fndn-fortiapi-specs</code></td><td>Downloads Fortinet OpenAPI specs</td><td>Unused downstream</td></tr>
+</table></div>
+
+<h3>An agentic flow that mirrors the playbook builder</h3>
+<ol class="steps">
+<li><div><strong>Typed spec.</strong> A pydantic <code>ConnectorSpec</code> (operations, params, config fields) limited to what the importer accepts. This plays the role the YAML DSL plays for playbooks. Enhancing an existing connector means reading its <code>info.json</code> back into a spec, like the decompiler.</div></li>
+<li><div><strong>Generate.</strong> <code>info.json</code> and <code>operations.py</code> stubs from the spec, with a shared request helper and a drift check. Inputs can be an OpenAPI spec, corpus endpoints, or an existing connector.</div></li>
+<li><div><strong><code>verify_connector</code> tool.</strong> Spec validation, toolkit lint and anti-patterns, pyfsr importer validation, output schemas against recorded bodies, and a secret scan, returned as structured fix codes the agent can act on, like <code>verify_playbook</code>.</div></li>
+<li><div><strong>Offline test.</strong> Scaffolded tests plus replay against recorded responses in a sandbox. No key, no box.</div></li>
+<li><div><strong>Human approval.</strong> The spec diff, code diff, verify report and test results on a card. Write or disrupt operations need approval before any live run.</div></li>
+<li><div><strong>Install and prove.</strong> Pack, install, configure, health-check, run read-tier operations, record the responses as fixtures, then register it in the reference DB so the playbook builder can use the new connector immediately.</div></li>
+</ol>
+<p>Gaps to close first: one shared typed model for <code>info.json</code>, a Python scaffolder, a single record and replay format, packaging the toolkit, and agent tools for verify, test and install.</p>
+</section>
+
+<!-- 13 -->
+<section class="chapter" id="glossary">
+<h2><span class="n">14</span>Glossary</h2>
+<div class="tablewrap"><table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td>Turn</td><td>One request from the widget, run by the agent loop until it ends in text or a card</td></tr>
+<tr><td>Detached</td><td>The turn runs in a background thread; the widget polls for frames</td></tr>
+<tr><td>Frame</td><td>One event in a turn's progress feed (text, tool call, card...)</td></tr>
+<tr><td>Intent</td><td>Triage or build, decided from page state</td></tr>
+<tr><td>TurnPlan</td><td>Per-turn prompt layers and refusal rules derived from state</td></tr>
+<tr><td>Persona</td><td>A Key Store record that sets a module's prompt, tool allow-list, model and UI wording</td></tr>
+<tr><td>Skill</td><td>A record in <code>assistant_skills</code> that adds house rules to a persona</td></tr>
+<tr><td>Warmup</td><td>Filling the reference catalog from the box's installed connectors</td></tr>
+<tr><td>Reference DB / catalog</td><td>SQLite store of connectors, ops, modules, picklists, examples the compiler resolves against</td></tr>
+<tr><td>verified_id</td><td>A content hash of YAML that passed verify; the only thing an enhancement offer accepts</td></tr>
+<tr><td>Prewrite guard</td><td>The save-time diff that refuses unacknowledged loss (<code>would_drop_fields</code>)</td></tr>
+<tr><td>Staged Apply</td><td>An edit loaded into the open designer as unsaved changes; the analyst's Save writes it</td></tr>
+<tr><td>Tier</td><td>Risk level 0 to 4 assigned by code to every tool call; 3 and up need approval</td></tr>
+<tr><td>Shadow decision</td><td>What the autonomy policy would have done for a card, recorded but not enforced</td></tr>
+<tr><td>Frank</td><td>The free internal LLM gateway used for evals</td></tr>
+<tr><td>Dev-patched</td><td>A box running working-tree code copied over a released wheel</td></tr>
+<tr><td>Hermetic</td><td>A test tier where any unmocked network call fails the run</td></tr>
+</table></div>
+<p class="foot">Built from seven code-reading passes over the widget, connector and framework repos and their commit history (the latest re-mapped the build loop and its guards), a usage census of 1,871 stored build turns, and project memory. Line numbers drift; treat them as starting points. For live versions run <code>make doctor</code>.</p>
+</section>
+
+</div>
+</main>
+</div>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="vendor/mermaid-11.6.0.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

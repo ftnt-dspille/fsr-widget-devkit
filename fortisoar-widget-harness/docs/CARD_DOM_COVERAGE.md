@@ -44,6 +44,7 @@ classified here, and a row for a card that no longer exists fails too.
 | `text` | not-a-card | prose. |
 | `tool_use` | not-a-card | call display; no analyst affordance. |
 | `tool_result` | not-a-card | result display; no analyst affordance. |
+| `usage` | not-a-card | per-round usage frame; display-only. Carries the round's reasoning summary into the collapsed "How I worked this out" panel (`reasoning.render.test.js`), but exposes no card control the analyst acts on. |
 | `status_card` | not-a-card | display-only summary. |
 | `info_card` | not-a-card | display-only; the push result arrives this way but carries no control. |
 | `ioc_card` | not-a-card | display-only enrichment. |

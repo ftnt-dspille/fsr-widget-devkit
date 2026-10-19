@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make start)",
+      "Bash(make stop)",
+      "Bash(make help)",
+      "Bash(make doctor)",
+      "Bash(make session-health)",
+      "Bash(make test-unit WIDGET=*)",
+      "Bash(make test-e2e-spec *)",
+      "Bash(make loop)",
+      "Bash(make widget-inspect *)",
+      "Bash(soardocs *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/deny-guardrails.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

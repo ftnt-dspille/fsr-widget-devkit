@@ -12,6 +12,10 @@ commit inside that repo, not here.
   `requirements.txt` pin, `git log`.
 - Box, version and env state comes from `make doctor` (~15s, `LOCAL=1` for no box).
   Run it before believing any live result.
+- `make session-health` classifies failing chat tools (model/remote/guard/env/tool_bug,
+  recovered vs stuck) when triaging a session.
+- One env knob: `ENV=.env.<box>` drives sweep/matrix/live/doctor; `SHIP_ENV`/`SWEEP_ENV`/
+  `MATRIX_ENV`/`LIVE_ENV` still override individually.
 - If grep finds nothing in a file you know exists, use `/usr/bin/grep`: the
   interactive `grep` is a ugrep wrapper that skips big files.
 
