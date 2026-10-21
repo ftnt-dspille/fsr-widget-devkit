@@ -157,8 +157,17 @@ describe("parseRegistry", () => {
 });
 
 // ── THE GATE ───────────────────────────────────────────────────────────────
+// Card types retired from the product. A retired type has NO registry row (the
+// doc lists only live card types), and the gate ignores it in the renderer's
+// dispatch chain, because a renderer may keep a branch to drop an old session's
+// stored frame. patch_proposal: retired 2026-09; the widget's review/phase0-chat
+// branch removed its branch (d1ab857), while the older master still has it. The
+// gate passes either way: with the branch absent the filter is a no-op.
+const RETIRED_CARD_TYPES = ["patch_proposal"];
+
 describe("the real registry describes the real widget", () => {
-  const types = dispatchTypes(fs.readFileSync(RENDERER, "utf8"));
+  const types = dispatchTypes(fs.readFileSync(RENDERER, "utf8"))
+    .filter((t) => !RETIRED_CARD_TYPES.includes(t));
   const specs = liveSpecFiles();
   const claims = specs.flatMap((f) => claimsFromSpec(fs.readFileSync(f, "utf8")));
   const registry = parseRegistry(fs.readFileSync(REGISTRY, "utf8"));
@@ -176,6 +185,14 @@ describe("the real registry describes the real widget", () => {
   test("every card type is classified, and every classification is backed", () => {
     expect(reconcile({ types, claims, registry })
       .map((f) => `[${f.rule}] ${f.detail}`)).toEqual([]);
+  });
+
+  test("a retired card type has no registry row", () => {
+    // A row for a type the product no longer emits is the dead-type failure the
+    // doc's own rule forbids; retired types are named in RETIRED_CARD_TYPES only.
+    for (const t of RETIRED_CARD_TYPES) {
+      expect(registry.map((r) => r.type)).not.toContain(t);
+    }
   });
 
   test("...and it goes red when the renderer grows a card (the mutation proof)", () => {
