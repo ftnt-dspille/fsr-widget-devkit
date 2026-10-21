@@ -30,6 +30,8 @@ fsr_src/*-extracted/
 
 # Widget repos are cloned/managed separately (via widgets.manifest), not tracked.
 widgets-src/*/
+# Private widget remote URLs (lab hosts). Format and use: widgets.manifest header.
+widgets.local.manifest
 # …except the widget scaffold, which is part of the dev kit (not an independent
 # widget repo) and must ship with it.
 !widgets-src/_template/
