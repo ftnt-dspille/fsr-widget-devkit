@@ -11,7 +11,7 @@ ones that otherwise cost an afternoon. Read it before writing your first spec.
 | Tests | controller view-model logic | real DOM rendered in the harness |
 | Runs in | jsdom (no browser) | headless Chromium |
 | Needs SOAR assets? | **No** | **Yes** -- `make assets` first |
-| Spec lives in | `widgets-src/<widget>/tests/*.test.js` | `fortisoar-widget-harness/tests/e2e/<widget>.spec.js` |
+| Spec lives in | `widgets-src/<widget>/tests/*.test.js` | `widgets-src/<widget>/tests/e2e/*.spec.js` (widget repo); harness-owned specs in `fortisoar-widget-harness/tests/e2e/` |
 | Run with | `make test-unit WIDGET=<widget>` | `make test-e2e-spec WIDGET=<widget>` |
 
 Always run through the Makefile -- it owns the dev (14400) / test (14401) ports
@@ -55,12 +55,37 @@ Keep view logic pure and small so it's exercisable without a browser. Integratio
 assertions check **every** case (`expect(failures).toEqual([])`) -- don't stop at
 the first success.
 
+## Targets that reach a box
+
+This table is the one authoritative list (CLAUDE.md points here). Everything not
+listed runs offline: unit, the mock e2e gate, introspect (hermetic), `turn-hermetic`,
+and `widget-inspect` against the local dev server.
+
+| Target | Reaches the box when | Box selector |
+|---|---|---|
+| `make push` | always: deploys the connector, framework and changed widgets | `ENV=` and `SSH_HOST=` |
+| `make widget-push` | always: deploys one widget | `SHIP_ENV=` (required explicitly) |
+| `make ship-verify` | always: deploys, then live-sweeps the same box | `ENV=` or `SHIP_ENV=` |
+| `make test-live-sweep` | always: the live sweep | `ENV=` or `SWEEP_ENV=` |
+| `make test-mcp-surface-live` | always | `SWEEP_ENV=` |
+| `make test-matrix-live` | always, headed (WAF blocks headless) | `MATRIX_ENV=` |
+| `make test-ar-live` (and `test-ar-playbook-live`, `test-ar-jtg-flow-live`, `test-ar-connector-live`) | always | `LIVE_ENV=` |
+| `make test-designer-stage-live` | always; pushes and deletes a scratch playbook | `LIVE_ENV=` |
+| `make introspect-soar` | always: renders the deployed widget against the baseline | `ENV=` |
+| `make loop` | copies working trees to the box, then a live smoke | `ENV=` (forwarded to the connector repo) |
+| `make doctor` | reads the box (`LOCAL=1` skips it) | `ENV=` |
+| `make session-health` | reads box sessions (`SOURCE=local` skips it) | `ENV=` |
+| `make test-e2e-spec` | only with `E2E_LIVE=1` (live wire, `&real=1`) | `E2E_LIVE=1` |
+
 ## E2e tests (Playwright)
 
-**Specs live in `fortisoar-widget-harness/tests/e2e/`, not in the widget folder.**
-Playwright's `testDir` is the harness, and it does **not** crawl through the
-`widgets-src` symlink -- a spec left under `widgets-src/<w>/tests/e2e/` is silently
-never discovered. `make new-widget` puts it in the right place.
+**Widget specs live in the widget repo, at `widgets-src/<w>/tests/e2e/*.spec.js`.**
+The harness's `playwright.config` has two projects: `chromium` walks the harness's
+own `tests/e2e/`, and `widgets` walks `widgets-src/*/tests/e2e/` (the real path, so
+a `WIDGETS_SRC` worktree runs its own specs). A spec in a widget's `tests/e2e/` is
+discovered. The `widgets` project exists only when `widgets-src` resolves, so
+`make setup` / `make widgets` must have cloned the widget first. `make new-widget`
+scaffolds the right place.
 
 The harness mounts widgets by `info.json` **name**, and selects which to render
 from `localStorage`. Seed it before page scripts run:
@@ -185,16 +210,18 @@ runs, in order, failing fast:
    (~2.8 min); set `SKIP_INTROSPECT=1` to bypass when box-time is tight. Re-baseline
    an intended DOM/payload change with `make introspect`.
 5. **deploy** -- `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
-   at the **harness `.env`** so it deploys to the *same* box the tests hit
-6. **live-sweep** -- `make test-live-sweep` (real UI vs the real connector)
+   at the box `SHIP_ENV` names
+6. **live-sweep** -- the live sweep (real UI vs the real connector), on the **same**
+   box step 5 deployed to
 
-> **Which box does `ship-verify` deploy to?** It **hardcodes `FSR_ENV_FILE=…/fortisoar-widget-harness/.env`**
-> (the Makefile `ship-verify` recipe) -- it does **not** read the `.env.<box>` sidecar
-> files or honor a `FSR_ENV_FILE=` override on the command line. To ship to a specific
-> box, point `.env` at it first (`cp .env.159 .env`), then restore afterward. (The
-> connector's own `make ship` is different -- it defaults `ENV=.env.159` and takes
-> `ENV=<path>`.) ship.sh's target-mismatch guard will abort if a stale
-> `.harness-active-env` disagrees with `.env`.
+> **Which box does `ship-verify` deploy to, and grade?** One box, always. `ENV`
+> (default `.env.159`) selects it; `SHIP_ENV` defaults to `ENV` and is what the deploy
+> uses. The live sweep is handed the same env file, so it cannot grade a different box.
+> `SWEEP_ENV` is accepted only if it names the same file: `make ship-verify ... SWEEP_ENV=.env.81`
+> with a different `SHIP_ENV` is refused before anything deploys. The sidecar `.env.<box>`
+> files are the source; the harness `.env` is no longer consulted by ship-verify.
+> `ship.sh`'s target-mismatch guard still aborts if a stale `.harness-active-env`
+> disagrees with the file it was handed.
 >
 > **Hermetic-tier specs must self-skip in the mock gate.** `make test-e2e-spec`
 > globs *all* of a widget's e2e specs, but specs that need the **Seam C hermetic
@@ -304,8 +331,9 @@ suite when it forgets one):
   snapshot a real response from the box) only when a scenario needs richer fields
   than the scaffold. Keep them lean (trim giant blobs like `sourcedata`).
 
-The **live sweep** (`E2E_LIVE=1`, serial, `FSR_HERMETIC=0`) is the only tier that
-reaches the real box. Refresh the local platform snapshot with `make assets` when
+The **live sweep** (`E2E_LIVE=1`, serial, `FSR_HERMETIC=0`) is the tier that grades
+the real box. It is not the only target that reaches one: see "Targets that reach a
+box" above. Refresh the local platform snapshot with `make assets` when
 the box's FortiSOAR version bumps.
 
 ### The live sweep (`fortiaiAgenticAssistant.liveSweep.spec.js`)
@@ -364,9 +392,12 @@ real regressions.
 
 ## Quick visual checks
 
-For a one-off "did the color/layout change" check, write a tiny ad-hoc Playwright
-snippet (boot the harness on 14401, `addInitScript` the widget, screenshot) -- do
-**not** spin up the page-tester agent for a single assertion; it's far slower.
+For a one-off "did the color/layout change" check, use the blessed path:
+`make widget-inspect ARGS='--widget <name> [--config <json>] [--click <sel>] ...'`
+(`--help` lists the flags). It mounts the widget in the running dev harness and
+measures it as JSON. Don't hand-roll Playwright for this. A tiny screenshot script is
+the only exception, and only when `widget-inspect` cannot express the check. Don't
+spin up the page-tester agent for a single assertion; it's far slower.
 
 ## Known issues
 

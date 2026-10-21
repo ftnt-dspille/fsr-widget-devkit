@@ -3,8 +3,9 @@
 // Catches the AngularJS + FortiSOAR widget footguns we keep hitting. Run
 // scoped to one widget (recommended for CI) or across every widget.
 //
-//   node scripts/lint-angular.js fsrPlaybookBuilder      # one widget
-//   node scripts/lint-angular.js                          # all widgets
+//   node scripts/lint-angular.js fortiaiAgenticAssistant  # one widget (or several)
+//   node scripts/lint-angular.js                          # every widget under widgets-src/
+// Exits 1 when the selected set is empty (a missing name or no widgets-src).
 //
 // Rule sources:
 //   - Direct experience building the FortiSOC Action Assistant widget
@@ -30,7 +31,7 @@ interface Violation {
 const ROOT = process.env.WIDGETS_SRC
   ? path.resolve(process.env.WIDGETS_SRC)
   : path.resolve(__dirname, '..', '..', 'widgets-src');
-const scope = process.argv[2] || null;
+const scopes = process.argv.slice(2);
 
 const violations: Violation[] = [];
 
@@ -644,18 +645,28 @@ function _walkJs(root: string): string[] {
   return out;
 }
 
-const widgetDirs = scope
-  ? [path.join(ROOT, scope)]
+function isWidgetDir(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch (e) {
+    return false;
+  }
+}
+
+// An empty set is a FAILURE, never a pass: a missing or misspelled widget name,
+// an absent widgets-src checkout, or a tree with no widgets must not print "ok".
+const missingScopes = scopes.filter((s) => !isWidgetDir(path.join(ROOT, s)));
+const widgetDirs = scopes.length
+  ? scopes.map((s) => path.join(ROOT, s))
   : (fs.existsSync(ROOT) ? fs.readdirSync(ROOT)
-    .filter((n) => {
-      const p = path.join(ROOT, n);
-      try {
-        return fs.statSync(p).isDirectory();
-      } catch (e) {
-        return false;
-      }
-    })
-    .map((n) => path.join(ROOT, n)) : []);
+    .map((n) => path.join(ROOT, n))
+    .filter(isWidgetDir) : []);
+if (missingScopes.length || widgetDirs.length === 0) {
+  console.error('lint-angular: no widget to lint under ' + ROOT +
+    (missingScopes.length ? ' (missing: ' + missingScopes.join(', ') + ')' : '') +
+    ' -- is widgets-src checked out? run make setup');
+  process.exit(1);
+}
 
 widgetDirs.forEach(lintWidget);
 

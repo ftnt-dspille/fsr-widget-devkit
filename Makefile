@@ -126,24 +126,28 @@ BUMP ?= patch
 
 # --- Box/env selection: ONE knob -------------------------------------------
 # `ENV` is the single canonical box selector. Pass `ENV=.env.206` once and the
-# sweep / matrix / live / loop / doctor targets all follow. The per-area vars
-# below (SWEEP_ENV / MATRIX_ENV / LIVE_ENV / SHIP_ENV) are backward-compat
-# shims: each still accepts its own explicit override (e.g. `SWEEP_ENV=.env.81`)
-# and each keeps its historical DEFAULT, so existing invocations are unchanged.
+# sweep / matrix / live / loop / doctor / ship-verify targets all follow. The
+# per-area vars below (SHIP_ENV / SWEEP_ENV / MATRIX_ENV / LIVE_ENV) are shims:
+# each accepts its own explicit override and otherwise follows ENV.
 # `soarEnv.ts` (FSR_ENV_FILE → .harness-active-env → .env) remains the runtime
 # resolver; this block only decides which file the Make targets hand it.
+#
+# INVARIANT (ship-verify): the box it DEPLOYS to and the box its live sweep
+# GRADES are the same env file. SHIP_ENV decides the deploy; the sweep is handed
+# that same resolved file (not its own default); an explicit SWEEP_ENV naming a
+# different file is refused by the guard in ship-verify. Neither var set: both
+# are ENV (.env.159). Never add a fallback that resolves the two separately.
 ENV ?= .env.159
+SHIP_ENV ?= $(ENV)
+SWEEP_ENV ?= $(ENV)
 
-# Which box `ship-verify` deploys to. Historically defaulted to the harness
-# `.env` (NOT .env.159), and the deploy target used to be HARDCODED to it, so
-# shipping the same build to a second box meant editing shared state.
-# `SHIP_ENV=.env.206` still targets one box explicitly. To preserve the old
-# default, SHIP_ENV falls back to `.env` when ENV is left at its own default;
-# an explicit `ENV=.env.<box>` flows through to the ship box too.
-SHIP_ENV ?= $(if $(filter .env.159,$(ENV)),.env,$(ENV))
+# Box name -> the file path the recipes hand to a shell or ship.sh. A bare name
+# (.env.206) is harness-relative; an absolute path is used as-is.
+env_file = $(if $(filter /%,$(1)),$(1),$(abspath $(HARNESS)/$(1)))
 
 ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
+	@if { [ "$(origin SWEEP_ENV)" = "command line" ] || [ "$(origin SWEEP_ENV)" = "environment" ]; } && [ "$(call env_file,$(SWEEP_ENV))" != "$(call env_file,$(SHIP_ENV))" ]; then echo "ship-verify: SWEEP_ENV=$(SWEEP_ENV) names a different box than SHIP_ENV=$(SHIP_ENV) (deploy). A green run must grade the box it deployed to: drop SWEEP_ENV or make it match."; exit 2; fi
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
 	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
 	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-testids.js $(WIDGET)
@@ -156,22 +160,22 @@ ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e
 	@if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; fi
 	@$(if $(SKIP_INTROSPECT),,$(MAKE) introspect-gate GATE_WIDGET=$(WIDGET))
 	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
-	  cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
+	  cd $(HARNESS) && FSR_ENV_FILE=$(call env_file,$(SHIP_ENV)) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
 	@# A missing sweep spec used to "skip" and still print "live-verified" below.
 	@# That is the 0.2 bug class: the gate ran over an empty set and reported the
 	@# same thing it reports when it passes -- and it already burned us once at
 	@# the widget rename (see SWEEP_WIDGET). Skipping is now an explicit choice
 	@# (SKIP_LIVE_SWEEP=1), and the completion line says which gates actually ran.
-	@echo "▶ 6/6 live-sweep"
-	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) bash scripts/ship-verify-sweep.sh
+	@echo "▶ 6/6 live-sweep ($(SHIP_ENV) → the box just deployed to)"
+	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) SWEEP_ENV=$(call env_file,$(SHIP_ENV)) bash scripts/ship-verify-sweep.sh
 
 widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> SHIP_ENV=.env.<box> [BUMP=patch]"; exit 2; fi
 	@if [ "$(origin SHIP_ENV)" != "command line" ]; then echo "widget-push: pass SHIP_ENV=.env.<box> explicitly (no silent default box)"; exit 2; fi
 	@cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
 	@$(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
-	@cd $(HARNESS) && FSR_ENV_FILE=$(CURDIR)/$(HARNESS)/$(SHIP_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
+	@cd $(HARNESS) && FSR_ENV_FILE=$(call env_file,$(SHIP_ENV)) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
 	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV) (dev path: NOT e2e/live-verified; use ship-verify for a release)"
 
@@ -187,13 +191,13 @@ release: harness-build ## GitHub release for one widget: bump info.json -> commi
 # Python venv with pyfsr); these forward so either repo is a fine place to type them.
 CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
 loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees to the box -> ~35s live smoke (see conn_main scripts/loop.sh)
-	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop ENV=$(abspath $(HARNESS)/$(SWEEP_ENV))
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop ENV=$(call env_file,$(SWEEP_ENV))
 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict)
-	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor ENV=$(abspath $(HARNESS)/$(SWEEP_ENV))
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor ENV=$(call env_file,$(SWEEP_ENV))
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
-	@$(MAKE) --no-print-directory -C $(CONN_REPO) session-health ENV=$(abspath $(HARNESS)/$(SWEEP_ENV)) \
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) session-health ENV=$(call env_file,$(SWEEP_ENV)) \
 	  $(if $(LIMIT),LIMIT=$(LIMIT),) $(if $(OUT),OUT=$(abspath $(OUT)),) $(if $(SOURCE),SOURCE=$(SOURCE),)
 
 # Derive the sweep spec from the widget name instead of hardcoding it. The old
@@ -207,9 +211,8 @@ SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
 # bare `.env` points at whichever box was last worked on, so a sweep run right
 # after shipping elsewhere silently [[SWEEP-ENV-SKIP]]s with "connector not
 # present/configured" -- which reads like a box outage rather than "you are
-# pointed at the wrong box".
-# Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
-SWEEP_ENV ?= $(ENV)
+# pointed at the wrong box". ship-verify never uses this default: it hands the
+# sweep its deploy file (see the INVARIANT at the top of this block).
 
 test-mcp-surface-live: harness-build ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (SWEEP_ENV=.env.159)
 	@# Its own target rather than `test-e2e-spec SPEC=…` because a live spec needs

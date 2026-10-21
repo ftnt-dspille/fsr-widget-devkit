@@ -16,7 +16,7 @@ ones that otherwise cost an afternoon. Read it before writing your first spec.
 | Tests | controller view-model logic | real DOM rendered in the harness |
 | Runs in | jsdom (no browser) | headless Chromium |
 | Needs SOAR assets? | **No** | **Yes** - `make assets` first |
-| Spec lives in | `widgets-src/<widget>/tests/*.test.js` | `fortisoar-widget-harness/tests/e2e/<widget>.spec.js` |
+| Spec lives in | `widgets-src/<widget>/tests/*.test.js` | `widgets-src/<widget>/tests/e2e/*.spec.js` (harness-owned specs: `tests/e2e/`) |
 | Run with | `make test-unit WIDGET=<widget>` | `make test-e2e-spec WIDGET=<widget>` |
 
 Always run through the Makefile - it owns the dev (14400) / test (14401) ports
@@ -62,10 +62,12 @@ the first success.
 
 ## E2e tests (Playwright)
 
-**Specs live in `fortisoar-widget-harness/tests/e2e/`, not in the widget folder.**
-Playwright's `testDir` is the harness, and it does **not** crawl through the
-`widgets-src` symlink - a spec left under `widgets-src/<w>/tests/e2e/` is silently
-never discovered. `scripts/new-widget.sh` puts it in the right place.
+**Widget specs live in the widget repo, at `widgets-src/<w>/tests/e2e/*.spec.js`.**
+`playwright.config` has two projects: `chromium` walks this harness's `tests/e2e/`
+(harness-owned specs), and `widgets` walks `widgets-src/*/tests/e2e/` through the
+resolved real path (or `WIDGETS_SRC`). A spec there is discovered. The `widgets`
+project only exists when `widgets-src` resolves. `scripts/new-widget.sh` scaffolds
+the right place.
 
 The harness mounts widgets by `info.json` **name**, and selects which to render
 from `localStorage`. Seed it before page scripts run:
@@ -108,9 +110,12 @@ them from your own licensed box. Without it, e2e fails with a
 
 ## Quick visual checks
 
-For a one-off "did the color/layout change" check, write a tiny ad-hoc Playwright
-snippet (boot the harness on 14401, `addInitScript` the widget, screenshot) - do
-**not** spin up the page-tester agent for a single assertion; it's far slower.
+For a one-off "did the color/layout change" check, use the blessed path:
+`make widget-inspect ARGS='--widget <name> [--config <json>] [--click <sel>] ...'`
+(`--help` lists the flags). It mounts the widget in the running dev harness and
+measures it as JSON. Don't hand-roll Playwright for this. A tiny screenshot script is
+the only exception, and only when `widget-inspect` cannot express the check. Don't
+spin up the page-tester agent for a single assertion; it's far slower.
 
 ## Known issues
 
