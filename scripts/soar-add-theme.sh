@@ -19,6 +19,13 @@
 
 set -euo pipefail
 
+# Claude Code sets CLAUDECODE=1 in every shell it spawns. Installing a theme on an
+# appliance is the user's to run: refuse unless a human passes CONFIRM_DEPLOY=1.
+if [ -n "${CLAUDECODE:-}" ] && [ "${CONFIRM_DEPLOY:-}" != 1 ]; then
+  echo "soar-add-theme.sh: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2
+  exit 2
+fi
+
 UI_DIR=/opt/cyops-ui
 THEMES_DIR="$UI_DIR/css/themes"
 THEMES_JSON="$UI_DIR/app/settings/themes.json"

@@ -8,6 +8,11 @@ import fs from "fs";
 import path from "path";
 import { defineConfig, devices } from "@playwright/test";
 
+// Under Claude Code (CLAUDECODE set) refuse to start unless a make target set
+// VIA_MAKE=1. First statement on purpose: the port claim below has side effects.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+require("./scripts/via-make-guard").assertViaMake("make test-e2e-spec");
+
 // Base port for the per-worker mock servers (worker N → E2E_BASE_PORT + N).
 // Each run claims its OWN free pair (tests/e2e/_port.js) so concurrent runs --
 // another session, the IDE -- never share or tear down each other's servers.

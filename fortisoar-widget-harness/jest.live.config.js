@@ -18,6 +18,8 @@ module.exports = {
   rootDir: ".",
   testMatch: ["<rootDir>/tests/live/**/*.live.test.js"],
   testEnvironment: "node",
+  // Refuses under Claude Code unless a make target set VIA_MAKE=1 (TESTING.md, Guardrails).
+  globalSetup: "<rootDir>/scripts/jest-live-via-make.js",
   testTimeout: 180000,
   maxWorkers: 1, // serialize: shared live SOAR, avoid cross-talk + rate limits
   reporters,

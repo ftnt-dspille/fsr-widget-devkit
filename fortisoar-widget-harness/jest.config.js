@@ -148,6 +148,9 @@ const PROJECTS = [
 ];
 
 module.exports = {
+  // Under Claude Code (CLAUDECODE set) the run refuses to start unless a make
+  // target set VIA_MAKE=1. Runs once, before any test (TESTING.md, Guardrails).
+  globalSetup: "<rootDir>/scripts/jest-via-make.js",
   // A suite that collects nothing must not look like a suite that passes
   // (PLAN_testing_that_can_fail 0.2). `passWithNoTests: false` is Jest's
   // default, but it only guards the run as a WHOLE -- with `projects`, one
