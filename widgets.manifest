@@ -22,8 +22,6 @@
 fortiaiAgenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-soc-assistant.git  master
 socAssistantMonitor     git@gitlab.example.invalid:your-group/widget-soc-assistant-monitor.git  master
 
-widget-jinja-editor    https://github.com/ftnt-dspille/widget-jinja-editor.git                  main
-widget-action-renderer https://github.com/ftnt-dspille/widget-playbook-and-action-renderer.git  develop
 ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git          main
 
 # Local-only widgets (no remote yet) - add a URL here once they're pushed:

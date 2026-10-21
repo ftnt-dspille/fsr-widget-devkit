@@ -228,7 +228,7 @@ function inertStubFinding(inert: Record<string, number> | null | undefined): str
 /* ── NS4 contract helpers ────────────────────────────────────────────────────
 
    The platform's real rules -- which playbook-trigger endpoint to use, how csGrid
-   reads its rows -- are folklore that bit jsonToGrid and action-renderer (KB §19.3,
+   reads its rows -- are folklore that bit earlier grid and action-renderer widgets (KB §19.3,
    csgrid_renders_from_list_keypairs). These pure helpers encode each rule ONCE so
    the generator (NS5) emits correct code and the linter rejects the wrong one.
    They are intentionally dependency-free and exposed on window.HarnessUtils, but
@@ -744,7 +744,7 @@ function lintWidget(opts?: LintOpts): LintResult {
 
   // Modal shell footgun: SOAR opens edit.html as a $uibModal, not as a plain
   // page -- a template with no .modal-header/.modal-body/.modal-footer still
-  // COMPILES and RENDERS (this is what let ztpGroupTimer's first edit.html
+  // COMPILES and RENDERS (this is what let an earlier widget's first edit.html
   // ship: lint-clean, unit-tests-green, and the box showed an unstyled floating
   // list of fields with no way to Save or Cancel). Angular never complains
   // because there's nothing to complain about -- a bare <div> is a perfectly

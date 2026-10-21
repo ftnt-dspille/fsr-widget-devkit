@@ -127,7 +127,7 @@ A green mount must not silently hide dead features. The harness registers stubs 
 | Service | Type | Behavior | Rationale |
 |---------|------|----------|-----------|
 | `$stomp` (websocket) | no-op-by-design | `connect()` → never-resolving promise; `subscribe/send/disconnect` → no-op | SOAR's websocket is live; harness has no sockets; fallback to polling works |
-| `$uibModal` | faithful | Compiles template, runs controller, appends real `<div class="modal">`, wires close/dismiss | Widgets open modals (e.g., jsonToGrid date-range popup); need real DOM behavior |
+| `$uibModal` | faithful | Compiles template, runs controller, appends real `<div class="modal">`, wires close/dismiss | Widgets open modals (e.g., a grid widget's date-range popup); need real DOM behavior |
 | `$state`/`$stateParams` | stub | Return a minimal object with params from `window.__HARNESS_STATE` | ui-router is stripped; some widgets read it directly |
 | `clipboard` | faithful | Uses native `navigator.clipboard.writeText` when available | Real CommonUtils code path |
 | `translationService.instantTranslate` | wrapped | Consults widget-local keys (from `window.__HARNESS_TRANSLATIONS`) before falling back to SOAR's tables | Widget translations loaded by harness boot |

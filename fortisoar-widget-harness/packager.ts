@@ -134,7 +134,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
 
   // A bump renames the controllers (<name><digits>DevCtrl) and rewrites
   // versioned IDs in widget/. The widget's own tests hardcode those same
-  // names (e.g. `const CTRL_NAME = "jsonToGrid130DevCtrl"`) and versioned IDs,
+  // names (e.g. `const CTRL_NAME = "socAssistantMonitor130DevCtrl"`) and versioned IDs,
   // so without sweeping them too every bump silently reds the unit/e2e suite
   // until someone fixes them by hand. Sweep the sibling tests/ tree with the
   // identical idempotent rewrite. (During packaging `dir` is a tmp copy with

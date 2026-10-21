@@ -77,6 +77,34 @@ and `widget-inspect` against the local dev server.
 | `make session-health` | reads box sessions (`SOURCE=local` skips it) | `ENV=` |
 | `make test-e2e-spec` | only with `E2E_LIVE=1` (live wire, `&real=1`) | `E2E_LIVE=1` |
 
+## Guardrails
+
+Claude Code sets `CLAUDECODE=1` in every shell it spawns. Under it, the rules below
+are enforced where the effect happens, after the shell has interpreted the command,
+so quoting, wrappers and `eval` cannot get past them. A human shell (no `CLAUDECODE`)
+is never refused. A human who means to deploy from an agent shell passes
+`CONFIRM_DEPLOY=1` on the command line.
+
+| Layer | Refuses | Where |
+|---|---|---|
+| Makefile `deploy-guard` | `make release`, `push`, `widget-push`, `ship-verify` unless `CONFIRM_DEPLOY=1` | "Effect-level guards" block at the top of the `Makefile`. Every protected target depends on it, so it runs before any prerequisite (`harness-build` included). `make -n` prints it and runs nothing. |
+| Runner refusal | a jest or Playwright run unless a make target set `VIA_MAKE=1` | `fortisoar-widget-harness/scripts/via-make-guard.js`, called by the jest `globalSetup` (`jest.config.js`, `jest.live.config.js`) and by `playwright.config.ts`. The Makefile sets `VIA_MAKE=1` only on the runner targets, in the same block. |
+| Script headers | `ship.sh`, `release.sh`, `scripts/push.sh`, `install.sh`, `soar-add-theme.sh`, and `widget.js push` / `ship` unless `CONFIRM_DEPLOY=1` | The first statement of each script, or the subcommand handler in `widget.ts`. `make loop` exports `VIA_LOOP=1` so the connector's loop can still widget-push through `ship.sh`. |
+| Hook (advisory) | git `stash`, `rebase`, `--no-verify`, `commit -n`, `core.hooksPath=`. Also an advisory message for bare jest or Playwright and for the deploy make targets | `.claude/hooks/deny-guardrails.sh`. A tripwire, not a boundary: it matches plain words, so a miss costs nothing and the effect guards above still hold. |
+
+Not guarded at effect level, on purpose:
+- `make loop`, `doctor`, `session-health` and the other test targets: dev iteration and reads. CLAUDE.md governs them.
+- Live tests (`test-live-sweep`, `test-matrix-live`, `test-designer-stage-live` and the rest): they read or write a box, but they are tests, not deploys.
+- Scripts that drive Chromium in-process (`widget-inspect`, `introspect`, `introspect-soar`, `widget.js verify-remote`). They do not load the Playwright config, so the runner refusal does not reach them. Their make targets carry `VIA_MAKE=1` as a marker only.
+
+Known limits:
+- `CONFIRM_DEPLOY` and `VIA_LOOP` are ordinary environment variables, so an agent can set them itself. The guards stop reflexive and accidental runs. They do not stop a deliberate bypass; keeping that variable out of agent sessions is a policy.
+- The hook does not strip quotes, so `bash -c "git stash"` passes it. The git rules are a tripwire for honest slips only.
+
+Checking it:
+- `make test-unit` runs `viaMakeGuard.test.js`, `makeDeployGuard.test.js` and `deployScriptGuards.test.js` (harness tests). They pass under `CLAUDECODE=1` only through the make targets.
+- Hook: `bash .claude/hooks/test-hook.sh` runs `.claude/hooks/cases.txt`, one `allow` or `deny` line per case.
+
 ## E2e tests (Playwright)
 
 **Widget specs live in the widget repo, at `widgets-src/<w>/tests/e2e/*.spec.js`.**

@@ -1,0 +1,45 @@
+# One case per line: "allow <command>" or "deny <command>". Blank lines and lines
+# starting with # are skipped. Run with: bash .claude/hooks/test-hook.sh
+
+# git rules (the tripwire's real job)
+deny git stash
+deny git stash pop
+deny git -C /tmp/x stash list
+deny git rebase main
+deny env FOO=1 git rebase -i HEAD~2
+deny git commit --no-verify -m wip
+deny git commit -n -m wip
+deny git -c core.hooksPath=/dev/null commit -m wip
+allow git status --short
+allow git log --oneline -3
+allow git commit -m "fix: thing"
+
+# advisory: bare jest and playwright
+deny jest tests/foo.test.js
+deny npx jest
+deny pnpm jest tests/foo.test.js
+deny pnpm exec playwright test
+deny pnpm --dir fortisoar-widget-harness exec jest
+deny cd fortisoar-widget-harness && pnpm exec jest
+deny /repo/node_modules/.bin/jest
+allow make test-unit WIDGET=socAssistantMonitor
+allow make test-e2e-spec SPEC=tests/e2e/a.spec.js
+allow grep jest tests/foo
+allow /usr/bin/grep -rn playwright docs
+
+# advisory: deploy and release make targets
+deny make release WIDGET=x BUMP=patch
+deny make release-ship
+deny make push ENV=.env.159
+deny cd x && make widget-push WIDGET=y SHIP_ENV=.env.159
+deny ENV=.env.206 make ship-verify WIDGET=y
+allow make help | grep push
+allow ENV=.env.206 make test-live-sweep
+allow make doctor LOCAL=1
+allow make loop
+allow grep -n "make push" CLAUDE.md
+
+# ordinary commands
+allow python3 script.py
+allow ls -la .claude/hooks
+allow bash .claude/hooks/test-hook.sh

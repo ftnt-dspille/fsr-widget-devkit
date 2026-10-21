@@ -2590,7 +2590,7 @@ the widget's own unit/e2e suite with a stale hardcoded controller name.
 
 ## 35. Releasing a widget (GitHub release flow)
 
-Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-json-to-grid`),
+Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-c3-charts`),
 with a single GitHub Actions workflow that publishes a downloadable `.tgz` on
 every version bump. The flow is **bump → commit → push to `develop`** -- nothing
 else. No manual tagging, no manual `gh release`.
@@ -2598,8 +2598,8 @@ else. No manual tagging, no manual `gh release`.
 ### 30.1 How to cut a release
 
 1. **Bump the version through the CLI/packager -- never hand-edit `info.json`.**
-   The controller name embeds the numeric version (`jsonToGrid131DevCtrl` →
-   `jsonToGrid132DevCtrl`); hand-editing desyncs it and trips the stale-version
+   The controller name embeds the numeric version (`c3Charts131DevCtrl` →
+   `c3Charts132DevCtrl`); hand-editing desyncs it and trips the stale-version
    lint. Use `widget bump <id> --bump patch`, or call the packager's
    `syncSourceToInfoJson(<widgetDir>, <name>, <newVersion>)` against the **inner
    `widget/` dir** (it joins `view.controller.js` etc. directly and sweeps the
@@ -2633,7 +2633,7 @@ with two assets:
   branch name (`git remote show origin` / `remotes/origin/HEAD`) before keying a
   workflow to it.
 
-The canonical example is `widget-json-to-grid/.github/workflows/release.yml`
+The canonical example was `widget-json-to-grid/.github/workflows/release.yml` (archived; the repo is still on GitHub)
 (`on: push: branches:[develop], paths:[widget/info.json]` + `workflow_dispatch`;
 detect version change → install → test → package + latest copy → tag → release).
 
@@ -2687,8 +2687,7 @@ handler, and any HTTP response including 5xx is still returned as-is.
 `public/index.html` falls back to `widgets[0]` when `localStorage['harness.widget']`
 is empty -- which it always is in a fresh Playwright context -- and
 `_widgetHarness.js`'s settle check accepts an error panel as terminal content
-(`if (!ctrl) return true`). So a lint-broken widget earlier in the list (today:
-`counter`, `edit-config-inject`) settles the mount and your spec times out
+(`if (!ctrl) return true`). So a lint-broken widget earlier in the list (for example one with an `edit-config-inject` lint error) settles the mount and your spec times out
 blaming your widget. Seed the selection before first paint:
 ```js
 await page.addInitScript(([id]) => {

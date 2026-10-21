@@ -503,7 +503,7 @@ function checkUnscopedGenericSelectors(file: string, lines: string[]): void {
 // R12: widget root must use viewport-based height AND composer must be
 // sticky. `height: 100%` collapses in SOAR's drawer; raw `height: 100vh`
 // overflows when there's chrome above the widget - the composer falls
-// below the visible viewport. The proven pattern (fortisocchatagent):
+// below the visible viewport. The proven pattern (fortiaiAgenticAssistant):
 // `height: calc(100vh - <px>)` on the root + `position: sticky; bottom:0`
 // on the bottom input row.
 function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
@@ -517,7 +517,7 @@ function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
     record('warning', file, ln + 1, 'widget-root-height-100vh',
       '`height: 100vh` on the widget root overflows the visible area when the host has ' +
       'chrome above the widget (drawer drag bar, dashboard grid header). The composer ends ' +
-      'up below the viewport bottom. Use `height: calc(100vh - 32px)` like fortisocchatagent ' +
+      'up below the viewport bottom. Use `height: calc(100vh - 32px)` like fortiaiAgenticAssistant ' +
       'and make the composer `position: sticky; bottom: 0`.');
   }
   if (hasBare100 && !hasCalcVh && !hasBareVh) {

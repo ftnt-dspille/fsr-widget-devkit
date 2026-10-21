@@ -72,9 +72,8 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 >
 > Guard the refresh on "no record ⇒ return early" so navigating back to a list
 > doesn't *strip* a context you already have, and gate any auto-seed on an empty
-> conversation so an in-progress chat isn't clobbered. `fortisocchatagent` is the
-> canonical reference (`_updateContextFromState` + `_registerStateListener`);
-> `fortiaiAgenticAssistant`'s `_refreshEntityContext` follows the same shape.
+> conversation so an in-progress chat isn't clobbered. `fortiaiAgenticAssistant`'s `_refreshEntityContext` is the live example:
+> it is wired to `popupOpened` and `$stateChangeSuccess`.
 >
 > **⚠️ The `popupOpened`/`$stateChangeSuccess` hooks are NOT enough on their own --
 > also re-detect in the init `$timeout`.** Opening a drawer *directly onto* a

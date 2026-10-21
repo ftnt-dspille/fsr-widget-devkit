@@ -197,6 +197,14 @@ function die(msg: string): never {
   process.exit(2);
 }
 
+// Claude Code sets CLAUDECODE=1 in every shell it spawns. Deploys are the user's
+// to run: refuse unless a human passes CONFIRM_DEPLOY=1. Same rule as the Makefile.
+function requireHuman(what: string): void {
+  if (process.env.CLAUDECODE && process.env.CONFIRM_DEPLOY !== "1") {
+    die(`${what}: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1`);
+  }
+}
+
 function ok(msg: string): void {
   console.log("✓", msg);
 }
@@ -323,6 +331,7 @@ async function cmdPack(): Promise<void> {
 }
 
 async function cmdPush(): Promise<void> {
+  requireHuman("widget push");
   resolveLocalWidget();
   await ensureHarness();
   if (!FSR_HOST) die("FSR_BASE_URL not set in .env");
@@ -379,6 +388,7 @@ async function cmdVerifyRemote(): Promise<void> {
 }
 
 async function cmdShip(): Promise<void> {
+  requireHuman("widget ship");
   await cmdPush();
   // After push the version may have been bumped; verify-remote re-reads.
   await cmdVerifyRemote();

@@ -12,7 +12,32 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard
+
+# --- Effect-level guards -----------------------------------------------------
+# Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
+# enforcement for an agent (TESTING.md, "Guardrails"); the bash hook is only an
+# advisory tripwire. Each block below is the ONE copy of its check.
+#
+# 1. Deploys and releases are the user's to run. A protected target depends on
+#    deploy-guard, which runs before any prerequisite (harness-build included).
+#    A human overrides with CONFIRM_DEPLOY=1.
+define require_human
+if [ -n "$$CLAUDECODE" ] && [ "$$CONFIRM_DEPLOY" != 1 ]; then echo "$(1): deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2; exit 2; fi
+endef
+deploy-guard:
+	@$(call require_human,$(strip $(MAKECMDGOALS)))
+
+# 2. The jest globalSetup and playwright.config.ts refuse to start under
+#    CLAUDECODE unless VIA_MAKE=1 (scripts/via-make-guard.js). Target-specific,
+#    so only these runs and their prerequisites carry it. Not guarded: loop,
+#    doctor, session-health and the other non-runner targets.
+test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-ar-live test-designer-stage-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
+
+# 3. make loop is the agent's dev iteration, so it is not guarded. Its widget step
+#    runs scripts/ship.sh (connector loop.sh), so loop exports VIA_LOOP=1 and the
+#    ship.sh header check accepts that one call. Nothing else reads it.
+loop: export VIA_LOOP := 1
 
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -145,7 +170,7 @@ SWEEP_ENV ?= $(ENV)
 # (.env.206) is harness-relative; an absolute path is used as-is.
 env_file = $(if $(filter /%,$(1)),$(1),$(abspath $(HARNESS)/$(1)))
 
-ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
+ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	@if { [ "$(origin SWEEP_ENV)" = "command line" ] || [ "$(origin SWEEP_ENV)" = "environment" ]; } && [ "$(call env_file,$(SWEEP_ENV))" != "$(call env_file,$(SHIP_ENV))" ]; then echo "ship-verify: SWEEP_ENV=$(SWEEP_ENV) names a different box than SHIP_ENV=$(SHIP_ENV) (deploy). A green run must grade the box it deployed to: drop SWEEP_ENV or make it match."; exit 2; fi
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
@@ -170,7 +195,7 @@ ship-verify: harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e
 	@echo "▶ 6/6 live-sweep ($(SHIP_ENV) → the box just deployed to)"
 	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) SWEEP_ENV=$(call env_file,$(SHIP_ENV)) bash scripts/ship-verify-sweep.sh
 
-widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
+widget-push: deploy-guard harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> SHIP_ENV=.env.<box> [BUMP=patch]"; exit 2; fi
 	@if [ "$(origin SHIP_ENV)" != "command line" ]; then echo "widget-push: pass SHIP_ENV=.env.<box> explicitly (no silent default box)"; exit 2; fi
 	@cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
@@ -179,11 +204,11 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV) (dev path: NOT e2e/live-verified; use ship-verify for a release)"
 
-push: harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. ENV=.env.<box> SSH_HOST=<box> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
+push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. ENV=.env.<box> SSH_HOST=<box> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	@ENV="$(ENV)" SSH_HOST="$(SSH_HOST)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
 	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
 
-release: harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
+release: deploy-guard harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
 

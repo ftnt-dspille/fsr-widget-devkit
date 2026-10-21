@@ -421,7 +421,7 @@
     // bare ng-controller/ng-include, so expose config on $rootScope; the
     // widget's child scope inherits it down the prototype chain. Without this,
     // such controllers throw "Cannot read properties of undefined" at init
-    // (e.g. jsonToGrid's loadGriOptions reads $scope.config on boot).
+    // (e.g. a grid widget's loadGriOptions reads $scope.config on boot).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic config assignment
     ($rootScope as any).config = w.__HARNESS_CONFIG || ($rootScope as any).config;
     // Mimic the resolve map that $uibModal.open populates on a modal's scope.
@@ -483,7 +483,7 @@
 
   // widgetBasePath — SOAR injects this into VIEW widget controllers as the
   // per-widget asset root ("widgets/installed/<name>-<version>/"), used to
-  // build templateUrls for widgetAssets/ HTML (e.g. jsonToGrid's expandable
+  // build templateUrls for widgetAssets/ HTML (e.g. a grid widget's expandable
   // row + input-variables modals). Edit controllers get it via the modal
   // $resolve map above; view controllers inject it directly, so register it
   // as a factory too. Resolves off the mounted widget; falls back to the
@@ -559,7 +559,7 @@
   // controller with `$uibModalInstance` + resolved locals, compiles the template
   // into a real <div class="modal"> appended to <body>, and wires close/dismiss
   // (with DOM + scope cleanup) so the returned `.result` promise behaves like
-  // the vendor's. This lets widgets that open modals (e.g. jsonToGrid's custom
+  // the vendor's. This lets widgets that open modals (e.g. a grid widget's custom
   // date-range popup) be exercised end-to-end.
   regFactory(
     app,
@@ -883,7 +883,7 @@
       availableFieldPermission: function (): boolean { return true; },
       // csGrid's link() calls isAdmin() during $digest; the real service derives
       // it from loaded RBAC the harness doesn't bootstrap. Grant admin to match
-      // the "all permissions" stance above (else jsonToGrid throws
+      // the "all permissions" stance above (else a grid widget throws
       // "isAdmin is not a function" and the grid never links).
       isAdmin: function (): boolean { return true; },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- promise-like stub return
@@ -895,7 +895,7 @@
       // csGrid's link() also calls getPermission(module, action) (singular) to
       // decide whether to show row actions; the real service reads unloaded
       // RBAC. Match the grant-all stance so the grid links instead of throwing
-      // "getPermission is not a function" (surfaced by jsonToGrid once it
+      // "getPermission is not a function" (surfaced by a grid widget once it
       // mounts and renders cs-grid).
       getPermission: function (): boolean { return true; },
     };

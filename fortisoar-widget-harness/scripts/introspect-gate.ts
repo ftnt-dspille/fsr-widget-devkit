@@ -17,9 +17,8 @@
  *   - Editor-byte leaks: a widget whose caps don't declare monaco/editors but
  *     still pulled editor bytes is a lazy-load gate regression.
  *
- * Pre-existing no-mounts (fsocFieldsOfInterest, funnelChart, jsonToGrid) and
- * fortiaiInsight's flaky-under-parallel no-mount are baseline-documented; the
- * gate doesn't fail on them.
+ * No no-mounts are documented today. A widget that stops mounting fails the
+ * gate; add an entry to KNOWN_NO_MOUNTS only with a documented reason.
  *
  * Usage:
  *   node scripts/introspect-gate.js            # gate every widget
@@ -40,17 +39,9 @@ import { RenderReport } from "../lib/types";
 const REPORT_DIR = path.resolve(__dirname, "..", "introspection-reports");
 const BASELINE_DIR = path.resolve(__dirname, "..", "tests", "introspect", "baseline");
 
-// Pre-existing no-mounts documented in the plan (Phase 1 findings).
-// The gate must NOT fail these.
-// jsonToGrid was here until its view controller was hardened (it crashed on
-// actionButtons[0]/resources[0] for an unconfigured or generic provider
-// playbook); it now mounts, so the baseline is a real mounted render and the
-// gate holds it to mount.
-const KNOWN_NO_MOUNTS = new Set([
-  "fsocFieldsOfInterest-1.0.0",
-  "funnelChart-1.0.2",
-  "fortiaiInsight-1.0.1", // flaky under parallel
-]);
+// Documented pre-existing no-mounts. The gate must NOT fail these. Empty today:
+// the widgets that used to be listed were archived out of widgets-src.
+const KNOWN_NO_MOUNTS = new Set<string>([]);
 
 // Thresholds (with headroom).
 const THRESHOLDS = {
