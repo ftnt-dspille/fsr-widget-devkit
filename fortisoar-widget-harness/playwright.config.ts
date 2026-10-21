@@ -31,7 +31,7 @@ widgetAssets.buildAllWidgetAssets(widgetAssets.widgetRoots());
 
 // In the monorepo, widgets-src is a SYMLINK to ../widgets-src. Playwright's
 // spec walker does not descend symlinked directories, so per-widget specs under
-// it (c3charts, widget-action-renderer, …) were silently skipped -- discovery
+// it (c3charts, ztpAutomationGraph, …) were silently skipped -- discovery
 // found only the harness's own tests/e2e and the top-level examples. We resolve
 // the symlink to its real path and give it its own project testDir below so the
 // walker actually traverses it. In a standalone GitHub clone the symlink is

@@ -40,7 +40,7 @@ function testableWidgets() {
 // Widget projects are OPT-IN, never an implicit cross-widget sweep:
 //   WIDGET unset                 -> harness only (the default)
 //   WIDGET=fortiaiAgenticAssistant    -> harness + that widget
-//   WIDGET=c3charts,funnelchart  -> harness + those widgets (comma list)
+//   WIDGET=c3charts,ztpAutomationGraph  -> harness + those widgets (comma list)
 //   WIDGET=all                   -> harness + every widget with a tests/ dir
 // The Makefile forwards `make test-unit WIDGET=...` into this env var.
 const WIDGET_FILTER = (process.env.WIDGET || "").trim();

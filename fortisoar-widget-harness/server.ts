@@ -124,7 +124,7 @@ const VENDOR_PROVIDED_SERVICES = ["$resource"];
 // Services SOAR ships outside the parsed app.unmin.js bundle (e.g. widget
 // loader code that lives in a separate chunk we don't index). Treat as real.
 // widgetBasePath: the per-widget asset root SOAR injects into view widget
-// controllers (e.g. jsonToGrid builds widgetAssets/ templateUrls from it).
+// controllers (e.g. a grid widget builds widgetAssets/ templateUrls from it).
 // Real at install time; the harness.module.js factory only makes it resolve
 // for the local mount.
 const KNOWN_PLATFORM_EXTRAS = ["widgetUtilityService", "widgetBasePath"];
@@ -2496,7 +2496,7 @@ if (HERMETIC) {
   // Picklist option values. Once metadata.picklists is seeded (above),
   // Entity.loadFields() resolves the picklist-typed fields and the platform
   // fetches their option lists (one GET per listName: Severity, AlertStatus, …).
-  // Widgets that render their own data (jsonToGrid renders grid_data/grid_columns,
+  // Widgets that render their own data (a grid widget renders grid_data/grid_columns,
   // not picklist options) don't need real values -- an empty collection lets the
   // field-load chain resolve so loadProcessing clears. Keeps the grid e2e tier
   // hermetic without snapshotting every picklist.

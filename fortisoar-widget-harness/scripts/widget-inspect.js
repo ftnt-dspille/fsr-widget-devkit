@@ -11,13 +11,13 @@
 // one (that's the Makefile's job for the e2e tier).
 //
 // Examples:
-//   # Reproduce today's check: is the connector dropdown clipped by the modal?
-//   node scripts/widget-inspect.js --widget actionRendererWidget \
+//   # Is a dropdown inside an edit modal clipped by the modal?
+//   node scripts/widget-inspect.js --widget <name> \
 //     --edit --click-text "Connector action" --click ".ui-select-match" \
 //     --clipped ".ui-select-choices::.harness-modal"
 //
 //   # Count grid rows
-//   node scripts/widget-inspect.js --widget jsonToGrid --rows ".ui-grid-row"
+//   node scripts/widget-inspect.js --widget <grid-widget> --rows ".ui-grid-row"
 //
 //   # Element size + a computed style
 //   node scripts/widget-inspect.js --widget c3Charts --box "svg" --style "svg::height"
@@ -73,7 +73,7 @@ function parseArgs(argv) {
 
 const HELP = `widget-inspect — mount a widget in the running harness and measure it.
 
-  --widget <name>            widget folder name (required), e.g. jsonToGrid
+  --widget <name>            widget folder name (required), e.g. ztpRunReport
   --config <json>            seed saved config so the widget renders content
                              (else it shows the "configure me" prompt)
   --base <url>               harness base (default http://localhost:4401)
