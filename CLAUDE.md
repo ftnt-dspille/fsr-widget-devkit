@@ -68,7 +68,9 @@ Tier ladder, cheapest first. All targets run from the repo root:
 4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
    sweep. Releases only, and the user runs it.
 
-`make test-live-sweep [RUNS=n]` is the only tier that touches a box. A
+Several targets reach a box (deploys, live sweeps, the connector's loop and doctor).
+The authoritative list is "Targets that reach a box" in `TESTING.md`. Of those,
+`make test-live-sweep [RUNS=n]` is the one that grades a box. A
 `[[SWEEP-ENV-SKIP]]` means the backend is down or lacks an integration the row
 needs, so it is **not** verified.
 
