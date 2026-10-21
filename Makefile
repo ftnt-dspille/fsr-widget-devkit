@@ -32,7 +32,7 @@ deploy-guard:
 #    CLAUDECODE unless VIA_MAKE=1 (scripts/via-make-guard.js). Target-specific,
 #    so only these runs and their prerequisites carry it. Not guarded: loop,
 #    doctor, session-health and the other non-runner targets.
-test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-ar-live test-designer-stage-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
+test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-designer-stage-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
 
 # 3. make loop is the agent's dev iteration, so it is not guarded. Its widget step
 #    runs scripts/ship.sh (connector loop.sh), so loop exports VIA_LOOP=1 and the
@@ -379,32 +379,13 @@ grade-export: harness-build ## Grade a downloaded widget .events.json chat expor
 	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
 	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
-# LIVE action-renderer edit flows, one per MODE, on the box in LIVE_ENV (default
-# .env.159, the documented default box). Needs the box creds file.
-#   playbook   the playbook listing (AR_ALERT_UUID=<uuid> overrides the alert)
-#   jtg        JSON-to-Grid, full edit flow (AR_PLAYBOOK_NAME=<name> overrides it)
-#   connector  connector edit flow (AR_CONNECTOR / AR_OPERATION; default
-#              mitre-attack/get_mitre_data_sample; unreachable connectors [[AR-ENV-SKIP]])
 # Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
 LIVE_ENV ?= $(ENV)
-AR_SPEC_playbook  := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.playbookListingLive.spec.js
-AR_SPEC_jtg       := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.jsonToGridFlowLive.spec.js
-AR_SPEC_connector := ../widgets-src/widget-action-renderer/tests/e2e/actionRenderer.connectorFlowLive.spec.js
-test-ar-live: harness-build ## LIVE action-renderer edit flow: MODE=playbook|jtg|connector (LIVE_ENV=.env.159 by default; AR_* vars per mode)
-	@case "$(MODE)" in playbook|jtg|connector) ;; *) echo "usage: make test-ar-live MODE=playbook|jtg|connector [LIVE_ENV=.env.<box>]"; exit 2 ;; esac
-	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	@if [ ! -f $(HARNESS)/$(LIVE_ENV) ]; then echo "missing $(HARNESS)/$(LIVE_ENV) (box creds)"; exit 2; fi
-	cd $(HARNESS) && set -a && . ./$(LIVE_ENV) && set +a && \
-	  PORT=$(TEST_PORT) E2E_LIVE=1 \
-	  pnpm test:e2e $(AR_SPEC_$(MODE)) --reporter=list
-
-# Old names for `test-ar-live MODE=...`.
-test-ar-playbook-live: MODE = playbook
-test-ar-playbook-live: test-ar-live
-test-ar-jtg-flow-live: MODE = jtg
-test-ar-jtg-flow-live: test-ar-live
-test-ar-connector-live: MODE = connector
-test-ar-connector-live: test-ar-live
+# test-ar-live and its aliases are retired: widget-action-renderer was archived
+# to ~/WebstormProjects/fsr-widget-archive (2026-10-21). Restore the widget
+# before resurrecting the target (git history has the recipe).
+test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live:
+	@echo "retired: widget-action-renderer is archived (see ~/WebstormProjects/fsr-widget-archive/MANIFEST.md)"; exit 2
 
 test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
 	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.159) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.159) (box creds)"; exit 2; fi

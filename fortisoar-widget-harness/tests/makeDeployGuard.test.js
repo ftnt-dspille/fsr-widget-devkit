@@ -15,7 +15,7 @@ const PROTECTED = ["release", "push", "widget-push", "ship-verify"];
 // "Effect-level guards" block at the top of the Makefile.
 const RUNNERS = [
   "test-unit", "test-e2e-headed", "test-e2e-spec", "turn-hermetic", "test-mcp-surface-live",
-  "test-live-sweep", "test-matrix-live", "test-matrix-local", "test-ar-live",
+  "test-live-sweep", "test-matrix-live", "test-matrix-local",
   "test-designer-stage-live", "widget-inspect", "introspect", "introspect-soar",
 ];
 const GUARD_LINE = /^if \[ -n "\$CLAUDECODE" \] && \[ "\$CONFIRM_DEPLOY" != 1 \]/;
