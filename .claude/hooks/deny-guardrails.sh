@@ -52,7 +52,7 @@ PROGRAMS=" make git npx pnpm yarn npm bunx node python python3 perl ruby php lua
 SHELLS=" bash sh zsh dash ksh fish csh tcsh ash "
 INTERPRETERS=" python python3 perl ruby php lua deno bun osascript "
 RELEASE_SCRIPTS=" ship.sh release.sh push.sh dev_push.sh "
-RECIPE_CRITICAL=" HARNESS SHELL MAKE MAKEFLAGS MAKEFILES MAKEOVERRIDES GNUMAKEFLAGS CONN_REPO BASH_ENV "
+RECIPE_CRITICAL=" HARNESS SHELL MAKE MAKEFLAGS MAKEFILES MAKEOVERRIDES GNUMAKEFLAGS CONN_REPO BASH_ENV .SHELLFLAGS "
 
 in_list() { case "$2" in *" $1 "*) return 0 ;; esac; return 1; }
 
@@ -133,6 +133,20 @@ check_make() {
       -*) ;;
       *=*)
         name="${t%%=*}"
+        # VAR!=cmd runs a shell command at assignment time.
+        case "$name" in
+          *!)
+            DENY="guardrail: a make '!=' assignment runs a shell command; denying."
+            return 0 ;;
+        esac
+        # Strip assignment-operator remnants (VAR:=x, VAR+=x, VAR?=x).
+        name="${name%%[:+?]*}"
+        # Dotted make variables (.SHELLFLAGS, .ONESHELL, ...) steer recipes.
+        case "$name" in
+          .*)
+            DENY="guardrail: overriding a dotted make variable ($name) can run arbitrary code; denying."
+            return 0 ;;
+        esac
         if in_list "$name" "$RECIPE_CRITICAL"; then
           DENY="guardrail: overriding a recipe-critical make variable ($name) can run arbitrary code; denying."
           return 0
@@ -215,23 +229,39 @@ check_node() {
 }
 
 # Inline code (-c, -e, -p, -r, --eval ...) can run anything: deny it outright.
+# Also denied: stdin program text (no script argument, or "-"), data: URL
+# modules, and loader hooks that execute code at import time.
 check_inline() {
   local -a w=("$@")
-  local j t n=${#w[@]}
+  local j t n=${#w[@]} has_script=0
   for ((j = 1; j < n; j++)); do
     t="${w[$j]}"
     case "$t" in
+      --)
+        [ $((j + 1)) -lt "$n" ] && has_script=1
+        break ;;
       --*)
         case "$t" in
-          --eval|--eval=*|--print|--print=*|--exec|--exec=*)
+          --eval|--eval=*|--print|--print=*|--exec|--exec=*|--import|--import=*|--loader|--loader=*|--experimental-loader|--experimental-loader=*|--require|--require=*|--init-command|--init-command=*)
             DENY="guardrail: inline interpreter code ($t) can run protected commands; write it to a file and run that. Denying."
             return 0 ;;
         esac ;;
+      data:*)
+        DENY="guardrail: a data: URL module can run protected commands; write it to a file and run that. Denying."
+        return 0 ;;
+      -)
+        DENY="guardrail: an interpreter reading its program from stdin cannot be checked; denying."
+        return 0 ;;
       -*[ceEpr]*)
         DENY="guardrail: inline interpreter code ($t) can run protected commands; write it to a file and run that. Denying."
         return 0 ;;
+      -*) ;;
+      *) has_script=1 ;;
     esac
   done
+  if [ "$has_script" = 0 ]; then
+    DENY="guardrail: an interpreter with no script argument reads stdin and cannot be checked; denying."
+  fi
 }
 
 # Shells: find the -c payload past any options (-x, -o pipefail, -lc ...).
@@ -242,9 +272,13 @@ check_shell() {
     t="${w[$i]}"
     case "$t" in
       --) i=$((i + 1)); break ;;
-      --*) i=$((i + 1)) ;;
+      --*)
+        # Fail closed: a long shell option we do not know (fish --init-command,
+        # busybox variants) may carry code or shift the payload position.
+        DENY="guardrail: unrecognized shell long option ($t); write the commands to a script and run that. Denying."
+        return 0 ;;
       -o|+o|-O|+O) i=$((i + 2)) ;;
-      -*c*|+*c*) has_c=1; i=$((i + 1)); break ;;
+      -*[cC]*|+*[cC]*) has_c=1; i=$((i + 1)); break ;;
       -*|+*) i=$((i + 1)) ;;
       *) script="$t"; break ;;
     esac
@@ -292,8 +326,32 @@ check_words() {
     node)
       check_node "${w[@]}"
       [ -n "$DENY" ] || check_inline "${w[@]}" ;;
-    python|python3|perl|ruby|php|lua|deno|bun|osascript)
+    python|python3|perl|ruby|php|lua|osascript)
       check_inline "${w[@]}" ;;
+    deno|bun)
+      # Their eval/repl subcommands run inline or stdin code.
+      for ((j = 1; j < n; j++)); do
+        case "${w[$j]}" in
+          -*) ;;
+          eval|repl)
+            DENY="guardrail: '$base ${w[$j]}' runs inline code; write it to a file and run that. Denying."
+            return 0 ;;
+          *) break ;;
+        esac
+      done
+      check_inline "${w[@]}" ;;
+    export|declare|typeset|readonly)
+      # Exported recipe-critical vars poison later make/shell commands.
+      for ((j = 1; j < n; j++)); do
+        case "${w[$j]}" in
+          *=*)
+            k="${w[$j]%%=*}"
+            if in_list "$k" "$RECIPE_CRITICAL"; then
+              DENY="guardrail: exporting a recipe-critical variable ($k) can run arbitrary code later; denying."
+              return 0
+            fi ;;
+        esac
+      done ;;
     bash|sh|zsh|dash|ksh|fish|csh|tcsh|ash) check_shell "${w[@]}" ;;
     busybox)
       if [ "$n" -gt 1 ]; then check_words "${w[@]:1}"; fi ;;
