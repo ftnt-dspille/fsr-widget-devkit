@@ -111,8 +111,19 @@ check_make() {
     DENY="guardrail: command substitution/backticks in a make command are not allowed (injection risk)."
     return 0
   fi
+  local prev=""
   for ((j = 1; j < n; j++)); do
     t="${w[$j]}"
+    # Quote-stripping can split "VAR =value" style args: an operator word whose
+    # PREVIOUS word is a critical or dotted name is still an override.
+    case "$t" in
+      =*|:=*|+=*|?=*|!=*)
+        if in_list "$prev" "$RECIPE_CRITICAL" || case "$prev" in .*) true ;; *) false ;; esac; then
+          DENY="guardrail: overriding a recipe-critical make variable ($prev) can run arbitrary code; denying."
+          return 0
+        fi ;;
+    esac
+    prev="$t"
     case "$t" in
       --*)
         # GNU make accepts unique prefixes of long options (--fil=, --ev=).
@@ -249,8 +260,8 @@ check_inline() {
       data:*)
         DENY="guardrail: a data: URL module can run protected commands; write it to a file and run that. Denying."
         return 0 ;;
-      -)
-        DENY="guardrail: an interpreter reading its program from stdin cannot be checked; denying."
+      -|\<*|/dev/stdin|/dev/fd/*|/proc/self/fd/*)
+        DENY="guardrail: an interpreter reading its program from stdin/a redirect cannot be checked; denying."
         return 0 ;;
       -*[ceEpr]*)
         DENY="guardrail: inline interpreter code ($t) can run protected commands; write it to a file and run that. Denying."
@@ -343,14 +354,24 @@ check_words() {
     export|declare|typeset|readonly)
       # Exported recipe-critical vars poison later make/shell commands.
       for ((j = 1; j < n; j++)); do
-        case "${w[$j]}" in
-          *=*)
-            k="${w[$j]%%=*}"
-            if in_list "$k" "$RECIPE_CRITICAL"; then
-              DENY="guardrail: exporting a recipe-critical variable ($k) can run arbitrary code later; denying."
-              return 0
-            fi ;;
+        k="${w[$j]}"
+        case "$k" in
+          -*) continue ;;
+          *=*) k="${k%%=*}" ;;
         esac
+        k="${k%+}"
+        if in_list "$k" "$RECIPE_CRITICAL"; then
+          DENY="guardrail: exporting a recipe-critical variable ($k) can run arbitrary code later; denying."
+          return 0
+        fi
+      done ;;
+    printf|read)
+      # printf -v NAME / read NAME can set a recipe-critical variable.
+      for ((j = 1; j < n; j++)); do
+        if in_list "${w[$j]}" "$RECIPE_CRITICAL"; then
+          DENY="guardrail: assigning a recipe-critical variable (${w[$j]}) can run arbitrary code later; denying."
+          return 0
+        fi
       done ;;
     bash|sh|zsh|dash|ksh|fish|csh|tcsh|ash) check_shell "${w[@]}" ;;
     busybox)
