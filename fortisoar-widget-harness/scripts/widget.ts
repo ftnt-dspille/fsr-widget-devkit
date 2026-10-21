@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Per-widget CLI: bump, pack, push to SOAR, verify on SOAR, ship (all four).
 //
-//   node scripts/widget.js ship fsrPlaybookBuilder --bump patch --alert <iri>
-//   node scripts/widget.js push fsrPlaybookBuilder --bump patch
-//   node scripts/widget.js verify-remote fsrPlaybookBuilder --alert <iri>
+//   node scripts/widget.js ship fortiaiAgenticAssistant --bump patch --alert <iri>
+//   node scripts/widget.js push fortiaiAgenticAssistant --bump patch
+//   node scripts/widget.js verify-remote fortiaiAgenticAssistant --alert <iri>
 //
 // Talks to the running harness on $HARNESS_URL (default http://localhost:14400)
 // for packaging + install -- the harness already implements that and owns the
@@ -116,8 +116,8 @@ const widgetsSrc = path.resolve(__dirname, "..", "widgets-src");
 // Local-widget resolution is lazy: commands that operate on a folder
 // (bump/pack/push/rename/lint/info/...) call resolveLocalWidget() to populate
 // these; folderless commands (list/remote-list/pull) skip it. The "id" arg can
-// be the folder name (e.g. "fsrPlaybookBuilder") or the slug-with-version
-// (e.g. "fsrPlaybookBuilder-1.0.10") -- any trailing version is stripped.
+// be the folder name (e.g. "fortiaiAgenticAssistant") or the slug-with-version
+// (e.g. "fortiaiAgenticAssistant-1.0.10") -- any trailing version is stripped.
 let folderName: string;
 let widgetDir: string;
 let info: InfoJson;

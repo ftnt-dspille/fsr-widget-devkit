@@ -20,8 +20,8 @@
 #   WIDGETS_SRC    widgets source dir            (default: ../widgets-src)
 #
 # Examples:
-#   scripts/ship.sh fsrPlaybookBuilder
-#   scripts/ship.sh fsrPlaybookBuilder --bump patch
+#   scripts/ship.sh fortiaiAgenticAssistant
+#   scripts/ship.sh fortiaiAgenticAssistant --bump patch
 #   scripts/ship.sh --restart            # just (re)start the harness, no push
 set -euo pipefail
 

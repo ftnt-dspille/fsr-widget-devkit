@@ -3,9 +3,11 @@
 // Fails if any element in widgets-src/**/*.html has ng-click / ng-submit
 // without a data-testid (or ng-attr-data-testid) on the same element.
 //
-// Pass a widget name as the first arg to scope the scan, e.g.
-//   node scripts/lint-testids.js fsrPlaybookBuilder
-// otherwise all widgets under widgets-src/ are scanned.
+// Pass one or more widget names to scope the scan, e.g.
+//   node scripts/lint-testids.js fortiaiAgenticAssistant socAssistantMonitor
+// otherwise every widget under widgets-src/ is scanned.
+// An empty set (no widget dir, a missing scope name, or zero .html files) exits
+// 1: a lint that scans nothing must never print "ok".
 
 import fs = require('fs');
 import path = require('path');
@@ -16,8 +18,26 @@ interface Violation {
   tag: string;
 }
 
-const ROOT = path.resolve(__dirname, '..', '..', 'widgets-src');
-const scope = process.argv[2] || null;
+// Honour WIDGETS_SRC (the same override lint-angular and the Makefile pass) so
+// the linter can be pointed at a fixture tree; falls back to the sibling
+// widgets-src checkout.
+const ROOT = process.env.WIDGETS_SRC
+  ? path.resolve(process.env.WIDGETS_SRC)
+  : path.resolve(__dirname, '..', '..', 'widgets-src');
+const scopes = process.argv.slice(2);
+
+function fail(msg: string): never {
+  console.error('lint-testids: ' + msg);
+  process.exit(1);
+}
+
+function isDir(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch (e) {
+    return false;
+  }
+}
 
 function walk(dir: string, out: string[]): string[] {
   if (!fs.existsSync(dir)) return out;
@@ -45,8 +65,19 @@ function walk(dir: string, out: string[]): string[] {
   return out;
 }
 
-const roots = scope ? [path.join(ROOT, scope)] : (fs.existsSync(ROOT) ? fs.readdirSync(ROOT).map((d) => path.join(ROOT, d)) : []);
+let roots: string[];
+if (scopes.length) {
+  roots = scopes.map((s) => path.join(ROOT, s));
+  const missing = scopes.filter((s) => !isDir(path.join(ROOT, s)));
+  if (missing.length) fail('no widget dir under ' + ROOT + ' for: ' + missing.join(', '));
+} else {
+  roots = fs.existsSync(ROOT)
+    ? fs.readdirSync(ROOT).map((d) => path.join(ROOT, d)).filter(isDir)
+    : [];
+  if (roots.length === 0) fail('no widgets found under ' + ROOT + ' (is widgets-src checked out? run make setup)');
+}
 const files = roots.flatMap((r) => walk(r, []));
+if (files.length === 0) fail('0 .html files under ' + roots.join(', ') + '; refusing to report ok on an empty set');
 
 const TAG_RE = /<([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g;
 const violations: Violation[] = [];
@@ -73,4 +104,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`lint-testids: ok (${files.length} html files scanned)`);
+console.log(`lint-testids: ok (${files.length} html files scanned across ${roots.length} widget(s))`);
