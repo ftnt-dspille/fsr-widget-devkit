@@ -24,6 +24,23 @@ describe("introspect-gate boot check", () => {
     expect(bootRegression(4100, 400, 2000, 400)).not.toBeNull(); // +105%
   });
 
+  test("a fast boot does not regress on the run-relative ratio alone", () => {
+    // The exact ship-verify false positives: the chat widget's +182% and
+    // ztpAutomationGraph's +104.7%. Both booted sub-second; the ratio crossed
+    // +100% only because the fleet booted fast that run. A fast boot cannot be a
+    // boot regression -- it is single-sample noise below the absolute floor.
+    expect(bootRegression(500, 1375, 253, 1962)).toBeNull(); // chat: +182% but 500 ms
+    expect(bootRegression(758, 1995, 358, 1929)).toBeNull(); // ztpGraph: +105% but 758 ms
+  });
+
+  test("a ratio blow-out that is ALSO slow in wall-clock still fails", () => {
+    // Over the 1000 ms floor and over the relative budget -> a real slowdown.
+    expect(bootRegression(4100, 400, 2000, 400)).toMatch(/relative to its run/); // 4100 ms, +105%
+    expect(bootRegression(1001, 100, 250, 1000)).toMatch(/relative to its run/); // just over the floor
+    // Just under the floor with the same ratio does not fail.
+    expect(bootRegression(999, 100, 250, 1000)).toBeNull();
+  });
+
   test("without medians it falls back to the absolute budget", () => {
     expect(bootRegression(460, 400, null, null)).toBeNull();     // +15%
     expect(bootRegression(470, 400, null, null)).toMatch(/\+17\.5%/);

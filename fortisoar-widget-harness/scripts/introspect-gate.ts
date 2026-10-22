@@ -7,12 +7,20 @@
  * baselines (tests/introspect/baseline/) and fails if any widget regresses past
  * sane thresholds:
  *   - Payload: +10% (e.g., baseline 10 MB → gate allows up to 11 MB)
- *   - Boot (DCL): +100% RELATIVE to the run. Each widget's boot time is
- *     divided by the median boot of every current, mounted widget in the same
- *     run (and its baseline by the baselines' median), so a slow machine or a
- *     busy CPU moves every widget alike and cancels out. Absolute wall-clock
- *     against a baseline from another day failed every widget 3-13x at once
- *     (a test suite was running beside it), which is a gate nobody can pass.
+ *   - Boot (DCL): +100% RELATIVE to the run, AND over an absolute floor. Each
+ *     widget's boot time is divided by the median boot of every current, mounted
+ *     widget in the same run (and its baseline by the baselines' median), so a
+ *     slow machine or a busy CPU moves every widget alike and cancels out.
+ *     Absolute wall-clock against a baseline from another day failed every widget
+ *     3-13x at once (a test suite was running beside it), which is a gate nobody
+ *     can pass. But the run-relative ratio alone is noisy for a sub-second boot: a
+ *     heavy widget's single-sample DCL swings run to run (monaco/tinymce load
+ *     timing moved the chat widget 267<->500 ms on back-to-back runs), and the run
+ *     median shifts with which light widgets are in the fleet, so the ratio can
+ *     cross +100% with nothing changed. So a ratio blow-out is gated ONLY when the
+ *     widget is also slow in wall-clock (> bootAbsoluteFloorMs); below that, a fast
+ *     boot cannot "regress" on the ratio. A real slowdown clears the floor and
+ *     still fails.
  *   - Console errors: increased (new errors are failures; old errors are baseline)
  *   - Editor-byte leaks: a widget whose caps don't declare monaco/editors but
  *     still pulled editor bytes is a lazy-load gate regression.
@@ -48,6 +56,10 @@ const THRESHOLDS = {
   payloadDeltaPercent: 10,   // +10% allowed
   bootDeltaPercent: 15,       // absolute fallback, when a run has too few widgets to normalize
   bootRelativeDeltaPercent: 100, // widget/run-median vs baseline/baseline-median
+  // A run-relative ratio blow-out is gated only when the widget's absolute DCL is
+  // also over this. Below it, the single-sample ratio is noise (observed false
+  // positives booted in 500 ms and 758 ms); a genuine slowdown clears it.
+  bootAbsoluteFloorMs: 1000,
 };
 // Fewer paired widgets than this and a median says nothing; fall back to absolute.
 const MIN_PAIRS_FOR_MEDIAN = 3;
@@ -67,7 +79,9 @@ export function bootRegression(reportMs: number, baselineMs: number,
   if (runMedian && baselineMedian) {
     const ratio = (reportMs / runMedian) / (baselineMs / baselineMedian);
     const pct = (ratio - 1) * 100;
-    if (pct <= THRESHOLDS.bootRelativeDeltaPercent) return null;
+    // A fast boot cannot regress on the run-relative ratio alone (see header):
+    // the ratio is single-sample noise below the floor.
+    if (pct <= THRESHOLDS.bootRelativeDeltaPercent || reportMs <= THRESHOLDS.bootAbsoluteFloorMs) return null;
     return `boot DCL +${pct.toFixed(1)}% relative to its run ` +
       `(${reportMs} ms of run median ${Math.round(runMedian)} ms, baseline ${baselineMs} ms of ` +
       `${Math.round(baselineMedian)} ms, threshold +${THRESHOLDS.bootRelativeDeltaPercent}%)`;
