@@ -313,7 +313,7 @@ describe("lintWidget", () => {
     expect(r.errors.some((e) => e.code === "edit-config-inject")).toBe(true);
   });
 
-  // Regression: ztpGroupTimer's first edit.html injected $uibModalInstance and
+  // Regression: an earlier widget's first edit.html injected $uibModalInstance and
   // bound config correctly (so edit-config-inject was clean), but had no
   // .modal-header/.modal-body/.modal-footer at all -- it still compiled and
   // rendered, just as an unstyled floating field list on the box with no

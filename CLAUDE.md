@@ -12,6 +12,10 @@ commit inside that repo, not here.
   `requirements.txt` pin, `git log`.
 - Box, version and env state comes from `make doctor` (~15s, `LOCAL=1` for no box).
   Run it before believing any live result.
+- `make session-health` classifies failing chat tools (model/remote/guard/env/tool_bug,
+  recovered vs stuck) when triaging a session.
+- One env knob: `ENV=.env.<box>` drives sweep/matrix/live/doctor; `SHIP_ENV`/`SWEEP_ENV`/
+  `MATRIX_ENV`/`LIVE_ENV` still override individually.
 - If grep finds nothing in a file you know exists, use `/usr/bin/grep`: the
   interactive `grep` is a ugrep wrapper that skips big files.
 
@@ -35,7 +39,8 @@ investigation into a playbook. The widget is the window; the connector is the en
 
 - **The user releases and pushes.** Agents commit locally on a branch and never push
   `main`. Never run `make release-ship`, and never run a deploy target unless the
-  user asked for it.
+  user asked for it. The Makefile and the deploy scripts refuse these under Claude
+  Code (`CONFIRM_DEPLOY=1` overrides for a human); see `TESTING.md`, Guardrails.
 - Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
   WIDGET=<name> SHIP_ENV=.env.<box>` (lint + unit + deploy, ~1-2 min; `SHIP_ENV`
@@ -64,13 +69,15 @@ Tier ladder, cheapest first. All targets run from the repo root:
 4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
    sweep. Releases only, and the user runs it.
 
-`make test-live-sweep [RUNS=n]` is the only tier that touches a box. A
+Several targets reach a box (deploys, live sweeps, the connector's loop and doctor).
+The authoritative list is "Targets that reach a box" in `TESTING.md`. Of those,
+`make test-live-sweep [RUNS=n]` is the one that grades a box. A
 `[[SWEEP-ENV-SKIP]]` means the backend is down or lacks an integration the row
 needs, so it is **not** verified.
 
 Rules:
 - Never hand-start a server, and never run `pnpm exec playwright` or `pnpm jest`
-  directly. Specs build URLs from `baseURL` or `E2E_BASE_PORT`, never a literal port.
+  directly (refused at run time under Claude Code; see `TESTING.md`, Guardrails). Specs build URLs from `baseURL` or `E2E_BASE_PORT`, never a literal port.
 - The mock e2e tier is hermetic (`FSR_HERMETIC=1`). An un-snapshotted call returns
   `599 HERMETIC-MISS` and `globalTeardown` fails the run on any leak.
 - Every widget change ships with a test: controller logic gets jest, DOM/CSS gets

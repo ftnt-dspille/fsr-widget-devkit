@@ -8,6 +8,11 @@ import fs from "fs";
 import path from "path";
 import { defineConfig, devices } from "@playwright/test";
 
+// Under Claude Code (CLAUDECODE set) refuse to start unless a make target set
+// VIA_MAKE=1. First statement on purpose: the port claim below has side effects.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+require("./scripts/via-make-guard").assertViaMake("make test-e2e-spec");
+
 // Base port for the per-worker mock servers (worker N → E2E_BASE_PORT + N).
 // Each run claims its OWN free pair (tests/e2e/_port.js) so concurrent runs --
 // another session, the IDE -- never share or tear down each other's servers.
@@ -26,7 +31,7 @@ widgetAssets.buildAllWidgetAssets(widgetAssets.widgetRoots());
 
 // In the monorepo, widgets-src is a SYMLINK to ../widgets-src. Playwright's
 // spec walker does not descend symlinked directories, so per-widget specs under
-// it (c3charts, widget-action-renderer, …) were silently skipped -- discovery
+// it (c3charts, ztpAutomationGraph, …) were silently skipped -- discovery
 // found only the harness's own tests/e2e and the top-level examples. We resolve
 // the symlink to its real path and give it its own project testDir below so the
 // walker actually traverses it. In a standalone GitHub clone the symlink is

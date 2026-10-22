@@ -17,6 +17,13 @@
 #   HARNESS_URL=http://localhost:<port>.
 set -euo pipefail
 
+# Claude Code sets CLAUDECODE=1 in every shell it spawns. Deploys and releases
+# are the user's to run: refuse unless a human passes CONFIRM_DEPLOY=1.
+if [ -n "${CLAUDECODE:-}" ] && [ "${CONFIRM_DEPLOY:-}" != 1 ]; then
+  echo "release.sh: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2
+  exit 2
+fi
+
 WIDGET_ID="${1:-}"
 BUMP="${2:-patch}"
 [ -n "$WIDGET_ID" ] || { echo "usage: release.sh <widgetId> [patch|minor|major]" >&2; exit 2; }

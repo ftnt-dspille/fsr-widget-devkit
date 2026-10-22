@@ -20,10 +20,18 @@
 #   WIDGETS_SRC    widgets source dir            (default: ../widgets-src)
 #
 # Examples:
-#   scripts/ship.sh fsrPlaybookBuilder
-#   scripts/ship.sh fsrPlaybookBuilder --bump patch
+#   scripts/ship.sh fortiaiAgenticAssistant
+#   scripts/ship.sh fortiaiAgenticAssistant --bump patch
 #   scripts/ship.sh --restart            # just (re)start the harness, no push
 set -euo pipefail
+
+# Claude Code sets CLAUDECODE=1 in every shell it spawns. Deploys and releases
+# are the user's to run: refuse unless a human passes CONFIRM_DEPLOY=1. make loop
+# sets VIA_LOOP=1 for its widget step (the dev iteration, not a deploy).
+if [ -n "${CLAUDECODE:-}" ] && [ -z "${VIA_LOOP:-}" ] && [ "${CONFIRM_DEPLOY:-}" != 1 ]; then
+  echo "ship.sh: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2
+  exit 2
+fi
 
 # ---- locate ourselves / repo ------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

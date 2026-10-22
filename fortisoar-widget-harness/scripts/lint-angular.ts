@@ -3,8 +3,9 @@
 // Catches the AngularJS + FortiSOAR widget footguns we keep hitting. Run
 // scoped to one widget (recommended for CI) or across every widget.
 //
-//   node scripts/lint-angular.js fsrPlaybookBuilder      # one widget
-//   node scripts/lint-angular.js                          # all widgets
+//   node scripts/lint-angular.js fortiaiAgenticAssistant  # one widget (or several)
+//   node scripts/lint-angular.js                          # every widget under widgets-src/
+// Exits 1 when the selected set is empty (a missing name or no widgets-src).
 //
 // Rule sources:
 //   - Direct experience building the FortiSOC Action Assistant widget
@@ -30,7 +31,7 @@ interface Violation {
 const ROOT = process.env.WIDGETS_SRC
   ? path.resolve(process.env.WIDGETS_SRC)
   : path.resolve(__dirname, '..', '..', 'widgets-src');
-const scope = process.argv[2] || null;
+const scopes = process.argv.slice(2);
 
 const violations: Violation[] = [];
 
@@ -502,7 +503,7 @@ function checkUnscopedGenericSelectors(file: string, lines: string[]): void {
 // R12: widget root must use viewport-based height AND composer must be
 // sticky. `height: 100%` collapses in SOAR's drawer; raw `height: 100vh`
 // overflows when there's chrome above the widget - the composer falls
-// below the visible viewport. The proven pattern (fortisocchatagent):
+// below the visible viewport. The proven pattern (fortiaiAgenticAssistant):
 // `height: calc(100vh - <px>)` on the root + `position: sticky; bottom:0`
 // on the bottom input row.
 function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
@@ -516,7 +517,7 @@ function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
     record('warning', file, ln + 1, 'widget-root-height-100vh',
       '`height: 100vh` on the widget root overflows the visible area when the host has ' +
       'chrome above the widget (drawer drag bar, dashboard grid header). The composer ends ' +
-      'up below the viewport bottom. Use `height: calc(100vh - 32px)` like fortisocchatagent ' +
+      'up below the viewport bottom. Use `height: calc(100vh - 32px)` like fortiaiAgenticAssistant ' +
       'and make the composer `position: sticky; bottom: 0`.');
   }
   if (hasBare100 && !hasCalcVh && !hasBareVh) {
@@ -644,18 +645,28 @@ function _walkJs(root: string): string[] {
   return out;
 }
 
-const widgetDirs = scope
-  ? [path.join(ROOT, scope)]
+function isWidgetDir(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch (e) {
+    return false;
+  }
+}
+
+// An empty set is a FAILURE, never a pass: a missing or misspelled widget name,
+// an absent widgets-src checkout, or a tree with no widgets must not print "ok".
+const missingScopes = scopes.filter((s) => !isWidgetDir(path.join(ROOT, s)));
+const widgetDirs = scopes.length
+  ? scopes.map((s) => path.join(ROOT, s))
   : (fs.existsSync(ROOT) ? fs.readdirSync(ROOT)
-    .filter((n) => {
-      const p = path.join(ROOT, n);
-      try {
-        return fs.statSync(p).isDirectory();
-      } catch (e) {
-        return false;
-      }
-    })
-    .map((n) => path.join(ROOT, n)) : []);
+    .map((n) => path.join(ROOT, n))
+    .filter(isWidgetDir) : []);
+if (missingScopes.length || widgetDirs.length === 0) {
+  console.error('lint-angular: no widget to lint under ' + ROOT +
+    (missingScopes.length ? ' (missing: ' + missingScopes.join(', ') + ')' : '') +
+    ' -- is widgets-src checked out? run make setup');
+  process.exit(1);
+}
 
 widgetDirs.forEach(lintWidget);
 

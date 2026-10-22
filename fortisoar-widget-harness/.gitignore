@@ -110,3 +110,6 @@ FSR_PLAYBOOK_BUILDER_*
 /scripts/widget-verify-remote.js
 /scripts/widget.js
 /server.js
+
+# personal local Claude settings (never commit)
+.claude/settings.local.json

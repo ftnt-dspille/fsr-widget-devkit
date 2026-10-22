@@ -863,7 +863,7 @@
     <script src="https://cdn.jsdelivr.net/npm/ui-select@0.20.0/dist/select.min.js"></script>
     <!-- angular-ui-grid: stripped from app.unmin.js along with the other
          vendor deps. SOAR's csGrid directive wraps ui-grid, so without it any
-         grid-backed widget (jsonToGrid, and every other grid widget) throws
+         grid-backed widget (any grid widget) throws
          `$injector:unpr uiGridConstants` and renders zero .ui-grid-row. The
          4.6.4 release bundles core + every feature module (selection,
          exporter, pinning, cellNav, autoResize, expandable, move/resize
@@ -1256,7 +1256,7 @@
         }
 
         // Fetch the widget's widgetAssets/locales/en.json and merge it into
-        // window.__HARNESS_TRANSLATIONS so keys like "dataVisualization.LABEL_TITLE"
+        // window.__HARNESS_TRANSLATIONS so keys like "c3Charts.LABEL_TITLE"
         // resolve. The harness translationService wrapper (harness.module.js)
         // reads from this map before delegating to the real SOAR service.
         // Idempotent: skips work if we've already merged this widget's id.
@@ -1491,7 +1491,7 @@
           if (widgetSelect.value === oldId) widgetSelect.value = newId;
           if (window.__syncWidgetDD) window.__syncWidgetDD();
           // Carry the saved Edit Config across version bumps. configStorageKey
-          // is per-id so a fresh id (jinjaEditorWidget-1.1.5 → -1.1.6) would
+          // is per-id so a fresh id (socAssistantMonitor-1.0.17 → -1.0.18) would
           // otherwise strand the previous config under the old key.
           try {
             const oldKey = HU.configStorageKey(oldId);
@@ -2143,7 +2143,7 @@
           return;
         }
 
-        // Saved id includes the version (e.g. `fsrPlaybookBuilder-1.0.4`),
+        // Saved id includes the version (e.g. `fortiaiAgenticAssistant-1.0.4`),
         // so after a bump the literal id no longer matches. Fall back to
         // matching by widget name (the stable part before `-<version>`) so
         // refreshes after install land back on the same widget.
@@ -2207,7 +2207,7 @@
         // UUID.js (LiosK) is another stripped vendor global. SOAR's utility
         // service does `generateUUID: () => UUID.generate()` (e.g. csGrid /
         // PagedCollection generate row ids on bootstrap), so without it any
-        // grid-backed widget — like jsonToGrid — dies at mount with "Cannot
+        // grid-backed widget (any grid widget) dies at mount with "Cannot
         // read properties of undefined (reading 'generate')". A v4 generator
         // is a faithful stand-in for dev preview.
         if (!window.UUID) {
@@ -2342,7 +2342,7 @@
           await loadWidgetTranslations(current);
           window.__HARNESS_CONFIG = HU.mergeConfig(
             // `wid` is the widget instance id SOAR sets on each placement.
-            // Some widgets (e.g. dataVisualization) build DOM ids like
+            // Some widgets (e.g. c3Charts) build DOM ids like
             // `eChart-{{config.wid}}` and then `getElementById('eChart-' + wid)`
             // from JS — undefined makes the JS lookup miss the template-rendered
             // element. Stable per-widget value keeps both sides in sync.

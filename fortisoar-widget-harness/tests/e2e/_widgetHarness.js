@@ -18,7 +18,7 @@
 //
 // Usage (spec):
 //   const { mountWidget } = require("./_widgetHarness");
-//   const w = await mountWidget(page, "jsonToGrid");
+//   const w = await mountWidget(page, "socAssistantMonitor");
 //   expect(await w.rowCount(".ui-grid-row")).toBe(12);
 //   expect(await w.clippedBy(".ui-select-choices", ".harness-modal")).toMatchObject({ clipped: false });
 
@@ -28,7 +28,7 @@
  * methods are the measure/interaction helpers bound to `page`.
  *
  * @param {import('@playwright/test').Page} page
- * @param {string} name  widget folder name, e.g. "jsonToGrid" (NOT the id with version)
+ * @param {string} name  widget folder name, e.g. "socAssistantMonitor" (NOT the id with version)
  * @param {{ navigate?: boolean, timeout?: number, config?: object }} [opts]
  *   config: seed the widget's saved config (localStorage `harness:config:<id>`)
  *   before mount, so a widget that would otherwise show the "configure me"
@@ -65,7 +65,7 @@ async function mountWidget(page, name, opts = {}) {
     // domcontentloaded, NOT networkidle (the harness SSE keeps the page busy).
     await page.goto("/", { waitUntil: "domcontentloaded" });
   }
-  // Resolve the versioned widget id (e.g. jsonToGrid-1.3.2) from the harness API
+  // Resolve the versioned widget id (e.g. socAssistantMonitor-1.0.18) from the harness API
   // so callers pass the stable folder name, not a version that drifts on bump.
   const { widgets } = await fetchWidgetList(page);
   const match = widgets.find((w) => w.name === name || w.id === name);

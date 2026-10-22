@@ -92,8 +92,8 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
     decapitalize(widgetName),
   ]);
   // Match `<name>-<version>` followed by either `/` (path ref like
-  // `fsrPlaybookBuilder-1.0.1/widgetAssets/...`) or a non-version boundary
-  // (bare widget ID used as a string, e.g. `'fsrPlaybookBuilder-1.0.1'`).
+  // `fortiaiAgenticAssistant-1.0.1/widgetAssets/...`) or a non-version boundary
+  // (bare widget ID used as a string, e.g. `'fortiaiAgenticAssistant-1.0.1'`).
   // Without the bare-ID arm, hardcoded version IDs survive a bump and trip
   // the stale-version-ref lint at install time.
   const versionPathRe = new RegExp(
@@ -123,7 +123,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
   }
 
   // `rewritePaths: true` everywhere - controllers can also carry versioned
-  // refs (e.g. `'fsrPlaybookBuilder-1.0.1'` as a localStorage key fallback,
+  // refs (e.g. `'fortiaiAgenticAssistant-1.0.1'` as a localStorage key fallback,
   // or `<script>`-loaded asset paths). Restricting path rewrites to HTML
   // files left bare-ID strings in controllers stale and tripped the
   // stale-version-ref lint after every bump.
@@ -134,7 +134,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
 
   // A bump renames the controllers (<name><digits>DevCtrl) and rewrites
   // versioned IDs in widget/. The widget's own tests hardcode those same
-  // names (e.g. `const CTRL_NAME = "jsonToGrid130DevCtrl"`) and versioned IDs,
+  // names (e.g. `const CTRL_NAME = "socAssistantMonitor130DevCtrl"`) and versioned IDs,
   // so without sweeping them too every bump silently reds the unit/e2e suite
   // until someone fixes them by hand. Sweep the sibling tests/ tree with the
   // identical idempotent rewrite. (During packaging `dir` is a tmp copy with
@@ -187,7 +187,7 @@ function widgetNameFromTitle(title: unknown): string {
 
 // Case-form variations of a widget name paired with their new counterparts.
 // Deduped by the source form so we never emit two rules for the same token.
-// `fsrPlaybookBuilder` yields the bare form plus `FsrPlaybookBuilder` (used by
+// `fortiaiAgenticAssistant` yields the bare form plus `FortiaiAgenticAssistant` (used by
 // the `edit<Name>` controller); both map to the equivalent new-name form.
 function nameVariationPairs(oldName: string, newName: string): Array<[string, string]> {
   const map = new Map<string, string>();

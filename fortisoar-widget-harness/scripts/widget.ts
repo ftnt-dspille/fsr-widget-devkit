@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Per-widget CLI: bump, pack, push to SOAR, verify on SOAR, ship (all four).
 //
-//   node scripts/widget.js ship fsrPlaybookBuilder --bump patch --alert <iri>
-//   node scripts/widget.js push fsrPlaybookBuilder --bump patch
-//   node scripts/widget.js verify-remote fsrPlaybookBuilder --alert <iri>
+//   node scripts/widget.js ship fortiaiAgenticAssistant --bump patch --alert <iri>
+//   node scripts/widget.js push fortiaiAgenticAssistant --bump patch
+//   node scripts/widget.js verify-remote fortiaiAgenticAssistant --alert <iri>
 //
 // Talks to the running harness on $HARNESS_URL (default http://localhost:14400)
 // for packaging + install -- the harness already implements that and owns the
@@ -116,8 +116,8 @@ const widgetsSrc = path.resolve(__dirname, "..", "widgets-src");
 // Local-widget resolution is lazy: commands that operate on a folder
 // (bump/pack/push/rename/lint/info/...) call resolveLocalWidget() to populate
 // these; folderless commands (list/remote-list/pull) skip it. The "id" arg can
-// be the folder name (e.g. "fsrPlaybookBuilder") or the slug-with-version
-// (e.g. "fsrPlaybookBuilder-1.0.10") -- any trailing version is stripped.
+// be the folder name (e.g. "fortiaiAgenticAssistant") or the slug-with-version
+// (e.g. "fortiaiAgenticAssistant-1.0.10") -- any trailing version is stripped.
 let folderName: string;
 let widgetDir: string;
 let info: InfoJson;
@@ -195,6 +195,14 @@ async function harnessAlive(): Promise<boolean> {
 function die(msg: string): never {
   console.error("error:", msg);
   process.exit(2);
+}
+
+// Claude Code sets CLAUDECODE=1 in every shell it spawns. Deploys are the user's
+// to run: refuse unless a human passes CONFIRM_DEPLOY=1. Same rule as the Makefile.
+function requireHuman(what: string): void {
+  if (process.env.CLAUDECODE && process.env.CONFIRM_DEPLOY !== "1") {
+    die(`${what}: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1`);
+  }
 }
 
 function ok(msg: string): void {
@@ -323,6 +331,7 @@ async function cmdPack(): Promise<void> {
 }
 
 async function cmdPush(): Promise<void> {
+  requireHuman("widget push");
   resolveLocalWidget();
   await ensureHarness();
   if (!FSR_HOST) die("FSR_BASE_URL not set in .env");
@@ -379,6 +388,7 @@ async function cmdVerifyRemote(): Promise<void> {
 }
 
 async function cmdShip(): Promise<void> {
+  requireHuman("widget ship");
   await cmdPush();
   // After push the version may have been bumped; verify-remote re-reads.
   await cmdVerifyRemote();

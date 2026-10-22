@@ -1,25 +1,36 @@
 #!/usr/bin/env bash
 #
-# clone-widgets.sh — populate widgets-src/ from widgets.manifest.
+# clone-widgets.sh - populate widgets-src/ from widgets.manifest.
 #
 # Each manifest entry is cloned into widgets-src/<name> as an INDEPENDENT repo
 # (not a submodule). Re-running is safe: an existing clone is fetched + fast-
 # forwarded to the manifest branch instead of re-cloned. A widget you've edited
 # (dirty working tree) is left untouched with a warning.
 #
+# widgets.local.manifest (gitignored, same format) holds private remote URLs.
+# Its entries replace the same-named entries in widgets.manifest.
+#
 # Usage:
-#   scripts/clone-widgets.sh                 # all manifest entries
-#   scripts/clone-widgets.sh fsrSocAssistant # just one
+#   scripts/clone-widgets.sh                          # all manifest entries
+#   scripts/clone-widgets.sh fortiaiAgenticAssistant  # just one
 #
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MANIFEST="$REPO_DIR/widgets.manifest"
+LOCAL_MANIFEST="$REPO_DIR/widgets.local.manifest"
 DEST_ROOT="$REPO_DIR/widgets-src"
 ONLY="${1:-}"
 
 [ -f "$MANIFEST" ] || { echo "ERROR: no widgets.manifest at $MANIFEST" >&2; exit 1; }
 mkdir -p "$DEST_ROOT"
+
+# Merge: local entries first, then the tracked manifest; the first entry seen
+# for a name wins. Comment and blank lines pass through (the loop skips them).
+MERGED="$(mktemp)"
+trap 'rm -f "$MERGED"' EXIT
+{ if [ -f "$LOCAL_MANIFEST" ]; then cat "$LOCAL_MANIFEST"; fi; cat "$MANIFEST"; } \
+  | awk '/^[[:space:]]*(#|$)/ { print; next } !seen[$1]++' > "$MERGED"
 
 say()  { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 ok()   { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
@@ -36,7 +47,7 @@ while read -r name url branch _rest; do
   dest="$DEST_ROOT/$name"
   if [ -d "$dest/.git" ]; then
     if [ -n "$(git -C "$dest" status --porcelain)" ]; then
-      warn "$name: local changes present — leaving as-is (commit/stash, then re-run)"
+      warn "$name: local changes present - leaving as-is (commit/stash, then re-run)"
       continue
     fi
     say "$name: updating ($url)"
@@ -58,7 +69,7 @@ while read -r name url branch _rest; do
     fi
     ok "$name cloned → widgets-src/$name"
   fi
-done < "$MANIFEST"
+done < "$MERGED"
 
 [ "$found" = 1 ] || { warn "no matching manifest entry${ONLY:+ for '$ONLY'}"; exit 1; }
 ok "widgets-src/ is up to date"

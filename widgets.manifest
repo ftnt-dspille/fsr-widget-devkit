@@ -1,7 +1,7 @@
-# widgets.manifest — which widget repos populate widgets-src/
+# widgets.manifest - which widget repos populate widgets-src/
 #
 # `make widgets` (or scripts/clone-widgets.sh) clones/updates each entry below
-# into widgets-src/<name>. These are PLAIN CLONES, not git submodules — each
+# into widgets-src/<name>. These are PLAIN CLONES, not git submodules - each
 # widget is its own independent repo with its own history; the dev kit just
 # discovers them under widgets-src/.
 #
@@ -11,12 +11,18 @@
 #   branch  optional; defaults to the remote's default branch
 #
 # Lines starting with # and blank lines are ignored. Access is whatever your
-# git credentials allow — private GitLab entries need your internal-lab auth.
+# git credentials allow.
+#
+# Private remotes: this repo is public, so lab-internal hosts are placeholders
+# (gitlab.example.invalid). Put the real URL for an entry in
+# widgets.local.manifest (gitignored, same format). clone-widgets.sh reads that
+# file first, and its entry replaces the same-named entry below.
 
-fsrSocAssistant     https://gitlab.example.invalid/dspille/fsrPlaybookBuilder-widget.git   feat/action-based-streaming
-widget-jinja-editor https://github.com/ftnt-dspille/widget-jinja-editor.git                                  main
-widget-action-renderer https://github.com/ftnt-dspille/widget-action-renderer.git                            master
-ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git                       main
+# SOC Assistant product widgets (the chat and the autonomy monitor).
+fortiaiAgenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-soc-assistant.git  master
+socAssistantMonitor     git@gitlab.example.invalid:your-group/widget-soc-assistant-monitor.git  master
 
-# Local-only widgets (no remote yet) — add a URL here once they're pushed:
+ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git          main
+
+# Local-only widgets (no remote yet) - add a URL here once they're pushed:
 # c3charts              <url>  master

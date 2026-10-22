@@ -916,6 +916,23 @@ way `socAssistantMonitor`'s `users()` caches on the `$scope.usage` reference.
 
 ---
 
+#### 7.6.3 Graph libraries (cytoscape) and a widget rebuilt mid-poll
+
+The platform can rebuild a View Panel widget (new controller, old scope
+`$destroy`ed) while the old controller still has an `$http` pass in flight,
+for example when the record updates under it. If that pass resolves and
+renders, it renders into whatever `document.getElementById(...)` finds now:
+the NEW widget's container. Cytoscape's constructor destroys any instance
+already registered on a container (`container._cyreg`), so the live widget's
+instance is silently killed and its next update throws
+`can't access property "notify", t is null` (null renderer) until the page
+is reopened. Two rules (`ztpAutomationGraph` does both):
+
+- Set a `torn` flag in `$destroy` and check it in every async continuation
+  (response handlers, deferred renders, poll scheduling).
+- Before touching a kept instance, check `cy.destroyed() || cy.container() !== container`
+  and rebuild if either is true.
+
 ## 8. Services catalog
 
 Platform services widget controllers can inject -- `FormEntityService`, `$state`, `$rootScope`, `websocketService`, `Query`, `Entity`, `Modules`, and the rest -- with inject names and usage notes.
@@ -2573,7 +2590,7 @@ the widget's own unit/e2e suite with a stale hardcoded controller name.
 
 ## 35. Releasing a widget (GitHub release flow)
 
-Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-json-to-grid`),
+Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-c3-charts`),
 with a single GitHub Actions workflow that publishes a downloadable `.tgz` on
 every version bump. The flow is **bump → commit → push to `develop`** -- nothing
 else. No manual tagging, no manual `gh release`.
@@ -2581,8 +2598,8 @@ else. No manual tagging, no manual `gh release`.
 ### 30.1 How to cut a release
 
 1. **Bump the version through the CLI/packager -- never hand-edit `info.json`.**
-   The controller name embeds the numeric version (`jsonToGrid131DevCtrl` →
-   `jsonToGrid132DevCtrl`); hand-editing desyncs it and trips the stale-version
+   The controller name embeds the numeric version (`c3Charts131DevCtrl` →
+   `c3Charts132DevCtrl`); hand-editing desyncs it and trips the stale-version
    lint. Use `widget bump <id> --bump patch`, or call the packager's
    `syncSourceToInfoJson(<widgetDir>, <name>, <newVersion>)` against the **inner
    `widget/` dir** (it joins `view.controller.js` etc. directly and sweeps the
@@ -2616,7 +2633,7 @@ with two assets:
   branch name (`git remote show origin` / `remotes/origin/HEAD`) before keying a
   workflow to it.
 
-The canonical example is `widget-json-to-grid/.github/workflows/release.yml`
+The canonical example was `widget-json-to-grid/.github/workflows/release.yml` (archived; the repo is still on GitHub)
 (`on: push: branches:[develop], paths:[widget/info.json]` + `workflow_dispatch`;
 detect version change → install → test → package + latest copy → tag → release).
 
@@ -2670,8 +2687,7 @@ handler, and any HTTP response including 5xx is still returned as-is.
 `public/index.html` falls back to `widgets[0]` when `localStorage['harness.widget']`
 is empty -- which it always is in a fresh Playwright context -- and
 `_widgetHarness.js`'s settle check accepts an error panel as terminal content
-(`if (!ctrl) return true`). So a lint-broken widget earlier in the list (today:
-`counter`, `edit-config-inject`) settles the mount and your spec times out
+(`if (!ctrl) return true`). So a lint-broken widget earlier in the list (for example one with an `edit-config-inject` lint error) settles the mount and your spec times out
 blaming your widget. Seed the selection before first paint:
 ```js
 await page.addInitScript(([id]) => {
@@ -2833,21 +2849,28 @@ pulses, but **cytoscape silently ignores `alternate`/`loop`** -- the animation r
 ONCE (e.g. border-width 5→10) and freezes at the end frame. Symptom: a "blinking
 current step" ring that grows once and never breathes (hit in `ztpAutomationGraph`).
 Drive a real loop by chaining grow→shrink on each animation's completion promise,
-with a stop flag so re-render / `$destroy` can halt it:
+with a **generation counter** (not a boolean) so re-render / `$destroy` can halt it:
 ```js
-var stopped = false, anims = [];
+var gen = 0, anims = [];
+function stopPulse() { gen++; anims.forEach(function (a) { a.stop(); }); anims = []; }
 function pulse(n) {
+  var mine = gen;
   function step(w, next) {
-    if (stopped) return;
+    if (mine !== gen) return;
     var a = n.animation({ style: { "border-width": w }, duration: 700, easing: "ease-in-out-sine" });
     anims.push(a);
-    a.play().promise("complete").then(function () { if (!stopped) next(); });
+    a.play().promise("complete").then(function () { if (mine === gen) next(); });
   }
   var grow = function () { step(12, shrink); }, shrink = function () { step(5, grow); };
   grow();
 }
-// stop: stopped = true; anims.forEach(a => a.stop()); anims = [];
 ```
+A shared `stopped` boolean is wrong: stop and restart run back to back on every
+poll, so the flag is already `false` again when an old loop's completion callback
+checks it, and the OLD node keeps pulsing too (ztpAutomationGraph: the heartbeat
+sat on a step that was no longer Running). Also, `animation.stop()` does NOT
+resolve `promise("complete")` and does NOT restore the style: the node keeps the
+last animated value as a **bypass** (see §32.4.3 item 3).
 
 ### 32.4.3 In-place poll re-render must update classes AND repaint mapped colors
 An in-place graph refresh (poll on the SAME topology, updating node status without
@@ -2864,8 +2887,22 @@ render (all "Added") while the queueStatus grid advanced:
    the live cytoscape build, so the ring keeps its old color. Force it with a
    direct per-element **bypass**, applied AFTER `cy.style().json(...)` so the sheet
    reset can't clear it: `node.style("border-color", nd.data.color)`.
-Also note: `deviceArtifact` (used to pick the run group) is read ONCE at init -- a
-poll reuses it, so it can't chase a brand-new run group without a re-read.
+3. **A stopped animation leaves its last frame as a bypass.** After
+   `a.stop()` the node keeps e.g. `border-width: 5.79px`, which outranks every
+   stylesheet rule, so the node that USED to be current kept a thick ring and read
+   as the live step. Clear it before restarting: `node.removeStyle("border-width")`.
+   Live-proven by an e2e that read 5.79 instead of 4 without the call.
+4. **Bypasses survive `cy.json({elements})`.** The topology-change path re-seeds
+   data via `cy.json`, but a node kept across it keeps any bypass from the previous
+   pass (old ring colour, frozen width). Apply the same per-node repaint (data +
+   classes + colour bypass + width reset) on EVERY update path, from one function
+   (`applyNodeState` in ztpAutomationGraph).
+5. **Sequence-guard overlapping refreshes.** A manual Refresh can start while a
+   poll is in flight; number each pass and drop any response that is not the
+   newest, or the older read can land last and repaint stale statuses.
+Also note: `FormEntityService.get()` is the page-load copy of the record and is
+never refetched, so anything a poll depends on (ztpAutomationGraph: the device's
+`ztpfArtifact` and `ztpfRunning`) must be re-read over `$http` on every pass.
 
 ### 32.5 CSS isn't auto-loaded -- inline it
 The harness auto-injects `widgetAssets/**/*.js` only, **not `.css`**. A
@@ -2916,13 +2953,40 @@ Also: crudhub rejects unknown query params as field filters -- `?_limit=` and
 Filter by the relation field instead: `?ztpfDevices=<deviceUuid>`. The
 related-collection path `/api/3/<parent>/<id>/<related>` also 400s.
 
+The opposite trap: that single-record route answers **every** module with the
+same `record.json`. A widget that GETs a second record by IRI (ztpAutomationGraph
+reads `/api/3/ztpf_run_groups/<uuid>`) silently gets the *device* fixture back,
+with no miss to warn you. `page.route` the second module explicitly
+(`ztpAutomationGraph.spec.js` serves `fixtures/api3/run_group.json`).
+
+A one-to-many's expanded copy on the child is shallow: the step's
+`ztpfRunGroups` carries `@id`/`name`/`ztpfRunning`, but its `status` picklist
+is a bare IRI string, not `{itemValue,color}`. To read the parent's picklists,
+fetch the parent record itself.
+
+Solution-pack picklists differ **per box**. `ztpfRunGroupsStatus` is
+New/Running/Reviewing/Complete/Fail on one 8.0 box and has Fail Detected and
+Abort Detected (no Fail) on another. Show the record's `itemValue` and `color`
+verbatim, and classify by shape (`/fail/i`) only for styling. Never map a
+hard-coded value list to labels (`ztpGraph.groupStatus`).
+
 ### 32.9 Stale embedded summary vs. canonical records
 A parent record's embedded relationship summary (e.g.
 `ztpf_devices.ztpfArtifact.steps[].ztpf_status`) is a **denormalized snapshot**
 -- it goes stale and won't reflect live state (observed: summary said `Pending`
 while the canonical record was `Failed` + `stepDone:true`). Always fetch the
-canonical child records (the real `queueStatus` on the full record) separately
-and poll THEM. Don't trust the embedded summary for anything that changes.
+canonical child records separately and poll THEM. Don't trust the embedded
+summary for anything that changes.
+
+**Pick the right field on the canonical record, too.** A ZTPf step carries two
+fields on the same picklist: `status` (what the step record shows) and
+`queueStatus` (queue position, which stops at Running when the step starts). Live
+on the ZTPF box 1013 of 1982 steps read `status: Complete` with `queueStatus:
+Running`. This KB used to name `queueStatus` as the status field, and
+ztpAutomationGraph drew every finished step as Running, cyan, with the heartbeat
+on step 1; its live sweep graded against the same field and passed. When two
+fields could be "the status", compare them across the whole module before
+choosing, and grade the sweep against the field the record page displays.
 
 ### 32.10 TypeScript for widget logic (max typing, build-enforced)
 Two layers, both build-honored:

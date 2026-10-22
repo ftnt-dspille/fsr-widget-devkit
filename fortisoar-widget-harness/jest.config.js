@@ -39,8 +39,8 @@ function testableWidgets() {
 //
 // Widget projects are OPT-IN, never an implicit cross-widget sweep:
 //   WIDGET unset                 -> harness only (the default)
-//   WIDGET=fsrPlaybookBuilder    -> harness + that widget
-//   WIDGET=c3charts,funnelchart  -> harness + those widgets (comma list)
+//   WIDGET=fortiaiAgenticAssistant    -> harness + that widget
+//   WIDGET=c3charts,ztpAutomationGraph  -> harness + those widgets (comma list)
 //   WIDGET=all                   -> harness + every widget with a tests/ dir
 // The Makefile forwards `make test-unit WIDGET=...` into this env var.
 const WIDGET_FILTER = (process.env.WIDGET || "").trim();
@@ -148,6 +148,9 @@ const PROJECTS = [
 ];
 
 module.exports = {
+  // Under Claude Code (CLAUDECODE set) the run refuses to start unless a make
+  // target set VIA_MAKE=1. Runs once, before any test (TESTING.md, Guardrails).
+  globalSetup: "<rootDir>/scripts/jest-via-make.js",
   // A suite that collects nothing must not look like a suite that passes
   // (PLAN_testing_that_can_fail 0.2). `passWithNoTests: false` is Jest's
   // default, but it only guards the run as a WHOLE -- with `projects`, one

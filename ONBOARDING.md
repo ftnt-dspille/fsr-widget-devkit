@@ -91,9 +91,7 @@ versioned independently. Pin these together when you cut a release.
 |--------|---------|-----------|----------|-------|
 | `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.74 | `connector-fsr-soc-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
 | `socAssistantMonitor` | 1.0.18 | `connector-fsr-soc-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
-| `widget-jinja-editor` (`jinjaEditorWidget`) | 1.2.2 | none | n/a | standalone Monaco/Jinja editor |
 | `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
-| `widget-action-renderer` (`actionRendererWidget`) | 1.0.9 | none | n/a | playbook action renderer |
 
 The connector pins the framework: `connector-fsr-soc-assistant/requirements.txt`
 is the **single source of truth** for `fsr-playbooks` (currently `0.6.16`) -- the

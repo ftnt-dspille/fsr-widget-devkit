@@ -33,6 +33,16 @@ const BENIGN_CONSOLE_PATTERNS = [
   // Pre-existing vendor bug, no functional impact (later module use
   // re-fetches metadata). Don't suppress similar errors from our own code.
   /Cannot read properties of undefined \(reading 'forEach'\).*app\.unmin\.js/s,
+  // SOAR vendor app.unmin.js's field/picklist processing loops (an
+  // Array.forEach over attributes during a $digest) creates a $q deferred and
+  // rejects it synchronously with an `undefined` reason, never attaching an
+  // error handler. AngularJS reports it as "Possibly unhandled rejection:
+  // undefined". Triggered when a widget's edit modal applies a config change
+  // that re-processes module fields (e.g. c3charts "apply example"). Traced to
+  // app.unmin.js via $q defer-tracking -- no network involved, purely platform
+  // code, NOT the widget's own. Pre-existing vendor bug, no functional impact.
+  // Same class as the modelMetadatasService forEach pattern above.
+  /Possibly unhandled rejection: undefined/i,
   // Browser auto-logs "Failed to load resource" for any 4xx/5xx response.
   // Tests that intentionally route an endpoint to 500/404 to exercise an
   // error path will trip this; the in-code error handling is what's being
@@ -54,10 +64,10 @@ const BENIGN_CONSOLE_PATTERNS = [
   // MAJOR mismatch") -- that IS the behavior under test. The tests verify the
   // banner/error-state via DOM assertions, not console output.
   /\[fortiaiAgenticAssistant\].*contract.*mismatch/i,
-  // The jinja-editor's HTML output preview renders into a `sandbox=""` iframe
+  // A widget's HTML output preview renders into a `sandbox=""` iframe
   // (no allow-scripts) precisely so any <script> in rendered output can't
   // execute. Chrome logs that block as a console error -- it's the sandbox
-  // doing its job, not a bug. See harness.spec.js "HTML output ... sandboxed iframe".
+  // doing its job, not a bug.
   /Blocked script execution in '(about:blank|about:srcdoc)' because the document's frame is sandboxed/i,
 ];
 
