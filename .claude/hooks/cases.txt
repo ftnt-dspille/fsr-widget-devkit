@@ -27,12 +27,32 @@ allow make test-e2e-spec SPEC=tests/e2e/a.spec.js
 allow grep jest tests/foo
 allow /usr/bin/grep -rn playwright docs
 
-# advisory: deploy and release make targets
+# advisory: deploy and release make targets.
+# No mode= means not-manual (auto/none) -> always hard-deny:
 deny make release WIDGET=x BUMP=patch
 deny make release-ship
 deny make push ENV=.env.159
 deny cd x && make widget-push WIDGET=y SHIP_ENV=.env.159
 deny ENV=.env.206 make ship-verify WIDGET=y
+# Manual mode (permission_mode=default) during the temporary window: `ask`
+# (the human approves); after DEPLOY_ASK_UNTIL these flip to deny automatically.
+# `win` = ask if in window else deny, computed by test-hook.sh from today's date:
+win CONFIRM_DEPLOY=1 make release-ship WIDGET=y
+win make ship-verify WIDGET=y
+win make widget-push WIDGET=y SHIP_ENV=.env.159
+win make push ENV=.env.159
+# Non-manual modes still hard-deny inside the window:
+deny mode=auto make ship-verify WIDGET=y
+deny mode=acceptEdits make release-ship
+deny mode=bypassPermissions make push ENV=.env.159
+# Hard denies are mode-independent (never ask), even in manual mode -- and a
+# hard-deny segment still wins inside a compound with a deploy target:
+deny mode=default jest
+deny mode=default git stash
+deny mode=default make release-ship && git stash
+# A compound of two deploy targets asks in the window (the prompt shows the full
+# command for the human to approve); after the window it denies:
+win make release-ship && make push
 allow make help | grep push
 allow ENV=.env.206 make test-live-sweep
 allow make doctor LOCAL=1

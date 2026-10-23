@@ -41,6 +41,18 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null
 [ -n "$cmd" ] || exit 0
 
 DENY=""
+DEPLOY_TARGET=""   # set to a make deploy/release target name when one is seen
+mode="$(printf '%s' "$payload" | jq -r '.permission_mode // empty' 2>/dev/null)"
+
+# TEMPORARY, SELF-EXPIRING deploy relaxation (requested 2026-10-23, for 3 days).
+# Until DEPLOY_ASK_UNTIL, a make deploy/release target is handed to the human's
+# permission prompt ("ask") IN MANUAL MODE ONLY (permission_mode == default);
+# auto, acceptEdits, bypass, plan and any missing/unknown mode still hard-deny,
+# so unattended agents can never deploy. On/after the date the window lapses and
+# every deploy target hard-denies again with no code change -- it reverts itself.
+# The Makefile deploy-guard (CONFIRM_DEPLOY=1) is unchanged and still applies.
+DEPLOY_ASK_UNTIL="2026-10-26"
+today="$(date +%Y-%m-%d)"
 
 # Git: the first word whose basename is git, then its subcommand after global options.
 check_git() {
@@ -100,7 +112,9 @@ check_tools() {
       for ((j = i + 1; j < n; j++)); do
         case "${w[$j]}" in
           release|release-*|push|push-*|widget-push|ship-verify)
-            DENY="advisory: CLAUDE.md: make ${w[$j]} is a deploy or release, the user's to run. The Makefile refuses it under Claude Code."
+            # Deferred: the temporary manual-mode window at the end decides
+            # ask-vs-deny. Outside the window this is a hard deny as before.
+            DEPLOY_TARGET="${w[$j]}"
             return 0 ;;
         esac
       done ;;
@@ -113,4 +127,16 @@ while IFS= read -r seg; do
 done <<< "$(printf '%s\n' "$cmd" | tr '|;&(){}`' '\n')"
 
 [ -z "$DENY" ] || deny "$DENY"
+
+# A make deploy/release target: ask the human IN MANUAL MODE during the temporary
+# window; hard-deny in every other mode, and everywhere once the window lapses.
+if [ -n "$DEPLOY_TARGET" ]; then
+  msg="advisory: CLAUDE.md: make $DEPLOY_TARGET is a deploy or release, the user's to run. The Makefile refuses it under Claude Code."
+  if [ "$mode" = default ] && [ "$today" \< "$DEPLOY_ASK_UNTIL" -o "$today" = "$DEPLOY_ASK_UNTIL" ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":%s}}\n' \
+      "$(printf '%s' "Manual mode (temporary window to $DEPLOY_ASK_UNTIL): approve this deploy/release yourself. CONFIRM_DEPLOY=1 is still required." | jq -R -s '.')"
+    exit 0
+  fi
+  deny "$msg"
+fi
 exit 0
