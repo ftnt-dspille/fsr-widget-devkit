@@ -16,7 +16,7 @@ const GUARD_MSG = /deploys\/releases are the user's to run; a human can override
 
 function run(cmd, args, { env = {}, cwd = REPO } = {}) {
   const base = { ...process.env };
-  for (const k of ["CLAUDECODE", "CONFIRM_DEPLOY", "VIA_MAKE", "VIA_LOOP", "DRY_RUN", "ENV"]) delete base[k];
+  for (const k of ["CLAUDECODE", "CONFIRM_DEPLOY", "VIA_MAKE", "VIA_LOOP", "VIA_WIDGET_PUSH", "DRY_RUN", "ENV"]) delete base[k];
   const r = spawnSync(cmd, args, { cwd, env: { ...base, ...env }, encoding: "utf8", timeout: 30000 });
   return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}` };
 }
@@ -50,6 +50,35 @@ describe("make loop's widget step is not refused", () => {
     });
     expect(r.out).not.toMatch(GUARD_MSG);
     expect(r.out).toMatch(/unknown flag/);
+  });
+});
+
+describe("make widget-push's box-only push is not refused", () => {
+  // make widget-push exports VIA_WIDGET_PUSH=1 and calls ship.sh -> widget.js push.
+  // Box-only (REST to a box, no GitHub/PyPI), so agents own it (CLAUDE.md). Each
+  // probe carries a harmless target so nothing reaches a box even past the guard.
+  test("ship.sh under CLAUDECODE with VIA_WIDGET_PUSH=1 gets past the guard", () => {
+    const r = run("bash", [path.join(HARNESS, "scripts/ship.sh"), "--bogus-flag"], {
+      env: { CLAUDECODE: "1", VIA_WIDGET_PUSH: "1" },
+    });
+    expect(r.out).not.toMatch(GUARD_MSG);
+    expect(r.out).toMatch(/unknown flag/);
+  });
+
+  test.each([["VIA_WIDGET_PUSH"], ["VIA_LOOP"]])(
+    "widget.js push under CLAUDECODE with %s=1 gets past requireHuman", (marker) => {
+      const r = run("node", [path.join(HARNESS, "scripts/widget.js"), "push", "noSuchWidget"], {
+        env: { CLAUDECODE: "1", [marker]: "1" },
+      });
+      expect(r.out).not.toMatch(GUARD_MSG);
+    });
+
+  test("widget.js ship is NOT exempted by the box-only markers (release path)", () => {
+    const r = run("node", [path.join(HARNESS, "scripts/widget.js"), "ship", "noSuchWidget"], {
+      env: { CLAUDECODE: "1", VIA_WIDGET_PUSH: "1", VIA_LOOP: "1" },
+    });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(GUARD_MSG);
   });
 });
 

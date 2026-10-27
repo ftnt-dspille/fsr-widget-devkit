@@ -199,7 +199,12 @@ function die(msg: string): never {
 
 // Claude Code sets CLAUDECODE=1 in every shell it spawns. Deploys are the user's
 // to run: refuse unless a human passes CONFIRM_DEPLOY=1. Same rule as the Makefile.
-function requireHuman(what: string): void {
+// A box-only dev push (widget push via `make widget-push` or `make loop`) reaches
+// only a box over REST -- no GitHub, no PyPI -- so agents own it (CLAUDE.md). Those
+// callers set VIA_WIDGET_PUSH / VIA_LOOP and pass boxOnly=true; a release path
+// (widget ship) passes boxOnly=false and stays the user's.
+function requireHuman(what: string, boxOnly = false): void {
+  if (boxOnly && (process.env.VIA_LOOP || process.env.VIA_WIDGET_PUSH)) return;
   if (process.env.CLAUDECODE && process.env.CONFIRM_DEPLOY !== "1") {
     die(`${what}: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1`);
   }
@@ -331,7 +336,7 @@ async function cmdPack(): Promise<void> {
 }
 
 async function cmdPush(): Promise<void> {
-  requireHuman("widget push");
+  requireHuman("widget push", true);
   resolveLocalWidget();
   await ensureHarness();
   if (!FSR_HOST) die("FSR_BASE_URL not set in .env");

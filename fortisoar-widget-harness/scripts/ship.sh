@@ -25,11 +25,17 @@
 #   scripts/ship.sh --restart            # just (re)start the harness, no push
 set -euo pipefail
 
-# Claude Code sets CLAUDECODE=1 in every shell it spawns. Deploys and releases
-# are the user's to run: refuse unless a human passes CONFIRM_DEPLOY=1. make loop
-# sets VIA_LOOP=1 for its widget step (the dev iteration, not a deploy).
-if [ -n "${CLAUDECODE:-}" ] && [ -z "${VIA_LOOP:-}" ] && [ "${CONFIRM_DEPLOY:-}" != 1 ]; then
+# Claude Code sets CLAUDECODE=1 in every shell it spawns. This script only ever
+# pushes a widget to a box over REST -- no GitHub, no PyPI, nothing permanent --
+# so a box-only dev push is agent-allowed, matching CLAUDE.md ("agents own
+# direct-to-box work; PyPI release stays the user's"). Two box-only callers set
+# their marker: `make loop` (VIA_LOOP) and `make widget-push` (VIA_WIDGET_PUSH).
+# A bare human-less invocation outside those is still refused unless a human
+# passes CONFIRM_DEPLOY=1.
+if [ -n "${CLAUDECODE:-}" ] && [ -z "${VIA_LOOP:-}" ] && [ -z "${VIA_WIDGET_PUSH:-}" ] \
+   && [ "${CONFIRM_DEPLOY:-}" != 1 ]; then
   echo "ship.sh: deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2
+  echo "   (box-only dev push: run it via 'make widget-push' or 'make loop', both agent-allowed)" >&2
   exit 2
 fi
 

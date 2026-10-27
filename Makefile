@@ -34,9 +34,12 @@ deploy-guard:
 #    doctor, session-health and the other non-runner targets.
 test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-designer-stage-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
 
-# 3. make loop is the agent's dev iteration, so it is not guarded. Its widget step
-#    runs scripts/ship.sh (connector loop.sh), so loop exports VIA_LOOP=1 and the
-#    ship.sh header check accepts that one call. Nothing else reads it.
+# 3. Box-only dev deploys are the agent's iteration (CLAUDE.md: agents own
+#    direct-to-box work; only the GitHub/PyPI release path -- release, push,
+#    ship-verify -- stays the user's). make loop and make widget-push both just
+#    push a widget to a box over REST, so each exports its own marker that the
+#    ship.sh header check accepts: VIA_LOOP (loop) and VIA_WIDGET_PUSH
+#    (widget-push). Nothing else reads them.
 loop: export VIA_LOOP := 1
 
 help:
@@ -195,7 +198,8 @@ ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck
 	@echo "▶ 6/6 live-sweep ($(SHIP_ENV) → the box just deployed to)"
 	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) SWEEP_ENV=$(call env_file,$(SHIP_ENV)) bash scripts/ship-verify-sweep.sh
 
-widget-push: deploy-guard harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
+widget-push: export VIA_WIDGET_PUSH := 1
+widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). Box-only, agent-allowed (no CONFIRM_DEPLOY). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> SHIP_ENV=.env.<box> [BUMP=patch]"; exit 2; fi
 	@if [ "$(origin SHIP_ENV)" != "command line" ]; then echo "widget-push: pass SHIP_ENV=.env.<box> explicitly (no silent default box)"; exit 2; fi
 	@cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)

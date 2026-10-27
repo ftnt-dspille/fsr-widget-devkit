@@ -10,7 +10,9 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const REPO = path.resolve(__dirname, "..", "..");
-const PROTECTED = ["release", "push", "widget-push", "ship-verify"];
+// The GitHub/PyPI release path -- the user's to run. Box-only dev deploys
+// (widget-push, loop) are agent-allowed and are asserted separately below.
+const PROTECTED = ["release", "push", "ship-verify"];
 // Every target that drives a jest or Playwright run. Keep in step with the
 // "Effect-level guards" block at the top of the Makefile.
 const RUNNERS = [
@@ -75,6 +77,34 @@ describe("runner marks and unguarded targets", () => {
     expect(mk).toMatch(/^loop: export VIA_LOOP := 1$/m);
     const rule = mk.split("\n").find((l) => /^loop:/.test(l));
     expect(rule).not.toMatch(/deploy-guard/);
+  });
+
+  test("widget-push is box-only, agent-allowed: marked VIA_WIDGET_PUSH, not deploy-guarded, runs under CLAUDECODE", () => {
+    const mk = fs.readFileSync(path.join(REPO, "Makefile"), "utf8");
+    expect(mk).toMatch(/^widget-push: export VIA_WIDGET_PUSH := 1$/m);
+    // The recipe rule (the line with a prerequisite other than the export) must
+    // not depend on deploy-guard.
+    const rule = mk.split("\n").find(
+      (l) => /^widget-push:/.test(l) && !/export VIA_WIDGET_PUSH/.test(l));
+    expect(rule).toBeDefined();
+    expect(rule).not.toMatch(/deploy-guard/);
+    // And a plan under CLAUDECODE is not refused (no CONFIRM_DEPLOY needed).
+    const r = make(["-n", "widget-push", "WIDGET=x", "SHIP_ENV=.env.x"], { CLAUDECODE: "1" });
+    expect(r.out).not.toMatch(GUARD_MSG);
+  });
+
+  test("ship.sh accepts the box-only markers and refuses a bare agent push", () => {
+    const sh = fs.readFileSync(
+      path.join(REPO, "fortisoar-widget-harness", "scripts", "ship.sh"), "utf8");
+    expect(sh).toMatch(/VIA_LOOP/);
+    expect(sh).toMatch(/VIA_WIDGET_PUSH/);
+    // The guard still bites a CLAUDECODE invocation carrying neither marker.
+    const r = spawnSync("bash", [path.join(REPO, "fortisoar-widget-harness", "scripts", "ship.sh"),
+                                  "--bogus-flag"],
+      { cwd: REPO, env: { ...process.env, CLAUDECODE: "1", VIA_LOOP: "", VIA_WIDGET_PUSH: "",
+                          CONFIRM_DEPLOY: "" }, encoding: "utf8", timeout: 20000 });
+    expect(r.status).toBe(2);
+    expect(`${r.stdout || ""}${r.stderr || ""}`).toMatch(GUARD_MSG);
   });
 
   test("test targets are not deploy-guarded under CLAUDECODE", () => {
