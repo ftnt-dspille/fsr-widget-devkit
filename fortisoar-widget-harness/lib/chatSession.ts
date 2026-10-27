@@ -68,6 +68,21 @@ export const COMPOSER =
 /** The widget's "+ New" control -- `newConversation()` in view.html. */
 export const NEW_CONVERSATION = '[data-testid="new-conversation"]';
 
+/**
+ * The selector `respondApprovals` clicks for a decision. Two staged-mutation
+ * routes reach the gate and both must be answered, or a staged isolate/block
+ * action card is left un-executed and the arc never finishes unattended:
+ *   - the approval_request card: `approval-approve` / `approval-reject`
+ *   - an action card's buttons: `action-confirm-<id>` / `action-cancel-<id>`
+ * Exported so the decision->selector mapping is unit-testable without a browser.
+ */
+export function approvalDecisionSelector(decision: string): string {
+  const actionSel = decision === "reject"
+    ? '[data-testid^="action-cancel-"]'
+    : '[data-testid^="action-confirm-"]';
+  return `[data-testid="approval-${decision}"], ${actionSel}`;
+}
+
 export interface Poll {
   since: number | undefined;
   turn: unknown;
@@ -348,15 +363,10 @@ export function makeChatSession({
       decision = "approve", timeoutMs = 120000, pollEveryMs = 3000,
       appearMs = 15000, maxRounds = 3,
     }: ApprovalOpts = {}): Promise<ApprovalResult> {
-      // Two staged-mutation routes reach this gate: an approval_request card
-      // (`approval-approve`/`approval-reject`) and an action card's
-      // "Confirm & Execute"/"Cancel" (`action-confirm-<id>`/`action-cancel-<id>`).
-      // A driver that clicked only the approval gate left a staged isolate/block
-      // card un-executed, so the arc could never finish unattended. Match both.
-      const actionSel = decision === "reject"
-        ? '[data-testid^="action-cancel-"]'
-        : '[data-testid^="action-confirm-"]';
-      const sel = `[data-testid="approval-${decision}"], ${actionSel}`;
+      // Answer BOTH the approval gate and a staged action card (see
+      // approvalDecisionSelector); clicking only the approval gate left an
+      // isolate/block card un-executed and the arc could never finish.
+      const sel = approvalDecisionSelector(decision);
       const startedAt = feed.polls.length;
       let approved = 0;
       let done = false;
