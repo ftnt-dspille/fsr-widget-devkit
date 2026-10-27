@@ -37,10 +37,15 @@ investigation into a playbook. The widget is the window; the connector is the en
 
 ## Git and shipping
 
-- **The user releases and pushes.** Agents commit locally on a branch and never push
-  `main`. Never run `make release-ship`, and never run a deploy target unless the
-  user asked for it. The Makefile and the deploy scripts refuse these under Claude
-  Code (`CONFIRM_DEPLOY=1` overrides for a human); see `TESTING.md`, Guardrails.
+- **The user owns PyPI releases; agents own direct-to-box work.** Agents commit
+  locally on a branch and never push `main`. Agents MAY push code to a SOAR box
+  for live testing without asking -- `make deploy` (box-only connector install),
+  `make dev-push`, `make ship-dev`, `make loop` -- these are fast and nothing
+  they do is permanent. What stays the user's is a **PyPI framework release**
+  (`make deploy FW=next|X.Y.Z`): it waits on GitHub CI, publishes a permanent
+  public wheel, and is slow, so an agent triggers it only with `CONFIRM_DEPLOY=1`
+  when the user asked. The connector deploy scripts enforce exactly this split;
+  see `TESTING.md`, Guardrails.
 - Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
   WIDGET=<name> SHIP_ENV=.env.<box>` (lint + unit + deploy, ~1-2 min; `SHIP_ENV`
