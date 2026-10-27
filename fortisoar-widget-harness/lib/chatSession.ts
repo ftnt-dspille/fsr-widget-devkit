@@ -348,7 +348,15 @@ export function makeChatSession({
       decision = "approve", timeoutMs = 120000, pollEveryMs = 3000,
       appearMs = 15000, maxRounds = 3,
     }: ApprovalOpts = {}): Promise<ApprovalResult> {
-      const sel = `[data-testid="approval-${decision}"]`;
+      // Two staged-mutation routes reach this gate: an approval_request card
+      // (`approval-approve`/`approval-reject`) and an action card's
+      // "Confirm & Execute"/"Cancel" (`action-confirm-<id>`/`action-cancel-<id>`).
+      // A driver that clicked only the approval gate left a staged isolate/block
+      // card un-executed, so the arc could never finish unattended. Match both.
+      const actionSel = decision === "reject"
+        ? '[data-testid^="action-cancel-"]'
+        : '[data-testid^="action-confirm-"]';
+      const sel = `[data-testid="approval-${decision}"], ${actionSel}`;
       const startedAt = feed.polls.length;
       let approved = 0;
       let done = false;
