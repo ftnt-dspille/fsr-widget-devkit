@@ -173,7 +173,22 @@ SWEEP_ENV ?= $(ENV)
 # (.env.206) is harness-relative; an absolute path is used as-is.
 env_file = $(if $(filter /%,$(1)),$(1),$(abspath $(HARNESS)/$(1)))
 
+# A target that reaches a box must be TOLD which one. The `ENV ?= .env.159` above
+# only lets offline/mock targets parse; it is never a deploy target. The one
+# registry is the connector repo's scripts/boxes.tsv, resolved by its
+# scripts/resolve_box.sh (no default box; a mismatched pair is refused).
+# Explicit means BOX=<name>, or SHIP_ENV / SWEEP_ENV / ENV given on the command
+# line or in the environment.
+_EXPL_ENV := $(firstword $(foreach v,SHIP_ENV SWEEP_ENV ENV,$(if $(filter command line environment,$(origin $(v))),$($(v)))))
+_EXPL_SSH := $(if $(filter command line environment,$(origin SSH_HOST)),$(SSH_HOST))
+define require_box
+@BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env
+endef
+# What to forward to the connector repo's make: only what was explicitly given.
+_FWD_BOX = $(if $(BOX),BOX=$(BOX),) $(if $(_EXPL_ENV),ENV=$(call env_file,$(_EXPL_ENV)),) $(if $(_EXPL_SSH),SSH_HOST=$(_EXPL_SSH),)
+
 ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
+	$(require_box)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	@if { [ "$(origin SWEEP_ENV)" = "command line" ] || [ "$(origin SWEEP_ENV)" = "environment" ]; } && [ "$(call env_file,$(SWEEP_ENV))" != "$(call env_file,$(SHIP_ENV))" ]; then echo "ship-verify: SWEEP_ENV=$(SWEEP_ENV) names a different box than SHIP_ENV=$(SHIP_ENV) (deploy). A green run must grade the box it deployed to: drop SWEEP_ENV or make it match."; exit 2; fi
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
@@ -209,7 +224,8 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV) (dev path: NOT e2e/live-verified; use ship-verify for a release)"
 
 push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. ENV=.env.<box> SSH_HOST=<box> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
-	@ENV="$(ENV)" SSH_HOST="$(SSH_HOST)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
+	$(require_box)
+	@BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
 	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
 
 release: deploy-guard harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
@@ -220,13 +236,16 @@ release: deploy-guard harness-build ## GitHub release for one widget: bump info.
 # Python venv with pyfsr); these forward so either repo is a fine place to type them.
 CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
 loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees to the box -> ~35s live smoke (see conn_main scripts/loop.sh)
-	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop ENV=$(call env_file,$(SWEEP_ENV))
+	$(require_box)
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop $(_FWD_BOX)
 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict)
-	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor ENV=$(call env_file,$(SWEEP_ENV))
+	$(if $(LOCAL),,$(require_box))
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
-	@$(MAKE) --no-print-directory -C $(CONN_REPO) session-health ENV=$(call env_file,$(SWEEP_ENV)) \
+	$(if $(filter local,$(SOURCE)),,$(require_box))
+	@$(MAKE) --no-print-directory -C $(CONN_REPO) session-health $(_FWD_BOX) \
 	  $(if $(LIMIT),LIMIT=$(LIMIT),) $(if $(OUT),OUT=$(abspath $(OUT)),) $(if $(SOURCE),SOURCE=$(SOURCE),)
 
 # Derive the sweep spec from the widget name instead of hardcoding it. The old
@@ -261,6 +280,7 @@ test-mcp-surface-live: harness-build ## LIVE M2 widget-tier proof: the mounted p
 SWEEP_GREP = $(if $(ROWS),--grep "(^| )($(subst $(COMMA),|,$(ROWS)))[a-z]? ",)
 COMMA := ,
 test-live-sweep: harness-build ## LIVE forticloud UI bug-hunt sweep (real connector). RUNS=<n> repeats, ROWS=2,3 for a subset. Prints [[SWEEP-VERIFIED]]/[[SWEEP-PARTIAL]]/[[SWEEP-ENV-SKIP]]/[[SWEEP-FAIL]]; exits 0 only when verified.
+	$(require_box)
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
 	@# A hard-down box makes the spec's beforeAll print [[SWEEP-ENV-SKIP]] and
 	@# skip every scenario. Playwright exits 0 on all-skipped, so without this

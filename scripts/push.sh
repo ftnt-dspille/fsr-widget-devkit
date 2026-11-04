@@ -39,8 +39,14 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # fsr_all_widgets
 HARNESS="$ROOT/fortisoar-widget-harness"
 CONN_REPO="${CONN_REPO:-$HOME/PycharmProjects/ConnectorsV2/conn_main}"
-SSH_HOST="${SSH_HOST:-fsr159}"
-ENV="${ENV:-.env.159}"
+# No default box: BOX=<name> or an explicit ENV/SSH_HOST naming a REGISTERED pair
+# (the connector repo's scripts/boxes.tsv, resolved by scripts/resolve_box.sh).
+# A missing half or a mismatched pair stops here, before anything is pushed.
+SSH_HOST="${SSH_HOST:-}"
+ENV="${ENV:-}"
+# shellcheck source=/dev/null
+source "$CONN_REPO/scripts/resolve_box.sh"
+HARNESS_DIR="$HARNESS" resolve_box env,ssh || exit 2
 # ENV may be a bare name (.env.159) or a path; resolve to an absolute file under
 # the harness, and keep the basename for the widget ship step.
 case "$ENV" in
