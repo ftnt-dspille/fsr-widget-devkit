@@ -3,7 +3,7 @@
 #
 # Merge a feature branch into LOCAL main only after live confirmation: a
 # VERIFIED, clean live-sanity stamp for the branch head sha (written by
-# `make live-sanity`):
+# a push target, or `make doctor BOX=<box> SANITY=1 STAMP=<repo dir>`):
 #
 #   ${FSR_LIVE_SANITY_DIR:-~/.cache/fsr-live-sanity}/<repo>/<sha>.json
 #   { repo, path, branch, sha, dirty, box, verdict, checks, timestamp }
@@ -32,7 +32,7 @@ REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; MAIN="${MAIN_BRANCH:-main}"
 command -v jq >/dev/null || die "jq is required"
 
 if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ -n "${CLAUDECODE:-}" ]; then
-  die "ALLOW_UNVERIFIED=1 is a human-only override; refused under Claude Code. Run make live-sanity on a box first."
+  die "ALLOW_UNVERIFIED=1 is a human-only override; refused under Claude Code. Run make doctor BOX=<box> SANITY=1 STAMP=<repo dir> first."
 fi
 
 g() { git -C "$REPO" "$@"; }
@@ -71,7 +71,7 @@ if [ -z "$proof" ]; then
   if [ "${ALLOW_UNVERIFIED:-}" = 1 ]; then
     echo "promote: WARNING no live proof ($why); ALLOW_UNVERIFIED=1 given by a human." >&2
   else
-    die "refusing: $why. Run make live-sanity BOX=<box> with $BRANCH checked out clean at $head, then retry."
+    die "refusing: $why. Run a push target (widget-push / deploy / ship-dev) or make doctor BOX=<box> SANITY=1 STAMP=<repo dir> with $BRANCH checked out clean at $head, then retry."
   fi
 fi
 

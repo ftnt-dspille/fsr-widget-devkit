@@ -250,10 +250,10 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 	$(require_box)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop $(_FWD_BOX)
 
-doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing)
+doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)
 	$(if $(LOCAL),,$(require_box))
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
-	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS= bash scripts/live-sanity.sh),true)
+	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/live-sanity.sh),true)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
 	$(if $(filter local,$(SOURCE)),,$(require_box))
