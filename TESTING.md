@@ -64,7 +64,7 @@ and `widget-inspect` against the local dev server.
 | Target | Reaches the box when | Box selector |
 |---|---|---|
 | `make push` | always: deploys the connector, framework and changed widgets | `ENV=` and `SSH_HOST=` |
-| `make widget-push` | always: deploys one widget | `SHIP_ENV=` (required explicitly) |
+| `make widget-push` | always: deploys one widget, then live sanity scoped to it | `SHIP_ENV=` (required explicitly) |
 | `make ship-verify` | always: deploys, then live-sweeps the same box | `ENV=` or `SHIP_ENV=` |
 | `make test-live-sweep` | always: the live sweep | `ENV=` or `SWEEP_ENV=` |
 | `make test-mcp-surface-live` | always | `SWEEP_ENV=` |
@@ -74,9 +74,52 @@ and `widget-inspect` against the local dev server.
 | `make test-designer-apply-live` | always (docubot); pushes, saves and deletes a run-tagged scratch playbook | `BOX=` (or `ENV=`/`LIVE_ENV=`; no default) |
 | `make introspect-soar` | always: renders the deployed widget against the baseline | `ENV=` |
 | `make loop` | copies working trees to the box, then a live smoke | `ENV=` (forwarded to the connector repo) |
-| `make doctor` | reads the box (`LOCAL=1` skips it) | `ENV=` |
+| `make doctor` | reads the box (`LOCAL=1` skips it); `SANITY=1` adds the live sanity pass | `ENV=` or `BOX=` |
 | `make session-health` | reads box sessions (`SOURCE=local` skips it) | `ENV=` |
 | `make test-e2e-spec` | only with `E2E_LIVE=1` (live wire, `&real=1`) | `E2E_LIVE=1` |
+
+## Live sanity (every dev push)
+
+A ~40-90s live pass that runs at the end of every push path: `make widget-push`
+here, and the connector repo's `make deploy` / `make ship` / `make loop` /
+`make ship-dev` (its `scripts/live_sanity_hook.sh`). To re-check a box without
+pushing: `make doctor BOX=<name> SANITY=1` (there is no separate target).
+`SKIP_LIVE_SANITY=1` opts out and prints a loud "live sanity NOT run" line.
+
+One implementation: `scripts/live-sanity.sh` (box via `resolve_box.sh`, no
+default box) runs `fortisoar-widget-harness/scripts/live-sanity/run.js`. Checks
+are a registry in `checks.js` (one entry each; lanes run in parallel):
+
+| Check | Proves |
+|---|---|
+| `box_login` | login works, the connector is installed, a config is marked default |
+| `connector_health` | `health_check` on that config: LLM reachable, reference DB present |
+| `workers` | every worker on the installed version (`verify_workers.py`) |
+| `chat_turn` | ONE real turn on the default config: a tool reads the newest alert and the answer quotes its name (connector `sanity_record_lookup`) |
+| `widget_versions` | each widget in scope is installed at its local `info.json` version |
+| `assistant_mount` | headless: the assistant drawer mounts on an alert, no console error attributable to the widget |
+| `monitor_loads` | headless: the Monitor renders on a throwaway dashboard (deleted after), no widget console error |
+| `designer_stage` | no LLM: an edit stages into the real designer, nothing written (`designerStage.live.test.js`) |
+| `designer_apply` | joins automatically once `test-designer-apply-live` is in the Makefile |
+
+Verdict: `[[LIVE-SANITY-VERIFIED]]` all passed; `PARTIAL` no failure but a check
+was skipped (listed under NOT RUN with the reason; exit 0); `FAIL` any failure,
+or nothing passed (exit 1, which fails the push). Headless only: a WAF that
+refuses headless makes the UI checks NOT RUN, never a headed window.
+
+**Stamps.** Each run started by a push writes, for every repo that push put on
+the box, `~/.cache/fsr-live-sanity/<repo>/<sha>.json` (override the dir with
+`FSR_LIVE_SANITY_DIR`; never tracked):
+
+    { "repo", "path", "branch", "sha", "dirty", "box", "verdict",
+      "checks": [{"name", "status", "detail"}], "timestamp" }
+
+`repo` is the main checkout's directory name (worktrees stamp as their repo).
+Every verdict is stamped; the latest run for a sha wins. `dirty: true` means the
+box ran uncommitted code, so the stamp never proves the commit. A doctor
+re-check writes no stamp (it pushed nothing). Reader for merge gates:
+`node fortisoar-widget-harness/scripts/live-sanity/stamp.js status --repo <r> --sha <sha>`
+exits 0 only for a clean VERIFIED stamp.
 
 ## Guardrails
 
