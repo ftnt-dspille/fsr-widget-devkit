@@ -18,6 +18,18 @@ today="$(date +%Y-%m-%d)"
 in_window=0
 if [ "$today" \< "$WIN_UNTIL" ] || [ "$today" = "$WIN_UNTIL" ]; then in_window=1; fi
 
+# Two throwaway repos for the cwd-sensitive git merge rule: "cwd=@MAIN" (on main)
+# and "cwd=@FEAT" (on a feature branch). @MAIN/@FEAT in a command expand too.
+# Plumbing only (commit-tree), so no hook runs.
+fx="$(mktemp -d)"; trap 'rm -rf "$fx"' EXIT
+for r in main feat; do
+  git -c init.defaultBranch=main init -q "$fx/$r"
+  c="$(GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com \
+    git -C "$fx/$r" commit-tree "$(git -C "$fx/$r" mktree </dev/null)" -m base)"
+  git -C "$fx/$r" update-ref refs/heads/main "$c"
+done
+git -C "$fx/feat" checkout -q -b feat/x
+
 pass=0
 fail=0
 while IFS= read -r line; do
@@ -30,8 +42,13 @@ while IFS= read -r line; do
     if [ "$in_window" = 1 ]; then want=ask; else want=deny; fi
   fi
   case "$cmd" in mode=*) mode="${cmd%% *}"; mode="${mode#mode=}"; cmd="${cmd#* }" ;; esac
-  out="$(jq -n --arg c "$cmd" --arg m "$mode" \
-    '{tool_input: {command: $c}} + (if $m == "" then {} else {permission_mode: $m} end)' \
+  cwd=""
+  case "$cmd" in cwd=*) cwd="${cmd%% *}"; cwd="${cwd#cwd=}"; cmd="${cmd#* }" ;; esac
+  cwd="${cwd//@MAIN/$fx/main}"; cwd="${cwd//@FEAT/$fx/feat}"
+  case "$cmd" in *'\n'*) cmd="$(printf '%b' "$cmd")" ;; esac   # \n = newline (heredoc cases)
+  cmd="${cmd//@MAIN/$fx/main}"; cmd="${cmd//@FEAT/$fx/feat}"
+  out="$(jq -n --arg c "$cmd" --arg m "$mode" --arg d "$cwd" \
+    '{tool_input: {command: $c}} + (if $m == "" then {} else {permission_mode: $m} end) + (if $d == "" then {} else {cwd: $d} end)' \
     | bash "$here/deny-guardrails.sh")"
   got=allow
   case "$out" in

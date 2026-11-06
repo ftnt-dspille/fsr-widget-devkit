@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # PreToolUse Bash hook. A thin TRIPWIRE, not the enforcement. It does two things:
 #
-#   1. Git rules that have no effect-level home: `git stash`, `git rebase`, and
+#   1. Git rules: `git push` (the user pushes), `git merge` while on main (use
+#      make promote; scripts/githooks/reference-transaction is the enforcement), and rules with no effect-level home: `git stash`, `git rebase`, and
 #      --no-verify, `commit -n` or a core.hooksPath override that skips the
 #      pre-commit hook (CLAUDE.md: never bypass it).
-#   2. ADVISORY messages for the test runners and deploy targets. They duplicate
+#   2. Direct deploy/install scripts (deploy.sh, deploy_chain.sh, install_to_fsr.py,
+#      ship_dev.sh, dev_push.sh, ship.sh, widget.js push/ship, scp, rsync host:):
+#      agents use the make front doors. The scripts' own CLAUDECODE checks enforce.
+#   3. ADVISORY messages for the test runners and deploy targets. They duplicate
 #      the effect-level guards, so a miss here costs nothing:
 #        - bare jest / playwright (directly, via npx/pnpm/yarn/npm/bunx, or as a
 #          node_modules/.bin path)
@@ -21,8 +25,8 @@
 # TESTING.md, "Guardrails", has the full model. Cases: cases.txt (test-hook.sh).
 #
 # Matching is by plain words, one simple command at a time (split on | ; & ( ) { }
-# backticks and newlines). Quotes are not stripped, so `bash -c "git stash"` is not
-# seen here. The git rules catch honest slips, not a determined bypass.
+# backticks and newlines), after heredoc bodies and quoted-string contents are
+# dropped (strip_text), so `bash -c "git stash"` is not seen here. The git rules catch honest slips, not a determined bypass.
 #
 # Fails CLOSED: if jq is missing or the payload does not parse, the command is denied.
 set -uo pipefail
@@ -42,6 +46,9 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null
 # Nothing to inspect -> allow (e.g. a non-Bash call routed here).
 [ -n "$cmd" ] || exit 0
 
+CWD="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
+PROMOTE="Use: make promote REPO=<repo> BRANCH=<branch> (needs a VERIFIED live-sanity stamp)."
+FRONT="Agent front doors: make loop, make widget-push WIDGET= SHIP_ENV=, make deploy BOX= (connector), make test-unit, make test-e2e-spec, make doctor, make promote."
 DENY=""
 DEPLOY_TARGET=""   # set to a GitHub/PyPI release target name when one is seen
 
@@ -62,6 +69,14 @@ check_git() {
     esac
   done
   case "$sub" in
+    push) DENY="CLAUDE.md: agents never git push; the user pushes. To land a branch on local main: $PROMOTE"; return 0 ;;
+    merge)
+      local dir="$CWD" b
+      for ((i = k + 1; i < n; i++)); do [ "${w[$i]}" = -C ] && dir="${w[$((i + 1))]}"; done
+      b="$(git -C "${dir:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+      case "$b" in main|master) DENY="CLAUDE.md: never merge into $b by hand. $PROMOTE"; return 0 ;; esac ;;
+    update-ref)
+      for ((i = k + 2; i < n; i++)); do case "${w[$i]}" in main|refs/heads/main|master|refs/heads/master) DENY="Never move main by hand. $PROMOTE"; return 0 ;; esac; done ;;
     stash) DENY="CLAUDE.md: never 'git stash' over shared checkouts (they hold other people's WIP). Use 'git worktree add'."; return 0 ;;
     rebase) DENY="CLAUDE.md: never 'git rebase' over shared checkouts. Use 'git worktree add'."; return 0 ;;
   esac
@@ -88,6 +103,27 @@ check_tools() {
   done
   [ "$i" -lt "$n" ] || return 0
   prog="${w[$i]##*/}"
+  # Deploy/install scripts: run directly or through an interpreter.
+  local s="$i"
+  while [ "$s" -lt "$n" ]; do
+    case "${w[$s]##*/}" in
+      bash|sh|zsh|python|python3|node|source|.|uv|exec|env|run|-*) s=$((s + 1)) ;;
+      *) break ;;
+    esac
+  done
+  case "${w[$s]##*/}" in
+    deploy.sh|deploy_chain.sh|install_to_fsr.py|ship_dev.sh|dev_push.sh|dev_push_deps.sh|ship.sh|release.sh|push.sh|soar-add-theme.sh)
+      DENY="Never run deploy/install scripts directly. $FRONT"; return 0 ;;
+    widget.js|widget.ts)
+      case "${w[$((s + 1))]:-}" in push|ship) DENY="Never run widget.js push/ship directly. $FRONT"; return 0 ;; esac ;;
+  esac
+  case "$prog" in
+    scp) DENY="Never copy to a box by hand. $FRONT"; return 0 ;;
+    rsync)
+      for ((j = i + 1; j < n; j++)); do
+        case "${w[$j]}" in /*|./*|-*) ;; *:*) DENY="Never rsync to a box by hand. $FRONT"; return 0 ;; esac
+      done ;;
+  esac
   case "$prog" in
     jest|playwright)
       DENY="advisory: CLAUDE.md: never run jest or Playwright directly. Use make test-unit or make test-e2e-spec."; return 0 ;;
@@ -113,10 +149,28 @@ check_tools() {
   esac
 }
 
+# Text is not a command: drop heredoc bodies and the contents of quoted strings
+# before splitting, so a heredoc or -m message that MENTIONS a target or a tool
+# is not read as running it. (Consequence: bash -c "..." is not inspected; the
+# effect-level guards still hold.) Needs perl; without it, scan the raw text.
+strip_text() {
+  if ! command -v perl >/dev/null 2>&1; then cat; return; fi
+  perl -e '
+    my @end; my $out = "";
+    while (my $l = <STDIN>) {
+      if (@end) { (my $t = $l) =~ s/^\t+//; chomp $t; shift @end if $t eq $end[0]; next; }
+      while ($l =~ /<<-?\s*([\x27"]?)([A-Za-z_][A-Za-z0-9_]*)\1/g) { push @end, $2; }
+      $l =~ s/\x27[^\x27]*\x27/\x27\x27/g;
+      $l =~ s/"(?:[^"\\]|\\.)*"/""/g;
+      $out .= $l;
+    }
+    print $out;'
+}
+
 while IFS= read -r seg; do
   check_git "$seg"; [ -n "$DENY" ] && break
   check_tools "$seg"; [ -n "$DENY" ] && break
-done <<< "$(printf '%s\n' "$cmd" | tr '|;&(){}`' '\n')"
+done <<< "$(printf '%s\n' "$cmd" | strip_text | tr '|;&(){}`' '\n')"
 
 [ -z "$DENY" ] || deny "$DENY"
 

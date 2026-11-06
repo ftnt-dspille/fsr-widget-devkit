@@ -50,6 +50,12 @@ investigation into a playbook. The widget is the window; the connector is the en
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
   WIDGET=<name> SHIP_ENV=.env.<box>` (lint + unit + deploy, ~1-2 min; `SHIP_ENV`
   must be explicit). `ship-verify` is for public releases only.
+- **Main moves only through `make promote REPO=<repo> BRANCH=<branch>`**, after
+  `make live-sanity` stamped that branch head VERIFIED on a clean tree. It merges
+  into local main (ff or merge commit, other WIP kept) and never pushes. A git
+  hook (`scripts/githooks`, installed by `make setup`) refuses any other update of
+  main under Claude Code. Agents never `git push`, and never run deploy/install
+  scripts directly; use the make front doors.
 - Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or
   releaseNotes; a hand edit desyncs the controller name and lint then blocks boot.
   Rename with the `widget rename` CLI, not by hand.
