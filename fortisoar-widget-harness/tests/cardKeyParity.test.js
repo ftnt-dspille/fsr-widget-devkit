@@ -131,6 +131,18 @@ function normalizeAlpha(ev) { return { a: ev.alpha_key, c: ev['bracket_key'] }; 
   test("a card type with no branch at all is null, not an empty pass", () => {
     expect(branchFor(SRC, "gamma_card")).toBeNull();
   });
+
+  test("an earlier non-dispatch type test is not taken as the card's branch", () => {
+    // The real renderer peeks at `cardEvent.type === 'action_card'` in a helper
+    // above the dispatch chain; taking that as the branch dropped every
+    // action_card read and reported 15 keys as unread.
+    const src = `
+    if (cardEvent.type === 'beta_card' && cardEvent.cardId) { evt.peek = cardEvent.cardId; }
+    ${SRC}`;
+    const keys = keysRead(branchFor(src, "beta_card"));
+    expect(keys.has("beta_key")).toBe(true);
+    expect(keys.has("peek")).toBe(false);
+  });
 });
 
 describe("auditKeyParity", () => {

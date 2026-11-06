@@ -34,8 +34,11 @@ const STRUCTURAL = new Set(["type", "preceding_tool_use_id", "tool_use_id", "cal
 // normalizePatchProposal, ...) is appended, or every delegating card type would
 // look like it reads nothing.
 function branchFor(src, cardType) {
-  const marker = new RegExp(`type\\s*===\\s*'${cardType}'`);
-  const m = marker.exec(src);
+  // Prefer the renderer's dispatch branch (`ev.type === '<card>'`): any other
+  // `x.type === '<card>'` test earlier in the file (a helper peeking at a card)
+  // would otherwise be taken as the branch and read as the card's key set.
+  const m = new RegExp(`\\bev\\.type\\s*===\\s*'${cardType}'`).exec(src)
+    || new RegExp(`type\\s*===\\s*'${cardType}'`).exec(src);
   if (!m) return null;
   const rest = src.slice(m.index + m[0].length);
   // End at the next type test OR at the next top-level function, whichever
