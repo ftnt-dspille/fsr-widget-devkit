@@ -221,7 +221,10 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@$(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(call env_file,$(SHIP_ENV)) PORT=$(DEV_PORT) WIDGETS_SRC=$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src) \
 	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
-	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV) (dev path: NOT e2e/live-verified; use ship-verify for a release)"
+	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV)"
+	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
+	@ENV="$(call env_file,$(SHIP_ENV))" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src)" CONN_REPO="$(CONN_REPO)" \
+	  LIVE_SANITY_STAMP_REPOS="$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src)/$(WIDGET)" bash scripts/live-sanity.sh
 
 push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. ENV=.env.<box> SSH_HOST=<box> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_box)
@@ -239,9 +242,10 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 	$(require_box)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop $(_FWD_BOX)
 
-doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict)
+doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing)
 	$(if $(LOCAL),,$(require_box))
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
+	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS= bash scripts/live-sanity.sh),true)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
 	$(if $(filter local,$(SOURCE)),,$(require_box))
