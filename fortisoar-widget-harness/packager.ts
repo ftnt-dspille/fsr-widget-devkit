@@ -91,16 +91,16 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
     capitalize(widgetName),
     decapitalize(widgetName),
   ]);
-  // Match `<name>-<version>` followed by either `/` (path ref like
-  // `fortiaiAgenticAssistant-1.0.1/widgetAssets/...`) or a non-version boundary
-  // (bare widget ID used as a string, e.g. `'fortiaiAgenticAssistant-1.0.1'`).
-  // Without the bare-ID arm, hardcoded version IDs survive a bump and trip
-  // the stale-version-ref lint at install time.
-  const versionPathRe = new RegExp(
-    `\\b${escapeRegex(widgetName)}-\\d+(?:\\.\\d+)*(?:[-.][A-Za-z0-9.]+)?(/|(?![\\w.-]))`,
-    "g"
-  );
-  const versionPathReplacement = (_m: string, tail: string): string => `${widgetName}-${version}${tail || ""}`;
+  // Match `<name>-X.Y[.Z...]` wherever it appears: path refs
+  // (`fortiaiAgenticAssistant-1.0.1/widgetAssets/...`) and bare widget IDs
+  // (`'fortiaiAgenticAssistant-1.0.1'`). Without the bare-ID case, hardcoded
+  // version IDs survive a bump and trip the stale-version-ref lint at install.
+  // Only the version is replaced; whatever follows it stays. (An earlier form
+  // had an optional `[-.][A-Za-z0-9.]+` tail that also swallowed extensions,
+  // so `<name>-1.0.0.tgz` became `<name>-1.0.1`.) Same shape as staleRefRegex
+  // in server.ts, plus a guard so `-1.0.0abc` is not a version.
+  const versionPathRe = new RegExp(`\\b${escapeRegex(widgetName)}-\\d+(?:\\.\\d+)+(?!\\w)`, "g");
+  const versionPathReplacement = (): string => `${widgetName}-${version}`;
 
   function rewrite(absPath: string, opts?: RewriteOpts): void {
     if (!fs.existsSync(absPath)) return;

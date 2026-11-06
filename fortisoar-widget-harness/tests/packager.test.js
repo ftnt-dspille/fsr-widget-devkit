@@ -198,6 +198,29 @@ describe("rewriteForVersion", () => {
     expect(content).toContain("myWidget-utils.md");
   });
 
+  test("keeps what follows the version (file extensions, longer suffixes)", () => {
+    // Regression: the path regex had an optional `[-.][A-Za-z0-9.]+` tail that
+    // also swallowed the extension, so `myWidget-1.0.0.tgz` became `myWidget-1.0.1`.
+    makeWidget(
+      tmpDir,
+      "1.0.0",
+      "var a = 'myWidget-1.0.0.tgz'; var b = 'myWidget-1.0.0.min.js'; var c = 'myWidget-1.0.0-beta';\n"
+    );
+    rewriteForVersion(tmpDir, "myWidget", "1.0.1");
+    const content = fs.readFileSync(path.join(tmpDir, "view.controller.js"), "utf8");
+    expect(content).toContain("'myWidget-1.0.1.tgz'");
+    expect(content).toContain("'myWidget-1.0.1.min.js'");
+    expect(content).toContain("'myWidget-1.0.1-beta'");
+  });
+
+  test("rewrites a whole multi-digit version, not a prefix of it", () => {
+    makeWidget(tmpDir, "1.0.10", "var a = 'myWidget-1.0.10';\n");
+    rewriteForVersion(tmpDir, "myWidget", "1.0.11");
+    const content = fs.readFileSync(path.join(tmpDir, "view.controller.js"), "utf8");
+    expect(content).toContain("'myWidget-1.0.11'");
+    expect(content).not.toContain("1.0.110");
+  });
+
   test("is idempotent - rewriting twice gives the same result", () => {
     makeWidget(tmpDir, "1.0.0");
     rewriteForVersion(tmpDir, "myWidget", "2.0.0");
