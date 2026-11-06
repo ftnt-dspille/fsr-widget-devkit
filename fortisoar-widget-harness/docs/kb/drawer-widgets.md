@@ -795,8 +795,11 @@ d.details.$dirty = true;                                        // the details f
   into the real designer, and checks the canvas with no reload and the server copy
   unchanged. It needs no LLM and takes about 45s.
 - **Unsaved canvas edits are replaced with no prompt.** Check first: the
-  directive's `details.$dirty` / `previousChanges.length`, and the controller's
-  `stepSelected` / `stepForm.$dirty` (`#designer-container` scope).
+  directive's `details.$dirty` / `parentForm.$dirty` (what the designer's own Save
+  button keys on), and the controller's `stepSelected` / `stepForm.$dirty`
+  (`#designer-container` scope). NOT `previousChanges.length`: that is the undo
+  history, and Save only calls `details.$setPristine()` and records the saved
+  index, never clearing it, so a length check blocks Apply forever after a Save.
 - **...but a staged Apply is itself unsaved.** After Apply #1 lands in the canvas,
   that check blocked Apply #2 ("Save or discard") although the only unsaved
   edits were the assistant's own draft. Record `previousChanges.length` right
