@@ -162,27 +162,35 @@ describe("generated controllers run", () => {
 
 // Integration: a freshly-generated widget passes the harness angular lint with
 // no config-defaults warning (the angular.extend({},defaults,config||{}) guard
-// must be recognized) and no trigger-endpoint error. Generates into the real
-// widgets-src (lint-angular's ROOT is fixed there), then cleans up.
+// must be recognized) and no trigger-endpoint error. Generates into a temp
+// widgets tree and points lint-angular at it via WIDGETS_SRC, so the test is
+// hermetic and works when the Makefile passes a WIDGETS_SRC override
+// (a worktree push), which lint-angular honours over its default root.
 describe("generated widget passes lint-angular", () => {
   const { execFileSync } = require("child_process");
   const NAME = "tmpLintCheck";
-  const dest = path.resolve(__dirname, "..", "..", "widgets-src", NAME);
+  let tmpRoot;
+  let dest;
   const e2e = path.join(__dirname, "e2e", `${NAME}.spec.js`);
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "nw-lint-"));
+    dest = path.join(tmpRoot, NAME);
+  });
   afterEach(() => {
-    fs.rmSync(dest, { recursive: true, force: true });
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
     fs.rmSync(e2e, { force: true });
   });
 
   test("record+trigger variant lints clean (0 errors, no config-defaults)", () => {
     writeWidget(generateWidget({ name: NAME, kind: "record", triggersPlaybook: true }), {
-      widgetsDir: path.resolve(__dirname, "..", "..", "widgets-src"),
+      widgetsDir: tmpRoot,
       harnessE2eDir: path.join(__dirname, "e2e"),
       name: NAME,
     });
     const out = execFileSync("node", [path.join(__dirname, "..", "scripts", "lint-angular.js"), NAME], {
       cwd: path.join(__dirname, ".."),
       encoding: "utf8",
+      env: { ...process.env, WIDGETS_SRC: tmpRoot },
     });
     expect(out).not.toContain("config-defaults-missing");
     expect(out).not.toContain("[error]");
