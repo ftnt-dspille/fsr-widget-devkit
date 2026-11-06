@@ -35,8 +35,30 @@ function repoState(dir) {
     repo, path: top,
     branch: git(dir, ["rev-parse", "--abbrev-ref", "HEAD"]),
     sha: git(dir, ["rev-parse", "HEAD"]),
-    dirty: git(dir, ["status", "--porcelain", "--untracked-files=no"]) !== "",
+    dirty: isDirty(dir),
   };
+}
+
+// A connector deploy bumps its version (info.json "version", a new release-notes
+// entry) in the tree before the live sanity runs, so what ran IS the commit plus
+// a version string. The deploy names those files in LIVE_SANITY_VERSION_BUMP_FILES
+// (colon list, repo-relative); a change there counts as clean ONLY when it is a
+// pure version bump: info.json changes nothing but "version" lines, release notes
+// only gain lines. Any other edit, anywhere, is dirty.
+function isVersionOnlyDiff(dir, file) {
+  const diff = git(dir, ["diff", "-U0", "HEAD", "--", file]);
+  const changed = diff.split("\n").filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---) /.test(l));
+  if (!changed.length) return true;
+  if (/(^|\/)info\.json$/.test(file)) return changed.every((l) => /^[+-]\s*"version"\s*:/.test(l));
+  if (/release_notes\.md$/i.test(file)) return changed.every((l) => l.startsWith("+"));
+  return false;
+}
+
+function isDirty(dir) {
+  const bump = (process.env.LIVE_SANITY_VERSION_BUMP_FILES || "").split(":").filter(Boolean);
+  // Tracked changes, staged or not (untracked files never ran on the box).
+  const files = git(dir, ["diff", "--name-only", "HEAD"]).split("\n").filter(Boolean);
+  return files.some((f) => !(bump.includes(f) && isVersionOnlyDiff(dir, f)));
 }
 
 function writeStamps(repoDirs, { box, verdict, results, now = new Date() }) {

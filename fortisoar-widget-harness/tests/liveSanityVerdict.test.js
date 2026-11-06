@@ -108,6 +108,32 @@ describe("live-sanity stamps", () => {
     expect(proves(s)).toBe(false);
   });
 
+  test("a deploy's own version bump is clean only when it is version-only", () => {
+    fs.writeFileSync(path.join(repo, "info.json"), '{\n  "name": "c",\n  "version": "1.0.0"\n}\n');
+    fs.writeFileSync(path.join(repo, "release_notes.md"), "# Notes\n");
+    g("add", "info.json", "release_notes.md");
+    g("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "y");
+    fs.writeFileSync(path.join(repo, "info.json"), '{\n  "name": "c",\n  "version": "1.0.1"\n}\n');
+    fs.writeFileSync(path.join(repo, "release_notes.md"), "# Notes\n\n## 1.0.1\n");
+    const sha = g("rev-parse", "HEAD");
+    // Without the deploy's declaration the bump is dirty, as before.
+    writeStamps([repo], { box: "b", verdict: "VERIFIED", results: [P("a")] });
+    expect(readStamp("demoRepo", sha).dirty).toBe(true);
+    process.env.LIVE_SANITY_VERSION_BUMP_FILES = "info.json:release_notes.md";
+    try {
+      writeStamps([repo], { box: "b", verdict: "VERIFIED", results: [P("a")] });
+      expect(proves(readStamp("demoRepo", sha))).toBe(true);
+      // Anything beyond the version line is still dirty.
+      fs.writeFileSync(path.join(repo, "info.json"), '{\n  "name": "d",\n  "version": "1.0.1"\n}\n');
+      writeStamps([repo], { box: "b", verdict: "VERIFIED", results: [P("a")] });
+      expect(readStamp("demoRepo", sha).dirty).toBe(true);
+      fs.writeFileSync(path.join(repo, "info.json"), '{\n  "name": "c",\n  "version": "1.0.1"\n}\n');
+      fs.writeFileSync(path.join(repo, "f.txt"), "2");
+      writeStamps([repo], { box: "b", verdict: "VERIFIED", results: [P("a")] });
+      expect(readStamp("demoRepo", sha).dirty).toBe(true);
+    } finally { delete process.env.LIVE_SANITY_VERSION_BUMP_FILES; }
+  });
+
   test("PARTIAL and FAIL are stamped with their verdict and do not prove", () => {
     for (const verdict of ["PARTIAL", "FAIL"]) {
       writeStamps([repo], { box: "b", verdict, results: [P("a")] });
