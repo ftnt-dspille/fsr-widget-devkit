@@ -16,8 +16,8 @@ INTROSPECT_PORT := 14403
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
-# enforcement for an agent (TESTING.md, "Guardrails"); the bash hook is only an
-# advisory tripwire. Each block below is the ONE copy of its check.
+# enforcement for an agent (TESTING.md, "Guardrails"); the permission deny rules in
+# .claude/settings.json are advisory. Each block below is the ONE copy of its check.
 #
 # 1. Deploys and releases are the user's to run. A protected target depends on
 #    deploy-guard, which runs before any prerequisite (harness-build included).

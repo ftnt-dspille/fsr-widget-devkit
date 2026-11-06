@@ -11,19 +11,36 @@
       "Bash(make loop)",
       "Bash(make widget-inspect *)",
       "Bash(soardocs *)"
-    ]
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/deny-guardrails.sh\""
-          }
-        ]
-      }
+    ],
+    "deny": [
+      "Bash(git stash *)",
+      "Bash(git rebase *)",
+      "Bash(git push *)",
+      "Bash(git merge *)",
+      "Bash(git update-ref *)",
+      "Bash(git commit *--no-verify*)",
+      "Bash(git commit -n *)",
+      "Bash(git -c core.hooksPath*)",
+      "Bash(jest *)",
+      "Bash(playwright *)",
+      "Bash(npx jest *)",
+      "Bash(npx playwright *)",
+      "Bash(pnpm jest *)",
+      "Bash(pnpm exec jest *)",
+      "Bash(pnpm exec playwright *)",
+      "Bash(pnpm playwright *)",
+      "Bash(scp *)",
+      "Bash(rsync *)",
+      "Bash(bash scripts/deploy.sh *)",
+      "Bash(bash scripts/deploy_chain.sh *)",
+      "Bash(bash scripts/ship_dev.sh *)",
+      "Bash(bash scripts/dev_push.sh *)",
+      "Bash(python scripts/install_to_fsr.py *)",
+      "Bash(python3 scripts/install_to_fsr.py *)",
+      "Bash(node fortisoar-widget-harness/scripts/widget.js push *)",
+      "Bash(node fortisoar-widget-harness/scripts/widget.js ship *)",
+      "Bash(make release *)",
+      "Bash(make ship-verify *)"
     ]
   }
 }

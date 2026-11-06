@@ -6,7 +6,7 @@
 //     clean stamp for the branch head.
 //   - scripts/githooks/reference-transaction: refuses every other update of main
 //     under CLAUDECODE, fast-forwards included. (`git update-ref` plumbing does
-//     not run the hook; the bash tripwire covers it.)
+//     not run the hook; a permission deny rule covers the usual spelling.)
 
 const fs = require("fs");
 const os = require("os");
