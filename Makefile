@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -411,10 +411,27 @@ LIVE_ENV ?= $(ENV)
 test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live:
 	@echo "retired: widget-action-renderer is archived (see ~/WebstormProjects/fsr-widget-archive/MANIFEST.md)"; exit 2
 
-test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. LIVE_ENV=.env.<box> (default .env.159).
-	@if [ ! -f $(HARNESS)/$(or $(LIVE_ENV),.env.159) ]; then echo "missing $(HARNESS)/$(or $(LIVE_ENV),.env.159) (box creds)"; exit 2; fi
-	cd $(HARNESS) && set -a && . ./$(or $(LIVE_ENV),.env.159) && set +a && \
+# Live box tests resolve their box through the registry (require_box): BOX=<name>,
+# or ENV=.env.<box> (LIVE_ENV still honored). There is no default box.
+_LIVE_BOX_ENV = BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)),$(if $(filter command line environment,$(origin LIVE_ENV)),$(call env_file,$(LIVE_ENV))))" SSH_HOST="$(_EXPL_SSH)"
+_LIVE_ENV_FILE = $$($(_LIVE_BOX_ENV) bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env --print | sed -n 's/^ENV=//p')
+
+test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. BOX=<name>
+	@$(_LIVE_BOX_ENV) bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env
+	@envf=$(_LIVE_ENV_FILE); cd $(HARNESS) && set -a && . "$$envf" && set +a && \
 	  E2E_LIVE=1 pnpm test:live tests/live/designerStage.live.test.js
+
+# docubot (TEC kit) drives the live designer tier. DOCUBOT= points at a kit
+# checkout or worktree (its own node_modules and Playwright pin); its config +
+# tsconfig are both required (the tsconfig carries the `docubot` path mapping).
+DOCUBOT ?= $(HOME)/PycharmProjects/TEC/docubot
+test-designer-apply-live: ## LIVE (docubot, no LLM): Apply to designer -> designer Save -> Apply again is never blocked, and each Save writes. Scratch playbook run-tagged and deleted. BOX=<name> [DOCUBOT=<kit>]
+	@$(_LIVE_BOX_ENV) bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env
+	@test -x "$(DOCUBOT)/node_modules/.bin/playwright" || { echo "docubot kit not installed at $(DOCUBOT) (pass DOCUBOT=<kit>)"; exit 2; }
+	@envf=$(_LIVE_ENV_FILE); set -a && . "$$envf" && set +a && \
+	  cd "$(DOCUBOT)" && VIA_MAKE=1 FORCE=1 DOCUBOT_TARGET="$(CURDIR)/$(HARNESS)/tests" \
+	  node_modules/.bin/playwright test --config="$$PWD/playwright.config.ts" --tsconfig="$$PWD/tsconfig.json" \
+	  "$(CURDIR)/$(HARNESS)/tests/docubot/designerApply.spec.ts"
 
 introspect: harness-build ## Hermetic widget-render introspection (builds baseline reports; introspect-gate compares). Boots its own server on $(INTROSPECT_PORT).
 	-lsof -ti:$(INTROSPECT_PORT) | xargs kill -9 2>/dev/null || true

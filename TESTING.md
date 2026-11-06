@@ -70,7 +70,8 @@ and `widget-inspect` against the local dev server.
 | `make test-mcp-surface-live` | always | `SWEEP_ENV=` |
 | `make test-matrix-live` | always, headed (WAF blocks headless) | `MATRIX_ENV=` |
 | `make test-ar-live` (and `test-ar-playbook-live`, `test-ar-jtg-flow-live`, `test-ar-connector-live`) | always | `LIVE_ENV=` |
-| `make test-designer-stage-live` | always; pushes and deletes a scratch playbook | `LIVE_ENV=` |
+| `make test-designer-stage-live` | always; pushes and deletes a scratch playbook | `BOX=` (or `ENV=`/`LIVE_ENV=`; no default) |
+| `make test-designer-apply-live` | always (docubot); pushes, saves and deletes a run-tagged scratch playbook | `BOX=` (or `ENV=`/`LIVE_ENV=`; no default) |
 | `make introspect-soar` | always: renders the deployed widget against the baseline | `ENV=` |
 | `make loop` | copies working trees to the box, then a live smoke | `ENV=` (forwarded to the connector repo) |
 | `make doctor` | reads the box (`LOCAL=1` skips it) | `ENV=` |
@@ -206,6 +207,15 @@ or tools. `OUT=report.md` writes it to a file.
 LLM and takes ~45s. It pushes a scratch playbook, applies an edit into the real
 designer, and checks the canvas shows it without a reload and that the server
 copy is unchanged.
+
+**Apply, Save, Apply again, proven live:** `make test-designer-apply-live BOX=<name>`
+(docubot drives it: `tests/docubot/designerApply.spec.ts`, ~1 min, no LLM;
+`DOCUBOT=<kit>` points at a docubot checkout or worktree). It applies an edit,
+clicks the designer's Save, then accepts an enhancement offer over the saved
+canvas and saves again, reading the server copy after each step. The agent is
+stood in for (YAML set where the agent sets it; the offer's chat_resume reply is
+served with the widget's own staged playbook). It is the regression for Apply
+refused with "Save or discard" after a designer Save.
 
 Only a release or a proof needs the flow below: `make release-ship`, the full
 sweep ×2, and `make doctor RELEASE=1`. That last one FAILs on a dev-pushed box.
