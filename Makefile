@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -42,10 +42,18 @@ test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test
 #    (widget-push). Nothing else reads them.
 loop: export VIA_LOOP := 1
 
+# 4. Feature branches reach main only after live confirmation. make promote is the
+#    ONE way an agent moves main (any repo: root, widgets-src/*, connector,
+#    framework, docubot); scripts/githooks/reference-transaction refuses every
+#    other update of main under CLAUDECODE. Local merge only, never pushes.
+promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>). Never pushes
+	@bash scripts/promote.sh
+
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 setup: install widgets ## One-shot bootstrap: install harness deps + clone widgets from the manifest
+	bash scripts/install-git-hooks.sh
 	@echo "Setup complete. Copy fortisoar-widget-harness/.env.example to .env, then 'make dev'."
 
 install: ## Install harness deps (pnpm)

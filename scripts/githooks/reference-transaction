@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Effect-level guard for "merge to main only after live confirmation".
+# git runs this for EVERY ref update (commit, merge incl. fast-forward, reset,
+# pull, update-ref, branch -f). In the "prepared" state a non-zero exit aborts
+# the whole transaction. Under Claude Code (CLAUDECODE set), any update of
+# refs/heads/main is refused unless it is exactly the update `make promote`
+# announced in $GIT_COMMON_DIR/fsr-promote-allow ("<old> <new>").
+# A human shell (no CLAUDECODE) is never refused. Then chain to the global hook.
+set -uo pipefail
+state="${1:-}"
+main_ref="refs/heads/${FSR_PROTECTED_BRANCH:-main}"
+input="$(cat)"
+
+if [ "$state" = prepared ] && [ -n "${CLAUDECODE:-}" ]; then
+  common="$(git rev-parse --git-common-dir 2>/dev/null)"
+  allow="$(cat "$common/fsr-promote-allow" 2>/dev/null || true)"
+  zero="0000000000000000000000000000000000000000"
+  while read -r old new ref; do
+    [ "$ref" = "$main_ref" ] || continue
+    [ "$old" = "$zero" ] && continue          # creating main (fresh clone/init)
+    if [ -n "$allow" ] && [ "$allow" = "$old $new" ]; then continue; fi
+    echo "refused: agents update ${main_ref#refs/heads/} only through 'make promote REPO=<repo> BRANCH=<branch>', which requires a VERIFIED live-sanity stamp. Work on a branch." >&2
+    exit 1
+  done <<< "$input"
+fi
+
+global="$(git config --global core.hooksPath 2>/dev/null || true)"
+global="${global/#\~/$HOME}"
+if [ -z "${FSR_HOOK_SHIM:-}" ] && [ -n "$global" ] && [ -x "$global/reference-transaction" ]; then
+  export FSR_HOOK_SHIM=1
+  printf '%s\n' "$input" | "$global/reference-transaction" "$@"; exit $?
+fi
+exit 0

@@ -134,7 +134,9 @@ is never refused. A human who means to deploy from an agent shell passes
 | Makefile `deploy-guard` | `make release`, `push`, `widget-push`, `ship-verify` unless `CONFIRM_DEPLOY=1` | "Effect-level guards" block at the top of the `Makefile`. Every protected target depends on it, so it runs before any prerequisite (`harness-build` included). `make -n` prints it and runs nothing. |
 | Runner refusal | a jest or Playwright run unless a make target set `VIA_MAKE=1` | `fortisoar-widget-harness/scripts/via-make-guard.js`, called by the jest `globalSetup` (`jest.config.js`, `jest.live.config.js`) and by `playwright.config.ts`. The Makefile sets `VIA_MAKE=1` only on the runner targets, in the same block. |
 | Script headers | `ship.sh`, `release.sh`, `scripts/push.sh`, `install.sh`, `soar-add-theme.sh`, and `widget.js push` / `ship` unless `CONFIRM_DEPLOY=1` | The first statement of each script, or the subcommand handler in `widget.ts`. `make loop` exports `VIA_LOOP=1` so the connector's loop can still widget-push through `ship.sh`. |
-| Hook (advisory) | git `stash`, `rebase`, `--no-verify`, `commit -n`, `core.hooksPath=`. Also an advisory message for bare jest or Playwright and for the deploy make targets | `.claude/hooks/deny-guardrails.sh`. A tripwire, not a boundary: it matches plain words, so a miss costs nothing and the effect guards above still hold. |
+| `make promote` + git hook | any update of `main` (commit, merge incl. fast-forward, reset, pull; not `git update-ref` plumbing, which skips the hook and is left to the tripwire) under `CLAUDECODE`, except the one `make promote REPO= BRANCH=` makes after finding a VERIFIED, clean live-sanity stamp for the branch head (or a stamped commit with the identical tree). `ALLOW_UNVERIFIED=1` is human-only | `scripts/promote.sh`; `scripts/githooks/reference-transaction` (aborts in the `prepared` phase; promote hands it a one-shot `<old> <new>` allow file in the git common dir). `make setup` points this repo and every `widgets-src/*` repo at `scripts/githooks` (repo-local `core.hooksPath`; shims chain to the global hooks). For another repo: `bash scripts/install-git-hooks.sh <repo>`. |
+| Connector/framework scripts | connector `deploy.sh`, `deploy_chain.sh`, `ship_dev.sh`, `dev_push.sh`, `dev_push_deps.sh`, `install_to_fsr.py` run directly under `CLAUDECODE` (no `MAKELEVEL`/`VIA_MAKE`); framework `release.sh` without `CONFIRM_DEPLOY=1` | `scripts/via_make_guard.sh` sourced first in each connector script; top of framework `scripts/release.sh`. |
+| Hook (advisory) | git `stash`, `rebase`, `--no-verify`, `commit -n`, `core.hooksPath=`. Also an advisory message for bare jest or Playwright and for the deploy make targets | Also `git push`, `git merge` while on main, direct deploy/install scripts, `widget.js push/ship`, `scp`, `rsync host:`. Heredoc bodies and quoted strings are not scanned. `.claude/hooks/deny-guardrails.sh`. A tripwire, not a boundary: it matches plain words, so a miss costs nothing and the effect guards above still hold. |
 
 Not guarded at effect level, on purpose:
 - `make loop`, `doctor`, `session-health` and the other test targets: dev iteration and reads. CLAUDE.md governs them.
@@ -143,10 +145,12 @@ Not guarded at effect level, on purpose:
 
 Known limits:
 - `CONFIRM_DEPLOY` and `VIA_LOOP` are ordinary environment variables, so an agent can set them itself. The guards stop reflexive and accidental runs. They do not stop a deliberate bypass; keeping that variable out of agent sessions is a policy.
-- The hook does not strip quotes, so `bash -c "git stash"` passes it. The git rules are a tripwire for honest slips only.
+- The promote gate refuses a fast-forward `git merge` into main AFTER git has updated the index and working tree, so a refused agent merge leaves the branch's changes staged in that checkout (`git reset --hard` is refused too; a human cleans it up). The hook tripwire is what usually prevents the attempt. Repos not set up with `install-git-hooks.sh` (connector, framework, docubot) have only `make promote` and the tripwire, not the git-hook block.
+- The hook drops quoted strings and heredoc bodies before matching, so `bash -c "git stash"` passes it. The git rules are a tripwire for honest slips only.
 
 Checking it:
 - `make test-unit` runs `viaMakeGuard.test.js`, `makeDeployGuard.test.js` and `deployScriptGuards.test.js` (harness tests). They pass under `CLAUDECODE=1` only through the make targets.
+- `promoteGate.test.js` (harness): promote refuses with no stamp, PARTIAL, FAIL, dirty, or another commit's stamp; fast-forwards and merges with a VERIFIED clean stamp (keeping unrelated WIP); the git hook refuses ff/merge/reset/update-ref/commit on main under `CLAUDECODE`.
 - Hook: `bash .claude/hooks/test-hook.sh` runs `.claude/hooks/cases.txt`, one `allow` or `deny` line per case.
 
 ## E2e tests (Playwright)
