@@ -1,9 +1,15 @@
 # Onboarding -- FSR Widget Dev Kit
 
-This repo is the **dev kit** for building FortiSOAR 7.x AngularJS widgets the way
-this team does: render in isolation, drive a real SOAR box through a proxy, test
-every change, and package + install in one click. Read this once, then keep
+This repo is the **dev kit** for building FortiSOAR AngularJS widgets (the
+7.x-era widget tech, still how the 8.0 platform renders them) the way this team
+does: render in isolation, drive a real SOAR box through a proxy, test every
+change, and package + install in one click. Read this once, then keep
 `KNOWLEDGEBASE.md` open while you work.
+
+> **Automating this repo (agents)?** `CLAUDE.md` is your entry point and carries
+> the rules this file does not: never push `main`, the deploy-guard that refuses
+> under Claude Code, worktrees over `git stash` on shared checkouts, the em-dash
+> pre-commit hook, and `make doctor` before trusting any result.
 
 ## The three repos
 
@@ -64,6 +70,7 @@ make test-unit WIDGET=fortiaiAgenticAssistant      # jest (controller logic)
 make test-e2e-spec WIDGET=fortiaiAgenticAssistant   # Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js
 make stop                                  # kill both servers
+make doctor LOCAL=1                        # ~15s preflight: is anything about to make a test lie? (drop LOCAL=1 to check the box)
 ```
 
 Always run tests **through the Makefile** -- it manages the two never-overlapping
@@ -90,7 +97,7 @@ versioned independently. Pin these together when you cut a release.
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
 | `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.76 | `connector-fsr-soc-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
-| `socAssistantMonitor` | 1.0.18 | `connector-fsr-soc-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
+| `socAssistantMonitor` | 1.0.19 | `connector-fsr-soc-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
 | `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
 
 The connector pins the framework: `connector-fsr-soc-assistant/requirements.txt`
@@ -124,3 +131,6 @@ FortiSOAR **8.0**.
   writes the widget, incl. tests, so `make test-unit WIDGET=<camelName>` passes
   right away). Use `widget rename` only to rename an *existing* widget.
 - **`CONTRIBUTING.md`** -- how we build, test, and ship widgets.
+- **`CLAUDE.md`** -- automation and guardrails (git/commit rules, deploy-guard,
+  worktrees, lint hooks, `make doctor`). The entry point for agents; a useful
+  map of the guardrails for humans too.
