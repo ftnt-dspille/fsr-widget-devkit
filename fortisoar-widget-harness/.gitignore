@@ -113,3 +113,4 @@ FSR_PLAYBOOK_BUILDER_*
 
 # personal local Claude settings (never commit)
 .claude/settings.local.json
+tests/.docubot/
