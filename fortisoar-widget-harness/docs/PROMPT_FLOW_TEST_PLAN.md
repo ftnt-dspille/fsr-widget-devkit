@@ -50,7 +50,7 @@ IPS blocks headless; 8.0 login is the local admin form, no SSO). Three options:
     gitignored `tests/live/scenarios.local.json` - copy
     `tests/live/scenarios.local.example.json` and fill in real UUIDs from your
     box (public-repo hygiene: never commit them). Missing file ⇒
-    `[[MATRIX-ENV-SKIP]]`, not a failure. `MATRIX_ENV=<envfile>` overrides the
+    `[[MATRIX-ENV-SKIP]]`, not a failure. `BOX=<alias>` picks the
     creds file.
   - Evaluation (in `tests/live/lib/matrixDriver.js`): the health axis is **tool
     errors**, not call count (`errBudget`, default 1); `minTools` guards against
@@ -128,7 +128,7 @@ context**. `liveUiDriver.goto()` therefore throws on `/not-found`. Verified shap
 `docs/kb/drawer-widgets.md` §18.8.
 
 **Scenario rows are per-box.** Real record UUIDs only exist on their own box, so
-`MATRIX_ENV=.env.206` auto-selects `tests/live/scenarios.local.206.json`
+`BOX=206` auto-selects `tests/live/scenarios.local.206.json`
 (gitignored), falling back to `scenarios.local.json`. Box 159 holds the triage
 T-rows; box 206 holds the P6 build rows. `MATRIX_SCENARIOS=<path>` overrides.
 

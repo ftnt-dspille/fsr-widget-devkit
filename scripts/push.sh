@@ -21,8 +21,8 @@
 #   `make ship-verify` / `make release-ship` (release). This just deploys.
 #
 # USAGE
-#   make push                                  # .env.159 / fsr159, changed widgets
-#   make push ENV=.env.81 SSH_HOST=fsr81       # another box
+#   make push BOX=159                          # changed widgets + connector to 159
+#   make push BOX=81                           # another box
 #   make push WIDGETS=all                      # force every widget
 #   make push WIDGETS=socAssistantMonitor      # only these (comma-separated)
 #   make push CONNECTOR=0                       # widgets only, skip connector
@@ -39,21 +39,13 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # fsr_all_widgets
 HARNESS="$ROOT/fortisoar-widget-harness"
 CONN_REPO="${CONN_REPO:-$HOME/PycharmProjects/ConnectorsV2/conn_main}"
-# No default box: BOX=<name> or an explicit ENV/SSH_HOST naming a REGISTERED pair
-# (the connector repo's scripts/boxes.tsv, resolved by scripts/resolve_box.sh).
-# A missing half or a mismatched pair stops here, before anything is pushed.
-SSH_HOST="${SSH_HOST:-}"
-ENV="${ENV:-}"
+# No default box: BOX=<alias> from the pyfsr registry (the connector repo's
+# scripts/box.sh). An unknown alias or a box with no ssh profile stops here,
+# before anything is pushed.
 # shellcheck source=/dev/null
-source "$CONN_REPO/scripts/resolve_box.sh"
-HARNESS_DIR="$HARNESS" resolve_box env,ssh || exit 2
-# ENV may be a bare name (.env.159) or a path; resolve to an absolute file under
-# the harness, and keep the basename for the widget ship step.
-case "$ENV" in
-    /*) ENV_ABS="$ENV" ;;
-    */*) ENV_ABS="$ROOT/$ENV" ;;
-    *) ENV_ABS="$HARNESS/$ENV" ;;
-esac
+source "$CONN_REPO/scripts/box.sh"
+resolve_box env,ssh || exit 2
+ENV_ABS="$BOX_ENV"
 ENV_BASE="$(basename "$ENV_ABS")"
 WIDGETS_SEL="${WIDGETS:-auto}"     # auto | all | name1,name2
 CONNECTOR="${CONNECTOR:-1}"
@@ -71,11 +63,11 @@ say()  { echo ">> $*"; }
 
 # ----------------------------------------------------------------- 1 connector
 if [[ "$CONNECTOR" != "0" ]]; then
-    say "connector + framework -> $SSH_HOST (via dev_push.sh)"
+    say "connector + framework -> $BOX (via dev_push.sh)"
     if [[ -n "$DRY_RUN" ]]; then
         note PLAN "connector + framework (dev_push.sh)"
     else
-        SSH_HOST="$SSH_HOST" ENV="$ENV_ABS" bash "$CONN_REPO/scripts/dev_push.sh"
+        BOX="$BOX" bash "$CONN_REPO/scripts/dev_push.sh"
         note PASS "connector + framework"
     fi
 else
@@ -110,7 +102,7 @@ for name in "${selected[@]}"; do
         note SKIP "widget $name (not found)"; continue
     fi
     whash="$(hash_widget "$name")"
-    wstamp="$STAMP_DIR/$name.$SSH_HOST"
+    wstamp="$STAMP_DIR/$name.$BOX"
     if [[ "$force_all" == "0" && "$(cat "$wstamp" 2>/dev/null)" == "$whash" ]]; then
         note SKIP "widget $name (unchanged $whash)"
         continue
@@ -119,7 +111,7 @@ for name in "${selected[@]}"; do
         note PLAN "widget $name ($whash)"
         continue
     fi
-    say "widget $name -> $SSH_HOST:$ENV_BASE ($whash)"
+    say "widget $name -> $BOX:$ENV_BASE ($whash)"
     ( cd "$HARNESS" && FSR_ENV_FILE="$ENV_ABS" PORT="$DEV_PORT" \
         WIDGETS_SRC="$ROOT/widgets-src" scripts/ship.sh "$name" )
     echo "$whash" > "$wstamp"
@@ -128,4 +120,4 @@ done
 
 echo
 printf '%s\n' "${summary[@]}"
-echo "[[PUSH-${DRY_RUN:+DRY-}OK]] $SSH_HOST in $((SECONDS - t_all))s"
+echo "[[PUSH-${DRY_RUN:+DRY-}OK]] $BOX in $((SECONDS - t_all))s"

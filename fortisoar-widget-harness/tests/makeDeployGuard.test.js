@@ -89,7 +89,7 @@ describe("runner marks and unguarded targets", () => {
     expect(rule).toBeDefined();
     expect(rule).not.toMatch(/deploy-guard/);
     // And a plan under CLAUDECODE is not refused (no CONFIRM_DEPLOY needed).
-    const r = make(["-n", "widget-push", "WIDGET=x", "SHIP_ENV=.env.x"], { CLAUDECODE: "1" });
+    const r = make(["-n", "widget-push", "WIDGET=x", "BOX=x"], { CLAUDECODE: "1" });
     expect(r.out).not.toMatch(GUARD_MSG);
   });
 

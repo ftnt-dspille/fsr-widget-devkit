@@ -61,22 +61,35 @@ This table is the one authoritative list (CLAUDE.md points here). Everything not
 listed runs offline: unit, the mock e2e gate, introspect (hermetic), `turn-hermetic`,
 and `widget-inspect` against the local dev server.
 
-| Target | Reaches the box when | Box selector |
-|---|---|---|
-| `make push` | always: deploys the connector, framework and changed widgets | `ENV=` and `SSH_HOST=` |
-| `make widget-push` | always: deploys one widget, then live sanity scoped to it | `SHIP_ENV=` (required explicitly) |
-| `make ship-verify` | always: deploys, then live-sweeps the same box | `ENV=` or `SHIP_ENV=` |
-| `make test-live-sweep` | always: the live sweep | `ENV=` or `SWEEP_ENV=` |
-| `make test-mcp-surface-live` | always | `SWEEP_ENV=` |
-| `make test-matrix-live` | always, headed (WAF blocks headless) | `MATRIX_ENV=` |
-| `make test-ar-live` (and `test-ar-playbook-live`, `test-ar-jtg-flow-live`, `test-ar-connector-live`) | always | `LIVE_ENV=` |
-| `make test-designer-stage-live` | always; pushes and deletes a scratch playbook | `BOX=` (or `ENV=`/`LIVE_ENV=`; no default) |
-| `make test-designer-apply-live` | always (docubot); pushes, saves and deletes a run-tagged scratch playbook | `BOX=` (or `ENV=`/`LIVE_ENV=`; no default) |
-| `make introspect-soar` | always: renders the deployed widget against the baseline | `ENV=` |
-| `make loop` | copies working trees to the box, then a live smoke | `ENV=` (forwarded to the connector repo) |
-| `make doctor` | reads the box (`LOCAL=1` skips it); `SANITY=1` adds the live sanity pass | `ENV=` or `BOX=` |
-| `make session-health` | reads box sessions (`SOURCE=local` skips it) | `ENV=` |
-| `make test-e2e-spec` | only with `E2E_LIVE=1` (live wire, `&real=1`) | `E2E_LIVE=1` |
+Every box target here and in the connector repo takes ONE selector, `BOX=<alias>`:
+an alias in the pyfsr registry (`~/.pyfsr/instances.toml`) on the connector's
+`scripts/box.sh` list (`scripts/box.sh --list`). `box.sh` asks `pyfsr instances env`
+for the env file and the ssh target (an `[instances.<alias>.appliance]` subtable;
+no `~/.ssh/config` alias needed). There is no default box, and a box with no ssh
+profile is refused by anything that needs ssh. `make doctor` lists registry problems
+(alias missing, no answer, no ssh profile). Retired knobs (`ENV`, `FSR_ENV`,
+`SHIP_ENV`, `SWEEP_ENV`, `MATRIX_ENV`, `LIVE_ENV`, `SSH_HOST`): for one release a human
+gets a warning and a registered env file maps to its alias; agents are refused.
+
+| Target | Reaches the box when |
+|---|---|
+| `make push` | always: deploys the connector, framework and changed widgets |
+| `make widget-push` | always: deploys one widget, then live sanity scoped to it |
+| `make ship-verify` | always: deploys, then live-sweeps the same box |
+| `make test-live-sweep` | always: the live sweep |
+| `make test-mcp-surface-live` | always |
+| `make test-matrix-live` | always, headed (WAF blocks headless) |
+| `make test-designer-stage-live` | always; pushes and deletes a scratch playbook |
+| `make test-designer-apply-live` | always (docubot); pushes, saves and deletes a run-tagged scratch playbook |
+| `make introspect-soar` | always: renders the deployed widget against the baseline |
+| `make loop` | copies working trees to the box, then a live smoke (forwarded to the connector repo) |
+| `make doctor` | reads the box (`LOCAL=1` skips it); `SANITY=1` adds the live sanity pass |
+| `make session-health` | reads box sessions (`SOURCE=local` skips it) |
+| `make test-e2e-spec` | only with `E2E_LIVE=1` (live wire, `&real=1`; no BOX) |
+
+Worktrees need no hand-set paths: `WIDGETS_SRC` defaults to the main checkout's
+`widgets-src/` when the worktree's is empty, and the connector's `FSR_SRC` and venv
+default to the main checkout's siblings.
 
 ## Live sanity (every dev push)
 
@@ -86,7 +99,7 @@ here, and the connector repo's `make deploy` / `make ship` / `make loop` /
 pushing: `make doctor BOX=<name> SANITY=1` (there is no separate target).
 `SKIP_LIVE_SANITY=1` opts out and prints a loud "live sanity NOT run" line.
 
-One implementation: `scripts/live-sanity.sh` (box via `resolve_box.sh`, no
+One implementation: `scripts/live-sanity.sh` (box via the connector's `scripts/box.sh`, no
 default box) runs `fortisoar-widget-harness/scripts/live-sanity/run.js`. Checks
 are a registry in `checks.js` (one entry each; lanes run in parallel):
 
@@ -294,16 +307,13 @@ runs, in order, failing fast:
    (~2.8 min); set `SKIP_INTROSPECT=1` to bypass when box-time is tight. Re-baseline
    an intended DOM/payload change with `make introspect`.
 5. **deploy** -- `scripts/ship.sh` (bulletproof fresh-server start + push), pointed
-   at the box `SHIP_ENV` names
+   at the `BOX=<alias>` box
 6. **live-sweep** -- the live sweep (real UI vs the real connector), on the **same**
    box step 5 deployed to
 
-> **Which box does `ship-verify` deploy to, and grade?** One box, always. `ENV`
-> (default `.env.159`) selects it; `SHIP_ENV` defaults to `ENV` and is what the deploy
-> uses. The live sweep is handed the same env file, so it cannot grade a different box.
-> `SWEEP_ENV` is accepted only if it names the same file: `make ship-verify ... SWEEP_ENV=.env.81`
-> with a different `SHIP_ENV` is refused before anything deploys. The sidecar `.env.<box>`
-> files are the source; the harness `.env` is no longer consulted by ship-verify.
+> **Which box does `ship-verify` deploy to, and grade?** One box, always: `BOX=<alias>`
+> (required). The deploy and the live sweep both resolve that alias, so the sweep
+> cannot grade a different box. The harness `.env` is not consulted by ship-verify.
 > `ship.sh`'s target-mismatch guard still aborts if a stale `.harness-active-env`
 > disagrees with the file it was handed.
 >

@@ -22,7 +22,7 @@
 // Every run writes captures/designerStage.capture.json -- the payloads behind
 // the widget's jest contract test (tests/designerStage.contract.test.js).
 //
-// Run: make test-designer-stage-live   (box env: LIVE_ENV=.env.<box>)
+// Run: make test-designer-stage-live   (BOX=<alias>)
 
 const fs = require("fs");
 const path = require("path");

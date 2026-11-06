@@ -3,7 +3,8 @@
 # (widget-push here; deploy / loop / ship-dev / dev-push in the connector repo),
 # and `make doctor BOX=<name> SANITY=1` for a re-check without pushing.
 #
-#   BOX=<name> | ENV=<file> [SSH_HOST=]   box, resolved through resolve_box.sh (no default)
+#   BOX=<alias>                            box, resolved through the pyfsr registry
+#                                          ($CONN_REPO/scripts/box.sh; no default)
 #   WIDGETS=a,b                            scope (default: assistant + Monitor + everything)
 #   LIVE_SANITY_FRAMEWORK=<path>           framework checkout that was dev-pushed (stamped)
 #   SKIP_LIVE_SANITY=1                     opt out, loudly
@@ -22,13 +23,18 @@ if [[ -n "${SKIP_LIVE_SANITY:-}" ]]; then
 fi
 
 # shellcheck source=/dev/null
-source "$CONN_REPO/scripts/resolve_box.sh"
+source "$CONN_REPO/scripts/box.sh"
 resolve_box env || exit 2
 
 # The env file is loaded literally by run.js (sourcing it would expand $ in passwords).
-export LIVE_SANITY_ENV_FILE="$ENV" LIVE_SANITY_BOX="$BOX" CONN_REPO
+export LIVE_SANITY_ENV_FILE="$BOX_ENV" LIVE_SANITY_BOX="$BOX" CONN_REPO
 export WIDGETS="${WIDGETS:-}"
-export WIDGETS_SRC="${WIDGETS_SRC:-$ROOT/widgets-src}"
+# A worktree of this repo has no widget repos: default to the main checkout's (D10).
+if [[ -z "${WIDGETS_SRC:-}" ]]; then
+    WIDGETS_SRC="$ROOT/widgets-src"
+    compgen -G "$WIDGETS_SRC/*/widget/info.json" >/dev/null || WIDGETS_SRC="$(bx_main_checkout "$ROOT")/widgets-src"
+fi
+export WIDGETS_SRC
 cd "$ROOT/fortisoar-widget-harness" || exit 2
 # Connector hooks reach here without make's harness-build: compile if needed.
 [[ -f lib/soarBrowser.js && -f lib/chatSession.js ]] || pnpm -s build >/dev/null || exit 2

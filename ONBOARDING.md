@@ -62,6 +62,11 @@ once it's pushed.
 > harness can talk to a lab box. Only ever point `FSR_BASE_URL` at a trusted lab
 > instance. `.env` is gitignored -- never commit credentials.
 
+Box-reaching targets (deploys, live sweeps, `make doctor`) take `BOX=<alias>`, an
+alias in the pyfsr registry `~/.pyfsr/instances.toml` (`env_file` for creds, an
+`[instances.<alias>.appliance]` subtable for ssh). See TESTING.md, "Targets that
+reach a box".
+
 ## Daily workflow
 
 ```bash
@@ -70,7 +75,7 @@ make test-unit WIDGET=fortiaiAgenticAssistant      # jest (controller logic)
 make test-e2e-spec WIDGET=fortiaiAgenticAssistant   # Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js
 make stop                                  # kill both servers
-make doctor LOCAL=1                        # ~15s preflight: is anything about to make a test lie? (drop LOCAL=1 to check the box)
+make doctor LOCAL=1                        # ~15s preflight: is anything about to make a test lie? (BOX=<alias> instead checks a box)
 ```
 
 Always run tests **through the Makefile** -- it manages the two never-overlapping

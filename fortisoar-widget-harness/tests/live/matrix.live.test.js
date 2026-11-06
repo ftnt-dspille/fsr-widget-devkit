@@ -37,9 +37,9 @@ const { runScenario, formatReport, gateRow, GATES } = require("./lib/matrixDrive
 // FSRPB_LIVE=1: that flag guards "this run touches the deployed box".
 const TARGET = (process.env.MATRIX_TARGET || "live").toLowerCase();
 const LIVE = process.env.FSRPB_LIVE === "1" || TARGET === "local";
-// Scenario rows are BOX-SPECIFIC (real record UUIDs), and MATRIX_ENV switches
+// Scenario rows are BOX-SPECIFIC (real record UUIDs), and BOX switches
 // boxes -- so the rows must switch with it, or a 206 run drives 159's records.
-// The Makefile resolves MATRIX_ENV=.env.206 → scenarios.local.206.json when that
+// The Makefile resolves BOX=206 → scenarios.local.206.json when that
 // file exists, falling back to scenarios.local.json. A local-target run gets its
 // own file when one exists: its rows must reference records the LOCAL harness
 // can actually resolve through its proxy, and its `visitFirst` rows have to be

@@ -10,9 +10,9 @@
 # gate keys on the output markers, as before.
 #
 # The live sweep itself is `make test-live-sweep`, run by name from this script.
-# SWEEP_ENV arrives in the environment from ship-verify and is the box that was
-# just deployed to; test-live-sweep sources it, so the sweep cannot drift to
-# another box (see the INVARIANT in the Makefile env block).
+# BOX arrives in the environment from ship-verify and is the box that was just
+# deployed to; test-live-sweep resolves the same alias, so the sweep cannot drift
+# to another box (see the INVARIANT in the Makefile box block).
 
 WIDGET="${WIDGET:-}"
 lv_status="unverified"

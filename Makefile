@@ -73,9 +73,9 @@ refresh-soar-types: harness-build ## Regenerate lib/soar-platform.d.ts from cont
 
 new-widget: harness-build ## Scaffold a widget from a spec. SPEC=spec.json OR NAME=incidentSummary [KIND=record] [TRIGGER=1] [TITLE="…"]
 	@if [ -n "$(SPEC)" ]; then \
-	  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/new-widget.js --spec $(CURDIR)/$(SPEC); \
+	  cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/new-widget.js --spec $(CURDIR)/$(SPEC); \
 	elif [ -n "$(NAME)" ]; then \
-	  cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/new-widget.js "$(NAME)" $(if $(TITLE),--title "$(TITLE)") $(if $(KIND),--kind $(KIND)) $(if $(TRIGGER),--triggers-playbook); \
+	  cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/new-widget.js "$(NAME)" $(if $(TITLE),--title "$(TITLE)") $(if $(KIND),--kind $(KIND)) $(if $(TRIGGER),--triggers-playbook); \
 	else \
 	  echo "Usage: make new-widget SPEC=spec.json   (or)   make new-widget NAME=<camelCase> [KIND=record] [TRIGGER=1] [TITLE=\"…\"]"; exit 2; \
 	fi
@@ -160,49 +160,45 @@ widget-inspect: harness-build ## Mount a widget in the running harness + measure
 
 BUMP ?= patch
 
-# --- Box/env selection: ONE knob -------------------------------------------
-# `ENV` is the single canonical box selector. Pass `ENV=.env.206` once and the
-# sweep / matrix / live / loop / doctor / ship-verify targets all follow. The
-# per-area vars below (SHIP_ENV / SWEEP_ENV / MATRIX_ENV / LIVE_ENV) are shims:
-# each accepts its own explicit override and otherwise follows ENV.
-# `soarEnv.ts` (FSR_ENV_FILE → .harness-active-env → .env) remains the runtime
-# resolver; this block only decides which file the Make targets hand it.
+# --- Box selection: ONE knob, ONE registry ------------------------------------
+# BOX=<alias> picks the box: an alias in the pyfsr registry (~/.pyfsr/instances.toml)
+# on the connector repo's scripts/box.sh list (`$(CONN_REPO)/scripts/box.sh --list`).
+# The registry answers the env file every recipe sources and the ssh target; there
+# is no default box. SHIP_ENV / SWEEP_ENV / MATRIX_ENV / LIVE_ENV / ENV / FSR_ENV /
+# SSH_HOST are retired: for one release a human gets a warning and a registered env
+# file is mapped to its alias; an agent (CLAUDECODE) is refused. `soarEnv.ts`
+# (FSR_ENV_FILE) is still the harness runtime resolver; recipes hand it BOX_ENV.
 #
-# INVARIANT (ship-verify): the box it DEPLOYS to and the box its live sweep
-# GRADES are the same env file. SHIP_ENV decides the deploy; the sweep is handed
-# that same resolved file (not its own default); an explicit SWEEP_ENV naming a
-# different file is refused by the guard in ship-verify. Neither var set: both
-# are ENV (.env.159). Never add a fallback that resolves the two separately.
-ENV ?= .env.159
-SHIP_ENV ?= $(ENV)
-SWEEP_ENV ?= $(ENV)
-
-# Box name -> the file path the recipes hand to a shell or ship.sh. A bare name
-# (.env.206) is harness-relative; an absolute path is used as-is.
-env_file = $(if $(filter /%,$(1)),$(1),$(abspath $(HARNESS)/$(1)))
-
-# A target that reaches a box must be TOLD which one. The `ENV ?= .env.159` above
-# only lets offline/mock targets parse; it is never a deploy target. The one
-# registry is the connector repo's scripts/boxes.tsv, resolved by its
-# scripts/resolve_box.sh (no default box; a mismatched pair is refused).
-# Explicit means BOX=<name>, or SHIP_ENV / SWEEP_ENV / ENV given on the command
-# line or in the environment.
-_EXPL_ENV := $(firstword $(foreach v,SHIP_ENV SWEEP_ENV ENV,$(if $(filter command line environment,$(origin $(v))),$($(v)))))
-_EXPL_SSH := $(if $(filter command line environment,$(origin SSH_HOST)),$(SSH_HOST))
+# INVARIANT (ship-verify): the box it DEPLOYS to and the box its live sweep GRADES
+# are the same BOX. There is one knob, so they cannot differ.
+CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
+BOX_SH := $(CONN_REPO)/scripts/box.sh
+# A worktree of this repo has no widget repos under widgets-src/: default to the
+# main checkout's (D10). An explicit WIDGETS_SRC= wins.
+MAIN_CHECKOUT := $(or $(patsubst %/.git,%,$(shell git -C "$(CURDIR)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)),$(CURDIR))
+WIDGETS_SRC ?= $(if $(wildcard $(CURDIR)/widgets-src/*/widget/info.json),$(CURDIR)/widgets-src,$(MAIN_CHECKOUT)/widgets-src)
+export WIDGETS_SRC
+_DEP_KNOBS := ENV FSR_ENV SHIP_ENV SWEEP_ENV MATRIX_ENV LIVE_ENV SSH_HOST
+_DEP_ARGS := $(strip $(foreach v,$(_DEP_KNOBS),$(if $(filter command line environment,$(origin $(v))),$(v)='$($(v))')))
+_RESOLVED := $(if $(strip $(BOX)$(_DEP_ARGS)),$(shell BOX='$(BOX)' $(_DEP_ARGS) bash "$(BOX_SH)" --need 'env,ssh?' --make))
+RESOLVED_BOX := $(word 1,$(_RESOLVED))
+BOX_ENV := $(word 2,$(_RESOLVED))
+unexport $(_DEP_KNOBS)
+# A target that reaches a box must be TOLD which one: this prints the target or
+# stops with the reason (no BOX, unknown alias, retired knob under an agent).
 define require_box
-@BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env
+@BOX='$(BOX)' $(_DEP_ARGS) bash "$(BOX_SH)" --need env
 endef
-# What to forward to the connector repo's make: only what was explicitly given.
-_FWD_BOX = $(if $(BOX),BOX=$(BOX),) $(if $(_EXPL_ENV),ENV=$(call env_file,$(_EXPL_ENV)),) $(if $(_EXPL_SSH),SSH_HOST=$(_EXPL_SSH),)
+# What to forward to the connector repo's make.
+_FWD_BOX = BOX=$(or $(RESOLVED_BOX),$(BOX))
 
 ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	$(require_box)
-	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> [BUMP=patch]"; exit 2; fi
-	@if { [ "$(origin SWEEP_ENV)" = "command line" ] || [ "$(origin SWEEP_ENV)" = "environment" ]; } && [ "$(call env_file,$(SWEEP_ENV))" != "$(call env_file,$(SHIP_ENV))" ]; then echo "ship-verify: SWEEP_ENV=$(SWEEP_ENV) names a different box than SHIP_ENV=$(SHIP_ENV) (deploy). A green run must grade the box it deployed to: drop SWEEP_ENV or make it match."; exit 2; fi
+	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
-	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-angular.js $(WIDGET)
-	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/lint-testids.js $(WIDGET)
-	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src node scripts/typecheck-widgets.js $(WIDGET)
+	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
+	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-testids.js $(WIDGET)
+	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/typecheck-widgets.js $(WIDGET)
 	@echo "▶ 2/6 unit"
 	@$(MAKE) test-unit WIDGET=$(WIDGET)
 	@echo "▶ 3/6 e2e (mock)"
@@ -210,42 +206,41 @@ ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck
 	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"
 	@if [ -n "$(SKIP_INTROSPECT)" ]; then echo "  (SKIP_INTROSPECT set -- skipping; run 'make introspect-gate' separately)"; fi
 	@$(if $(SKIP_INTROSPECT),,$(MAKE) introspect-gate GATE_WIDGET=$(WIDGET))
-	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, $(SHIP_ENV) → same box tests hit)"; \
-	  cd $(HARNESS) && FSR_ENV_FILE=$(call env_file,$(SHIP_ENV)) PORT=$(DEV_PORT) WIDGETS_SRC=$(CURDIR)/widgets-src \
+	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, BOX=$(RESOLVED_BOX) → same box tests hit)"; \
+	  cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
 	    scripts/ship.sh $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
 	@# A missing sweep spec used to "skip" and still print "live-verified" below.
 	@# That is the 0.2 bug class: the gate ran over an empty set and reported the
 	@# same thing it reports when it passes -- and it already burned us once at
 	@# the widget rename (see SWEEP_WIDGET). Skipping is now an explicit choice
 	@# (SKIP_LIVE_SWEEP=1), and the completion line says which gates actually ran.
-	@echo "▶ 6/6 live-sweep ($(SHIP_ENV) → the box just deployed to)"
-	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) SWEEP_ENV=$(call env_file,$(SHIP_ENV)) bash scripts/ship-verify-sweep.sh
+	@echo "▶ 6/6 live-sweep (BOX=$(RESOLVED_BOX) → the box just deployed to)"
+	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) BOX=$(RESOLVED_BOX) bash scripts/ship-verify-sweep.sh
 
 widget-push: export VIA_WIDGET_PUSH := 1
-widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). Box-only, agent-allowed (no CONFIRM_DEPLOY). WIDGET=, SHIP_ENV=.env.<box>, BUMP=patch to bump (default: no bump)
-	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> SHIP_ENV=.env.<box> [BUMP=patch]"; exit 2; fi
-	@if [ "$(origin SHIP_ENV)" != "command line" ]; then echo "widget-push: pass SHIP_ENV=.env.<box> explicitly (no silent default box)"; exit 2; fi
-	@cd $(HARNESS) && WIDGETS_SRC=$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src) node scripts/lint-angular.js $(WIDGET)
-	@$(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
-	@cd $(HARNESS) && FSR_ENV_FILE=$(call env_file,$(SHIP_ENV)) PORT=$(DEV_PORT) WIDGETS_SRC=$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src) \
-	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
-	@echo "✓ widget-push: $(WIDGET) deployed to $(SHIP_ENV)"
-	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
-	@ENV="$(call env_file,$(SHIP_ENV))" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src)" CONN_REPO="$(CONN_REPO)" \
-	  LIVE_SANITY_STAMP_REPOS="$(or $(WIDGETS_SRC),$(CURDIR)/widgets-src)/$(WIDGET)" bash scripts/live-sanity.sh
-
-push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. ENV=.env.<box> SSH_HOST=<box> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
+widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). Box-only, agent-allowed (no CONFIRM_DEPLOY). WIDGET=, BOX=<alias>, BUMP=patch to bump (default: no bump)
+	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	$(require_box)
-	@BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
+	@cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
+	@$(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
+	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
+	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
+	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
+	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
+	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(WIDGETS_SRC)" CONN_REPO="$(CONN_REPO)" \
+	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" bash scripts/live-sanity.sh
+
+push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
+	$(require_box)
+	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
 	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
 
 release: deploy-guard harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
-	cd $(HARNESS) && WIDGETS_SRC=$(CURDIR)/widgets-src scripts/release.sh $(WIDGET) $(BUMP)
+	cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) scripts/release.sh $(WIDGET) $(BUMP)
 
 # The dev loop, doctor and session-health live in the connector repo (it owns the
 # Python venv with pyfsr); these forward so either repo is a fine place to type them.
-CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
 loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees to the box -> ~35s live smoke (see conn_main scripts/loop.sh)
 	$(require_box)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop $(_FWD_BOX)
@@ -253,7 +248,7 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)
 	$(if $(LOCAL),,$(require_box))
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
-	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)))" SSH_HOST="$(_EXPL_SSH)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/live-sanity.sh),true)
+	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/live-sanity.sh),true)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
 	$(if $(filter local,$(SOURCE)),,$(require_box))
@@ -267,19 +262,18 @@ session-health: ## Which chat tools fail, with inputs/outputs, classed model/rem
 # stopped matching, so the CANONICAL ship path skipped its live gate entirely
 # and still printed "live-verified".
 SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
-# Source the box env explicitly, mirroring test-matrix-live's MATRIX_ENV. The
-# bare `.env` points at whichever box was last worked on, so a sweep run right
-# after shipping elsewhere silently [[SWEEP-ENV-SKIP]]s with "connector not
-# present/configured" -- which reads like a box outage rather than "you are
-# pointed at the wrong box". ship-verify never uses this default: it hands the
-# sweep its deploy file (see the INVARIANT at the top of this block).
+# Use the BOX env file explicitly. The bare `.env` points at whichever box was
+# last worked on, so a sweep run right after shipping elsewhere silently
+# [[SWEEP-ENV-SKIP]]s with "connector not present/configured" -- which reads like
+# a box outage rather than "you are pointed at the wrong box".
 
-test-mcp-surface-live: harness-build ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (SWEEP_ENV=.env.159)
+test-mcp-surface-live: harness-build ## LIVE M2 widget-tier proof: the mounted page decides the MCP surface (BOX=<alias>)
 	@# Its own target rather than `test-e2e-spec SPEC=…` because a live spec needs
 	@# the box env sourced, and test-e2e-spec deliberately does not source one --
 	@# an ambient E2E_LIVE=1 there would un-ignore every live spec in the mock tier.
+	$(require_box)
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
-	cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
+	cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	  PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
 	  pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).mcpSurface.spec.js --reporter=list
 
@@ -313,7 +307,7 @@ test-live-sweep: harness-build ## LIVE forticloud UI bug-hunt sweep (real connec
 	sweep_log="$$log_dir/all.log"; : > "$$sweep_log"; \
 	while [ $$i -le $$n ]; do \
 	  echo "===== live-sweep run $$i/$$n ====="; \
-	  ( cd $(HARNESS) && set -a && . "$(SWEEP_ENV)" && set +a && \
+	  ( cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	    PORT=$(TEST_PORT) E2E_LIVE=1 FSRPB_LIVE_UI=1 \
 	    pnpm test:e2e ../widgets-src/$(SWEEP_WIDGET)/tests/e2e/$(SWEEP_WIDGET).liveSweep.spec.js --reporter=list $(SWEEP_GREP) ) 2>&1 | tee "$$log_dir/run$$i.log" || fail=1; \
 	  cat "$$log_dir/run$$i.log" >> "$$sweep_log"; \
@@ -341,23 +335,16 @@ test-live-sweep: harness-build ## LIVE forticloud UI bug-hunt sweep (real connec
 	echo "[[SWEEP-VERIFIED]] live-sweep graded $$ran scenario(s) -- live-verified."; \
 	exit 0
 
-# Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
-MATRIX_ENV ?= $(ENV)
-# MATRIX_ENV accepts a harness-relative name (.env.159) or an absolute path
-# (the connector-repo Makefile passes one). Boxes: .env.159 (8.0 triage),
-# .env.206 (ZTPF + the build/authoring flows -- where the P6 rows belong).
-MATRIX_ENV_PATH := $(if $(filter /%,$(MATRIX_ENV)),$(MATRIX_ENV),$(abspath $(HARNESS)/$(MATRIX_ENV)))
-# Scenario rows carry real record UUIDs, so they are BOX-SPECIFIC and must track
-# MATRIX_ENV -- otherwise a 206 run drives 159's records. `.env.206` →
-# scenarios.local.206.json when present, else the plain scenarios.local.json.
-# MATRIX_SCENARIOS=<path> overrides. All are gitignored; the template is
-# scenarios.local.example.json.
-MATRIX_BOX := $(patsubst .env.%,%,$(notdir $(MATRIX_ENV)))
+# Scenario rows carry real record UUIDs, so they are BOX-SPECIFIC and track BOX:
+# BOX=206 -> scenarios.local.206.json when present, else the plain
+# scenarios.local.json. MATRIX_SCENARIOS=<path> overrides. All are gitignored; the
+# template is scenarios.local.example.json.
+MATRIX_BOX := $(RESOLVED_BOX)
 MATRIX_SCENARIOS ?= $(if $(wildcard $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.$(MATRIX_BOX).json),$(abspath $(HARNESS)/tests/live/scenarios.local.json))
 # MATRIX_GATE filters rows by their `gate` field (see matrixDriver.gateRow).
 # Unset = every runnable row.
-test-matrix-live: harness-build ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10/P1-P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: MATRIX_ENV=.env.206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
-	@if [ ! -f "$(MATRIX_ENV_PATH)" ]; then echo "missing $(MATRIX_ENV_PATH) (box creds)"; exit 2; fi
+test-matrix-live: harness-build ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TEST_PLAN.md T1-T10/P1-P6) vs the deployed widget. HEADED (WAF blocks headless). Scenarios auto-select per box: BOX=206 → tests/live/scenarios.local.206.json (gitignored). MATRIX_GATE=strict,xfail for gating rows only; MATRIX_IDS=Z3,Z5 for a hand-picked subset.
+	$(require_box)
 	@# A missing scenario file used to warn and exit 0 -- "the matrix passed"
 	@# over zero rows (PLAN_testing_that_can_fail 0.2). MATRIX_ALLOW_SKIP=1 is
 	@# the explicit opt-out for a machine with no box-specific scenarios.
@@ -368,13 +355,13 @@ test-matrix-live: harness-build ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TES
 	    exit 1; \
 	  fi; \
 	else \
-	  echo "▶ matrix: env=$(MATRIX_ENV) scenarios=$(notdir $(MATRIX_SCENARIOS)) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"; \
-	  cd $(HARNESS) && set -a && . "$(MATRIX_ENV_PATH)" && set +a && \
+	  echo "▶ matrix: box=$(MATRIX_BOX) scenarios=$(notdir $(MATRIX_SCENARIOS)) gate=$(if $(MATRIX_GATE),$(MATRIX_GATE),<all>) ids=$(if $(MATRIX_IDS),$(MATRIX_IDS),<all>)"; \
+	  cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	  FSRPB_LIVE=1 FSRPB_HEADED=1 MATRIX_GATE="$(MATRIX_GATE)" MATRIX_IDS="$(MATRIX_IDS)" MATRIX_SCENARIOS="$(MATRIX_SCENARIOS)" \
 	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
 
-# Old name for `test-matrix-live MATRIX_GATE=strict,xfail`: GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). MATRIX_ENV=.env.206 for build flows.
+# Old name for `test-matrix-live MATRIX_GATE=strict,xfail`: GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). BOX=206 for build flows.
 test-matrix-gate: MATRIX_GATE = strict,xfail
 test-matrix-gate: test-matrix-live
 
@@ -415,22 +402,17 @@ grade-export: harness-build ## Grade a downloaded widget .events.json chat expor
 	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
 	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
 
-# Compat shim: follows the canonical ENV knob (default .env.159, unchanged).
-LIVE_ENV ?= $(ENV)
 # test-ar-live and its aliases are retired: widget-action-renderer was archived
 # to ~/WebstormProjects/fsr-widget-archive (2026-10-21). Restore the widget
 # before resurrecting the target (git history has the recipe).
 test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live:
 	@echo "retired: widget-action-renderer is archived (see ~/WebstormProjects/fsr-widget-archive/MANIFEST.md)"; exit 2
 
-# Live box tests resolve their box through the registry (require_box): BOX=<name>,
-# or ENV=.env.<box> (LIVE_ENV still honored). There is no default box.
-_LIVE_BOX_ENV = BOX="$(BOX)" ENV="$(if $(_EXPL_ENV),$(call env_file,$(_EXPL_ENV)),$(if $(filter command line environment,$(origin LIVE_ENV)),$(call env_file,$(LIVE_ENV))))" SSH_HOST="$(_EXPL_SSH)"
-_LIVE_ENV_FILE = $$($(_LIVE_BOX_ENV) bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env --print | sed -n 's/^ENV=//p')
+# Live box tests resolve their box through the registry (require_box): BOX=<alias>.
 
 test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edit into the REAL open designer (no reload, nothing written). Pushes + deletes a scratch playbook. BOX=<name>
-	@$(_LIVE_BOX_ENV) bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env
-	@envf=$(_LIVE_ENV_FILE); cd $(HARNESS) && set -a && . "$$envf" && set +a && \
+	$(require_box)
+	@cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	  E2E_LIVE=1 pnpm test:live tests/live/designerStage.live.test.js
 
 # docubot (TEC kit) drives the live designer tier. DOCUBOT= points at a kit
@@ -438,9 +420,9 @@ test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edi
 # tsconfig are both required (the tsconfig carries the `docubot` path mapping).
 DOCUBOT ?= $(HOME)/PycharmProjects/TEC/docubot
 test-designer-apply-live: ## LIVE (docubot, no LLM): Apply to designer -> designer Save -> Apply again is never blocked, and each Save writes. Scratch playbook run-tagged and deleted. BOX=<name> [DOCUBOT=<kit>]
-	@$(_LIVE_BOX_ENV) bash "$(CONN_REPO)/scripts/resolve_box.sh" --need env
+	$(require_box)
 	@test -x "$(DOCUBOT)/node_modules/.bin/playwright" || { echo "docubot kit not installed at $(DOCUBOT) (pass DOCUBOT=<kit>)"; exit 2; }
-	@envf=$(_LIVE_ENV_FILE); set -a && . "$$envf" && set +a && \
+	@set -a && . "$(BOX_ENV)" && set +a && \
 	  cd "$(DOCUBOT)" && VIA_MAKE=1 FORCE=1 DOCUBOT_TARGET="$(CURDIR)/$(HARNESS)/tests" \
 	  node_modules/.bin/playwright test --config="$$PWD/playwright.config.ts" --tsconfig="$$PWD/tsconfig.json" \
 	  "$(CURDIR)/$(HARNESS)/tests/docubot/designerApply.spec.ts"
@@ -463,9 +445,9 @@ introspect-gate: harness-build introspect ## Run introspection + fail if any wid
 	@echo "▶ Checking regressions against baseline…"
 	@cd $(HARNESS) && pnpm node scripts/introspect-gate.js $(GATE_WIDGET)
 
-introspect-soar: harness-build ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. Source the box env first (e.g. `set -a; . .env.159; set +a`). ENV=.env.159 to point it; ARGS='--offline' to re-diff without driving the box.
+introspect-soar: harness-build ## Real-SOAR fidelity diff (Phase 2): render deployed widget(s) on a live box, diff vs the harness baseline. BOX=<alias> to point it; ARGS='--offline' to re-diff without driving the box.
 	@echo "▶ Rendering deployed widget(s) live + diffing vs harness baseline…"
-	@cd $(HARNESS) && set -a; [ -n "$(ENV)" ] && . ./$(ENV); set +a; pnpm node scripts/introspectSoar.js $(ARGS)
+	@cd $(HARNESS) && set -a; [ -n "$(BOX_ENV)" ] && . "$(BOX_ENV)"; set +a; pnpm node scripts/introspectSoar.js $(ARGS)
 
 clean: ## Remove harness node_modules + test artifacts
 	rm -rf $(HARNESS)/node_modules $(HARNESS)/test-results test-results

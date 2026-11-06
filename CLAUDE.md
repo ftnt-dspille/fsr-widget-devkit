@@ -14,8 +14,11 @@ commit inside that repo, not here.
   Run it before believing any live result.
 - `make session-health` classifies failing chat tools (model/remote/guard/env/tool_bug,
   recovered vs stuck) when triaging a session.
-- One env knob: `ENV=.env.<box>` drives sweep/matrix/live/doctor; `SHIP_ENV`/`SWEEP_ENV`/
-  `MATRIX_ENV`/`LIVE_ENV` still override individually.
+- One box knob: `BOX=<alias>` (pyfsr registry `~/.pyfsr/instances.toml`, resolved by
+  the connector's `scripts/box.sh`; `scripts/box.sh --list` shows the targetable aliases).
+  It drives every box target in all repos, ssh included. No default box. The old
+  `ENV`/`SHIP_ENV`/`SWEEP_ENV`/`MATRIX_ENV`/`LIVE_ENV`/`FSR_ENV`/`SSH_HOST` knobs are
+  refused for agents.
 - If grep finds nothing in a file you know exists, use `/usr/bin/grep`: the
   interactive `grep` is a ugrep wrapper that skips big files.
 
@@ -48,8 +51,7 @@ investigation into a playbook. The widget is the window; the connector is the en
   see `TESTING.md`, Guardrails.
 - Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
-  WIDGET=<name> SHIP_ENV=.env.<box>` (lint + unit + deploy, ~1-2 min; `SHIP_ENV`
-  must be explicit). `ship-verify` is for public releases only.
+  WIDGET=<name> BOX=<alias>` (lint + unit + deploy, ~1-2 min; `BOX` is required). `ship-verify` is for public releases only.
 - **Main moves only through `make promote REPO=<repo> BRANCH=<branch>`**, after
   a push target or `make doctor BOX=<box> SANITY=1 STAMP=<repo dir>` stamped that branch head VERIFIED on a clean tree. It merges
   into local main (ff or merge commit, other WIP kept) and never pushes. A git
