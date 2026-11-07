@@ -72,6 +72,13 @@ async function main() {
     results[0] = { ...results[0], detail: `connector ${soar.meta.version}, default config "${def.name}"` };
   }
 
+  function connectorPython(repo) {
+    const own = path.join(repo, ".venv", "bin", "python");
+    if (require("fs").existsSync(own)) return own;
+    const r = require("child_process").spawnSync("bash", [path.join(repo, "scripts", "box.sh"), "--python"], { encoding: "utf8" });
+    return (r.status === 0 && r.stdout.trim()) || own;
+  }
+
   // --- shared context --------------------------------------------------------
   const soarBrowser = require(path.join(HARNESS, "lib/soarBrowser"));
   const soarEnv = require(path.join(HARNESS, "lib/soarEnv"));
@@ -84,7 +91,9 @@ async function main() {
     widgets: widgets.length ? widgets : [ASSISTANT, MONITOR],
     widgetsSrc: process.env.WIDGETS_SRC || path.resolve(HARNESS, "..", "widgets-src"),
     connRepo: process.env.CONN_REPO,
-    connPy: path.join(process.env.CONN_REPO || "", ".venv", "bin", "python"),
+    // The connector's pyfsr python; a connector worktree has no .venv of its own,
+    // so ask its scripts/box.sh (falls back to the main checkout's venv).
+    connPy: connectorPython(process.env.CONN_REPO || ""),
     connEnv: { FSR_BUILDER_VERSION: soar.meta.version, FSR_BUILDER_CONFIG_NAME: soar.meta.configName },
     box: { connectorVersion: soar.meta.version },
     boxName: box,
