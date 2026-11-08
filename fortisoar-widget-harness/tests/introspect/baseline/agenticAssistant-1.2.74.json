@@ -1,5 +1,5 @@
 {
-  "widgetId": "fortiaiAgenticAssistant-1.2.74",
+  "widgetId": "agenticAssistant-1.2.74",
   "source": "harness",
   "caps": {
     "monaco": true,
@@ -346,91 +346,91 @@
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbAgent.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbAgent.service.js",
       "size": 41693,
       "start": 9387,
       "dur": 3,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbCards.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbCards.service.js",
       "size": 5369,
       "start": 9391,
       "dur": 2,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbEntityCards.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbEntityCards.service.js",
       "size": 14800,
       "start": 9393,
       "dur": 1,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbExport.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbExport.service.js",
       "size": 14417,
       "start": 9394,
       "dur": 2,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbHtml.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbHtml.service.js",
       "size": 6469,
       "start": 9397,
       "dur": 4,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbMarkdown.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbMarkdown.service.js",
       "size": 10419,
       "start": 9403,
       "dur": 3,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbMockConnector.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbMockConnector.service.js",
       "size": 6746,
       "start": 9406,
       "dur": 4,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbRender.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbRender.js",
       "size": 85466,
       "start": 9411,
       "dur": 1,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbTranscript.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbTranscript.service.js",
       "size": 6502,
       "start": 9413,
       "dur": 2,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbVerdictVocab.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbVerdictVocab.js",
       "size": 720,
       "start": 9416,
       "dur": 3,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/js/fsrPbYaml.service.js",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/js/fsrPbYaml.service.js",
       "size": 5554,
       "start": 9420,
       "dur": 3,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/view.controller.js",
+      "name": "/agenticAssistant-1.2.74/view.controller.js",
       "size": 334370,
       "start": 9423,
       "dur": 7,
       "type": "script"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/locales/en.json",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/locales/en.json",
       "size": 302,
       "start": 9437,
       "dur": 1,
@@ -913,7 +913,7 @@
       "type": "fetch"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/view.html",
+      "name": "/agenticAssistant-1.2.74/view.html",
       "size": 315914,
       "start": 9678,
       "dur": 33,
@@ -927,7 +927,7 @@
       "type": "fetch"
     },
     {
-      "name": "/fortiaiAgenticAssistant-1.2.74/widgetAssets/fixtures/capability_gap.json",
+      "name": "/agenticAssistant-1.2.74/widgetAssets/fixtures/capability_gap.json",
       "size": 3217,
       "start": 9681,
       "dur": 32,

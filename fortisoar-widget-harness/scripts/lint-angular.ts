@@ -3,7 +3,7 @@
 // Catches the AngularJS + FortiSOAR widget footguns we keep hitting. Run
 // scoped to one widget (recommended for CI) or across every widget.
 //
-//   node scripts/lint-angular.js fortiaiAgenticAssistant  # one widget (or several)
+//   node scripts/lint-angular.js agenticAssistant  # one widget (or several)
 //   node scripts/lint-angular.js                          # every widget under widgets-src/
 // Exits 1 when the selected set is empty (a missing name or no widgets-src).
 //
@@ -503,7 +503,7 @@ function checkUnscopedGenericSelectors(file: string, lines: string[]): void {
 // R12: widget root must use viewport-based height AND composer must be
 // sticky. `height: 100%` collapses in SOAR's drawer; raw `height: 100vh`
 // overflows when there's chrome above the widget - the composer falls
-// below the visible viewport. The proven pattern (fortiaiAgenticAssistant):
+// below the visible viewport. The proven pattern (agenticAssistant):
 // `height: calc(100vh - <px>)` on the root + `position: sticky; bottom:0`
 // on the bottom input row.
 function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
@@ -517,7 +517,7 @@ function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
     record('warning', file, ln + 1, 'widget-root-height-100vh',
       '`height: 100vh` on the widget root overflows the visible area when the host has ' +
       'chrome above the widget (drawer drag bar, dashboard grid header). The composer ends ' +
-      'up below the viewport bottom. Use `height: calc(100vh - 32px)` like fortiaiAgenticAssistant ' +
+      'up below the viewport bottom. Use `height: calc(100vh - 32px)` like agenticAssistant ' +
       'and make the composer `position: sticky; bottom: 0`.');
   }
   if (hasBare100 && !hasCalcVh && !hasBareVh) {
@@ -542,7 +542,7 @@ function checkWidgetHeightStickyComposer(file: string, lines: string[]): void {
 // certification. Recognised by the `Copyright start` … `Copyright end` markers
 // in the file head (the KB block, and every certified widget, opens with them).
 // Warning, not error: it blocks Content Hub submission, not runtime, and dev
-// widgets (fortiaiAgenticAssistant et al.) legitimately ship without it.
+// widgets (agenticAssistant et al.) legitimately ship without it.
 function checkCopyrightHeader(file: string, lines: string[]): void {
   // Header lives at the top; scan the first 15 lines so a stray "Copyright"
   // deeper in the file (e.g. a vendored snippet) can't mask a missing header.

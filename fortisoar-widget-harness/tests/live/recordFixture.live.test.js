@@ -76,7 +76,7 @@ d(`live: record the ${SCENARIO || "<unset>"} arc`, () => {
 
   test(`drives the arc and writes tests/live/captures/${SCENARIO}.payloads.json`, async () => {
     // Mirror the widget's stream-lifecycle trace into the jest output. On a real
-    // appliance `window.__fortiaiAgenticAssistant__` is absent by design, so the
+    // appliance `window.__agenticAssistant__` is absent by design, so the
     // console is the only channel that says which poll guard declined -- see #98.
     const trace = [];
     /* eslint-disable no-console */

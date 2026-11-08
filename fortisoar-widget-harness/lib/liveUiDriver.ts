@@ -219,7 +219,7 @@ async function openWidgetDrawer(opts: OpenWidgetDrawerOpts = {}): Promise<ChatSe
    * one. Target our widget's icon by its title first; fall back to the
    * click-loop for older layouts. Idempotent -- safe to call after a nav.
    */
-  const widgetTitle = opts.widgetTitle || process.env.FSRPB_WIDGET_TITLE || "FortiAI Agentic Assistant";
+  const widgetTitle = opts.widgetTitle || process.env.FSRPB_WIDGET_TITLE || "Agentic Assistant";
   const openDrawer = async (): Promise<boolean> => {
     if (await page.$(COMPOSER)) return true;
     const titledIcon = await page.$(`img.logo-sm[title="${widgetTitle}"]`);

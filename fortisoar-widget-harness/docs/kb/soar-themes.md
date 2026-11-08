@@ -58,7 +58,7 @@ harness (which loads no platform theme CSS):
 Blend solid colors with `color-mix` rather than layering SOAR's translucent
 `rgba` overlays: an overlay on a popover shows the content beneath it.
 
-The assistant widget does this (fortiaiAgenticAssistant `view.html` tokens). A
+The assistant widget does this (agenticAssistant `view.html` tokens). A
 fixed neutral-grey palette there read as a visibly different box inside the
 Deep Sea designer.
 

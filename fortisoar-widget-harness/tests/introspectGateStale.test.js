@@ -4,7 +4,7 @@
 // `make introspect` renders the CURRENT source of each widget, so it only ever
 // writes a report for the version in widgets-src/<name>/widget/info.json. A
 // report for any older version is a leftover. One of those leftovers
-// (fortiaiAgenticAssistant-1.2.52, written by a run whose auth failed -- a 502
+// (agenticAssistant-1.2.52, written by a run whose auth failed -- a 502
 // and a gzip body parsed as JSON) recorded a no-mount against a baseline that
 // said mounted, and failed `make ship-verify` at step 4/6 on every subsequent
 // run. Nothing a person could do would clear it: the source had already moved
@@ -35,7 +35,7 @@ const currentVersion = (name) =>
   JSON.parse(fs.readFileSync(path.join(SRC, name, "widget", "info.json"), "utf8")).version;
 
 describe("introspect-gate skips reports the current source cannot regenerate", () => {
-  const WIDGET = "fortiaiAgenticAssistant";
+  const WIDGET = "agenticAssistant";
 
   test("the fixture this exists for is still on disk", () => {
     // If someone deletes the stale reports, this test would pass vacuously.

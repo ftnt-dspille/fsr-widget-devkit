@@ -24,7 +24,7 @@ commit inside that repo, not here.
 
 ## The product and where work is tracked
 
-`fortiaiAgenticAssistant` and `agenticAssistantMonitor` are the surfaces of the
+`agenticAssistant` and `agenticAssistantMonitor` are the surfaces of the
 **FortiSOAR Agentic Assistant**: "AI finds the pattern. A playbook runs it forever."
 Four promises: **P1** investigate with cited verdicts · **P2** tier-gated,
 analyst-approved actions · **P3** reach on-prem targets · **P4** bottle each
@@ -121,11 +121,11 @@ Rules:
   (wraps `fortisoar-widget-harness/scripts/widget-inspect.js`; `--help` lists the
   flags). Don't hand-roll Playwright except for a tiny screenshot script.
   The assistant's mock-state screenshots (quick actions, verdict, action card, offer)
-  come from `widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.docsScreenshots.spec.js`:
-  `DOCS_SHOTS=1 make test-e2e-spec SPEC=fortiaiAgenticAssistant.docsScreenshots` (rewrites
+  come from `widgets-src/agenticAssistant/tests/e2e/agenticAssistant.docsScreenshots.spec.js`:
+  `DOCS_SHOTS=1 make test-e2e-spec SPEC=agenticAssistant.docsScreenshots` (rewrites
   that widget's docs/images; it lives in the widget's own repo, so grep there, not here).
 
-## Chat widget (fortiaiAgenticAssistant)
+## Chat widget (agenticAssistant)
 
 - Connector identity has one source: the widget's `fsrPbAgent.service.js`. Test
   infra derives it through `fortisoar-widget-harness/tests/live/lib/connectorIdentity.js`.

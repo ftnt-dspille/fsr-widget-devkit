@@ -1,4 +1,4 @@
-# Prompt + flow test plan - FortiAI Agentic Assistant (triage & playbook creation)
+# Prompt + flow test plan - Agentic Assistant (triage & playbook creation)
 
 _Status: plan authored. Matrix infra BUILT + executed (runs 1-N):
 `make test-matrix-live` drives the rows in `tests/live/scenarios.local.json` (gitignored; template
@@ -9,7 +9,7 @@ real defect found (see RUN 9)._
 ## Why this exists
 
 On an earlier pass the widget was proven live on the FortiSOAR 8.0 box
-(`fortiaiAgenticAssistant-1.2.7` + connector `0.4.12`): the drawer renders and
+(`agenticAssistant-1.2.7` + connector `0.4.12`): the drawer renders and
 **one** triage chat turn streams to `done` with frames (9 polls, 7 frames, no
 API/page errors). That proves the **plumbing** (mount → login → drawer →
 `chat_turn`/`chat_poll` → `stream_end`) - not that every prompt and flow behaves
@@ -65,11 +65,11 @@ IPS blocks headless; 8.0 login is the local admin form, no SSO). Three options:
   `session.sendChat(text)` → assert on `session.polls`/`turns` + transcript cards.
   Pattern proven on an earlier live pass.
 - **Spec**: `FSRPB_LIVE_UI=1 FSR_ENV_FILE=.env.<box> make test-e2e-spec
-  SPEC="../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.liveSweep.spec.js"`. Note: the canned
+  SPEC="../widgets-src/agenticAssistant/tests/e2e/agenticAssistant.liveSweep.spec.js"`. Note: the canned
   `liveSweep.spec.js` is bound to the forticloud wendy.smith C2 scenario - adapt
   or write a 8.0-box variant rather than forcing the forticloud golden onto 8.0.
 
-Probe note: `window.__fortiaiAgenticAssistant__` is **mock/harness-only by
+Probe note: `window.__agenticAssistant__` is **mock/harness-only by
 design** (`view.controller.js:594`, `if (_mockActive || _isHarness)`). Don't use
 its presence as a live-render signal - use the composer opening + `chat_poll`
 frames, as on the earlier live pass.

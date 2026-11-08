@@ -1,7 +1,7 @@
 ---
 title: "App-works acceptance checklist"
 status: living
-owner: fortiaiAgenticAssistant
+owner: agenticAssistant
 summary: "The end-to-end 'the app actually works' pass for the Agentic Assistant widget + connector. Phase 0.6 of the stability & scalability plan — run box-free where possible (make turn-hermetic), live once per release and record the date + box below."
 ---
 

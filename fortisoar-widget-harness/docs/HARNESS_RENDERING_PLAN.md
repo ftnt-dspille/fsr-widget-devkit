@@ -133,4 +133,4 @@ No more `waitForTimeout(N)` guessing; no more `scope().$apply()` pokes in specs.
 ## Sequencing
 P0 → P1 unblock the rest and immediately remove flake/turn-waste; P2–P4 are
 hardening. P0+P1 are ~a focused session; do them first and re-verify the
-jsonToGrid + fortiaiAgenticAssistant suites before touching P2+.
+jsonToGrid + agenticAssistant suites before touching P2+.

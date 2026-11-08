@@ -12,7 +12,7 @@
  *
  *   set -a; . ./.env.159; set +a
  *   node scripts/introspectSoar.js                       # default deployed widget
- *   node scripts/introspectSoar.js fortiaiAgenticAssistant
+ *   node scripts/introspectSoar.js agenticAssistant
  *
  * Writes:
  *   introspection-reports/soar/<id>.json       (source:"soar" RenderReport)
@@ -74,7 +74,7 @@ const LIVE_DASHBOARD_WIDGETS: LiveDashboardWidget[] = [
   { id: "agenticAssistantMonitor", title: "Agentic Assistant Monitor", dashboardName: "agenticAssistantMonitor", testId: "soc-monitor-root" },
 ];
 const LIVE_WIDGETS: LiveWidget[] = [
-  { id: "fortiaiAgenticAssistant", title: "FortiAI Agentic Assistant", module: "alerts", mode: "drawer", domRoot: "[data-testid=fsr-pb-root]" },
+  { id: "agenticAssistant", title: "Agentic Assistant", module: "alerts", mode: "drawer", domRoot: "[data-testid=fsr-pb-root]" },
 ];
 
 function classifyResource(name: string, initiatorType: string): ResourceEntry["type"] {

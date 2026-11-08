@@ -179,7 +179,7 @@ describe("behaviour is unchanged by the extraction", () => {
 describe("box scenario expectations are renderable", () => {
   const { canonCard } = require("./live/lib/matrixDriver");
   const RENDER_PATH = path.join(
-    __dirname, "..", "..", "widgets-src", "fortiaiAgenticAssistant",
+    __dirname, "..", "..", "widgets-src", "agenticAssistant",
     "widget", "widgetAssets", "js", "fsrPbRender.js");
 
   // Derived from the renderer, not hand-listed: a hardcoded copy here would be
@@ -246,7 +246,7 @@ describe("the renderable-frame guard actually rejects something", () => {
   const { canonCard } = require("./live/lib/matrixDriver");
   test("an unrenderable frame name fails the same check the box files pass", () => {
     const src = fs.readFileSync(path.join(
-      __dirname, "..", "..", "widgets-src", "fortiaiAgenticAssistant",
+      __dirname, "..", "..", "widgets-src", "agenticAssistant",
       "widget", "widgetAssets", "js", "fsrPbRender.js"), "utf8");
     const types = new Set(
       [...src.matchAll(/\.type\s*===?\s*'([a-z_]+)'/g)].map((m) => m[1]));

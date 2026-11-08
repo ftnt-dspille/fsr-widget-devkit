@@ -338,7 +338,7 @@ describe("capture_divergence declarations", () => {
 });
 
 describe("the real fixtures", () => {
-  const DIR = path.join(__dirname, "..", "..", "widgets-src", "fortiaiAgenticAssistant",
+  const DIR = path.join(__dirname, "..", "..", "widgets-src", "agenticAssistant",
     "widget", "widgetAssets", "fixtures");
   const files = fs.existsSync(DIR)
     ? fs.readdirSync(DIR).filter((f) => f.endsWith(".json")) : [];

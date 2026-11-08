@@ -286,7 +286,7 @@ One pipeline, one command. This is the consolidated path -- every step is a
 Makefile target so the build/test/deploy story can't drift between sessions.
 
 ```
-make ship-verify WIDGET=fortiaiAgenticAssistant [BUMP=patch]
+make ship-verify WIDGET=agenticAssistant [BUMP=patch]
 ```
 
 runs, in order, failing fast:
@@ -362,7 +362,7 @@ green rather than an error:
 - the driver reads `/_fsr/info` and **refuses to run** unless the harness was
   started with `FSR_LOCAL_CONNECTOR=1` -- otherwise `/api/integration/execute/`
   proxies to the *deployed* connector and the row would grade shipped code;
-- it asserts `__fortiaiAgenticAssistant__.mockActive === false` after boot. The
+- it asserts `__agenticAssistant__.mockActive === false` after boot. The
   widget is mock-by-default on localhost; without `?mode=real` every row would
   pass against canned fixtures.
 
@@ -430,7 +430,7 @@ the real box. It is not the only target that reaches one: see "Targets that reac
 box" above. Refresh the local platform snapshot with `make assets` when
 the box's FortiSOAR version bumps.
 
-### The live sweep (`fortiaiAgenticAssistant.liveSweep.spec.js`)
+### The live sweep (`agenticAssistant.liveSweep.spec.js`)
 
 Drives the widget **through the UI only** against the real
 `connector-fsr-agentic-assistant` on the box in `.env`, across the four scenario

@@ -6,7 +6,7 @@
     "mountProbe": "!!document.querySelector('[data-testid=\"soc-monitor-root\"]')",
     "domRoot": "[data-testid=soc-monitor-root]"
   },
-  "fortiaiAgenticAssistant": {
+  "agenticAssistant": {
     "config": {
       "connectorName": "fortinet-fsr-playbook-builder",
       "defaultIntent": "build",
@@ -16,7 +16,7 @@
     },
     "ctx": "dashboard",
     "urlParams": "context=Dashboard&mock=capability_gap&fastmock=1&opener=1",
-    "mountProbe": "!!(window.__fortiaiAgenticAssistant__ && typeof window.__fortiaiAgenticAssistant__.state === 'string')",
+    "mountProbe": "!!(window.__agenticAssistant__ && typeof window.__agenticAssistant__.state === 'string')",
     "domRoot": "[data-testid=fsr-pb-root]"
   }
 }

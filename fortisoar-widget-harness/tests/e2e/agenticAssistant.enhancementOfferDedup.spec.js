@@ -1,7 +1,7 @@
 // Test enhancement_offer deduplication: the card must render exactly once.
 // Without the fix (enhancement_offer excluded from fallback ng-if), the card
 // renders twice: once from the explicit handler + once from the fallback.
-//   make test-e2e-spec SPEC="fortiaiAgenticAssistant.enhancementOfferDedup"
+//   make test-e2e-spec SPEC="agenticAssistant.enhancementOfferDedup"
 
 const { test, expect } = require("./_isolated");
 const { resolveWidgetId, DEFAULT_ID } = require("./_widgetId");
@@ -28,8 +28,8 @@ async function boot(page) {
     { waitUntil: 'domcontentloaded' });
 
   await page.waitForFunction(
-    () => window.__fortiaiAgenticAssistant__ &&
-          typeof window.__fortiaiAgenticAssistant__.state === 'string',
+    () => window.__agenticAssistant__ &&
+          typeof window.__agenticAssistant__.state === 'string',
     null, { timeout: 30000 });
 
   await expect(page.locator('[data-testid="chat-input"]')).toBeEnabled({ timeout: 30000 });

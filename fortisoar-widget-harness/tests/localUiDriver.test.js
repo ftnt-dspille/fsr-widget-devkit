@@ -74,7 +74,7 @@ describe('localUiDriver preflight', () => {
 
   test('the viewpanel context requires a record to mount against', async () => {
     stub = await stubHarness({ localConnector: true },
-      [{ name: 'fortiaiAgenticAssistant', id: 'fortiaiAgenticAssistant-1.0.29' }]);
+      [{ name: 'agenticAssistant', id: 'agenticAssistant-1.0.29' }]);
     await expect(openWidgetDrawer({ base: stub.base, context: 'viewpanel' }))
       .rejects.toThrow(/needs a recordUuid/);
   });

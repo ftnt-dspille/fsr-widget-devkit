@@ -176,7 +176,7 @@ attribute directive that listens to `input` *and* `$watch`es the element's
   }};
 })
 ```
-(fortiaiAgenticAssistant `view.controller.js`; cap matches the CSS `max-height`.)
+(agenticAssistant `view.controller.js`; cap matches the CSS `max-height`.)
 
 ### Custom-overlay modals: flex-column to avoid a double scrollbar
 
@@ -195,7 +195,7 @@ scrollbar next to the host page's. Make the panel a flex column and let
 ```
 Also neutralize Bootstrap's `.close` leakage (`float:none; opacity:1;
 text-shadow:none`) so the × sits where flex puts it, not floated.
-(fortiaiAgenticAssistant settings/history/export modals.)
+(agenticAssistant settings/history/export modals.)
 
 ### Edit-modal chrome strip -- keep stepper/nav INSIDE `.modal-body`, and mind a stray `</div>`
 
@@ -551,7 +551,7 @@ falling back to the first. That default is the *visible, admin-controlled*
 switch (FortiSOAR → Connectors → star a config). Do **not** hardcode a preferred
 config name in the widget -- it silently overrides the starred default, and an
 admin looking at the Connectors UI has no way to tell or change what actually
-runs. (`fortiaiAgenticAssistant` shipped a hidden `PREFERRED_CONFIG='fsrpb-live'`
+runs. (`agenticAssistant` shipped a hidden `PREFERRED_CONFIG='fsrpb-live'`
 that overrode a broken default; removed -- the widget now selects
 `configs.find(c => c.default)`.) If a session-scoped override is genuinely
 needed, make it user-initiated, non-persisted, and shown in a banner.
@@ -683,7 +683,7 @@ the description. Each button routes the run down a different branch
 (`response_mapping.options[].step_iri`), so which one is pressed is the
 analyst's decision.
 
-What the stack does with that (fortiaiAgenticAssistant + connector):
+What the stack does with that (agenticAssistant + connector):
 - **Who answers:** a pause with fields, or with **two or more** buttons, is the
   analyst's. It gets a `manual_input` card, and the framework's
   `TriageDiscipline` stops the model from resuming it. A single-button pause is
@@ -704,7 +704,7 @@ What the stack does with that (fortiaiAgenticAssistant + connector):
   both, and keeps YAML fences that the chat renderer drops.
 
 Tests: `tests/manualInput.buttons.test.js`,
-`tests/e2e/fortiaiAgenticAssistant.manualInputChoice.spec.js`; on the connector
+`tests/e2e/agenticAssistant.manualInputChoice.spec.js`; on the connector
 side, `tests/test_manual_input_card.py`.
 
 ## "Approve & always allow" writes the persona

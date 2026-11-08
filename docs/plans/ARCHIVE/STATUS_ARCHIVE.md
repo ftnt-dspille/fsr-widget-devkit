@@ -17,9 +17,9 @@ _Last updated: 2026-07-28 (session G -- 🟢 **Scheduled Agent Tasks + Agentic A
 
 _Prior: 2026-07-28 (session D -- 🟢 **Two follow-ups cleared: .159 caught up to 0.5.37 + ztpf matrix regression swept on .206 (RUNS=2) with NO widget regression.** (1) **.159 ship:** deployed `connector-fsr-agentic-assistant 0.5.37` (no bump; the already-committed `a62b7a7` build) -- all 9 workers verified on 0.5.37, republish recycled them, warmup re-synced the op catalog (32 connectors / 488 ops / 45 modules). .159 was found on **0.5.36** (memory's "0.5.34" was stale). Both boxes now == 0.5.37. (2) **ztpf sweep .206:** Z1-Z5 + 10 SKL-* ×2 headed. **13/15 clean 2/2** incl. tool-heavy rows (SKL-2/3 drove 7-13 tool calls) and every gate (approval + manual-input cards fire correctly). Run 1 was invalidated by a **transient .206 network drop** (5 scenarios hit `ERR_INTERNET_DISCONNECTED` mid-sweep) → re-ran two clean full passes (A+B). **Two non-green rows, both non-regressions:** **Z5** -- its record `38baa767…` was DELETED from .206 (drawer mounted to `/not-found`); retargeted to `96fa3a89`, mount now clean but that source drives the playbook to a `manual_input` gate not the asserted `approval_request` → scenario-data mismatch, widget behaved correctly (see new Open row). **SKL-MI2** -- manual-input-chain flake, **2 PASS / 1 FAIL** across the 3 runs (stochastic; the resume path 0.5.37 touched). Scenario file is gitignored/box-specific -- Z5 note updated in place, no commit. The two session-C follow-ups this addressed are closed -- see Done.)_
 
-_Prior: 2026-07-27 (session C -- 🟢 **Scheduled Agent Tasks + Agentic Assistant Monitor -- BUILT, COMMITTED, SHIPPED to .159.** Both features from the session-C plans are now implemented, gated green, and deployed: **Connector v0.5.36** (6 workers recycled + verified; 10 new ops: 6 scheduled-task ops + 4 monitor ops; dual-write telemetry hook to `/api/3/llm_activity_logs` + sqlite `agent_usage`), **fortiaiAgenticAssistant v1.2.44** (Scheduled Tasks panel: create/edit/run-now/delete with cron→human preview), **agenticAssistantMonitor v1.0.1** (new standalone dashboard: glassy KPI cards w/ SVG sparklines, gradient area chart, per-user rollup, tabbed overview/usage/audit/pending views). All tests green (893 widget + 57 connector). Both widget repos committed; connector committed `97366ff`. The two session-C Open rows are closed -- see Done.
+_Prior: 2026-07-27 (session C -- 🟢 **Scheduled Agent Tasks + Agentic Assistant Monitor -- BUILT, COMMITTED, SHIPPED to .159.** Both features from the session-C plans are now implemented, gated green, and deployed: **Connector v0.5.36** (6 workers recycled + verified; 10 new ops: 6 scheduled-task ops + 4 monitor ops; dual-write telemetry hook to `/api/3/llm_activity_logs` + sqlite `agent_usage`), **agenticAssistant v1.2.44** (Scheduled Tasks panel: create/edit/run-now/delete with cron→human preview), **agenticAssistantMonitor v1.0.1** (new standalone dashboard: glassy KPI cards w/ SVG sparklines, gradient area chart, per-user rollup, tabbed overview/usage/audit/pending views). All tests green (893 widget + 57 connector). Both widget repos committed; connector committed `97366ff`. The two session-C Open rows are closed -- see Done.
 
-_Prior (same session): 🔵 **Two feature plans written + platform probed on .159/.206.** Authored `docs/plans/scheduled-agent-tasks.md` (recurring agent tasks inside `fortiaiAgenticAssistant`) + `docs/plans/agentic-assistant-monitor.md` (a separate `agenticAssistantMonitor` dashboard widget: usage/tokens/cost over time, pending HITL tasks, per-user activity, auditable LLM-call trail). Both grounded in live-verified platform facts, not assumptions. **Key probe results:** (1) the scheduler is django-celery-beat at `/api/wf/api/scheduled/` -- `id` is a rotating Fernet token (key by `name`), `kwargs` carries only `wf_iri` (no free-form payload → **the playbook IS the task**), full create/get/trigger/disable/delete cycle confirmed on .159; the connector already reaches `/api/wf/` via crudhub (`operations.py:6583,6610,6963`) so zero new transport. (2) **`/api/3/llm_activity_logs` is the audit home** -- a real platform module (102 rows on .206, `App\Entity\Ai\LLMActivityLog`), writable by the crudhub service account via standard `POST /api/3/llm_activity_logs` (proven end-to-end on .206). This **flips the earlier draft**: the connector writes here per LLM turn (camelCase field map) as the primary audit path; sqlite `agent_usage` is the secondary store for the richer fields the module lacks (tool_calls, cache stats, tags, session_id, intent). Do NOT confuse with fsr-ai's internal `llm_activity_log` sealab-DB table (no route, fsr-ai-only writer -- ruled out). (3) Transport probe: `/api/3/*` works via crudhub (same as `push_playbook`); `/api/ai/*` is RBAC-gated by PHP (403s the service account on most routes); `/ai/*` direct to fsr-ai:8001 403s (HMAC key mismatch). See the two new Plan-docs rows.)_
+_Prior (same session): 🔵 **Two feature plans written + platform probed on .159/.206.** Authored `docs/plans/scheduled-agent-tasks.md` (recurring agent tasks inside `agenticAssistant`) + `docs/plans/agentic-assistant-monitor.md` (a separate `agenticAssistantMonitor` dashboard widget: usage/tokens/cost over time, pending HITL tasks, per-user activity, auditable LLM-call trail). Both grounded in live-verified platform facts, not assumptions. **Key probe results:** (1) the scheduler is django-celery-beat at `/api/wf/api/scheduled/` -- `id` is a rotating Fernet token (key by `name`), `kwargs` carries only `wf_iri` (no free-form payload → **the playbook IS the task**), full create/get/trigger/disable/delete cycle confirmed on .159; the connector already reaches `/api/wf/` via crudhub (`operations.py:6583,6610,6963`) so zero new transport. (2) **`/api/3/llm_activity_logs` is the audit home** -- a real platform module (102 rows on .206, `App\Entity\Ai\LLMActivityLog`), writable by the crudhub service account via standard `POST /api/3/llm_activity_logs` (proven end-to-end on .206). This **flips the earlier draft**: the connector writes here per LLM turn (camelCase field map) as the primary audit path; sqlite `agent_usage` is the secondary store for the richer fields the module lacks (tool_calls, cache stats, tags, session_id, intent). Do NOT confuse with fsr-ai's internal `llm_activity_log` sealab-DB table (no route, fsr-ai-only writer -- ruled out). (3) Transport probe: `/api/3/*` works via crudhub (same as `push_playbook`); `/api/ai/*` is RBAC-gated by PHP (403s the service account on most routes); `/ai/*` direct to fsr-ai:8001 403s (HMAC key mismatch). See the two new Plan-docs rows.)_
 
 _Prior: 2026-07-27 (session B -- 🟢 **GA demo prep on .206 + .159 recovery.** Seeded 3 indicator-rich demo alerts on .206 (ransomware precursor / SSH brute-force / C2 beacon); configured all three response connectors on .206 (FortiGate `fortigate-lab`, FortiEDR `fortiedr-lab`, **FortiSIEM auto-installed v6.1.1 from Content Hub** + `fortisiem-lab`) -- containment now executes live on .206. Enhanced `configure_fortisiem.py` to auto-install a missing connector from Content Hub. **.159 fixed**: UI `alerts metadata not found` was post-reimage stale client metadata (server-side fully intact) -- republish + clean browser context cleared it (user-confirmed); the connector 0.5.34/fw 0.5.7 mismatch self-healed (0.5.7 now installed AND on public PyPI, health_check clean). Discovered the native `llm_activity_logs` module + an MCP tooling gap. See the session-B banner for follow-ups.)_
 
@@ -202,7 +202,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > dict OR list-of-conditions, `GetRecordArgs.relationships` accepts bool|list[str] -- the top validation dead-ends
 > in live ztpf sessions) → connector pin bumped (preflight: 68 symbols/27 modules) → connector **0.5.12** on .206
 > (198.51.100.206, 10 workers recycled, warmup 21 conn/283 ops, commit `7ed859b`) → widget **1.2.36**
-> (`fortiaiAgenticAssistant`, uuid `6054a063…`, ship-verify green: lint/typecheck/unit/mock-e2e/introspect-gate).
+> (`agenticAssistant`, uuid `6054a063…`, ship-verify green: lint/typecheck/unit/mock-e2e/introspect-gate).
 > 3 ztpf personas upserted to .206 Key Store (device/metadata/authoring), all read-back OK.
 > - ✅ **`list_module_playbooks` (deployed):** returns **6** ztpf_devices playbooks.
 > - ✅ **ACTUAL `run_playbook` execution (the gap the user flagged):** "Synch Device DVMDB info from FMG" on
@@ -253,7 +253,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 >   straight to `emit_playbook_offer` with correct `.data.minutes` binding. Both 4h fixes model-agnostic.
 > - 🔜 Connector commits `d3e64f1`/`6e4f0f7` pushed to `origin` (Fortilab GitLab); `fndn` mirror pending (host unreachable w/o VPN).
 > - 📦 **Also deployed to .206** (198.51.100.206, user request): **connector 0.5.11** (BUMP=none, 10 workers,
->   warmup 21 conn/282 ops) + **widget 1.2.35** (`fortiaiAgenticAssistant`, uuid `264fe55c…`; the widget
+>   warmup 21 conn/282 ops) + **widget 1.2.35** (`agenticAssistant`, uuid `264fe55c…`; the widget
 >   push CLI requires a bump so 1.2.34→1.2.35, identical code; info.json is gitignored so no repo change).
 >   Full ship-verify gate (lint/unit/e2e/introspect) passed; deployed via ship.sh --bump patch to `.env.206`.
 >   Both boxes now on connector 0.5.11 (GA widget stays 1.2.34).
@@ -669,7 +669,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 >   implements. Added `FSRPB_SIDECAR_HERMETIC=1`: the sidecar **imports** (never reimplements)
 >   `local_turn._install_fake_provider` + `_CassetteClient` + `_cassette_rules` → real `operations.py`
 >   against a **fake LLM + cassette reads**, box-free, no LLM credits. Widget side: new e2e
->   `fortiaiAgenticAssistant.seamHermetic.spec.js` boots the real widget `&real=1` and **forwards**
+>   `agenticAssistant.seamHermetic.spec.js` boots the real widget `&real=1` and **forwards**
 >   the intercepted execute call to the hermetic sidecar (vs the usual static fixture), so the real
 >   controller drives real connector logic. New Makefile target **`make turn-hermetic`** boots the
 >   sidecar → runs the spec → tears down (verified: sidecar killed on exit). **1 passed (8.6s)** -- a
@@ -735,7 +735,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > - **Tests:** connector `tests/test_apply_patch_resume.py` (7: recover→compile→update chain, uncapped
 >   after_yaml, missing-iri/failed-update honesty, compile fail-closed, non-patch degrade, persist +
 >   save_card id fallback, chat_resume routing). Widget e2e
->   `fortiaiAgenticAssistant.applyPatchResume.spec.js` -- route-intercepted in **playbook-designer
+>   `agenticAssistant.applyPatchResume.spec.js` -- route-intercepted in **playbook-designer
 >   context**, asserts the wire chat_resume carries `reply_tool='apply_patch'` + `workflow_iri`
 >   containing the open playbook uuid. Widget unit **748 passed**; patchProposal(3)+applyPatchResume(1)
 >   e2e green; connector root suite 318 passed (8 pre-existing/environmental fails, baseline-confirmed).
@@ -872,7 +872,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 >   `acceptPatchProposal`/`rejectPatchProposal` in `view.controller.js` (resume via
 >   chat_resume keyed on cardId, tier≥3 badge); before→after diff block in
 >   `view.html`; fixture `patch_proposal_demo.json`; jest `patchProposal.test.js`
->   (5 cases) + e2e `fortiaiAgenticAssistant.patchProposal.spec.js` (3 cases, green);
+>   (5 cases) + e2e `agenticAssistant.patchProposal.spec.js` (3 cases, green);
 >   full unit suite 716 passed. **✅ emit_patch_proposal EMITTER BUILT (local,
 >   2026-07-18) -- propose half done:** framework `emit_patch_proposal` tool
 >   (fn+schema+pydantic gate+tier0+`BUILD_ONLY_TOOLS`; framework `e306d18`, +5
@@ -912,7 +912,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 >   unit, mock-e2e, then a **per-widget-scoped `introspect-gate`** (new optional `<widget>`
 >   filter arg → `GATE_WIDGET`; a single-widget ship no longer blocks on unrelated widgets'
 >   stale baselines), deploy, live-sweep. `SKIP_INTROSPECT=1` escape hatch (gate renders the
->   full fleet, ~2.8 min). Verified: scoped gate PASSes fortiaiAgenticAssistant, FAILs counter
+>   full fleet, ~2.8 min). Verified: scoped gate PASSes agenticAssistant, FAILs counter
 >   in isolation; recipe dry-run clean. **Note (unrelated, pre-existing):** `counter`,
 >   `dataVisualization`, `myWidget` currently regress the fleet-wide gate (stale baselines /
 >   real drift) -- needs re-baseline, separate from this work. Widget also has 7
@@ -992,7 +992,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > - **Loop closed (session 3e, same day): all commits PUSHED + widget SHIPPED + on-box proof.**
 >   - Pushed: framework `d9a18b7` (github/main), connector `285c032` (origin/main), widget
 >     `7743229` (origin/master).
->   - **Widget shipped to 206: `fortiaiAgenticAssistant-1.2.25`** (ship-verify: 110 e2e + unit green,
+>   - **Widget shipped to 206: `agenticAssistant-1.2.25`** (ship-verify: 110 e2e + unit green,
 >     deploy confirmed to 198.51.100.206).
 >   - **Real widget-path proof, 3/3 live on 206** (connector `6a136ec`): new `eval_s2_modify.py
 >     --widget-path` seeds `entity.playbook_yaml` exactly as the deployed widget does (read into the
@@ -1218,7 +1218,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 >   grounding persona on 206.
 
 > **✅ 2026-07-15 -- Widget SHIPPED (1.2.17) to GA/159 + 168; GA demo-readiness
-> VERIFIED end-to-end.** `fortiaiAgenticAssistant 1.2.17` (C3 Diagnose & fix)
+> VERIFIED end-to-end.** `agenticAssistant 1.2.17` (C3 Diagnose & fix)
 > deployed to BOTH boxes via `ship.sh` per-box `FSR_ENV_FILE` (same version, `.env`
 > never mutated). **Built-in FortiAI demo readiness (native `/api/ai/*`, 8.0-only):**
 > - **GA/159 (`.env.fsr-ga` = 198.51.100.159:13000): READY.** FortiAI enabled,
@@ -1373,7 +1373,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 
 > **2026-07-13 -- live-test session (partial; box 159 window open):** Box 159 up +
 > healthy: connector `0.4.42` (anthropic reachable, 10 models, crudhub bridge ok,
-> contract 2.8.0), deployed widget `fortiaiAgenticAssistant v1.2.13` (44 widgets).
+> contract 2.8.0), deployed widget `agenticAssistant v1.2.13` (44 widgets).
 > **What this means for the tracks:**
 > - **C4 (playbook-editor mount) + Track B (Always-allow checkbox) are testable
 >   NOW on the deployed stack** -- 1.2.13 already ships the editor tailoring
@@ -1390,7 +1390,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > **2026-07-12 (later) -- drawer-widget rig-mount DONE, stub-vs-real map works:**
 > `introspect.ts` now reads `introspection-profiles.json` (harness-side, keyed by
 > widget id: config + ctx + urlParams + mountProbe) so drawer/standalone widgets
-> mount for real instead of hitting the config-prompt gate. `fortiaiAgenticAssistant`
+> mount for real instead of hitting the config-prompt gate. `agenticAssistant`
 > now mounts in-harness (56→128 resources) and its `runtime.stubHits` populate →
 > the fidelity diff reports the exact stubs the harness fakes that are real on the
 > box: `$exceptionHandler, localStorageService, $state, toaster, $translate,
@@ -1418,10 +1418,10 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > *never actually mounted* in prior rig runs. Fix: `PROFILES[widget.id] ||
 > PROFILES[widget.name]`; for domRoot widgets the mount signal is now the view root
 > attaching (`waitForSelector(state:"attached")`), not the controller-global probe.
-> Verified end-to-end on `fortiaiAgenticAssistant` (16 nodes, stable skeletonHash,
+> Verified end-to-end on `agenticAssistant` (16 nodes, stable skeletonHash,
 > Check 6 trips on a class change). Baseline `tests/introspect/baseline/
-> fortiaiAgenticAssistant-1.2.13.json` added. **Live SOAR diff DONE** --
-> `make introspect-soar ENV=.env.159 ARGS=fortiaiAgenticAssistant` captured the
+> agenticAssistant-1.2.13.json` added. **Live SOAR diff DONE** --
+> `make introspect-soar ENV=.env.159 ARGS=agenticAssistant` captured the
 > soar-side `dom` (16 nodes) and produced the first real harness↔SOAR fidelity
 > diff. Result: **tagHash matches** (identical element tree -- strong fidelity), but
 > `0/1/0/1` is `div.build-hint` (harness, mock `capability_gap`/`build` config) vs
@@ -1436,7 +1436,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > [ARGS='--offline']`) renders a deployed widget on a live box via the record
 > drawer (WAF-safe headed Chrome), captures a `source:"soar"` RenderReport, and
 > diffs it against the harness baseline → `FidelityDiff`. First run
-> (`fortiaiAgenticAssistant` on 159/8.0): widget renders **clean** (0 errors
+> (`agenticAssistant` on 159/8.0): widget renders **clean** (0 errors
 > attributable to it; the 3 captured are shell/other-widget noise). **Key finding:**
 > the Phase-1 introspect rig renders drawer/standalone widgets as `no-mount` (config
 > gate) -- so they have no true harness baseline, and the stub-vs-real service map
@@ -1467,9 +1467,9 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
 > **2026-07-05 -- commit/push sweep + new public repo:** (a) pushed the
 > `triage-firewall-noc-investigation` branch (connector 0.4.37, already
 > committed, just unpushed) to origin/fndn. (b) `fsr_all_widgets` main repo:
-> committed the `fsrAgenticAssistant`→`fortiaiAgenticAssistant` e2e-fixture rename,
+> committed the `fsrAgenticAssistant`→`agenticAssistant` e2e-fixture rename,
 > local-dev sidecar scripts, and matrix-live-infra plumbing; pushed to
-> `live-matrix-infra`. (c) `widgets-src/fortiaiAgenticAssistant` (separate repo):
+> `live-matrix-infra`. (c) `widgets-src/agenticAssistant` (separate repo):
 > pushed the pending commit (card attribution + S1-S6/R7 security hardening +
 > playbook-editor tailoring, `d2741b0`) to `origin/master`. (d)
 > `fsr-playbook-framework` confirmed already clean/pushed -- the stale
@@ -1481,7 +1481,7 @@ _Prior: 2026-07-20 (session 3q -- **FULL-LLM `chat_turn` integrated proof CLOSED
    scripts, version-triggered `.github/workflows/release.yml`, README), added
    to `widgets.manifest`. See memory `ztpautomation-graph-widget`.
 
-> **2026-07-02 ship + live-verify DONE:** widget `fortiaiAgenticAssistant-1.2.8`
+> **2026-07-02 ship + live-verify DONE:** widget `agenticAssistant-1.2.8`
 > + connector `0.4.13` (both version-bumped to dodge FortiSOAR same-version
 > cache) deployed to 159. Live jest verified on 159: `chat.live.test.js` (real
 > `chat_turn`→`end_turn` on v0.4.13 + mock parity) and `widgetUi.live.test.js`
@@ -1848,7 +1848,7 @@ credits, no sim/mock. **Full how-to + no-cache discipline: `LOCAL_DEV.md`.**
 
 ### Triage & playbook roadmap (strategic vision)
 
-**Superseded by `widgets-src/fortiaiAgenticAssistant/ROADMAP.md`** (2026-07-03)
+**Superseded by `widgets-src/agenticAssistant/ROADMAP.md`** (2026-07-03)
 -- that file is now the single home for the two-sided (Investigate/Build)
 vision, current-state snapshot, and ordered next-actions. This section stays
 as a pointer; update the roadmap doc, not here, when the plan changes.

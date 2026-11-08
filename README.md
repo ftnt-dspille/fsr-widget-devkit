@@ -32,8 +32,8 @@ box (those Fortinet platform assets are not redistributed with the kit).
 
 ```bash
 make dev                                          # drive widgets by hand on :14400
-make test-unit WIDGET=fortiaiAgenticAssistant             # jest (controller logic)
-make test-e2e-spec WIDGET=fortiaiAgenticAssistant       # Playwright (DOM/template) on a fresh :14401
+make test-unit WIDGET=agenticAssistant             # jest (controller logic)
+make test-e2e-spec WIDGET=agenticAssistant       # Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js     # one or more specs
 make stop                                         # kill both servers
 ```
@@ -45,7 +45,7 @@ your dev server. `make help` lists every target.
 To package + push a widget to the lab box:
 
 ```bash
-cd fortisoar-widget-harness && scripts/ship.sh fortiaiAgenticAssistant --bump patch
+cd fortisoar-widget-harness && scripts/ship.sh agenticAssistant --bump patch
 ```
 
 To start a new widget:

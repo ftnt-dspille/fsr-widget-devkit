@@ -119,8 +119,8 @@ async function introspectWidget(browser: Browser, widget: PublicWidget): Promise
   //    to reach a real mounted render (a widget that still throws inside its
   //    controller is a genuine finding, not a rig artifact).
   // Profile lookup: _fsr/widgets returns a VERSIONED id (e.g.
-  // "fortiaiAgenticAssistant-1.2.13") but profile keys are the UNVERSIONED widget
-  // name (e.g. "fortiaiAgenticAssistant"). Try the versioned id first, then fall
+  // "agenticAssistant-1.2.13") but profile keys are the UNVERSIONED widget
+  // name (e.g. "agenticAssistant"). Try the versioned id first, then fall
   // back to the name — without this, the profile is silently missed and the rig
   // falls back to the generic config + generic ng-scope sentinel, which FALSELY
   // reports "mounted" (the config-prompt itself carries ng-scope + >200 chars).

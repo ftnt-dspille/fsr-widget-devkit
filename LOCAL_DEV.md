@@ -95,7 +95,7 @@ Then open the widget and force real mode (the widget defaults to **mock** on
 localhost; `?mode=real` overrides that):
 
 ```
-http://localhost:4401/?widget=fortiaiAgenticAssistant&mode=real
+http://localhost:4401/?widget=agenticAssistant&mode=real
 ```
 
 Drive a triage turn. Expect: the LLM streams reasoning, tool calls dispatch
@@ -113,8 +113,8 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
 
 ## Running tests
 
-- **Widget (jest unit):** `make test-unit WIDGET=fortiaiAgenticAssistant`
-  (controller-logic tests under `widgets-src/fortiaiAgenticAssistant/tests/`).
+- **Widget (jest unit):** `make test-unit WIDGET=agenticAssistant`
+  (controller-logic tests under `widgets-src/agenticAssistant/tests/`).
 - **Widget (playwright e2e):** `make test-e2e-spec SPEC="<spec>"` (auto-boots
   its own harness on :14401/:14402).
 - **Connector (pytest):**
@@ -178,7 +178,7 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   `sqlite3 …/data/fsr_reference.db "SELECT value FROM _catalog_meta WHERE key='base_url';"`
 - **Run a check before trusting a change**:
   `.venv-localdev/bin/python -c "import fsr_playbooks, pyfsr, openai; print('ok')"`
-  + `make test-unit WIDGET=fortiaiAgenticAssistant`.
+  + `make test-unit WIDGET=agenticAssistant`.
 
 ## Troubleshooting
 
@@ -215,6 +215,6 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
 - Harness handler: `server.ts` `POST /api/integration/execute/` (gated by
   `FSR_LOCAL_CONNECTOR`; off = unchanged box-proxy behavior).
 - Widget connectors fixture:
-  `widgets-src/fortiaiAgenticAssistant/widget/widgetAssets/fixtures/api3/connectors.json`
+  `widgets-src/agenticAssistant/widget/widgetAssets/fixtures/api3/connectors.json`
   (advertises `connector-fsr-agentic-assistant` + the `fsrpb-live` config so widget
   discovery resolves).

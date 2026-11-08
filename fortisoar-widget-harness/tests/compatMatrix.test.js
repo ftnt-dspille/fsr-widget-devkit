@@ -2,7 +2,7 @@
 // Guard for ONBOARDING.md's "Compatibility matrix". The table drifted until it
 // was wrong on EVERY row (tracker #8) because nothing read it back. This asserts
 // the columns this repo can actually see: each widget's `info.json` version, and
-// the contract version baked into fortiaiAgenticAssistant's controller.
+// the contract version baked into agenticAssistant's controller.
 //
 // The connector / fsr-playbooks columns live in a different checkout, so they
 // are deliberately NOT checked here -- a test that resolves a path outside this
@@ -49,7 +49,7 @@ describe("ONBOARDING.md compatibility matrix", () => {
   test("the table is non-empty and lists the assistant surfaces", () => {
     expect(rows.length).toBeGreaterThan(0);
     const dirs = rows.map((r) => r.dir);
-    expect(dirs).toContain("fortiaiAgenticAssistant");
+    expect(dirs).toContain("agenticAssistant");
     expect(dirs).toContain("agenticAssistantMonitor");
   });
 
@@ -74,16 +74,16 @@ describe("ONBOARDING.md compatibility matrix", () => {
   });
 
   test("the contract column matches WIDGET_CONTRACT_VERSION in the controller", () => {
-    const ctrl = path.join(WIDGETS_SRC, "fortiaiAgenticAssistant", "widget", "view.controller.js");
+    const ctrl = path.join(WIDGETS_SRC, "agenticAssistant", "widget", "view.controller.js");
     if (!fs.existsSync(ctrl)) return; // not cloned here
     const m = fs.readFileSync(ctrl, "utf8").match(/WIDGET_CONTRACT_VERSION\s*=\s*['"]([^'"]+)['"]/);
     expect(m).toBeTruthy();
-    const row = rows.find((r) => r.dir === "fortiaiAgenticAssistant");
+    const row = rows.find((r) => r.dir === "agenticAssistant");
     expect(row.contract).toBe(m[1]);
   });
 
   test("no row still cites a retired name", () => {
-    // fsrAgenticAssistant -> fortiaiAgenticAssistant; fsr_core -> fsr_playbooks;
+    // fsrAgenticAssistant -> agenticAssistant; fsr_core -> fsr_playbooks;
     // fortinet-fsr-playbook-builder -> connector-fsr-agentic-assistant.
     const table = rows.map((r) => Object.values(r).join(" ")).join("\n");
     for (const dead of ["fsrAgenticAssistant", "fsr_core", "fortinet-fsr-playbook-builder"]) {

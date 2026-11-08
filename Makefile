@@ -102,7 +102,7 @@ test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on
 # recurring stale-server breakage) so Playwright always boots a fresh one.
 #   make test-e2e-spec SPEC=tests/e2e/fsrAgenticAssistant.c2Hunt.spec.js
 #   make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
-#   make test-e2e-spec WIDGET=fortiaiAgenticAssistant   # every e2e spec of one widget
+#   make test-e2e-spec WIDGET=agenticAssistant   # every e2e spec of one widget
 # SPEC is one or more file patterns, separated by spaces or commas. Each is passed
 # to Playwright as its own single-quoted argument: commas used to reach it as one
 # regex that matched nothing ("No tests found"), and a `|` in a pattern ran as a
@@ -132,7 +132,7 @@ test-e2e-widget: harness-build test-e2e-spec
 SEAMC_PORT   := 4778
 SEAMC_SIDECAR := $(HARNESS)/scripts/local-connector-sidecar.py
 SEAMC_PY     := $(HARNESS)/.venv-localdev/bin/python
-SEAMC_SPEC   := ../widgets-src/fortiaiAgenticAssistant/tests/e2e/fortiaiAgenticAssistant.seamHermetic.spec.js
+SEAMC_SPEC   := ../widgets-src/agenticAssistant/tests/e2e/agenticAssistant.seamHermetic.spec.js
 turn-hermetic: harness-build ## Seam C: real widget ↔ real connector, box-free (hermetic sidecar + e2e)
 	-lsof -ti:$(SEAMC_PORT) | xargs kill -9 2>/dev/null || true
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
@@ -261,7 +261,7 @@ session-health: ## Which chat tools fail, with inputs/outputs, classed model/rem
 # found", and ship-verify's `if [ "$(WIDGET)" = "fsrAgenticAssistant" ]` guard
 # stopped matching, so the CANONICAL ship path skipped its live gate entirely
 # and still printed "live-verified".
-SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)
+SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),agenticAssistant)
 # Use the BOX env file explicitly. The bare `.env` points at whichever box was
 # last worked on, so a sweep run right after shipping elsewhere silently
 # [[SWEEP-ENV-SKIP]]s with "connector not present/configured" -- which reads like

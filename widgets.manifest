@@ -19,7 +19,7 @@
 # file first, and its entry replaces the same-named entry below.
 
 # Agentic Assistant product widgets (the chat and the autonomy monitor).
-fortiaiAgenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-agentic-assistant.git  master
+agenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-agentic-assistant.git  master
 agenticAssistantMonitor     git@gitlab.example.invalid:your-group/widget-agentic-assistant-monitor.git  master
 
 ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git          main

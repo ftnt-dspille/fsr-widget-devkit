@@ -19,7 +19,7 @@ but does not contain the other two.
 | Repo | What it is | Where it lives |
 |------|------------|----------------|
 | **Dev Kit** (this repo) | Harness, `Makefile`, `scripts/`, `KNOWLEDGEBASE.md`, lint configs, widget template. Ships `widgets-src/` **empty**. | `fsr_all_widgets/` |
-| **Widget(s)** | One repo per widget (e.g. `fortiaiAgenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
+| **Widget(s)** | One repo per widget (e.g. `agenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
 | **Connector** | The agentic backend (`connector-fsr-agentic-assistant`, label "FSR Agentic Assistant"; pins `fsr_playbooks`) the Agentic Assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
 
 The harness (`fortisoar-widget-harness/`) is **part of this repo** -- plain files,
@@ -71,8 +71,8 @@ reach a box".
 
 ```bash
 make dev                                   # drive widgets by hand on :14400
-make test-unit WIDGET=fortiaiAgenticAssistant      # jest (controller logic)
-make test-e2e-spec WIDGET=fortiaiAgenticAssistant   # Playwright (DOM/template) on a fresh :14401
+make test-unit WIDGET=agenticAssistant      # jest (controller logic)
+make test-e2e-spec WIDGET=agenticAssistant   # Playwright (DOM/template) on a fresh :14401
 make test-e2e-spec SPEC=tests/e2e/foo.spec.js
 make stop                                  # kill both servers
 make doctor LOCAL=1                        # ~15s preflight: is anything about to make a test lie? (BOX=<alias> instead checks a box)
@@ -91,7 +91,7 @@ To package + push a widget to the lab box:
 
 ```bash
 cd fortisoar-widget-harness
-scripts/ship.sh fortiaiAgenticAssistant --bump patch
+scripts/ship.sh agenticAssistant --bump patch
 ```
 
 ## Compatibility matrix
@@ -101,7 +101,7 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `fortiaiAgenticAssistant` ("FortiSOAR Agentic Assistant") | 1.2.76 | `connector-fsr-agentic-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `agenticAssistant` ("FortiSOAR Agentic Assistant") | 1.2.76 | `connector-fsr-agentic-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
 | `agenticAssistantMonitor` | 1.0.19 | `connector-fsr-agentic-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
 | `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
 
@@ -115,7 +115,7 @@ FortiSOAR **8.0**.
 > mismatch shows up as unrendered transcript events or rejected pushes.
 >
 > The **widget columns are enforced** -- `tests/compatMatrix.test.js` reads each
-> widget's `info.json` and `fortiaiAgenticAssistant`'s `WIDGET_CONTRACT_VERSION`
+> widget's `info.json` and `agenticAssistant`'s `WIDGET_CONTRACT_VERSION`
 > and fails if this table disagrees. The connector/framework columns can't be
 > checked from this repo (different checkout), so they are hand-stamped; verify
 > them against `info.json` + `requirements.txt` in the connector repo, never

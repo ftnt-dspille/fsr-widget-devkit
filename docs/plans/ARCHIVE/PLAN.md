@@ -1,7 +1,7 @@
 # PLAN -- Phase 1: demote the page latch to a soft page *prior* over ONE shared affordance taxonomy
 
 **Plan doc:** `docs/plans/state-derived-intent-and-tool-slicing.md` (§Phase 1, lines 238-248)
-**Scope:** `fortiaiAgenticAssistant` widget + `connector-fsr-agentic-assistant`. No framework change required.
+**Scope:** `agenticAssistant` widget + `connector-fsr-agentic-assistant`. No framework change required.
 **Nature:** small, high-value, box-independent to build (jest + connector offline suite); one live-sweep row to prove through the widget.
 
 ---
@@ -65,14 +65,14 @@ The taxonomy is a pure function `classify_page(module, state_name, in_playbook_e
 
 ## 3. Affected files
 
-**Widget** (`widgets-src/fortiaiAgenticAssistant/widget/`)
+**Widget** (`widgets-src/agenticAssistant/widget/`)
 - `view.controller.js`
   - `_defaultIntent()` (≈230) + `$scope.uiIntent` seed -- becomes a *hint*, not a latch.
   - `_inPlaybookEditor()` / `$state` page detection (≈4408).
   - `_runTurnNow` payload assembly (≈3557) -- add `page` fact; keep `intent` as soft override.
   - `_entityPayload()` (≈3041) -- already sends `module`; confirm it's present for every PageClass (esp. `author`/`record`).
   - Per-intent session key `fsrPbSession:<intent>` (from C3) -- **decision point** (see Open Questions): keep two threads, or one thread with page facts per turn.
-- Widget jest specs under `widgets-src/fortiaiAgenticAssistant/tests/`.
+- Widget jest specs under `widgets-src/agenticAssistant/tests/`.
 
 **Connector** (`connector-fsr-agentic-assistant/`)
 - `fsr_soc_triage/profiles.py` -- (P0) `assistant_personas` schema constants + `PersonaRecord`↔`Profile` (de)serializer; `resolve_profile_status` (≈528-601) reads module-first, Key Store fallback.
@@ -135,10 +135,10 @@ Each step is independently reviewable and leaves suites green. **Do Phase 0 (P0.
 **Offline / box-free (must all pass):**
 - Connector: `cd <connector> && make local-turn-ci` (deterministic PL gate) + the offline pytest suite. **P0:** persona record↔`Profile` round-trip test + module-first/Key-Store-fallback resolution test. **P1:** `test_affordance_taxonomy.py`, `test_afforded_frontier.py`, `test_intent_tool_scoping.py`, M2 surfacing tests. Assert the "one taxonomy" consistency test and the build→triage-still-walled regression.
 - **P0 installer dry-run:** `python scripts/setup_assistant_skills.py --dry-run` (and the persona/migrate steps) prints the intended module create + migration without writing.
-- Widget: jest via `make test-unit WIDGET=fortiaiAgenticAssistant` -- payload includes `page`; intent demoted; interleave-thread behavior.
+- Widget: jest via `make test-unit WIDGET=agenticAssistant` -- payload includes `page`; intent demoted; interleave-thread behavior.
 - Widget DOM/template: `make test-e2e-spec SPEC="…"` for any template/controller change (per repo rule).
 
 **Live (one row, box-touching):**
 - `make test-live-sweep RUNS=2` (or the interleave scenario specifically) against `.206` -- the triage→author→record interleave in one chat, each step reaching its tools without a page flip. A FAIL ⇒ widget/frontier bug; `[[SWEEP-ENV-SKIP]]` ⇒ box down, not the widget. (Two runs; a defect twice is a defect.)
 
-**Ship (only after green):** `make ship-verify WIDGET=fortiaiAgenticAssistant BUMP=patch` for the widget; connector via its own `make ship` if the taxonomy/contract changed. Confirm workers on-version + a live interleave turn.
+**Ship (only after green):** `make ship-verify WIDGET=agenticAssistant BUMP=patch` for the widget; connector via its own `make ship` if the taxonomy/contract changed. Confirm workers on-version + a live interleave turn.

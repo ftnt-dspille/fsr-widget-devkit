@@ -12,7 +12,7 @@
 #
 # Usage:
 #   scripts/clone-widgets.sh                          # all manifest entries
-#   scripts/clone-widgets.sh fortiaiAgenticAssistant  # just one
+#   scripts/clone-widgets.sh agenticAssistant  # just one
 #
 set -euo pipefail
 

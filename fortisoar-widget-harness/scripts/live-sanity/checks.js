@@ -19,9 +19,9 @@ const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 
-const ASSISTANT = "fortiaiAgenticAssistant";
+const ASSISTANT = "agenticAssistant";
 const MONITOR = "agenticAssistantMonitor";
-const ASSISTANT_TITLE = "FortiAI Agentic Assistant";
+const ASSISTANT_TITLE = "Agentic Assistant";
 
 function sh(cmd, args, { env, cwd, timeoutMs = 240000 } = {}) {
   return new Promise((resolve) => {

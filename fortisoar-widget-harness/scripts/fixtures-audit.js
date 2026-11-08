@@ -33,7 +33,7 @@ const opt = (name, dflt) => {
 
 const REPO = path.join(__dirname, "..", "..");
 const FIXTURES = path.resolve(opt("--fixtures",
-  path.join(REPO, "widgets-src", "fortiaiAgenticAssistant", "widget", "widgetAssets", "fixtures")));
+  path.join(REPO, "widgets-src", "agenticAssistant", "widget", "widgetAssets", "fixtures")));
 // Durable capture home. It used to be test-results/live, which Playwright wipes
 // at the start of every run -- so evidence recorded off a box was routinely
 // deleted by the next unrelated `npx playwright test`, and the audit reported

@@ -72,7 +72,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 >
 > Guard the refresh on "no record ⇒ return early" so navigating back to a list
 > doesn't *strip* a context you already have, and gate any auto-seed on an empty
-> conversation so an in-progress chat isn't clobbered. `fortiaiAgenticAssistant`'s `_refreshEntityContext` is the live example:
+> conversation so an in-progress chat isn't clobbered. `agenticAssistant`'s `_refreshEntityContext` is the live example:
 > it is wired to `popupOpened` and `$stateChangeSuccess`.
 >
 > **⚠️ The `popupOpened`/`$stateChangeSuccess` hooks are NOT enough on their own --
@@ -84,7 +84,7 @@ Examples: `aiAssistant-4.0.1`, `playbookDeveloperAssistant-1.0.0`.
 > ctor) ran on the still-empty `$state`, and your init/seed `$timeout` trusts that
 > captured-null context, the summary/seed **never appears until the user
 > navigates away and back** (which finally fires a nav event). Live regression:
-> `fortiaiAgenticAssistant` 1.0.47 → the record-summary card was missing on a case
+> `agenticAssistant` 1.0.47 → the record-summary card was missing on a case
 > until the analyst backed out to an incident detail and reopened the case. Fix
 > (1.0.48): in the init `$timeout`, **re-run the detect** before seeding, and if
 > it's still empty (state mid-transition at `$timeout(0)`), schedule one short
@@ -134,7 +134,7 @@ On every Angular UI-Router `$stateChangeSuccess`, the directive walks every draw
 **The state-name format.** SOAR uses Angular UI-Router with dot-separated parent/child state names:
 
 - `main` is the post-auth app shell (`app.unmin.js:46127`). Sticky state, mounts `app/templates/main.html` into the `content` view, deep-redirects to `main.dashboard`. Every authenticated page is a child.
-- `main.playbookDetail` (`app.unmin.js:32540`) -- URL `/playbooks/:id`, controller `PlaybookDesignerCtrl`, template `app/playbooks/designer/designer.html`. The playbook editor. Its `playbookEntity` resolve loads `new Entity("workflows")` by `$stateParams.id`, so a playbook is a **`workflows`** record (IRI `/api/3/workflows/<id>`) and the state carries **no `module` param** -- derive the module from the state, not `$state.params.module` (re-checked against the 8.0.0 bundle; `fortiaiAgenticAssistant` `_playbookEntityFromState` does this, and the connector's `MODULE_AFFORDANCE['workflows']` keys the authoring surface off it).
+- `main.playbookDetail` (`app.unmin.js:32540`) -- URL `/playbooks/:id`, controller `PlaybookDesignerCtrl`, template `app/playbooks/designer/designer.html`. The playbook editor. Its `playbookEntity` resolve loads `new Entity("workflows")` by `$stateParams.id`, so a playbook is a **`workflows`** record (IRI `/api/3/workflows/<id>`) and the state carries **no `module` param** -- derive the module from the state, not `$state.params.module` (re-checked against the 8.0.0 bundle; `agenticAssistant` `_playbookEntityFromState` does this, and the connector's `MODULE_AFFORDANCE['workflows']` keys the authoring surface off it).
 - Other useful child states visible in the bundle: `main.dashboard`, `main.editor`, `main.workflow`, `main.rules`, `main.search`, `main.security`, `main.profile`, `main.system`. To enumerate, grep `app.unmin.js` for `.state("main.`.
 
 **The matcher uses `_.contains` on the exact `current.name`** -- so `main.playbookDetail.subview` does **not** match `main.playbookDetail`. List each nested state explicitly.
@@ -176,15 +176,15 @@ Drawer widgets are the most general extension primitive in SOAR. A few things th
 - The drawer rail itself must be enabled by the SOAR shell. It is in standard SOAR, but a customer admin who has hidden it leaves nothing to render into.
 - For per-record gating beyond state-name matching (e.g. "only when editing alerts module playbooks"), you still need the drawer widget to mount, then a `$watch` on `$state.params` to hide its UI internally.
 - **`activeWidget` goes stale after `closeModal()`.** The drawer group's `closeModal()` only hides `#custom-modal` (`display:none`) and broadcasts `popupClosed`; it never clears `activeWidget`. Leave a page with the chat open and come back: `activeWidget` still names the widget while nothing is showing. Code that opens a drawer widget programmatically (`#global-drawer` isolate scope `launchWidget(name, version, metadata.view)`) must treat "already open" as `activeWidget` matches **and** `#custom-modal` is not `display:none`. Re-launching the active widget is safe: for `popup: "custom"` the platform just re-shows the modal and broadcasts `popupOpened` (no toggle, no remount). agenticAssistantMonitor "Open in chat" skipped the launch on `activeWidget` alone and the drawer stayed hidden (live on 8.0, fixed 1.0.14).
-- **A drawer widget's scope survives navigation, so a one-shot localStorage hand-off can go unread.** The widget reads it only at construction; a still-alive instance never does. Pair a stash with a `$rootScope` broadcast, and have the live instance delete the stash when it handles the broadcast, or the next fresh mount (a reload days later) consumes a stale hand-off (fortiaiAgenticAssistant `fsrAgenticAssistant:openSession` + `fsrPbOpenSession`).
+- **A drawer widget's scope survives navigation, so a one-shot localStorage hand-off can go unread.** The widget reads it only at construction; a still-alive instance never does. Pair a stash with a `$rootScope` broadcast, and have the live instance delete the stash when it handles the broadcast, or the next fresh mount (a reload days later) consumes a stale hand-off (agenticAssistant `fsrAgenticAssistant:openSession` + `fsrPbOpenSession`).
 
 The mental shift: **widgets aren't just dashboard tiles** -- they're a sanctioned plugin extension point with a stable rendering surface and event bus. The dashboard/listing picker is the documented use; `enableFor` + `popup: "custom"` is the more general primitive.
 
-### 18.6 Streaming chat-drawer gotchas (fortiaiAgenticAssistant)
+### 18.6 Streaming chat-drawer gotchas (agenticAssistant)
 
 A drawer widget that streams an agentic run (poll a `chat_poll` feed while a
 blocking `chat_turn` is in flight) hit four non-obvious failure modes. All four
-are now fixed in `fortiaiAgenticAssistant` and worth copying:
+are now fixed in `agenticAssistant` and worth copying:
 
 - **Rebuilding the live preview resets per-tool UI state.** If each poll rebuilds
   `streamingMessage` through the same renderer (`FsrPbRender.buildAssistantMessage`),
@@ -400,9 +400,9 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   poll loop had zero frontend coverage. Probe it by forcing `?mode=live` and
   `page.route`-stubbing the connector HTTP layer (`POST /api/integration/execute/`,
   `GET /api/integration/connectors/`) to script the detached contract: ack →
-  `turn_start` → frames → terminal. See `fortiaiAgenticAssistant.liveDetached.spec.js`.
+  `turn_start` → frames → terminal. See `agenticAssistant.liveDetached.spec.js`.
   Two gotchas building that probe: Playwright **regex** route patterns match here
-  where `**/…` glob strings silently don't; and the `__fortiaiAgenticAssistant__` test
+  where `**/…` glob strings silently don't; and the `__agenticAssistant__` test
   probe was previously exposed only in mock mode -- broadened to any harness
   (localhost) mount so live-path state is introspectable.
 
@@ -435,8 +435,8 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   - **Flip `uiIntent` to `'build'` when YAML or a pushed card is present**, so the
     pane/toggle render and the redundant build-from-triage CTA is suppressed. A
     plain triage session (no YAML) correctly stays in triage. Drive the path in
-    e2e via the test-only `__fortiaiAgenticAssistant__.replayTurns(turns)` probe
-    (`fortiaiAgenticAssistant.rehydrateBuild.spec.js`); note `link` is a real
+    e2e via the test-only `__agenticAssistant__.replayTurns(turns)` probe
+    (`agenticAssistant.rehydrateBuild.spec.js`); note `link` is a real
     `normalizeBlocks` kind -- the render-pipeline fixture validator's `BLOCK_KINDS`
     set was missing it.
 
@@ -477,7 +477,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
 
 - **A `$scope` field that both selects a UI mode AND is sent on the wire cannot
   safely take a third value -- keep persona/mode *framing* signals separate from
-  the payload-bound `intent`.** `fortiaiAgenticAssistant`'s `uiIntent` doubles as
+  the payload-bound `intent`.** `agenticAssistant`'s `uiIntent` doubles as
   the layout selector (`triage`/`build`) and the chat_turn `intent` field, which
   the connector's `_resolve_intent` only understands as `triage|build` (anything
   else falls through to `build` → the wrong toolset). So making the drawer
@@ -544,7 +544,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   ("Triaging incident…") but NO summary card and a dead chat.** The seed is
   pushed once, gated on `messages.length === 0`, from the init flow (after a
   bounded `_resolveEntityContextWithRetry`, ~2 s) or a `popupOpened` /
-  `$stateChangeSuccess` reseed. That left three gaps, all fixed in `fortiaiAgenticAssistant`:
+  `$stateChangeSuccess` reseed. That left three gaps, all fixed in `agenticAssistant`:
   - **Late entity, no follow-up event.** If `$state` settles onto the
     record-detail page *after* the 2 s init retry gave up and no further
     navigation event fires, neither reseed path runs. Fix: a `$watch` on
@@ -580,7 +580,7 @@ are now fixed in `fortiaiAgenticAssistant` and worth copying:
   `if ($scope.messages.some(m => !m._seeded)) return;`. A lone seed card now lets
   init proceed; `_seedFromEntity`'s own `messages.length`/`_seedInFlight` latch
   prevents a double card, and `_shouldRunOpener()` still gates the opener.
-  Covered by `fortiaiAgenticAssistant.incident.spec.js` ("seeds the record summary, runs
+  Covered by `agenticAssistant.incident.spec.js` ("seeds the record summary, runs
   intel hops, …", `&opener=1`).
 
 - **`info_card`, `ioc_card`, and `status_card` are ONE render family -- don't
@@ -708,7 +708,7 @@ what makes these paths test-relevant, not cosmetic.
   A real click times out and the composer never mounts, which surfaces as a
   generic "composer not found" and reads like a widget bug -- when the widget is
   simply **not available on that route**. Waiting longer or click-looping can
-  never fix it. `fortiaiAgenticAssistant`'s states are
+  never fix it. `agenticAssistant`'s states are
   `["main.modules.list", "viewPanel.modulesDetail", "main.playbookDetail"]` --
   i.e. module list, record detail, playbook designer. **There is no dashboard
   mount.**
@@ -724,7 +724,7 @@ what makes these paths test-relevant, not cosmetic.
   after navigating and fail loudly (`lib/liveUiDriver.ts` `goto()` throws).
 - **A list page still names a module.** On `main.modules.list` there is no
   record (`$state.params.id` absent) but `$state.params.module` is set, so a
-  drawer can work "in the module" there: `fortiaiAgenticAssistant` keeps a
+  drawer can work "in the module" there: `agenticAssistant` keeps a
   `listContext` (`_listModuleFromState`), resolves the module's persona, sends
   `entity: {module, view: 'list'}`, and shows a list deck. Two traps:
   - **A list state at init is not settled.** The router can sit on
@@ -760,7 +760,7 @@ widget therefore leaves the canvas showing the old steps until a page reload --
 and a later designer Save PUTs those stale steps over the write.
 
 Load a changed playbook into the canvas the way undo/redo does, as UNSAVED
-changes the analyst saves (fortiaiAgenticAssistant `_loadStagedIntoDesigner`):
+changes the analyst saves (agenticAssistant `_loadStagedIntoDesigner`):
 
 ```js
 var el = document.querySelector('[data-cs-designer-detail]');   // csDesignerDetail
@@ -789,7 +789,7 @@ d.details.$dirty = true;                                        // the details f
   the step OBJECT itself (not an IRI), `playbookOrigin` is a picklist object and
   `triggerStep` an IRI. A hand-built stand-in misses all of this, which is how the
   blank-canvas bug passed. Test staging against the captured real entity
-  (fortiaiAgenticAssistant `tests/fixtures/designerStage.real.json` +
+  (agenticAssistant `tests/fixtures/designerStage.real.json` +
   `tests/designerStage.contract.test.js`). Prove it end to end with
   `make test-designer-stage-live`: it pushes a scratch playbook, applies an edit
   into the real designer, and checks the canvas with no reload and the server copy
@@ -804,7 +804,7 @@ d.details.$dirty = true;                                        // the details f
   that check blocked Apply #2 ("Save or discard") although the only unsaved
   edits were the assistant's own draft. Record `previousChanges.length` right
   after staging; if it is unchanged and no step is open, the dirt is ours and a
-  follow-up Apply may replace it (fortiaiAgenticAssistant `_onlyOurStagedDraft`).
+  follow-up Apply may replace it (agenticAssistant `_onlyOurStagedDraft`).
 - **The open playbook the connector edits is `entity.playbook_yaml`, seeded once
   from the SAVED copy.** After a staged Apply the canvas and that seed differ, so
   the next turn edited the saved (empty) playbook and every `edit_playbook` op

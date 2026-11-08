@@ -87,7 +87,7 @@ export interface OpenLocalWidgetOpts {
 }
 
 const DEFAULT_BASE = process.env.FSRPB_LOCAL_BASE || "http://localhost:4401";
-const DEFAULT_WIDGET = "fortiaiAgenticAssistant";
+const DEFAULT_WIDGET = "agenticAssistant";
 
 /**
  * Seeded into `harness:config:<id>` before mount unless the caller supplies its
@@ -157,7 +157,7 @@ async function preflight(base: string): Promise<HarnessInfo> {
   return info;
 }
 
-/** Resolve the installed widget id (e.g. "fortiaiAgenticAssistant-1.0.29"). */
+/** Resolve the installed widget id (e.g. "agenticAssistant-1.0.29"). */
 async function resolveWidgetId(base: string, name: string): Promise<string> {
   const r = await fetch(`${base}/_fsr/widgets`);
   const data = await r.json() as { widgets?: { name: string; id: string }[] };
@@ -242,14 +242,14 @@ export async function openWidgetDrawer(opts: OpenLocalWidgetOpts = {}): Promise<
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     // WAIT FOR THE CONDITION, not a fixed guess -- the same lesson the live
     // driver's `goto` learned the hard way. The widget attaches its test probe
-    // (`window.__fortiaiAgenticAssistant__`, exposed whenever the host is
+    // (`window.__agenticAssistant__`, exposed whenever the host is
     // localhost) once the controller has booted, which is a far more honest
     // readiness signal than any DOM poll.
     try {
       await page.waitForFunction(
         () => {
-          const w = window as unknown as { __fortiaiAgenticAssistant__?: { state?: string } };
-          return !!w.__fortiaiAgenticAssistant__ && typeof w.__fortiaiAgenticAssistant__.state === "string";
+          const w = window as unknown as { __agenticAssistant__?: { state?: string } };
+          return !!w.__agenticAssistant__ && typeof w.__agenticAssistant__.state === "string";
         },
         undefined, { timeout: 45000 });
     } catch (_) {
@@ -282,8 +282,8 @@ export async function openWidgetDrawer(opts: OpenLocalWidgetOpts = {}): Promise<
     // and a widget change that regressed the override would leave every row
     // grading canned fixtures and passing. Assert the state, don't assume it.
     const mocked = await page.evaluate(() => {
-      const w = window as unknown as { __fortiaiAgenticAssistant__?: { mockActive?: boolean } };
-      return !!(w.__fortiaiAgenticAssistant__ && w.__fortiaiAgenticAssistant__.mockActive);
+      const w = window as unknown as { __agenticAssistant__?: { mockActive?: boolean } };
+      return !!(w.__agenticAssistant__ && w.__agenticAssistant__.mockActive);
     });
     if (mocked) {
       throw new Error(

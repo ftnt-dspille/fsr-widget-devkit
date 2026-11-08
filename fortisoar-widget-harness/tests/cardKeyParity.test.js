@@ -20,7 +20,7 @@ const {
 } = require("./live/lib/cardKeyParity");
 
 const HARNESS = path.join(__dirname, "..");
-const WIDGET = path.join(HARNESS, "..", "widgets-src", "fortiaiAgenticAssistant");
+const WIDGET = path.join(HARNESS, "..", "widgets-src", "agenticAssistant");
 const RENDERER = path.join(WIDGET, "widget", "widgetAssets", "js", "fsrPbRender.ts");
 const FIXTURES = path.join(WIDGET, "widget", "widgetAssets", "fixtures");
 const DOC = path.join(HARNESS, "docs", "CARD_KEY_PARITY.md");

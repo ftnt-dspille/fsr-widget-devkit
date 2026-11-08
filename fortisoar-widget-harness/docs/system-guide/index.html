@@ -169,7 +169,7 @@ figcaption strong{color:var(--ink);font-weight:600}
 
 <div class="diagram"><pre class="mermaid">
 flowchart LR
-  A[Analyst] --> W["Chat widget<br/>fortiaiAgenticAssistant"]
+  A[Analyst] --> W["Chat widget<br/>agenticAssistant"]
   L[SOC lead] --> M["Monitor widget<br/>agenticAssistantMonitor"]
   W -- "chat_turn / chat_poll / chat_resume" --> C["Connector<br/>connector-fsr-agentic-assistant"]
   M -- "list_usage, list_pending, policy ops" --> C
@@ -191,7 +191,7 @@ flowchart LR
 <h3>Where each piece lives</h3>
 <div class="tablewrap"><table>
 <tr><th>Piece</th><th>Repo</th><th>Version today</th><th>Ships as</th></tr>
-<tr><td>Chat widget</td><td><code>fsr_all_widgets/widgets-src/fortiaiAgenticAssistant</code> (own git repo)</td><td>1.2.74</td><td>widget tgz</td></tr>
+<tr><td>Chat widget</td><td><code>fsr_all_widgets/widgets-src/agenticAssistant</code> (own git repo)</td><td>1.2.74</td><td>widget tgz</td></tr>
 <tr><td>Monitor widget</td><td><code>fsr_all_widgets/widgets-src/agenticAssistantMonitor</code> (own git repo)</td><td>1.0.18</td><td>widget tgz</td></tr>
 <tr><td>Connector</td><td><code>~/PycharmProjects/ConnectorsV2/conn_main</code></td><td>0.5.180</td><td>connector tgz</td></tr>
 <tr><td>fsr_playbooks</td><td><code>~/PycharmProjects/fsr-playbook-framework</code></td><td>0.7.3</td><td>PyPI wheel, pinned in the connector's <code>requirements.txt</code></td></tr>
@@ -526,9 +526,9 @@ flowchart LR
 <!-- 06 -->
 <section class="chapter" id="widgets">
 <h2><span class="n">06</span>The widgets</h2>
-<p>A FortiSOAR widget is an AngularJS 1.x controller plus an HTML template, mounted into a slot on a FortiSOAR page. <code>info.json</code> drives its name, version, pages and compatibility. The controller name embeds the version (<code>fortiaiAgenticAssistant1274DevCtrl</code> is 1.2.74), which is why versions are only bumped by the CLI.</p>
+<p>A FortiSOAR widget is an AngularJS 1.x controller plus an HTML template, mounted into a slot on a FortiSOAR page. <code>info.json</code> drives its name, version, pages and compatibility. The controller name embeds the version (<code>agenticAssistant1274DevCtrl</code> is 1.2.74), which is why versions are only bumped by the CLI.</p>
 
-<h3>Chat widget: fortiaiAgenticAssistant</h3>
+<h3>Chat widget: agenticAssistant</h3>
 <ul>
 <li><strong>Where it appears:</strong> a drawer on alerts, cases, war rooms, list and detail pages, and the playbook designer.</li>
 <li><strong>Files that matter:</strong> <code>view.controller.js</code> (about 5,950 lines), <code>view.html</code> (with CSS), <code>fsrPbAgent.service.js</code> (all connector I/O and the one source of the connector's name), <code>fsrPbRender.ts</code> (pure render pipeline, compiled to <code>.js</code> with a parity test), <code>contract.d.ts</code> (wire types), and a mock connector with fixtures.</li>
@@ -801,7 +801,7 @@ The analyst asked to block only on "malicious". The agent made the right edit wi
 </ul>
 <h3>Docs that are wrong today</h3>
 <ul>
-<li><code>widgets.manifest</code> lists an old widget name and misses <code>fortiaiAgenticAssistant</code>, so <code>make setup</code> on a fresh Mac will not reproduce the current set.</li>
+<li><code>widgets.manifest</code> lists an old widget name and misses <code>agenticAssistant</code>, so <code>make setup</code> on a fresh Mac will not reproduce the current set.</li>
 <li>The Monitor widget keeps a second hardcoded copy of the connector name, and its <code>info.json</code> claims it reads <code>llm_activity_logs</code>, which it does not.</li>
 <li>Connector <code>info.json</code> still says "Stub in 0.0.1" for <code>chat_turn</code>; <code>health_check</code> mentions only Anthropic; the audit log hardcodes provider "anthropic".</li>
 <li>The chat widget README pins two different connector versions; both widgets declare compatibility 7.6.5 while the docs say 8.0.</li>

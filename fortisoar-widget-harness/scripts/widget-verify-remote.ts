@@ -243,7 +243,7 @@ async function run(opts: VerifyOpts): Promise<VerifyResult> {
 // Per-widget root testid map. Add an entry when you add a widget.
 function widgetRootSelectorFor(widgetName: string): string {
   const map: Record<string, string> = {
-    fortiaiAgenticAssistant: '[data-testid="fsr-pb-root"]',
+    agenticAssistant: '[data-testid="fsr-pb-root"]',
     agenticAssistantMonitor: '[data-testid="soc-monitor-root"]',
   };
   return map[widgetName] || `[data-testid="${widgetName}-root"]`;

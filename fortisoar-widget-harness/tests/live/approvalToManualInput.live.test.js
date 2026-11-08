@@ -8,8 +8,8 @@
 // card rendered "Approved -- but the action did not run" for a run that WAS
 // live and parked on the box waiting for that same analyst.
 //
-// The hermetic spec (widgets-src/fortiaiAgenticAssistant/tests/e2e/
-// fortiaiAgenticAssistant.approvalToManualInput.spec.js) pins the same
+// The hermetic spec (widgets-src/agenticAssistant/tests/e2e/
+// agenticAssistant.approvalToManualInput.spec.js) pins the same
 // assertions against a fixture and fails on a laptop. This one proves the
 // deployed widget on a real appliance does it too -- the half a fixture can
 // never close, because the payload comes from the connector rather than a file.
@@ -59,7 +59,7 @@ const CAPTURE_LABEL = "approval_then_manual_input";
 const CAPTURE_DIR = path.join(__dirname, "captures");
 
 // The chat transcript as text. Everything this spec asserts about turns is read
-// from the DOM, because `window.__fortiaiAgenticAssistant__` is gated to
+// from the DOM, because `window.__agenticAssistant__` is gated to
 // localhost by design ("never reaches a deployed install") -- on a real box it
 // is simply absent, and a live assertion built on it silently compares against
 // `undefined`.
@@ -177,7 +177,7 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
     // introspectable", NOT "the widget has no messages". Only the DOM fields
     // below carry information live.
     const diag = async () => page.evaluate(() => {
-      const p = window.__fortiaiAgenticAssistant__ || {};
+      const p = window.__agenticAssistant__ || {};
       const evTypes = [];
       for (const m of (p.messages || [])) {
         for (const ev of (m.events || [])) evTypes.push(ev.type + (ev.type === 'manual_input' ? '#' + (ev.inputId || ev.id) : ''));
@@ -301,7 +301,7 @@ d("live: approve -> parked run -> manual_input form (DOM)", () => {
 
     // And the run's own outcome comes back into the chat, rather than the
     // transcript ending at the form. Asserted on the DOM, not on
-    // `window.__fortiaiAgenticAssistant__`: that probe is deliberately
+    // `window.__agenticAssistant__`: that probe is deliberately
     // localhost-only and by design NEVER reaches a deployed install, so a live
     // spec that leans on it is asserting against `undefined` -- which is how the
     // first cut of this test reported a working resume as a failure. The text is

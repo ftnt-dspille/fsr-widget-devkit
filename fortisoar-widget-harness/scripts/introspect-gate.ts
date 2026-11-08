@@ -106,8 +106,8 @@ function runGate(): void {
     process.exit(1);
   }
 
-  // Optional unversioned widget-name filter (e.g. "fortiaiAgenticAssistant").
-  // Report ids are versioned ("fortiaiAgenticAssistant-1.2.13"); match the
+  // Optional unversioned widget-name filter (e.g. "agenticAssistant").
+  // Report ids are versioned ("agenticAssistant-1.2.13"); match the
   // exact name or the "<name>-" version prefix so a filter can't partial-match
   // a sibling ("counter" must not catch "counterPlus").
   const filter = (process.argv[2] || "").trim();
@@ -121,7 +121,7 @@ function runGate(): void {
   // amount of correct work clears it. That is a gate nobody can satisfy, which
   // is a gate everyone learns to pass with SKIP_INTROSPECT.
   //
-  // (Hit for real: a fortiaiAgenticAssistant-1.2.52 report from a run whose
+  // (Hit for real: a agenticAssistant-1.2.52 report from a run whose
   // auth failed -- a 502 and a gzip body parsed as JSON -- recorded a no-mount
   // and then outlived the source version that produced it.)
   //

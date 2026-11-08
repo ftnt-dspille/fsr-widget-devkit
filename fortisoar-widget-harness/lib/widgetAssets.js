@@ -1,7 +1,7 @@
 "use strict";
 
 // Builds a widget repo's own TypeScript assets (its tsconfig.json, e.g.
-// fortiaiAgenticAssistant's widget/widgetAssets/js/fsrPbRender.ts) with the
+// agenticAssistant's widget/widgetAssets/js/fsrPbRender.ts) with the
 // harness's pinned tsc. The compiled .js sits next to its .ts and is a gitignored
 // build output: FortiSOAR and the harness load the .js, so every consumer that
 // loads or packages widget code runs this first (jest and playwright configs,

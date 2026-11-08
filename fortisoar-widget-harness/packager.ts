@@ -92,8 +92,8 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
     decapitalize(widgetName),
   ]);
   // Match `<name>-X.Y[.Z...]` wherever it appears: path refs
-  // (`fortiaiAgenticAssistant-1.0.1/widgetAssets/...`) and bare widget IDs
-  // (`'fortiaiAgenticAssistant-1.0.1'`). Without the bare-ID case, hardcoded
+  // (`agenticAssistant-1.0.1/widgetAssets/...`) and bare widget IDs
+  // (`'agenticAssistant-1.0.1'`). Without the bare-ID case, hardcoded
   // version IDs survive a bump and trip the stale-version-ref lint at install.
   // Only the version is replaced; whatever follows it stays. (An earlier form
   // had an optional `[-.][A-Za-z0-9.]+` tail that also swallowed extensions,
@@ -123,7 +123,7 @@ function rewriteForVersion(dir: string, widgetName: string, version: string): vo
   }
 
   // `rewritePaths: true` everywhere - controllers can also carry versioned
-  // refs (e.g. `'fortiaiAgenticAssistant-1.0.1'` as a localStorage key fallback,
+  // refs (e.g. `'agenticAssistant-1.0.1'` as a localStorage key fallback,
   // or `<script>`-loaded asset paths). Restricting path rewrites to HTML
   // files left bare-ID strings in controllers stale and tripped the
   // stale-version-ref lint after every bump.
@@ -187,7 +187,7 @@ function widgetNameFromTitle(title: unknown): string {
 
 // Case-form variations of a widget name paired with their new counterparts.
 // Deduped by the source form so we never emit two rules for the same token.
-// `fortiaiAgenticAssistant` yields the bare form plus `FortiaiAgenticAssistant` (used by
+// `agenticAssistant` yields the bare form plus `AgenticAssistant` (used by
 // the `edit<Name>` controller); both map to the equivalent new-name form.
 function nameVariationPairs(oldName: string, newName: string): Array<[string, string]> {
   const map = new Map<string, string>();

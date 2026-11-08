@@ -421,7 +421,7 @@ Two related interaction fixes shipped with it:
 `myFilter` is a bare string on the controller writes the typed value to the
 child scope; any controller function that reads `$scope.myFilter` still sees the
 old (empty) value — the filter/search appears to do nothing. Classic AngularJS
-"dot rule." Symptom seen building the fortiaiAgenticAssistant Tools-panel search:
+"dot rule." Symptom seen building the agenticAssistant Tools-panel search:
 the search box was inside `<div ng-if="tools.length">`, so `filteredTools()`
 never received the query (e2e: list stayed at 3 items). **Fix — bind through an
 object** so the write lands on the shared reference:
@@ -450,7 +450,7 @@ is why filter/search UIs behind an overlay need an e2e, not just a unit test.
 objects** every call throws AngularJS into an infinite digest: each digest sees
 a different object identity, marks the model dirty, and re-digests until it hits
 the 10-iteration cap (`$rootScope:infdig`). Symptom seen building the
-fortiaiAgenticAssistant Tools-panel **tier legend**: the panel rendered but the
+agenticAssistant Tools-panel **tier legend**: the panel rendered but the
 console filled with `infdig` and the e2e `expect(errors).toEqual([])` gate went
 red. **Fix — precompute the array once** and repeat over the stored reference:
 ```js

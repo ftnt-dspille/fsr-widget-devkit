@@ -139,7 +139,7 @@
   // $state stub. Real angular-ui-router is intentionally NOT loaded (would
   // try to actually route the harness page) — see index.html's vendor-script
   // comment. Widgets that read `$state.current.name` / `$state.params` to
-  // detect their mount context (e.g. fortiaiAgenticAssistant's
+  // detect their mount context (e.g. agenticAssistant's
   // _entityFromState / _inPlaybookEditor, KB §18.4) previously got
   // `Unknown provider: $stateProvider <- $state` via $injector.get('$state')
   // — silently caught by those widgets' try/catch, so context-dependent

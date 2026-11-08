@@ -40,7 +40,7 @@ The harness's `.env.159` already has these; source it for the connector side too
 cd fortisoar-widget-harness
 
 # Push one widget to the box the harness is pointed at (builds + version-bumps + installs + publishes):
-scripts/ship.sh <widgetId>                  # e.g. fortiaiAgenticAssistant
+scripts/ship.sh <widgetId>                  # e.g. agenticAssistant
 scripts/ship.sh <widgetId> --bump patch     # bump info.json version first
 scripts/ship.sh --restart                   # just (re)start the harness, no push
 
@@ -55,7 +55,7 @@ by hand for a deploy** -- use `ship.sh`.
 The full pipeline (lint → unit → mock-e2e → deploy → live-sweep) is one command:
 
 ```sh
-make ship-verify WIDGET=fortiaiAgenticAssistant [BUMP=patch]
+make ship-verify WIDGET=agenticAssistant [BUMP=patch]
 ```
 
 See `TESTING.md` for the invariants `ship-verify` encodes (connector-identity

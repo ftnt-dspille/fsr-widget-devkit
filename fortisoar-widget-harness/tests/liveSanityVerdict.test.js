@@ -66,7 +66,7 @@ describe("live-sanity scoping", () => {
     expect(n).not.toContain("chat_turn");
   });
   test("the assistant scope runs the chat turn, mount and designer stage", () => {
-    const n = names(selectChecks(REGISTRY, ["fortiaiAgenticAssistant"]));
+    const n = names(selectChecks(REGISTRY, ["agenticAssistant"]));
     expect(n).toEqual(expect.arrayContaining(["chat_turn", "assistant_mount", "designer_stage"]));
   });
 });
