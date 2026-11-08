@@ -61,7 +61,7 @@ describe("live-sanity scoping", () => {
       .toEqual(["connector_health", "workers", "widget_versions"]);
   });
   test("the Monitor scope adds the Monitor load, not the chat turn", () => {
-    const n = names(selectChecks(REGISTRY, ["socAssistantMonitor"]));
+    const n = names(selectChecks(REGISTRY, ["agenticAssistantMonitor"]));
     expect(n).toContain("monitor_loads");
     expect(n).not.toContain("chat_turn");
   });

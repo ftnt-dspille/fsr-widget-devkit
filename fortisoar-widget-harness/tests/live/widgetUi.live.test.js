@@ -22,7 +22,7 @@ const d = LIVE ? describe : describe.skip;
 const RECORD = process.env.FSRPB_LIVE_RECORD || "8f28e5f4-9991-4289-825c-0614a1781b24";
 const MODULE = process.env.FSRPB_LIVE_MODULE || "alerts";
 
-d("live SOC Assistant widget UI", () => {
+d("live Agentic Assistant widget UI", () => {
   jest.setTimeout(180000);
   let session;
 

@@ -148,7 +148,7 @@ describe("renameWidget", () => {
   test("applies subtitle, description, and releaseNotes when provided", () => {
     makeWidget(tmp, "fsrPlaybookBuilder");
     renameWidget(tmp, "fsrPlaybookBuilder", "fortiaiAgenticAssistant", {
-      title: "FSR SOC Assistant",
+      title: "FSR Agentic Assistant",
       subtitle: "Agentic triage & response",
       description: "Conversational SOC copilot.",
       releaseNotes: "Rebranded; scope broadened.",

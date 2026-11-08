@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local connector sidecar -- runs the FortiSOAR SOC-Assistant connector on the
+"""Local connector sidecar -- runs the FortiSOAR Agentic Assistant connector on the
 laptop so the dev harness can invoke its operations WITHOUT a deployed worker.
 
 The harness forwards `POST /api/integration/execute/` here (when
@@ -40,7 +40,7 @@ HARNESS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _HOME = os.path.expanduser("~")
 CONN_REPO = os.environ.get("CONN_REPO") or os.path.join(
     _HOME, "PycharmProjects", "ConnectorsV2", "conn_main")
-CONNECTOR_DIR = os.path.join(CONN_REPO, "connector-fsr-soc-assistant")
+CONNECTOR_DIR = os.path.join(CONN_REPO, "connector-fsr-agentic-assistant")
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "localdev.env")
 PORT = int(os.environ.get("FSRPB_SIDECAR_PORT", "4771"))
 
@@ -203,7 +203,7 @@ _lt = None  # the connector's local_turn module (hermetic mode only)
 
 def _import_hermetic():
     """Load the connector exactly as the connector's own local_turn does
-    (its test bootstrap names it `connector_fsr_soc_assistant`), so the
+    (its test bootstrap names it `connector_fsr_agentic_assistant`), so the
     offline seams local_turn installs patch the SAME module this sidecar
     dispatches through."""
     global _lt
@@ -213,11 +213,11 @@ def _import_hermetic():
     import local_turn as lt  # noqa: E402 -- path just set up
     lt._bootstrap()
     _lt = lt
-    return importlib.import_module("connector_fsr_soc_assistant.operations")
+    return importlib.import_module("connector_fsr_agentic_assistant.operations")
 
 
 def _import_live():
-    """The folder name "connector-fsr-soc-assistant" contains a dash (illegal
+    """The folder name "connector-fsr-agentic-assistant" contains a dash (illegal
     as a module name) and the package ships no __init__.py. Register a module
     whose __path__ points at the dir so `from .storage import ...` (deferred
     inside the functions) resolves.

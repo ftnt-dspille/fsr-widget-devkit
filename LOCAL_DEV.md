@@ -42,7 +42,7 @@ widget's localhost→mock default is overridden with `?mode=real`.
 ## Repos
 
 - widget + harness: this repo (`fortisoar-widget-harness/`, `widgets-src/`)
-- connector: `~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/connector-fsr-soc-assistant/`
+- connector: `~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/connector-fsr-agentic-assistant/`
 - framework (editable, local-first): `~/PycharmProjects/fsr-playbook-framework`
 - an OpenAI-compatible LLM gateway you can reach from your laptop (any server
   that speaks `/v1/chat/completions` with streaming + `tool_calls`). Its
@@ -119,7 +119,7 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   its own harness on :14401/:14402).
 - **Connector (pytest):**
   `.venv-localdev/bin/python -m pytest
-  ~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/connector-fsr-soc-assistant/fsr_soc_triage/tests/`
+  ~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/connector-fsr-agentic-assistant/fsr_soc_triage/tests/`
   -- exercises the triage library + intent slice (conftest imports
   `fsr_soc_triage` for registration side-effects). Mocked tests need no box.
 - **Framework (offline contract):**
@@ -216,5 +216,5 @@ curl -s -X POST localhost:4771/execute -H 'Content-Type: application/json' \
   `FSR_LOCAL_CONNECTOR`; off = unchanged box-proxy behavior).
 - Widget connectors fixture:
   `widgets-src/fortiaiAgenticAssistant/widget/widgetAssets/fixtures/api3/connectors.json`
-  (advertises `connector-fsr-soc-assistant` + the `fsrpb-live` config so widget
+  (advertises `connector-fsr-agentic-assistant` + the `fsrpb-live` config so widget
   discovery resolves).

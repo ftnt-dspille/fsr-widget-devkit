@@ -17,7 +17,7 @@ const { URL } = require("url");
 
 // Connector identity is DERIVED from the widget's own service (single source of
 // truth) -- never hardcode a second copy here; that is what drifted after the
-// fsr-playbook-builder → connector-fsr-soc-assistant rename.
+// fsr-playbook-builder → connector-fsr-agentic-assistant rename.
 const _identity = require("./connectorIdentity");
 const CONNECTOR_NAME = _identity.name;
 // SOAR's connector search tokenizes oddly: the full hyphenated name matches 0

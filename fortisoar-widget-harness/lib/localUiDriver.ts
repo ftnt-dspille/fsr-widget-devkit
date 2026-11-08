@@ -98,7 +98,7 @@ const DEFAULT_WIDGET = "fortiaiAgenticAssistant";
  * nothing. (Every committed e2e spec seeds a config for the same reason.)
  */
 const DEFAULT_WIDGET_CONFIG: Record<string, unknown> = {
-  connectorName: "connector-fsr-soc-assistant",
+  connectorName: "connector-fsr-agentic-assistant",
   defaultIntent: "triage",
   maxTurns: 10,
   showUsage: true,

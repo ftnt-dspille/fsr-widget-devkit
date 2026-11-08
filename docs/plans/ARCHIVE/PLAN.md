@@ -1,7 +1,7 @@
 # PLAN -- Phase 1: demote the page latch to a soft page *prior* over ONE shared affordance taxonomy
 
 **Plan doc:** `docs/plans/state-derived-intent-and-tool-slicing.md` (§Phase 1, lines 238-248)
-**Scope:** `fortiaiAgenticAssistant` widget + `connector-fsr-soc-assistant`. No framework change required.
+**Scope:** `fortiaiAgenticAssistant` widget + `connector-fsr-agentic-assistant`. No framework change required.
 **Nature:** small, high-value, box-independent to build (jest + connector offline suite); one live-sweep row to prove through the widget.
 
 ---
@@ -74,7 +74,7 @@ The taxonomy is a pure function `classify_page(module, state_name, in_playbook_e
   - Per-intent session key `fsrPbSession:<intent>` (from C3) -- **decision point** (see Open Questions): keep two threads, or one thread with page facts per turn.
 - Widget jest specs under `widgets-src/fortiaiAgenticAssistant/tests/`.
 
-**Connector** (`connector-fsr-soc-assistant/`)
+**Connector** (`connector-fsr-agentic-assistant/`)
 - `fsr_soc_triage/profiles.py` -- (P0) `assistant_personas` schema constants + `PersonaRecord`↔`Profile` (de)serializer; `resolve_profile_status` (≈528-601) reads module-first, Key Store fallback.
 - `scripts/setup_assistant_skills.py` -- (P0) extend to also create `assistant_personas` + `--migrate-keystore-personas` pass.
 - `fsr_soc_triage/triage_sources.py` -- new `PageClass` enum + taxonomy table + `classify_page` / `prior_for` / `default_persona_for` / `surface_class_for`; refactor `surface_page_tools` (≈411) to consult `surface_class_for`. `default_persona_for` resolves against the `assistant_personas` module (P0).

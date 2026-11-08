@@ -1,4 +1,4 @@
-// Live UI (Layer 2 against the REAL box): drive the deployed SOC Assistant
+// Live UI (Layer 2 against the REAL box): drive the deployed Agentic Assistant
 // drawer and exercise the header live-session rating control end-to-end.
 //
 // Proves the widget-side control introduced alongside the History-panel rating:
@@ -38,7 +38,7 @@ function captureRateSession(page) {
     return rates;
 }
 
-d("live SOC Assistant — session rating control", () => {
+d("live Agentic Assistant — session rating control", () => {
     jest.setTimeout(240000);
     let session;
 

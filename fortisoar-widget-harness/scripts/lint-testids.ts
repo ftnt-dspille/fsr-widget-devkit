@@ -4,7 +4,7 @@
 // without a data-testid (or ng-attr-data-testid) on the same element.
 //
 // Pass one or more widget names to scope the scan, e.g.
-//   node scripts/lint-testids.js fortiaiAgenticAssistant socAssistantMonitor
+//   node scripts/lint-testids.js fortiaiAgenticAssistant agenticAssistantMonitor
 // otherwise every widget under widgets-src/ is scanned.
 // An empty set (no widget dir, a missing scope name, or zero .html files) exits
 // 1: a lint that scans nothing must never print "ok".

@@ -1,5 +1,5 @@
 {
-  "widgetId": "socAssistantMonitor-1.0.18",
+  "widgetId": "agenticAssistantMonitor-1.0.18",
   "source": "harness",
   "caps": {
     "monaco": false,
@@ -248,21 +248,21 @@
       "type": "script"
     },
     {
-      "name": "/socAssistantMonitor-1.0.18/widgetAssets/js/fsrMonitorAgent.service.js",
+      "name": "/agenticAssistantMonitor-1.0.18/widgetAssets/js/fsrMonitorAgent.service.js",
       "size": 7160,
       "start": 459,
       "dur": 3,
       "type": "script"
     },
     {
-      "name": "/socAssistantMonitor-1.0.18/view.controller.js",
+      "name": "/agenticAssistantMonitor-1.0.18/view.controller.js",
       "size": 71977,
       "start": 462,
       "dur": 1,
       "type": "script"
     },
     {
-      "name": "/socAssistantMonitor-1.0.18/widgetAssets/locales/en.json",
+      "name": "/agenticAssistantMonitor-1.0.18/widgetAssets/locales/en.json",
       "size": 302,
       "start": 466,
       "dur": 1,
@@ -759,7 +759,7 @@
       "type": "fetch"
     },
     {
-      "name": "/socAssistantMonitor-1.0.18/view.html",
+      "name": "/agenticAssistantMonitor-1.0.18/view.html",
       "size": 72365,
       "start": 596,
       "dur": 24,

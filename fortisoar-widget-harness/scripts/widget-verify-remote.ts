@@ -244,7 +244,7 @@ async function run(opts: VerifyOpts): Promise<VerifyResult> {
 function widgetRootSelectorFor(widgetName: string): string {
   const map: Record<string, string> = {
     fortiaiAgenticAssistant: '[data-testid="fsr-pb-root"]',
-    socAssistantMonitor: '[data-testid="soc-monitor-root"]',
+    agenticAssistantMonitor: '[data-testid="soc-monitor-root"]',
   };
   return map[widgetName] || `[data-testid="${widgetName}-root"]`;
 }

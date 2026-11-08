@@ -50,7 +50,7 @@ describe("ONBOARDING.md compatibility matrix", () => {
     expect(rows.length).toBeGreaterThan(0);
     const dirs = rows.map((r) => r.dir);
     expect(dirs).toContain("fortiaiAgenticAssistant");
-    expect(dirs).toContain("socAssistantMonitor");
+    expect(dirs).toContain("agenticAssistantMonitor");
   });
 
   test("every row names a widget directory that exists", () => {
@@ -83,10 +83,10 @@ describe("ONBOARDING.md compatibility matrix", () => {
   });
 
   test("no row still cites a retired name", () => {
-    // fsrSocAssistant -> fortiaiAgenticAssistant; fsr_core -> fsr_playbooks;
-    // fortinet-fsr-playbook-builder -> connector-fsr-soc-assistant.
+    // fsrAgenticAssistant -> fortiaiAgenticAssistant; fsr_core -> fsr_playbooks;
+    // fortinet-fsr-playbook-builder -> connector-fsr-agentic-assistant.
     const table = rows.map((r) => Object.values(r).join(" ")).join("\n");
-    for (const dead of ["fsrSocAssistant", "fsr_core", "fortinet-fsr-playbook-builder"]) {
+    for (const dead of ["fsrAgenticAssistant", "fsr_core", "fortinet-fsr-playbook-builder"]) {
       expect(table).not.toContain(dead);
     }
   });

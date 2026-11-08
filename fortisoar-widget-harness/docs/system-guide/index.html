@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>SOC Assistant System Guide</title>
+<title>Agentic Assistant System Guide</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -124,7 +124,7 @@ figcaption strong{color:var(--ink);font-weight:600}
 
 <div class="shell">
 <nav class="rail" aria-label="Chapters">
-  <div class="brand">SOC Assistant</div>
+  <div class="brand">Agentic Assistant</div>
   <div class="sub">System guide, as built</div>
   <ol>
     <li><a href="#map"><span class="n">00</span>The map</a></li>
@@ -148,7 +148,7 @@ figcaption strong{color:var(--ink);font-weight:600}
 <main>
 <header class="hero">
   <div class="eyebrow">Field manual &middot; verified against the code, Oct 17 2026</div>
-  <h1>SOC Assistant System Guide</h1>
+  <h1>Agentic Assistant System Guide</h1>
   <p class="lede">How the widget, the connector, the fsr_playbooks library and the build and deploy tooling fit together. For each part: what it does, how it decides, what keeps it safe, and why it was built that way. File references are to the working trees on the build Mac.</p>
 </header>
 
@@ -170,8 +170,8 @@ figcaption strong{color:var(--ink);font-weight:600}
 <div class="diagram"><pre class="mermaid">
 flowchart LR
   A[Analyst] --> W["Chat widget<br/>fortiaiAgenticAssistant"]
-  L[SOC lead] --> M["Monitor widget<br/>socAssistantMonitor"]
-  W -- "chat_turn / chat_poll / chat_resume" --> C["Connector<br/>connector-fsr-soc-assistant"]
+  L[SOC lead] --> M["Monitor widget<br/>agenticAssistantMonitor"]
+  W -- "chat_turn / chat_poll / chat_resume" --> C["Connector<br/>connector-fsr-agentic-assistant"]
   M -- "list_usage, list_pending, policy ops" --> C
   C -- "imports, runs in process" --> F["fsr_playbooks<br/>agent loop, tools, compiler, verifier, guards"]
   F -- "LLM provider" --> P[(Anthropic / OpenAI / FortiAI proxy)]
@@ -192,11 +192,11 @@ flowchart LR
 <div class="tablewrap"><table>
 <tr><th>Piece</th><th>Repo</th><th>Version today</th><th>Ships as</th></tr>
 <tr><td>Chat widget</td><td><code>fsr_all_widgets/widgets-src/fortiaiAgenticAssistant</code> (own git repo)</td><td>1.2.74</td><td>widget tgz</td></tr>
-<tr><td>Monitor widget</td><td><code>fsr_all_widgets/widgets-src/socAssistantMonitor</code> (own git repo)</td><td>1.0.18</td><td>widget tgz</td></tr>
+<tr><td>Monitor widget</td><td><code>fsr_all_widgets/widgets-src/agenticAssistantMonitor</code> (own git repo)</td><td>1.0.18</td><td>widget tgz</td></tr>
 <tr><td>Connector</td><td><code>~/PycharmProjects/ConnectorsV2/conn_main</code></td><td>0.5.180</td><td>connector tgz</td></tr>
 <tr><td>fsr_playbooks</td><td><code>~/PycharmProjects/fsr-playbook-framework</code></td><td>0.7.3</td><td>PyPI wheel, pinned in the connector's <code>requirements.txt</code></td></tr>
 <tr><td>Widget harness + build tooling</td><td><code>fsr_all_widgets</code> root (Makefile, <code>scripts/</code>, <code>fortisoar-widget-harness/</code>)</td><td>n/a</td><td>not shipped</td></tr>
-<tr><td>Roadmap and board</td><td><code>~/PycharmProjects/soc-assistant-tracker/ROADMAP.md</code></td><td>n/a</td><td>private</td></tr>
+<tr><td>Roadmap and board</td><td><code>~/PycharmProjects/agentic-assistant-tracker/ROADMAP.md</code></td><td>n/a</td><td>private</td></tr>
 </table></div>
 <p class="where">Live versions come from <code>make doctor</code>, not from this page.</p>
 </section>
@@ -484,7 +484,7 @@ flowchart LR
 <!-- 05 -->
 <section class="chapter" id="connector">
 <h2><span class="n">05</span>The connector</h2>
-<p><code>connector-fsr-soc-assistant</code> is a normal FortiSOAR connector with 47 operations. Each op runs synchronously inside FortiSOAR's integration workers and wraps the async framework in <code>asyncio.run()</code>. Lifecycle hooks (start, add config, update config, activate) start a background catalog warmup.</p>
+<p><code>connector-fsr-agentic-assistant</code> is a normal FortiSOAR connector with 47 operations. Each op runs synchronously inside FortiSOAR's integration workers and wraps the async framework in <code>asyncio.run()</code>. Lifecycle hooks (start, add config, update config, activate) start a background catalog warmup.</p>
 
 <h3>Operations by purpose</h3>
 <div class="tablewrap"><table>
@@ -505,7 +505,7 @@ flowchart LR
 </ul>
 
 <h3>State: one SQLite file per host</h3>
-<p><code>~/.connector_fsr_soc_assistant.db</code>, one connection per op, 15 s busy timeout, <code>BEGIN IMMEDIATE</code> writes. Main table groups:</p>
+<p><code>~/.connector_fsr_agentic_assistant.db</code>, one connection per op, 15 s busy timeout, <code>BEGIN IMMEDIATE</code> writes. Main table groups:</p>
 <ul>
 <li><strong>Chat and streaming:</strong> <code>chat_turns</code>, <code>chat_messages</code>, <code>turn_progress</code> (the poll feed), <code>turn_runs</code> (owner and heartbeat), <code>session_transcript</code>.</li>
 <li><strong>Approvals:</strong> <code>suspended_sessions</code> (pickled, 600 s TTL), <code>session_cards</code>, <code>session_card_decisions</code> (decided once), <code>session_card_executions</code> (the source for undo).</li>
@@ -570,7 +570,7 @@ flowchart LR
 <li>Guards and approvals live in the connector and framework, so a modified widget cannot bypass them.</li>
 </ul>
 
-<h3>Monitor widget: socAssistantMonitor</h3>
+<h3>Monitor widget: agenticAssistantMonitor</h3>
 <p>A dashboard for SOC leads with tabs for Overview, Sessions, Pending, Users, Scheduled, Audit Trail and Autonomy. It reads only from the connector's store (usage, pending approvals and escalations, audit trail, sessions, scheduled tasks, shadow decisions) and can approve from the queue, resolve escalations, undo actions and edit the autonomy policy. "Open in chat" hands a session to the chat widget through a one-shot <code>localStorage</code> key. The tabs are shown in the next chapter.</p>
 </section>
 

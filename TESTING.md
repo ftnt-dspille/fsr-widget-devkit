@@ -433,7 +433,7 @@ the box's FortiSOAR version bumps.
 ### The live sweep (`fortiaiAgenticAssistant.liveSweep.spec.js`)
 
 Drives the widget **through the UI only** against the real
-`connector-fsr-soc-assistant` on the box in `.env`, across the four scenario
+`connector-fsr-agentic-assistant` on the box in `.env`, across the four scenario
 classes (entity-context triage, hunt chain, direct containment, build→create→
 verify→delete). Gated on `E2E_LIVE=1 FSRPB_LIVE_UI=1` (the make target sets both).
 Each scenario captures console errors, uncaught JS, 4xx/5xx `/api` calls, and the

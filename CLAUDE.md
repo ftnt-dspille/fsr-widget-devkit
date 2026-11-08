@@ -24,13 +24,13 @@ commit inside that repo, not here.
 
 ## The product and where work is tracked
 
-`fortiaiAgenticAssistant` and `socAssistantMonitor` are the surfaces of the
-**FortiSOAR SOC Assistant**: "AI finds the pattern. A playbook runs it forever."
+`fortiaiAgenticAssistant` and `agenticAssistantMonitor` are the surfaces of the
+**FortiSOAR Agentic Assistant**: "AI finds the pattern. A playbook runs it forever."
 Four promises: **P1** investigate with cited verdicts · **P2** tier-gated,
 analyst-approved actions · **P3** reach on-prem targets · **P4** bottle each
 investigation into a playbook. The widget is the window; the connector is the engine.
 
-- **Roadmap:** `ROADMAP.md` in `~/PycharmProjects/soc-assistant-tracker` (private) is
+- **Roadmap:** `ROADMAP.md` in `~/PycharmProjects/agentic-assistant-tracker` (private) is
   the source: edit it there, the user pushes. §1-2 is the fastest context load.
 - **Board:** https://github.com/users/ftnt-dspille/projects/1. **Claim a card before
   working it** (several agents run in parallel) and close or update it in the same

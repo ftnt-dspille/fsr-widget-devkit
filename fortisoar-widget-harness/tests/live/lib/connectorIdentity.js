@@ -24,7 +24,7 @@ const SERVICE = path.join(
   WIDGETS_SRC, WIDGET, "widget/widgetAssets/js/fsrPbAgent.service.js");
 
 function pluck(src, varName, fallback) {
-  // Matches:  var CONNECTOR_NAME = 'connector-fsr-soc-assistant';
+  // Matches:  var CONNECTOR_NAME = 'connector-fsr-agentic-assistant';
   const m = src.match(new RegExp(varName + "\\s*=\\s*['\"]([^'\"]+)['\"]"));
   return (m && m[1]) || fallback;
 }
@@ -33,7 +33,7 @@ let identity;
 try {
   const src = fs.readFileSync(SERVICE, "utf8");
   identity = {
-    name: pluck(src, "CONNECTOR_NAME", "connector-fsr-soc-assistant"),
+    name: pluck(src, "CONNECTOR_NAME", "connector-fsr-agentic-assistant"),
     search: pluck(src, "CONNECTOR_SEARCH", "assistant"),
     source: SERVICE,
     derived: true
@@ -42,7 +42,7 @@ try {
   // The widget source isn't readable (e.g. a sanitized dev-kit clone). Fall back
   // to the known-good values so live infra still works, but flag it.
   identity = {
-    name: "connector-fsr-soc-assistant",
+    name: "connector-fsr-agentic-assistant",
     search: "assistant",
     source: SERVICE,
     derived: false

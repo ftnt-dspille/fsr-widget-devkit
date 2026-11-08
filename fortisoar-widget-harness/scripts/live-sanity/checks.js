@@ -20,7 +20,7 @@ const fs = require("fs");
 const { spawn } = require("child_process");
 
 const ASSISTANT = "fortiaiAgenticAssistant";
-const MONITOR = "socAssistantMonitor";
+const MONITOR = "agenticAssistantMonitor";
 const ASSISTANT_TITLE = "FortiAI Agentic Assistant";
 
 function sh(cmd, args, { env, cwd, timeoutMs = 240000 } = {}) {

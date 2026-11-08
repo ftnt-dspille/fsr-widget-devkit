@@ -48,8 +48,8 @@ for (let i = start + 2; i < lines.length; i++) {
     cells[1] = ver;
     console.log(`  ${dir}: ${cells[1]} -> ${ver}`);
   }
-  if (connectorVer && cells[2].includes("connector-fsr-soc-assistant")) {
-    cells[2] = `\`connector-fsr-soc-assistant\` ${connectorVer}`;
+  if (connectorVer && cells[2].includes("connector-fsr-agentic-assistant")) {
+    cells[2] = `\`connector-fsr-agentic-assistant\` ${connectorVer}`;
   }
   lines[i] = "| " + cells.join(" | ") + " |";
 }

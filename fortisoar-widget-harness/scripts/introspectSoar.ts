@@ -71,7 +71,7 @@ interface LiveDashboardWidget {
   testId: string;
 }
 const LIVE_DASHBOARD_WIDGETS: LiveDashboardWidget[] = [
-  { id: "socAssistantMonitor", title: "SOC Assistant Monitor", dashboardName: "socAssistantMonitor", testId: "soc-monitor-root" },
+  { id: "agenticAssistantMonitor", title: "Agentic Assistant Monitor", dashboardName: "agenticAssistantMonitor", testId: "soc-monitor-root" },
 ];
 const LIVE_WIDGETS: LiveWidget[] = [
   { id: "fortiaiAgenticAssistant", title: "FortiAI Agentic Assistant", module: "alerts", mode: "drawer", domRoot: "[data-testid=fsr-pb-root]" },

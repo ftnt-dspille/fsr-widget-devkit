@@ -24,7 +24,7 @@
 #   make push BOX=159                          # changed widgets + connector to 159
 #   make push BOX=81                           # another box
 #   make push WIDGETS=all                      # force every widget
-#   make push WIDGETS=socAssistantMonitor      # only these (comma-separated)
+#   make push WIDGETS=agenticAssistantMonitor      # only these (comma-separated)
 #   make push CONNECTOR=0                       # widgets only, skip connector
 #   make push DRY_RUN=1                         # show the plan, touch nothing
 set -euo pipefail

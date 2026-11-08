@@ -422,7 +422,7 @@ action-renderer live test):
   page, check scope-driven OUTPUT (e.g. the `v{{ widgetVersion }}` binding
   interpolated, the unconfigured banner rendered), not the controller name.
 
-`liveUiDriver.js` (SOC-Assistant drawer flow) is now a thin layer on top of
+`liveUiDriver.js` (Agentic Assistant drawer flow) is now a thin layer on top of
 `soarBrowser`. To place a widget on a real record's detail view for such a test,
 use `tests/live/lib/viewTemplate.js` (`addActionRendererWidget` /
 `removeActionRendererWidget` -- idempotent; cleanup is mandatory since it mutates

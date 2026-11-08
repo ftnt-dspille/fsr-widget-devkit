@@ -71,7 +71,7 @@ Comprehensive reference for building FortiSOAR 7.x widgets. Derived from:
 A FortiSOAR widget is a **registered AngularJS controller + HTML template pair** that the platform instantiates inside a configurable slot. There are two lifecycles:
 
 - **Edit-time** (`edit.html` + `edit.controller.js`): opened as a `$uibModal` when a user adds/edits the widget on a dashboard, Report, Listing, View Panel, etc. Collects a `config` object and closes with `$uibModalInstance.close($scope.config)`.
-  - **`config` and `$uibModalInstance` are `$uibModal` controller LOCALS, not injector services -- list them in the static `$inject` array.** The dashboard's `editWidget` opens `$uibModal.open({controller: widget.editController, resolve: {config, widget, widgetBasePath}})` and saves via `.result.then(cfg => ... $emit('csWidget:saveConfig', cfg))`. `$injector.get('config')` / `$injector.get('$uibModalInstance')` THROW there, so a `try { $injector.get(...) } catch {}` controller loads defaults and its Save closes nothing: the button looks dead and the widget never gets added (socAssistantMonitor 1.0.12, fortiaiAgenticAssistant 1.2.69). The harness hides this because it registers GLOBAL `config` and `$uibModalInstance` factories (`harness.module.ts`), so `$injector.get` succeeds locally; `lint-angular` now errors on it (`edit-modal-locals-via-injector`) and `edit-config-inject` no longer accepts it. A widget with an inline settings overlay does NOT need a dual-mode edit controller: ng-include `edit.html` under the VIEW scope with no `ng-controller`, and give the view scope its own `save()`/`cancel()` (fortiaiAgenticAssistant `view.controller.js` `closeSettings`); only the modal ever instantiates the edit controller. Unit-test it the way the platform builds it: `$controller(name, {$scope, $uibModalInstance: stub, config})`, never `$provide.value('config', ...)`.
+  - **`config` and `$uibModalInstance` are `$uibModal` controller LOCALS, not injector services -- list them in the static `$inject` array.** The dashboard's `editWidget` opens `$uibModal.open({controller: widget.editController, resolve: {config, widget, widgetBasePath}})` and saves via `.result.then(cfg => ... $emit('csWidget:saveConfig', cfg))`. `$injector.get('config')` / `$injector.get('$uibModalInstance')` THROW there, so a `try { $injector.get(...) } catch {}` controller loads defaults and its Save closes nothing: the button looks dead and the widget never gets added (agenticAssistantMonitor 1.0.12, fortiaiAgenticAssistant 1.2.69). The harness hides this because it registers GLOBAL `config` and `$uibModalInstance` factories (`harness.module.ts`), so `$injector.get` succeeds locally; `lint-angular` now errors on it (`edit-modal-locals-via-injector`) and `edit-config-inject` no longer accepts it. A widget with an inline settings overlay does NOT need a dual-mode edit controller: ng-include `edit.html` under the VIEW scope with no `ng-controller`, and give the view scope its own `save()`/`cancel()` (fortiaiAgenticAssistant `view.controller.js` `closeSettings`); only the modal ever instantiates the edit controller. Unit-test it the way the platform builds it: `$controller(name, {$scope, $uibModalInstance: stub, config})`, never `$provide.value('config', ...)`.
 - **Run-time** (`view.html` + `view.controller.js`): rendered in-place on the host page. Receives `config` via injection and has access to the host's `$state`, `$rootScope`, the parent form (`FormEntityService`), the WebSocket, and all platform services.
 
 You are working inside the host module:
@@ -90,7 +90,7 @@ widgets/installed/<name>-<version>/widgetAssets/...
 
 Asset references in `view.html` must use this prefix (see §7).
 
-> **Gotcha -- harness lint blocks bootstrap on ANY stale version-string literal in the controller, including comments.** After bumping `info.json` (e.g. 1.0.47→1.0.48), the dev/test harness runs a `stale-version-ref` lint and *refuses to mount the widget* if `view.controller.js` contains the old `M.m.p` string anywhere -- even an example URL in a code comment. Symptom: every Playwright e2e times out at `waitForFunction(() => window.__<widget>__)` because the controller never boots; the harness error panel shows `Lint blocked widget bootstrap … [stale-version-ref] references stale version(s): 1.0.47`. The jest bootstrap slug test (`fsrSocAssistant1048DevCtrl`) does NOT catch this -- it only checks `…NNNNCtrl` tokens, not literal `1.0.47` dotted strings. Fix: grep the controller for the old dotted version and update every hit (comments included) in the same bump. **Better: never write the dotted version in the controller at all** -- derive it from the served script URL (`fortiaiAgenticAssistant` does this via `WIDGET_VERSION`) and use a `<version>` placeholder in comments. A jest guard (`triageDraft.export.test.js`: "controller never hardcodes the info.json WIDGET version") asserts `info.json.version` never appears literally in `view.controller.js`, so the footgun can't recur.
+> **Gotcha -- harness lint blocks bootstrap on ANY stale version-string literal in the controller, including comments.** After bumping `info.json` (e.g. 1.0.47→1.0.48), the dev/test harness runs a `stale-version-ref` lint and *refuses to mount the widget* if `view.controller.js` contains the old `M.m.p` string anywhere -- even an example URL in a code comment. Symptom: every Playwright e2e times out at `waitForFunction(() => window.__<widget>__)` because the controller never boots; the harness error panel shows `Lint blocked widget bootstrap … [stale-version-ref] references stale version(s): 1.0.47`. The jest bootstrap slug test (`fsrAgenticAssistant1048DevCtrl`) does NOT catch this -- it only checks `…NNNNCtrl` tokens, not literal `1.0.47` dotted strings. Fix: grep the controller for the old dotted version and update every hit (comments included) in the same bump. **Better: never write the dotted version in the controller at all** -- derive it from the served script URL (`fortiaiAgenticAssistant` does this via `WIDGET_VERSION`) and use a `<version>` placeholder in comments. A jest guard (`triageDraft.export.test.js`: "controller never hardcodes the info.json WIDGET version") asserts `info.json.version` never appears literally in `view.controller.js`, so the footgun can't recur.
 
 ---
 
@@ -879,7 +879,7 @@ The harness lint blocks a push if any selector lacks this prefix.
 
 #### 7.6.1 Hand-rolled SVG charts: three gotchas that all render a *plausible lie*
 
-From `socAssistantMonitor` 1.0.8 -- the widget drew a smooth week-long cost
+From `agenticAssistantMonitor` 1.0.8 -- the widget drew a smooth week-long cost
 decline that never happened. All three are silent: the chart looks fine.
 
 **1. Zero-fill your buckets.** Aggregation endpoints (here the connector's
@@ -912,7 +912,7 @@ scaling redraws `3,4,5` as a full-height climb identical to `0,50,100`.
 `ng-repeat="(k,v) in someFn()"` re-invokes `someFn()` every digest; a new object
 identity each time never stabilises -> `$rootScope:infdig`. Memoise on a cheap
 key (`tab + JSON.stringify(state)`) and return the cached reference, the same
-way `socAssistantMonitor`'s `users()` caches on the `$scope.usage` reference.
+way `agenticAssistantMonitor`'s `users()` caches on the `$scope.usage` reference.
 
 ---
 
@@ -1378,7 +1378,7 @@ Drawer / non-modal widget lifecycle: page contexts, `enableFor` mechanics, mount
 
 > **Reference -- `validate_yaml`/`compile_yaml` return `corrected_yaml` + `auto_fixes[]`.** The FSR-playbook compiler auto-repairs known foot-guns (set_variable namespace refs, `vars.input.<p>` missing `.params.`, `stop`→`end`, …) and hands back the fully-corrected source text alongside a per-fix list (`[{code, line, message}]`) plus an `auto_fix_note`. This is a real, box-independent one-click apply-patch surface -- a widget can offer "adopt corrected_yaml" without reimplementing YAML mutation. `fortiaiAgenticAssistant`'s YAML-pane "Check & fix" (`checkAndFix()` → `validateYamlLive` → `applyPatch()`) is built on it. **Gotcha:** the compiler only runs on the LIVE connector, so route this through the always-live path (`_executeReal`, not `executeAction`) -- the mock track has no compiler and returns no fixes. Same reason `step_test`/`push_playbook` are live-only.
 
-> **Gotcha -- `SetVariable` values are referenced as `{{ vars.<name> }}`, NOT `{{ vars.steps.<step_name>.<name> }}`.** A runner playbook that set variables in a `SetVariable` step named `set_run_vars` and then referenced them in a later `Connectors` step via `{{ vars.steps.set_run_vars.session_id }}` saw blank values at execution time -- the connector received empty strings. The correct reference is `{{ vars.session_id }}` (by variable name, not by step path). The `vars.steps.*` path silently resolves to empty rather than erroring, so the wrong syntax looks like a platform bug when it's a reference-path mistake. **The `fsr_playbooks` compiler auto-detects and auto-fixes this** -- it rewrites `vars.steps.<sv_step>.<key>` to `vars.<key>` in the compiled output and emits a warning: "set_variable outputs live at top-level vars, not under the step-output namespace." (This auto-fix had a case-sensitivity bug that was fixed in Aug 2026 -- it only matched `set_variable` (snake_case), missing `SetVariable` (PascalCase), and it didn't handle the `variables:` key form. Both are fixed now.) **Fix:** use `{{ vars.<variable_name> }}` to read SetVariable outputs in later steps. Alternatively, bake literal values (and `{{ uuid() }}` for fresh IDs) directly into each `Connectors` step's `params` block -- the runner does this for simplicity, since the values are static per task. See `connector-fsr-soc-assistant/operations.py` `_compile_runner_playbook()`.
+> **Gotcha -- `SetVariable` values are referenced as `{{ vars.<name> }}`, NOT `{{ vars.steps.<step_name>.<name> }}`.** A runner playbook that set variables in a `SetVariable` step named `set_run_vars` and then referenced them in a later `Connectors` step via `{{ vars.steps.set_run_vars.session_id }}` saw blank values at execution time -- the connector received empty strings. The correct reference is `{{ vars.session_id }}` (by variable name, not by step path). The `vars.steps.*` path silently resolves to empty rather than erroring, so the wrong syntax looks like a platform bug when it's a reference-path mistake. **The `fsr_playbooks` compiler auto-detects and auto-fixes this** -- it rewrites `vars.steps.<sv_step>.<key>` to `vars.<key>` in the compiled output and emits a warning: "set_variable outputs live at top-level vars, not under the step-output namespace." (This auto-fix had a case-sensitivity bug that was fixed in Aug 2026 -- it only matched `set_variable` (snake_case), missing `SetVariable` (PascalCase), and it didn't handle the `variables:` key form. Both are fixed now.) **Fix:** use `{{ vars.<variable_name> }}` to read SetVariable outputs in later steps. Alternatively, bake literal values (and `{{ uuid() }}` for fresh IDs) directly into each `Connectors` step's `params` block -- the runner does this for simplicity, since the values are static per task. See `connector-fsr-agentic-assistant/operations.py` `_compile_runner_playbook()`.
 
 > **Gotcha -- a "record summary" composed for alerts/cases silently drops a record's nested collections, so a widget that *fetched* related rows can still ship none of them.** `fortiaiAgenticAssistant` resolved its entity with `GET <iri>?$relationships=true` -- so the open playbook's **steps really were on the record** -- and then rendered it through `_composeEntitySummary`, which reads a fixed alert/case-shaped field list (name/severity/status/source/type/description). Everything nested was dropped on the floor. The composer button was even labelled *"Pull in this playbook's steps"*: it pulled no steps. The mount looked correctly wired at every layer (state → iri → entityContext → `?$relationships=true` → summary), and the only symptom was the agent asking the analyst to paste in the record it already had. **Two rules.** (1) A summary composer written for one module is not reusable for another by default -- a `workflows` record's payload is its `steps[]`, a `cases` record's is its fields; assert what a mount actually *sends* (`entity` on the chat_turn payload), never that it *fetched*. (2) If the consumer needs a nested collection, ship it as its own key (`entity.playbook_yaml`) rather than hoping it survives a generic field-flattener -- and **do not truncate it** if the consumer edits and writes it back: the record-data block is capped (`_ENTITY_CONTEXT_MAX`), and a clipped playbook that gets edited and pushed returns as a playbook with the analyst's steps deleted. See `view.controller.js` `_seedPlaybookYaml()`/`_entityPayload()`, `fsrPbAgent.service.js#decompilePlaybook`, and `tests/playbook.yaml.seed.test.js`.
 
@@ -1593,7 +1593,7 @@ caller = values[0] if len(values) == 1 else None  # >1 value = forged, refuse
 - `kwargs` is easy to drop: a dispatcher written `op(config, params)` loses the
   request entirely. Bind the caller (e.g. a ContextVar) in `execute` itself.
 
-Used by the SOC Assistant connector's reviewer check (`reviewer_roles`,
+Used by the Agentic Assistant connector's reviewer check (`reviewer_roles`,
 `_decision_gate` in `operations.py`).
 
 ## 21. Permissions
@@ -1745,7 +1745,7 @@ Preview inside Content Hub only works on 7.4.1+ when locales are present.
 ## 23.1 Shared filter state across tabs: scope keys per panel
 
 A multi-panel widget with one `activeFilters` bag will eventually send a filter
-to a panel that means something else by it. In `socAssistantMonitor` a live
+to a panel that means something else by it. In `agenticAssistantMonitor` a live
 session's `status` is `active|waiting_approval|idle` while an audit row's
 `status` is `success|error`; clicking the "Pending HITL" card set
 `status=waiting_approval` globally, so switching to the Audit tab queried for a
@@ -2178,14 +2178,14 @@ State name | URL-ish | Use for
     `SolutionPackBuilder`) does NOT read the installed-widget table -- it serves
     widget tarballs out of the appliance's `/tmp/solutionpacks/` cache. An export
     produced `fortiaiAgenticAssistant-1.2.47` while 1.2.48 was both installed and
-    the source version, and `socAssistantMonitor-1.0.9` while 1.0.2 was
+    the source version, and `agenticAssistantMonitor-1.0.9` while 1.0.2 was
     installed. Neither matched the box. Worse, a dashboard references a widget as
     `"type": "<name>-<version>"`, so every widget bump silently breaks the pin and
     the imported dashboard renders **blank** -- no import error. A name-only
     guard (`wtype.rsplit("-", 1)[0]`) does not catch this. Build the pack
     **locally** from the artifacts you control and repin the dashboard by name to
     the version the pack carries:
-    `scripts/build_soc_assistant_pack.py` (playbook-builder repo) -- offline,
+    `scripts/build_agentic_assistant_pack.py` (playbook-builder repo) -- offline,
     ~0.1s vs ~60s, and self-consistent by construction.
 
 26. **Saving a playbook REPLACES it -- a snapshot is not a diff.** The designer's
@@ -2663,7 +2663,7 @@ non-obvious and cost real debugging time; check here before grepping.
 
 ### 32.0 Three e2e failure modes that are NOT widget bugs
 
-Chased on `socAssistantMonitor`. All three present as "random test fails, a
+Chased on `agenticAssistantMonitor`. All three present as "random test fails, a
 different one each run" -- the trap is treating them as a widget defect.
 
 **a) Another e2e run is on the same ports.** The mock servers are per-worker on

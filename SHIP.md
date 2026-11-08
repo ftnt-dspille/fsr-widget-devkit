@@ -14,7 +14,7 @@ doc is the narrower "just get it onto the box" reference.
 | Artifact | Repo | Build output | Install target |
 |---|---|---|---|
 | **Widget** | this repo (`widgets-src/<name>/`) | `<name>-<ver>.tgz` (Connector Store shape) | `POST /api/3/widgets` (+ publish) |
-| **Connector** | `~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/` | `connector-fsr-soc-assistant-<ver>.tgz` (Connector Store shape; `fsr_playbooks` wheel materialized into `wheels/`) | Connector Store `$replace` install |
+| **Connector** | `~/PycharmProjects/ConnectorsV2/fsr-playbook-builder/` | `connector-fsr-agentic-assistant-<ver>.tgz` (Connector Store shape; `fsr_playbooks` wheel materialized into `wheels/`) | Connector Store `$replace` install |
 
 ## Point both at the same box
 
@@ -109,7 +109,7 @@ contract versions in sync. When shipping a pair:
   fails at login, confirm the harness has the 8.0 selector (uncommitted 8.0
   fixes -- see STATUS.md).
 - **Connector identity single-source** -- the widget's `fsrPbAgent.service.js`
-  resolves the connector by name (`connector-fsr-soc-assistant`); never
+  resolves the connector by name (`connector-fsr-agentic-assistant`); never
   hardcode a second copy of the name/version elsewhere (drift aborted a live
   build test after a rename -- see memory `widget_connector_name_drift`).
 - **8.0 pip lock** -- the box's `pip.conf` is pinned to an internal repo +

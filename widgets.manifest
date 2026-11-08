@@ -18,9 +18,9 @@
 # widgets.local.manifest (gitignored, same format). clone-widgets.sh reads that
 # file first, and its entry replaces the same-named entry below.
 
-# SOC Assistant product widgets (the chat and the autonomy monitor).
-fortiaiAgenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-soc-assistant.git  master
-socAssistantMonitor     git@gitlab.example.invalid:your-group/widget-soc-assistant-monitor.git  master
+# Agentic Assistant product widgets (the chat and the autonomy monitor).
+fortiaiAgenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-agentic-assistant.git  master
+agenticAssistantMonitor     git@gitlab.example.invalid:your-group/widget-agentic-assistant-monitor.git  master
 
 ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git          main
 

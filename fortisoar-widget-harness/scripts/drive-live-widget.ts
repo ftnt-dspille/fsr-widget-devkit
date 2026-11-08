@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 /**
- * Drive the live SOC Assistant widget end-to-end on the real forticloud box and
+ * Drive the live Agentic Assistant widget end-to-end on the real forticloud box and
  * print whether live messages stream. Repeatable manual/CI smoke for the
  * chat-poll turn-counter fix (connector 0.3.134) and the streaming UX in general.
  *

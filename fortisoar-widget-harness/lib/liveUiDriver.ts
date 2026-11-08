@@ -19,7 +19,7 @@
  *  - **Record deep-links use `/modules/<module>/<uuid>`** (ui-router state
  *    `main.modulesDetail`). A bare `/alerts/<uuid>` silently redirects to the
  *    dashboard.
- *  - **The SOC Assistant is a drawer widget**, toggled by a `.sub-block` button
+ *  - **The Agentic Assistant is a drawer widget**, toggled by a `.sub-block` button
  *    in the right-edge `#global-drawer`. When open it mounts as
  *    `#custom-modal .composer` (the chat input lives there).
  *  - **TLS**: the box may present certs the headless browser distrusts; we set
@@ -42,7 +42,7 @@ import { Page, Response, Browser, BrowserContext } from "@playwright/test";
 import soarEnv = require("./soarEnv");
 // The generic real-SOAR browser session lives in soarBrowser.js -- the single
 // source of truth for the desktop-UA / WAF-evasion / login invariants. This
-// module is now the SOC-Assistant-drawer-specific layer ON TOP of it.
+// module is now the Agentic Assistant-drawer-specific layer ON TOP of it.
 import soarBrowser = require("./soarBrowser");
 // The mounted-widget session (sendChat / respondApprovals / close) is shared
 // with localUiDriver -- see chatSession.ts for why it is not duplicated.
@@ -115,7 +115,7 @@ async function closeSharedSession(): Promise<void> {
 }
 
 /**
- * Full flow: launch → login → navigate → open the SOC Assistant drawer.
+ * Full flow: launch → login → navigate → open the Agentic Assistant drawer.
  * Returns a session handle with sendChat/screenshot/close.
  *
  * opts: { module='alerts', recordUuid | mountPath (one required), visitFirst,

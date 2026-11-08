@@ -80,7 +80,7 @@ that - it only closes the *platform* hole.
 The 17 red specs were NOT hermetic leaks - three real bugs, now fixed (suite is
 **85 passed / 0 failed**):
 1. **Stale connector name in route mocks.** Widget repointed
-   `fsr-playbook-builder` → `connector-fsr-soc-assistant`, but `smoke.spec.js` /
+   `fsr-playbook-builder` → `connector-fsr-agentic-assistant`, but `smoke.spec.js` /
    `liveDetached.spec.js` fixtures still returned the old name → `_resolveConnector`
    rejected → push chain never ran (`pushResult` null) + detached `chat_poll`
    failed. Fixed the two fixtures.

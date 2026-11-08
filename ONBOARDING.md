@@ -20,7 +20,7 @@ but does not contain the other two.
 |------|------------|----------------|
 | **Dev Kit** (this repo) | Harness, `Makefile`, `scripts/`, `KNOWLEDGEBASE.md`, lint configs, widget template. Ships `widgets-src/` **empty**. | `fsr_all_widgets/` |
 | **Widget(s)** | One repo per widget (e.g. `fortiaiAgenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
-| **Connector** | The agentic backend (`connector-fsr-soc-assistant`, label "FSR SOC Assistant"; pins `fsr_playbooks`) the SOC-assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
+| **Connector** | The agentic backend (`connector-fsr-agentic-assistant`, label "FSR Agentic Assistant"; pins `fsr_playbooks`) the Agentic Assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
 
 The harness (`fortisoar-widget-harness/`) is **part of this repo** -- plain files,
 not a separate git repo. (It used to be its own repo; that standalone repo is now
@@ -101,11 +101,11 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `fortiaiAgenticAssistant` ("FortiSOAR SOC Assistant") | 1.2.76 | `connector-fsr-soc-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
-| `socAssistantMonitor` | 1.0.19 | `connector-fsr-soc-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
+| `fortiaiAgenticAssistant` ("FortiSOAR Agentic Assistant") | 1.2.76 | `connector-fsr-agentic-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `agenticAssistantMonitor` | 1.0.19 | `connector-fsr-agentic-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
 | `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
 
-The connector pins the framework: `connector-fsr-soc-assistant/requirements.txt`
+The connector pins the framework: `connector-fsr-agentic-assistant/requirements.txt`
 is the **single source of truth** for `fsr-playbooks` (currently `0.6.16`) -- the
 package is `fsr_playbooks`, not the long-dead `fsr_core`. Platform target is
 FortiSOAR **8.0**.

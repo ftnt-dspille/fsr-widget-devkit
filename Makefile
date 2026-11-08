@@ -100,7 +100,7 @@ test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on
 
 # Scoped e2e on a fresh test server: kills any stale test-port server first (the
 # recurring stale-server breakage) so Playwright always boots a fresh one.
-#   make test-e2e-spec SPEC=tests/e2e/fsrSocAssistant.c2Hunt.spec.js
+#   make test-e2e-spec SPEC=tests/e2e/fsrAgenticAssistant.c2Hunt.spec.js
 #   make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
 #   make test-e2e-spec WIDGET=fortiaiAgenticAssistant   # every e2e spec of one widget
 # SPEC is one or more file patterns, separated by spaces or commas. Each is passed
@@ -256,9 +256,9 @@ session-health: ## Which chat tools fail, with inputs/outputs, classed model/rem
 	  $(if $(LIMIT),LIMIT=$(LIMIT),) $(if $(OUT),OUT=$(abspath $(OUT)),) $(if $(SOURCE),SOURCE=$(SOURCE),)
 
 # Derive the sweep spec from the widget name instead of hardcoding it. The old
-# hardcoded `fsrSocAssistant` path went stale at the widget rename, and BOTH
+# hardcoded `fsrAgenticAssistant` path went stale at the widget rename, and BOTH
 # call sites failed silently-ish: `make test-live-sweep` died with "No tests
-# found", and ship-verify's `if [ "$(WIDGET)" = "fsrSocAssistant" ]` guard
+# found", and ship-verify's `if [ "$(WIDGET)" = "fsrAgenticAssistant" ]` guard
 # stopped matching, so the CANONICAL ship path skipped its live gate entirely
 # and still printed "live-verified".
 SWEEP_WIDGET ?= $(if $(WIDGET),$(WIDGET),fortiaiAgenticAssistant)

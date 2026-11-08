@@ -1,6 +1,6 @@
 "use strict";
 /**
- * The SOC-Assistant chat session -- everything you can do with a page that
+ * The Agentic Assistant chat session -- everything you can do with a page that
  * already has the widget mounted, independent of HOW it got mounted.
  *
  * This module was extracted from `liveUiDriver.ts` when a second mount strategy
