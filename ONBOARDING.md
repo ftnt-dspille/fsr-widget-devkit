@@ -101,8 +101,8 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `agenticAssistant` ("FortiSOAR Agentic Assistant") | 1.2.76 | `connector-fsr-agentic-assistant` 0.5.176 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
-| `agenticAssistantMonitor` | 1.0.19 | `connector-fsr-agentic-assistant` 0.5.125 | 2.8.0 | the assistant's monitoring surface |
+| `agenticAssistant` ("Agentic Assistant") | 1.3.0 | `connector-fsr-agentic-assistant` 0.6.0 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `agenticAssistantMonitor` | 1.1.0 | `connector-fsr-agentic-assistant` 0.6.0 | 2.8.0 | the assistant's monitoring surface |
 | `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
 
 The connector pins the framework: `connector-fsr-agentic-assistant/requirements.txt`
