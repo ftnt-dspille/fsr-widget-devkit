@@ -225,3 +225,67 @@ describe("edit-modal-locals-via-injector", () => {
     expect(runLint("staticInject").out).not.toMatch(/edit-modal-locals-via-injector/);
   });
 });
+
+describe("dead-scope-fn", () => {
+  // A $scope function defined in the controller that nothing outside the
+  // controller references: the shape of respondApproval / historyNoMatches /
+  // isFilterActive, which the suite kept alive by calling them directly.
+  const deadFn = (name) => `$scope.${name} = function () { return 1; };\n`;
+  const ctl = (body) => `${HEADER}\nangular.module('cybersponse').controller('x', function ($scope) {\n${body}\n});\n`;
+
+  test("flags a $scope function that no template or JS references", () => {
+    writeWidget("deadFn", {
+      "view.html": "<div>nothing here</div>\n",
+      "view.controller.js": ctl(deadFn("historyNoMatches")),
+    });
+    const { code, out } = runLint("deadFn");
+    expect(out).toMatch(/view\.controller\.js:\d+\s+dead-scope-fn/);
+    expect(out).toMatch(/\$scope\.historyNoMatches is defined but no template or non-test JS references it/);
+    expect(out).not.toMatch(/\(only tests call it/);
+    // Warning severity: printed, not a failing exit.
+    expect(code).toBe(0);
+  });
+
+  test("does NOT flag a function a template calls", () => {
+    writeWidget("templateUse", {
+      "view.html": "<button ng-click=\"doRetry()\">retry</button>\n",
+      "view.controller.js": ctl(deadFn("doRetry")),
+    });
+    expect(runLint("templateUse").out).not.toMatch(/dead-scope-fn/);
+  });
+
+  test("does NOT flag a function another non-test JS file calls", () => {
+    writeWidget("siblingUse", {
+      "view.html": "<div></div>\n",
+      "view.controller.js": ctl(deadFn("applyFilter")),
+      "widgetAssets/js/helpers.js": `${HEADER}\nfunction run(s) { s.applyFilter(); }\n`,
+    });
+    expect(runLint("siblingUse").out).not.toMatch(/dead-scope-fn/);
+  });
+
+  test("names the case where only a test calls it", () => {
+    writeWidget("testOnly", {
+      "view.html": "<div></div>\n",
+      "view.controller.js": ctl(deadFn("isFilterActive")),
+      "tests/view.controller.test.js": "test('x', () => { scope.isFilterActive(); });\n",
+    });
+    const { out } = runLint("testOnly");
+    expect(out).toMatch(/\$scope\.isFilterActive .*\(only tests call it/);
+  });
+
+  test("ignores a $scope data property (not a function)", () => {
+    writeWidget("dataProp", {
+      "view.html": "<div></div>\n",
+      "view.controller.js": ctl("$scope.items = [];\n$scope.limit = 10;"),
+    });
+    expect(runLint("dataProp").out).not.toMatch(/dead-scope-fn/);
+  });
+
+  test("matches the whole word: a longer identifier that contains the name is not a reference", () => {
+    writeWidget("wordMatch", {
+      "view.html": "<div>{{ cancelled }}</div>\n",
+      "view.controller.js": ctl(deadFn("cancel")),
+    });
+    expect(runLint("wordMatch").out).toMatch(/dead-scope-fn/);
+  });
+});

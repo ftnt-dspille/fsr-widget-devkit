@@ -599,6 +599,13 @@ stub `window.open` in an init script to capture the URL instead of navigating a
 real popup, or the hermetic tier flags the platform route as an un-snapshotted
 leak.
 
+**Don't skip the `position: relative` on the root.** Without it, `inset: 0`
+resolves against whatever positioned ancestor the host page has, so the overlay
+covers the page, not the widget, and a tall panel opens with its header above the
+visible area in a scrolled page or a drawer. `fortiaiAgenticAssistant` shipped
+this way for months (its settings panel's title and close button were off-screen);
+measure the overlay's `offsetParent` in a spec if in doubt.
+
 **Stacking-context trap -- `backdrop-filter`/`filter`/`transform` on a header
 TRAPS its descendant dropdowns.** A high `z-index` on an absolutely-positioned
 menu only wins *within its nearest stacking-context ancestor*. If that ancestor
@@ -870,6 +877,36 @@ The harness lint blocks a push if any selector lacks this prefix.
 | `.widget.widget-container .parent .my-el` | (0,3,0) | Matches platform's (0,3,0) -- loads later so wins |
 | Platform theme `.ui-grid-row:nth-child(odd) .ui-grid-cell` | (0,3,0) | Wins over widget selectors with < 3 classes |
 | Anything `!important` | overrides specificity | Use only when the platform uses `!important` that you must counter |
+
+**Host CSS colors bare elements.** The page can carry a dark-theme rule such as
+`p { color: #fff }`, and a widget that only sets `color` on its root still loses:
+the host rule matches the `<p>` directly, so markdown paragraphs went white-on-white
+on the light theme (the analyst's own message vanished in `fortiaiAgenticAssistant`).
+Reset text elements to inherit inside the root:
+
+```css
+.my-widget p, .my-widget li, .my-widget td, .my-widget th,
+.my-widget label, .my-widget h1, .my-widget h2, .my-widget h3,
+.my-widget h4, .my-widget h5, .my-widget h6 { color: inherit; }
+```
+
+Widget rules with a class still win (higher specificity), so this only fills the gap.
+
+**Icons: CSS-mask SVGs, not emoji and not `<use href="#id">`.** Emoji render
+differently per OS and can't follow the theme color. Inline `<svg><use href="#id">`
+sprites break under a host `<base href>` in some browsers (the fragment resolves
+against the base URL). A mask over `currentColor` has neither problem:
+
+```css
+.my-widget .ic { display: inline-block; width: 14px; height: 14px;
+  background-color: currentColor;
+  -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; }
+.my-widget .ic-history { --ic: url("data:image/svg+xml,<url-encoded svg, stroke='black'>"); }
+```
+
+Markup: `<i class="ic ic-history" aria-hidden="true"></i>`. Reference:
+`fortiaiAgenticAssistant` view.html "Icons" block. Font Awesome 4.7 is also on the
+platform (`fa fa-*`) if a dated look is acceptable.
 
 ### 7.6 Chart
 
@@ -1252,6 +1289,21 @@ Template:
 
 When calling external services that need a theme name, **map `steel` → `steel`** (older connectors expect the literal `steel`).
 
+### 14.1 Style every input type you render, not just `type="text"`
+
+On a dark theme the platform makes form-control text light, but it doesn't
+give the control a dark background. If your CSS sets background and color for
+`input[type="text"]`, `select` and `textarea` only, an `input type="number"`
+or `type="password"` keeps the browser's white background with the theme's
+white text: the value is invisible. The SOC Assistant's action card showed
+an integer device id this way, and the analyst approved a value they could
+not read. List every input type the template can emit (number, password,
+email, date, ...) in the same rule, and include the `:focus` rule. To test
+it, inject the dark theme plus `input { color: #fff }` and compare each control's
+computed `backgroundColor` and `color` with the themed text input. Leave
+borders out of the comparison, because a border transition makes them flaky
+(`fortiaiAgenticAssistant.actionCardInputContrast.spec.js`).
+
 ---
 
 ## 15. WebSocket subscriptions
@@ -1383,6 +1435,8 @@ Drawer / non-modal widget lifecycle: page contexts, `enableFor` mechanics, mount
 > **Gotcha -- a "record summary" composed for alerts/cases silently drops a record's nested collections, so a widget that *fetched* related rows can still ship none of them.** `agenticAssistant` resolved its entity with `GET <iri>?$relationships=true` -- so the open playbook's **steps really were on the record** -- and then rendered it through `_composeEntitySummary`, which reads a fixed alert/case-shaped field list (name/severity/status/source/type/description). Everything nested was dropped on the floor. The composer button was even labelled *"Pull in this playbook's steps"*: it pulled no steps. The mount looked correctly wired at every layer (state → iri → entityContext → `?$relationships=true` → summary), and the only symptom was the agent asking the analyst to paste in the record it already had. **Two rules.** (1) A summary composer written for one module is not reusable for another by default -- a `workflows` record's payload is its `steps[]`, a `cases` record's is its fields; assert what a mount actually *sends* (`entity` on the chat_turn payload), never that it *fetched*. (2) If the consumer needs a nested collection, ship it as its own key (`entity.playbook_yaml`) rather than hoping it survives a generic field-flattener -- and **do not truncate it** if the consumer edits and writes it back: the record-data block is capped (`_ENTITY_CONTEXT_MAX`), and a clipped playbook that gets edited and pushed returns as a playbook with the analyst's steps deleted. See `view.controller.js` `_seedPlaybookYaml()`/`_entityPayload()`, `fsrPbAgent.service.js#decompilePlaybook`, and `tests/playbook.yaml.seed.test.js`.
 
 > **Gotcha -- one `localStorage` key is shared across every mount of the same widget.** The same widget can be mounted in several contexts at once (dashboard, a record drawer, the playbook designer), and they all share the browser's `localStorage`. A single un-namespaced key (e.g. `fsrPbSession`) therefore *bleeds state across contexts*: `agenticAssistant` persisted its active chat session under one `fsrPbSession` key, so opening the widget on the playbook designer (build mode) rehydrated the analyst's last *dashboard investigation/triage* chat onto the playbooks page. Fix: **scope any persisted per-mount state by the mount's context** -- key it by `uiIntent`/`inPlaybookEditor` (`fsrPbSession:build` vs `fsrPbSession:triage`), and migrate the legacy un-namespaced key into the default context only (never the other one). See `view.controller.js` `_sessionKey()`/`_ensureSessionId()` and `tests/sessionScope.controller.test.js`.
+
+> **Gotcha -- the drawer stays mounted when the designer moves to ANOTHER playbook, so "the entity is a workflows record" does not mean "it is the playbook on screen".** The designer route (`main.playbookDetail`, `/playbooks/:id`) changes only `$state.params.id` when the analyst opens a different playbook (including one they just created); the drawer widget and its scope survive, and `$stateChangeSuccess` fires. `fortiaiAgenticAssistant` checked only `entityContext.module === 'workflows'`, so after playbook A -> playbook B it kept A as the entity and kept A's decompiled YAML (with A's staged, unsaved draft) as `entity.playbook_yaml`. Every turn on B grounded on A, "+ New" did not help (it resets the chat, not the grounding copy), and Apply merged A's workflow -- name, uuid, steps -- onto B's canvas via `designerDetail:entityUpdated`; B's Save would have written A's content over the wrong record. **Rules.** (1) The open playbook is `$state.params.id`, re-read on every state change; compare IRIs, not modules. (2) Adopting a new playbook must clear anything derived from the old one (grounding YAML, draft, staged marker) before the new read lands, and drop a slow read of the old one that lands late. (3) Before emitting `designerDetail:entityUpdated`, check the staged workflow's `uuid` against the designer entity's `uuid` and refuse a mismatch -- the merge is a plain `angular.extend`, so it will happily rename the canvas. See `view.controller.js` `_entityIsOpenPlaybook()`/`_ensurePlaybookEntity()`/`_stageIntoDesigner()` and `tests/designer.playbookSwitch.test.js`.
 
 ## 19. Triggering playbooks
 

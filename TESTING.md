@@ -224,6 +224,16 @@ mid-flight (exit 137, or a wall of `net::ERR_CONNECTION_REFUSED`).
 server reuse for a watch session. A spec builds URLs from `baseURL` or
 `process.env.E2E_BASE_PORT`, never a literal port.
 
+### Fresh worktrees need two local links
+
+`make test-unit` finds widgets through `fortisoar-widget-harness/widgets-src`,
+a symlink to the repo-root `widgets-src/` (gitignored, so a new worktree has
+none). Create it once with `ln -s ../widgets-src fortisoar-widget-harness/widgets-src`;
+without it jest reports "no test project" for the widget. The app shell
+(`fsr_src/app_min`, `fsr_src/templates.min.*.js`) is also gitignored: copy those
+artifacts from a checkout that has them to skip `make assets`, which needs a box
+login. Copy only those artifacts, never the harness `.env`.
+
 ### E2e needs the SOAR app shell
 
 The harness renders widgets inside the real FortiSOAR app bundle, served from

@@ -244,10 +244,24 @@ print(f"[sidecar] loaded {len(OPERATIONS)} ops from {CONNECTOR_DIR}", flush=True
 def _build_config(config_name: str | None) -> dict:
     """Resolve a widget config NAME (e.g. 'fsrpb-live') into the config dict
     the connector ops read. Local dev has exactly one config -- the LLM gateway as the
-    LLM -- so the name is advisory; the dict comes from localdev.env."""
+    LLM -- so the name is advisory; the dict comes from localdev.env.
+
+    The key, endpoint and model come from the shared resolver (the same one
+    every harness uses). A missing key does not stop the sidecar: the empty
+    config goes through and the connector reports the missing key on the turn."""
+    from fsr_playbooks.harness.llm import LLMConfigError, resolve_llm
     provider = (os.environ.get("LLM_PROVIDER") or "openai").strip().lower()
+    kind = "openai" if provider == "openai" else "anthropic"
+    try:
+        if kind == "openai":
+            resolved = resolve_llm("openai", base_url=os.environ.get("OPENAI_BASE_URL") or None)
+        else:
+            resolved = resolve_llm("anthropic")
+        return resolved.connector_config()
+    except LLMConfigError:
+        pass
     cfg: dict = {"llm_provider": provider}
-    if provider == "openai":
+    if kind == "openai":
         cfg["openai_api_key"] = os.environ.get("OPENAI_API_KEY", "")
         cfg["openai_base_url"] = os.environ.get("OPENAI_BASE_URL", "")
         cfg["openai_model"] = os.environ.get("OPENAI_MODEL", "")
@@ -321,7 +335,8 @@ def _hermetic_config(op: str, params: dict) -> dict:
         operations_mod._PROFILE_NEG_TS.clear()
     except Exception:
         pass
-    return dict(_FAKE_CONFIG)
+    from fsr_playbooks.harness.llm import resolve_llm
+    return resolve_llm("fake", "fake-1").connector_config()
 
 
 if HERMETIC:

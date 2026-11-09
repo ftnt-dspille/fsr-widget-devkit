@@ -153,6 +153,28 @@ Pattern observed across certified widgets (e.g., `outbreakAlertConfiguration`, `
 })();
 ```
 
-Include it by adding a `<script>` tag at the top of your `view.html`.
+**How it gets loaded (do not add a `<script>` tag).** SOAR and the harness both
+auto-inject every `widgetAssets/**/*.js` file; `<script>` tags inside
+`view.html` are never executed (Angular `$compile` skips them -- KB §32.3.1). So
+a new service file needs no template edit, only:
+
+- a `.factory`/`.service` registered on `angular.module('cybersponse')` at load
+  time (the same IIFE shape as `fsrPbAgent.service.js`);
+- its name listed in the controller's `$inject` array and signature.
+
+Load order is arrival order, not filename order, so a service file must not call
+another service at load time -- it may only declare `$inject` and be resolved
+lazily by Angular DI, which is what the controller does.
+
+**Splitting a large controller into services.** `fsrPbMarkdown`, `fsrPbExport`,
+`fsrPbYaml`, `fsrPbHtml`, `fsrPbEntityCards`, `fsrPbTranscript` and `fsrPbCards`
+(`widgetAssets/js/*.service.js`) are the worked example. Two gotchas:
+
+- Jest suites that boot the controller load widget scripts by hand. Each new
+  service file must be `require`d next to `require("../widget/view.controller.js")`
+  or the controller fails with `Unknown provider` (the bootstrap suite names it).
+- Names that a moved helper read from `$scope` must become parameters; keep a
+  controller-side wrapper that passes `$scope.<x>` at call time so every caller sees
+  the same value at the same moment. Don't move a helper that also writes scope.
 
 ---
