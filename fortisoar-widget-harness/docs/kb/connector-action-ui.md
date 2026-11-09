@@ -722,3 +722,22 @@ Limitation: the persona cache is per (session, module) and lives as long as the
 worker, so another worker that already resolved this session's persona keeps
 the old copy and can still ask in that session. A new session always reads the
 updated persona.
+
+### Connector configuration `teams` must be `/api/3/teams/<uuid>` IRIs
+
+`PUT` (and `POST`) `/api/integration/configuration/<config_id>/` accepts `teams`
+as bare team uuids without complaint, then stores `teams: []`. A *Private*
+configuration silently becomes *public*. Send IRIs (`/api/3/teams/<uuid>`).
+
+- The PUT is a full replace: send `connector`, `connector_name`,
+  `connector_version`, `name`, `default`, `config_id`, `config`, `agent` and
+  `teams` together. Leaving `agent` out moves a remote-agent connector back to
+  the self agent.
+- A 200 proves nothing here. Read the record back and compare `teams` to what
+  you sent; the response (or a follow-up GET) returns the stored owners.
+- `teams: []` is a deliberate "make public". Never produce it as a side effect
+  of an empty or unresolved lookup.
+- In Python use pyfsr's `client.connectors.update_configuration(..., teams=[...])`:
+  it normalizes names, uuids, IRIs and team records to IRIs, refuses `[]` on a
+  private config unless `allow_public=True`, and raises when the read-back
+  differs.
