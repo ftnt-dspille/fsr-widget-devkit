@@ -67,10 +67,9 @@ test.describe('fortiedrCommandTimeline', () => {
     expect(box.width).toBeGreaterThan(0);
     expect(box.height).toBeGreaterThan(0);
 
-    // The derived graph: the live bash chain is 9 process cards + the
-    // internet host, 8 spawn edges + 1 dashed net edge, systemd ->
-    // reverse shell -> 1.1.1.1 (AS 13335 CLOUDFLARENET).
-    const graph = await page.evaluate(() => {
+    // The derived graph opens with the early ancestry folded into one node:
+    // fold + bash, timeout, reverse-shell bash + internet host.
+    const snap = () => page.evaluate(() => {
       const cy = window.__fctlCy;
       return {
         nodes: cy.nodes().map((n) => n.data('label')),
@@ -79,16 +78,28 @@ test.describe('fortiedrCommandTimeline', () => {
         netEdges: cy.edges().filter((e) => e.data('net')).length,
       };
     });
-    expect(graph.nodes).toHaveLength(10);
-    expect(graph.edges).toHaveLength(9);
+    let graph = await snap();
+    expect(graph.nodes).toHaveLength(5);
+    expect(graph.nodes[0]).toMatch(/^6 earlier processes/);
+    expect(graph.edges).toHaveLength(4);
     expect(graph.netEdges).toBe(1);                            // the dashed net edge
+    expect(graph.netNode.label).toContain('1.1.1.1');
+    expect(graph.netNode.label).toContain('AS 13335 CLOUDFLARENET');
+    if (process.env.SHOTS_GRAPH) await page.getByTestId('fortiedr-command-timeline-graph').screenshot({ path: process.env.SHOTS_GRAPH + '-folded.png' });
+    // No command text on the canvas: the story and the detail carry it.
+    expect(graph.nodes.some((l) => l.includes('/dev/tcp'))).toBe(false);
+
+    // Unfolded: the full chain, 9 process cards + the internet host.
+    await page.getByTestId('fortiedr-command-timeline-graph-fold').click();
+    await page.waitForFunction(() => window.__fctlCy && window.__fctlCy.nodes().length === 10);
+    graph = await snap();
+    if (process.env.SHOTS_GRAPH) await page.getByTestId('fortiedr-command-timeline-graph').screenshot({ path: process.env.SHOTS_GRAPH + '-full.png' });
+    expect(graph.edges).toHaveLength(9);
     expect(graph.nodes.filter((l) => l.startsWith('sshd')).length).toBe(3);
     expect(graph.nodes.some((l) => l.startsWith('systemd'))).toBe(true);
     // Process cards carry their PID; the internet card carries the API's triple.
     expect(graph.nodes.filter((l) => !l.startsWith('Internet host'))
       .every((l) => /\nPID \d+/.test(l))).toBe(true);
-    expect(graph.netNode.label).toContain('1.1.1.1');
-    expect(graph.netNode.label).toContain('AS 13335 CLOUDFLARENET');
 
     // Legend + interaction hint.
     await expect(page.getByTestId('fortiedr-command-timeline-legend')).toBeVisible();
@@ -187,12 +198,22 @@ test.describe('fortiedrCommandTimeline', () => {
     // 8 plain-ancestry steps lead the chain: 6 fold, so 4 cards remain.
     await expect(page.getByTestId('fortiedr-command-timeline-lead')).toBeVisible();
     await expect(page.getByTestId('fortiedr-command-timeline-step')).toHaveCount(4);
+    // The fold says in plain words what it hides and offers one labelled button.
+    await expect(page.getByTestId('fortiedr-command-timeline-lead-text'))
+      .toContainText('Showing the last 4 of 10 steps');
+    await expect(page.getByTestId('fortiedr-command-timeline-lead').locator('button'))
+      .toHaveText(/Show the earlier 6/);
     await page.getByTestId('fortiedr-command-timeline-lead').locator('button').click();
+    await expect(page.getByTestId('fortiedr-command-timeline-lead-text'))
+      .toContainText('Showing all 10 steps');
     await expect(page.getByTestId('fortiedr-command-timeline-step')).toHaveCount(10);
     // The reverse-shell step marks its socket path and shows the net host.
     await expect(page.locator('.fctl-tok-sock').first()).toContainText('/dev/tcp/1.1.1.1/443');
     await expect(page.getByTestId('fortiedr-command-timeline-net-facts'))
       .toContainText('AS 13335 CLOUDFLARENET');
+    // The story is a bounded column, not the whole panel width.
+    const w = await page.getByTestId('fortiedr-command-timeline-story').evaluate((el) => el.getBoundingClientRect().width);
+    expect(w).toBeLessThanOrEqual(1281);
     // Detail expands inline, with no canvas on this tab.
     await expect(page.locator('#fctl-cy')).toHaveCount(0);
     await page.getByTestId('fortiedr-command-timeline-step').nth(1).click();
