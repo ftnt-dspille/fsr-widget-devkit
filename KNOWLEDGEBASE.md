@@ -599,6 +599,13 @@ stub `window.open` in an init script to capture the URL instead of navigating a
 real popup, or the hermetic tier flags the platform route as an un-snapshotted
 leak.
 
+**Don't skip the `position: relative` on the root.** Without it, `inset: 0`
+resolves against whatever positioned ancestor the host page has, so the overlay
+covers the page, not the widget, and a tall panel opens with its header above the
+visible area in a scrolled page or a drawer. `fortiaiAgenticAssistant` shipped
+this way for months (its settings panel's title and close button were off-screen);
+measure the overlay's `offsetParent` in a spec if in doubt.
+
 **Stacking-context trap -- `backdrop-filter`/`filter`/`transform` on a header
 TRAPS its descendant dropdowns.** A high `z-index` on an absolutely-positioned
 menu only wins *within its nearest stacking-context ancestor*. If that ancestor
@@ -870,6 +877,36 @@ The harness lint blocks a push if any selector lacks this prefix.
 | `.widget.widget-container .parent .my-el` | (0,3,0) | Matches platform's (0,3,0) -- loads later so wins |
 | Platform theme `.ui-grid-row:nth-child(odd) .ui-grid-cell` | (0,3,0) | Wins over widget selectors with < 3 classes |
 | Anything `!important` | overrides specificity | Use only when the platform uses `!important` that you must counter |
+
+**Host CSS colors bare elements.** The page can carry a dark-theme rule such as
+`p { color: #fff }`, and a widget that only sets `color` on its root still loses:
+the host rule matches the `<p>` directly, so markdown paragraphs went white-on-white
+on the light theme (the analyst's own message vanished in `fortiaiAgenticAssistant`).
+Reset text elements to inherit inside the root:
+
+```css
+.my-widget p, .my-widget li, .my-widget td, .my-widget th,
+.my-widget label, .my-widget h1, .my-widget h2, .my-widget h3,
+.my-widget h4, .my-widget h5, .my-widget h6 { color: inherit; }
+```
+
+Widget rules with a class still win (higher specificity), so this only fills the gap.
+
+**Icons: CSS-mask SVGs, not emoji and not `<use href="#id">`.** Emoji render
+differently per OS and can't follow the theme color. Inline `<svg><use href="#id">`
+sprites break under a host `<base href>` in some browsers (the fragment resolves
+against the base URL). A mask over `currentColor` has neither problem:
+
+```css
+.my-widget .ic { display: inline-block; width: 14px; height: 14px;
+  background-color: currentColor;
+  -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; }
+.my-widget .ic-history { --ic: url("data:image/svg+xml,<url-encoded svg, stroke='black'>"); }
+```
+
+Markup: `<i class="ic ic-history" aria-hidden="true"></i>`. Reference:
+`fortiaiAgenticAssistant` view.html "Icons" block. Font Awesome 4.7 is also on the
+platform (`fa fa-*`) if a dated look is acceptable.
 
 ### 7.6 Chart
 
