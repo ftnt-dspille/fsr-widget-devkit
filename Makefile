@@ -103,12 +103,15 @@ test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on
 #   make test-e2e-spec SPEC=tests/e2e/fsrAgenticAssistant.c2Hunt.spec.js
 #   make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"
 #   make test-e2e-spec WIDGET=agenticAssistant   # every e2e spec of one widget
+# WIDGET matches the exact name: the folder widgets-src/<name>/ or a file named
+# <name>.*.spec.js, never a longer widget name it prefixes (agenticAssistantMonitor).
 # SPEC is one or more file patterns, separated by spaces or commas. Each is passed
 # to Playwright as its own single-quoted argument: commas used to reach it as one
 # regex that matched nothing ("No tests found"), and a `|` in a pattern ran as a
 # shell pipe.
 comma := ,
 SPEC_ARGS = $(foreach s,$(subst $(comma), ,$(SPEC)),'$(s)')
+WIDGET_ARG = '/$(WIDGET)[./]'
 test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.spec.js" or comma-separated) or every e2e spec of one widget (WIDGET=<name>) on an always-fresh test server
 	@if [ -z "$(SPEC)$(WIDGET)" ]; then echo "Usage: make test-e2e-spec SPEC=tests/e2e/<file>.spec.js   (or WIDGET=<widgetName>)"; exit 2; fi
 	-@$(HARNESS)/scripts/reap-e2e-orphans.sh
@@ -118,7 +121,7 @@ test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.sp
 	@# driving a real box -- ship-verify's step 3/6 then fails on live-only
 	@# preconditions long before the deploy it is supposed to gate. The stage
 	@# that owns live (test-live-sweep, step 6/6) sets the flag itself.
-	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=$(if $(WIDGET),,$$E2E_LIVE) pnpm test:e2e $(if $(WIDGET),$(WIDGET),$(SPEC_ARGS)) --reporter=list
+	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=$(if $(WIDGET),,$$E2E_LIVE) pnpm test:e2e $(if $(WIDGET),$(WIDGET_ARG),$(SPEC_ARGS)) --reporter=list
 
 # Old name for `test-e2e-spec WIDGET=<name>`.
 test-e2e-widget: harness-build test-e2e-spec
