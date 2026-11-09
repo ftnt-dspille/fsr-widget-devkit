@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -121,7 +121,9 @@ test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.sp
 	@# driving a real box -- ship-verify's step 3/6 then fails on live-only
 	@# preconditions long before the deploy it is supposed to gate. The stage
 	@# that owns live (test-live-sweep, step 6/6) sets the flag itself.
-	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=$(if $(WIDGET),,$$E2E_LIVE) pnpm test:e2e $(if $(WIDGET),$(WIDGET_ARG),$(SPEC_ARGS)) --reporter=list
+	@# SPEC wins over WIDGET when both are given (Playwright filters are OR-ed, so
+	@# combining them would widen the run instead of narrowing it).
+	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=$(if $(SPEC),$$E2E_LIVE,) pnpm test:e2e $(if $(SPEC),$(SPEC_ARGS),$(WIDGET_ARG)) --reporter=list
 
 # Old name for `test-e2e-spec WIDGET=<name>`.
 test-e2e-widget: harness-build test-e2e-spec
@@ -404,12 +406,6 @@ test-matrix-local: harness-build ## LOCAL matrix: the same graded rows against t
 grade-export: harness-build ## Grade a downloaded widget .events.json chat export offline (EXPORT=~/Downloads/fsrpb-chat-...events.json). Flags known-bad flow signatures; exits non-zero on FAIL.
 	@if [ -z "$(EXPORT)" ]; then echo "Usage: make grade-export EXPORT=<path-to-.events.json>"; exit 2; fi
 	cd $(HARNESS) && node tests/live/scripts/gradeExport.js "$(EXPORT)"
-
-# test-ar-live and its aliases are retired: widget-action-renderer was archived
-# to ~/WebstormProjects/fsr-widget-archive (2026-10-21). Restore the widget
-# before resurrecting the target (git history has the recipe).
-test-ar-live test-ar-playbook-live test-ar-jtg-flow-live test-ar-connector-live:
-	@echo "retired: widget-action-renderer is archived (see ~/WebstormProjects/fsr-widget-archive/MANIFEST.md)"; exit 2
 
 # Live box tests resolve their box through the registry (require_box): BOX=<alias>.
 

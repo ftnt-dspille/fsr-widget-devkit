@@ -101,6 +101,9 @@ Rules:
 - Testing a widget worktree: the harness resolves `widgets-src` through its real path,
   so a test run from a worktree silently tests the shared checkout. Put the widget
   worktree at `<scratch>/x/widgets-src/<name>` and pass `WIDGETS_SRC=<scratch>/x/widgets-src`.
+  The specs `require("../../../../fortisoar-widget-harness/...")`, so also symlink the
+  harness: `ln -s <main checkout>/fortisoar-widget-harness <scratch>/x/fortisoar-widget-harness`.
+  `make test-e2e-spec` takes SPEC over WIDGET when both are set.
 - **A test for a fix must be shown red without the fix.** Remove the fix (in a
   scratch worktree, not the shared checkout), run the test, see it fail, restore.
   A jest test once passed with or without its fix. Tests written from the same
