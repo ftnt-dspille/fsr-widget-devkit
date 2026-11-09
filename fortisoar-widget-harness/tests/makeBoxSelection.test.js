@@ -32,7 +32,7 @@ afterAll(() => fs.rmSync(stub, { recursive: true, force: true }));
 
 function make(args) {
   const env = { ...process.env, CONN_REPO: stub };
-  for (const k of ["CLAUDECODE", "BOX", "ENV", "SHIP_ENV", "SWEEP_ENV", "MATRIX_ENV", "LIVE_ENV", "SSH_HOST", "WIDGETS_SRC"]) delete env[k];
+  for (const k of ["MAKEFLAGS", "MFLAGS", "MAKELEVEL", "CLAUDECODE", "BOX", "ENV", "SHIP_ENV", "SWEEP_ENV", "MATRIX_ENV", "LIVE_ENV", "SSH_HOST", "WIDGETS_SRC"]) delete env[k];
   fs.writeFileSync(log, "");
   const r = spawnSync("make", ["-n", "--no-print-directory", ...args], { cwd: REPO, env, encoding: "utf8", timeout: 60000 });
   return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`, calls: fs.readFileSync(log, "utf8") };

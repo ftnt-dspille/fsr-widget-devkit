@@ -101,7 +101,7 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `agenticAssistant` ("Agentic Assistant") | 1.4.0 | `connector-fsr-agentic-assistant` 0.6.0 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `agenticAssistant` ("Agentic Assistant") | 1.4.1 | `connector-fsr-agentic-assistant` 0.6.0 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
 | `agenticAssistantMonitor` | 1.1.0 | `connector-fsr-agentic-assistant` 0.6.0 | 2.8.0 | the assistant's monitoring surface |
 | `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
 
