@@ -91,6 +91,15 @@ Worktrees need no hand-set paths: `WIDGETS_SRC` defaults to the main checkout's
 `widgets-src/` when the worktree's is empty, and the connector's `FSR_SRC` and venv
 default to the main checkout's siblings.
 
+**Connector python env.** One declared env, one resolver (connector
+`scripts/dev_env.sh`; every make target, script and hook asks it). The env lives at
+`$FSR_DEV_VENV`, default the connector main checkout's `.venv`, so every worktree
+shares it. `make setup` (in the connector repo) builds it with `uv` from
+`pyproject.toml` + `requirements.txt` and stamps their hash; `FRESH=1 make setup`
+recreates it. A missing, unstamped or stale env stops the run with that fix command
+instead of falling back to some other venv; `make doctor` reports it. `make test`
+prints its shuffle seed (replay with `SEED=<n>`).
+
 ## Live sanity (every dev push)
 
 A ~40-90s live pass that runs at the end of every push path: `make widget-push`
