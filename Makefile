@@ -194,11 +194,20 @@ unexport $(_DEP_KNOBS)
 define require_box
 @BOX='$(BOX)' $(_DEP_ARGS) bash "$(BOX_SH)" --need env
 endef
+# Same, for every target that sends UNRELEASED code (working trees) to the box:
+# the `push` need token makes the connector's box.sh refuse a box whose registry
+# role is `stable` (customer demos, released builds only) before anything is sent.
+# The owner can override with ALLOW_STABLE_PUSH=1 (refused under Claude Code). On a
+# connector without role support the token is ignored. Read-only targets keep
+# require_box and still reach a stable box.
+define require_push_box
+@BOX='$(BOX)' $(_DEP_ARGS) bash "$(BOX_SH)" --need env,push
+endef
 # What to forward to the connector repo's make.
 _FWD_BOX = BOX=$(or $(RESOLVED_BOX),$(BOX))
 
 ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
-	$(require_box)
+	$(require_push_box)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
 	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
@@ -225,7 +234,7 @@ ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck
 widget-push: export VIA_WIDGET_PUSH := 1
 widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). Box-only, agent-allowed (no CONFIRM_DEPLOY). WIDGET=, BOX=<alias>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
-	$(require_box)
+	$(require_push_box)
 	@cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
 	@$(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
@@ -236,7 +245,7 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" bash scripts/live-sanity.sh
 
 push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
-	$(require_box)
+	$(require_push_box)
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
 	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
 
@@ -247,7 +256,7 @@ release: deploy-guard harness-build ## GitHub release for one widget: bump info.
 # The dev loop, doctor and session-health live in the connector repo (it owns the
 # Python venv with pyfsr); these forward so either repo is a fine place to type them.
 loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees to the box -> ~35s live smoke (see conn_main scripts/loop.sh)
-	$(require_box)
+	$(require_push_box)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop $(_FWD_BOX)
 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)

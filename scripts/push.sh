@@ -41,10 +41,11 @@ HARNESS="$ROOT/fortisoar-widget-harness"
 CONN_REPO="${CONN_REPO:-$HOME/PycharmProjects/ConnectorsV2/conn_main}"
 # No default box: BOX=<alias> from the pyfsr registry (the connector repo's
 # scripts/box.sh). An unknown alias or a box with no ssh profile stops here,
-# before anything is pushed.
+# before anything is pushed. The `push` need also refuses a box whose registry
+# role is `stable` (released builds only) unless the owner sets ALLOW_STABLE_PUSH=1.
 # shellcheck source=/dev/null
 source "$CONN_REPO/scripts/box.sh"
-resolve_box env,ssh || exit 2
+resolve_box env,ssh,push || exit 2
 ENV_ABS="$BOX_ENV"
 ENV_BASE="$(basename "$ENV_ABS")"
 WIDGETS_SEL="${WIDGETS:-auto}"     # auto | all | name1,name2
