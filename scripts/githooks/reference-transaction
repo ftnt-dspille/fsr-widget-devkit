@@ -17,7 +17,13 @@ if [ "$state" = prepared ] && [ -n "${CLAUDECODE:-}" ]; then
   zero="0000000000000000000000000000000000000000"
   while read -r old new ref; do
     [ "$ref" = "$main_ref" ] || continue
-    [ "$old" = "$zero" ] && continue          # creating main (fresh clone/init)
+    if [ "$old" = "$zero" ]; then
+      # `git update-ref refs/heads/main <new>` without <old> reports a zero old
+      # value; that is only a creation when main does not exist yet.
+      cur="$(git rev-parse -q --verify "$main_ref" 2>/dev/null || true)"
+      [ -z "$cur" ] && continue                # creating main (fresh clone/init)
+      old="$cur"
+    fi
     if [ -n "$allow" ] && [ "$allow" = "$old $new" ]; then continue; fi
     echo "refused: agents update ${main_ref#refs/heads/} only through 'make promote REPO=<repo> BRANCH=<branch>', which requires a VERIFIED live-sanity stamp. Work on a branch." >&2
     exit 1

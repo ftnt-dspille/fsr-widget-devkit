@@ -167,12 +167,13 @@ Not guarded at effect level, on purpose:
 
 Known limits:
 - `CONFIRM_DEPLOY` and `VIA_LOOP` are ordinary environment variables, so an agent can set them itself. The guards stop reflexive and accidental runs. They do not stop a deliberate bypass; keeping that variable out of agent sessions is a policy.
-- The promote gate refuses a fast-forward `git merge` into main AFTER git has updated the index and working tree, so a refused agent merge leaves the branch's changes staged in that checkout (`git reset --hard` is refused too; a human cleans it up). The `git merge` permission deny rule is what usually prevents the attempt. Repos not set up with `install-git-hooks.sh` (connector, framework, docubot) have only `make promote` and the permission deny rules, not the git-hook block.
+- The promote gate refuses a fast-forward `git merge` into main AFTER git has updated the index and working tree, so a refused agent merge leaves the branch's changes staged in that checkout (`git reset --hard` is refused too; a human cleans it up). The `git merge` permission deny rule is what usually prevents the attempt. Repos with their own hooks (connector, framework) get the same block through `scripts/install-git-hooks.sh --chain <repo>`: it writes `<git-common-dir>/fsr-guard-hooks/` (the guard plus shims that still run the global hooks / `.git/hooks` / the old repo-local hooks dir, recorded in `fsr.guardOriginalHooksPath`) and points `core.hooksPath` at it. Re-run it after `make hooks` in the connector (which resets `core.hooksPath`) or after editing `scripts/githooks/reference-transaction`. docubot is not set up yet.
 - The permission deny rules match the usual spelling only, so `bash -c "git stash"` gets past them. They catch honest slips; the effect guards above are what hold.
 
 Checking it:
 - `make test-unit` runs `viaMakeGuard.test.js`, `makeDeployGuard.test.js` and `deployScriptGuards.test.js` (harness tests). They pass under `CLAUDECODE=1` only through the make targets.
 - `promoteGate.test.js` (harness): promote refuses with no stamp, PARTIAL, FAIL, dirty, or another commit's stamp; fast-forwards and merges with a VERIFIED clean stamp (keeping unrelated WIP); the git hook refuses ff/merge/reset/update-ref/commit on main under `CLAUDECODE`.
+- `guardOtherReposInstall.test.js` (harness): the `--chain` install on a framework-style repo (global hooks + `.git/hooks`) and a connector-style bare repo (relative `scripts/hooks`, main in a worktree): main updates refused (ff, update-ref without an old value, `branch -f`), branch commits and integ merges allowed, every pre-existing hook still runs, `make promote` still lands.
 
 ## E2e tests (Playwright)
 
