@@ -20,7 +20,12 @@ const {
 } = require("./live/lib/cardKeyParity");
 
 const HARNESS = path.join(__dirname, "..");
-const WIDGET = path.join(HARNESS, "..", "widgets-src", "agenticAssistant");
+// Follow WIDGETS_SRC like the other harness tests: a run against a widget
+// worktree must audit THAT renderer, not the shared checkout's.
+const WIDGET = path.join(
+  process.env.WIDGETS_SRC ? path.resolve(process.env.WIDGETS_SRC)
+    : path.join(HARNESS, "..", "widgets-src"),
+  "agenticAssistant");
 const RENDERER = path.join(WIDGET, "widget", "widgetAssets", "js", "fsrPbRender.ts");
 const FIXTURES = path.join(WIDGET, "widget", "widgetAssets", "fixtures");
 const DOC = path.join(HARNESS, "docs", "CARD_KEY_PARITY.md");
