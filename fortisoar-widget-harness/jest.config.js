@@ -111,6 +111,17 @@ if (WIDGET_FILTER && WIDGET_FILTER !== "all") {
   }
 }
 
+// Suites that test the push/promote TOOLING by spawning make, git and hook
+// scripts hundreds of times. Each process start is slow on an endpoint-protected
+// machine (~0.15-0.3s), so these two-dozen-process-per-test suites take minutes,
+// and none of them exercises widget code. widget-push sets SKIP_TOOLING_TESTS=1;
+// `make test-unit` (no flag) still runs them.
+const TOOLING_SUITES = [
+  "guardOtherReposInstall", "liveSanityVerdict", "makeBoxRoles", "makeBoxSelection",
+  "makeDeployGuard", "makeE2eSpecArgs", "promoteGate",
+];
+const SKIP_TOOLING = process.env.SKIP_TOOLING_TESTS === "1";
+
 const PROJECTS = [
   {
       displayName: "harness",
@@ -142,6 +153,7 @@ const PROJECTS = [
         // Ignore .js test files if a corresponding .ts version exists (avoid running tests twice)
         "<rootDir>/tests/soarEnv\\.test\\.js",
         "<rootDir>/tests/server\\.test\\.js",
+        ...(SKIP_TOOLING ? TOOLING_SUITES.map((n) => `<rootDir>/tests/${n}\\.test\\.[jt]s$`) : []),
       ],
     },
   ...discoverWidgetProjects(),

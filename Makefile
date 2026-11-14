@@ -236,7 +236,7 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	$(require_push_box)
 	@bash scripts/lap.sh lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
-	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
+	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- env SKIP_TOOLING_TESTS=1 $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
 	    bash $(CURDIR)/scripts/lap.sh deploy -- scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
