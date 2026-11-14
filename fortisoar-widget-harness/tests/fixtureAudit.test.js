@@ -338,8 +338,11 @@ describe("capture_divergence declarations", () => {
 });
 
 describe("the real fixtures", () => {
-  const DIR = path.join(__dirname, "..", "..", "widgets-src", "agenticAssistant",
-    "widget", "widgetAssets", "fixtures");
+  // Follow WIDGETS_SRC like cardKeyParity: a run against a widget worktree must
+  // audit that worktree's fixtures, not the shared checkout's.
+  const SRC = process.env.WIDGETS_SRC ? path.resolve(process.env.WIDGETS_SRC)
+    : path.join(__dirname, "..", "..", "widgets-src");
+  const DIR = path.join(SRC, "agenticAssistant", "widget", "widgetAssets", "fixtures");
   const files = fs.existsSync(DIR)
     ? fs.readdirSync(DIR).filter((f) => f.endsWith(".json")) : [];
 
