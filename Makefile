@@ -235,14 +235,14 @@ widget-push: export VIA_WIDGET_PUSH := 1
 widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). Box-only, agent-allowed (no CONFIRM_DEPLOY). WIDGET=, BOX=<alias>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	$(require_push_box)
-	@cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
-	@bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
+	@bash scripts/lap.sh lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
+	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
-	    scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
+	    bash $(CURDIR)/scripts/lap.sh deploy -- scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
 	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(WIDGETS_SRC)" CONN_REPO="$(CONN_REPO)" \
-	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" bash scripts/live-sanity.sh
+	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" bash scripts/lap.sh "live sanity" -- bash scripts/live-sanity.sh
 
 push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_push_box)
