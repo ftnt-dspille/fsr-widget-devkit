@@ -94,7 +94,14 @@ async function main() {
     // The connector's pyfsr python; a connector worktree has no .venv of its own,
     // so ask its scripts/box.sh (falls back to the main checkout's venv).
     connPy: connectorPython(process.env.CONN_REPO || ""),
-    connEnv: { FSR_BUILDER_VERSION: soar.meta.version, FSR_BUILDER_CONFIG_NAME: soar.meta.configName },
+    // FSR_SRC (a framework worktree) goes first on PYTHONPATH so the checker
+    // parses frames with the same framework the box runs, not the main checkout.
+    connEnv: {
+      FSR_BUILDER_VERSION: soar.meta.version, FSR_BUILDER_CONFIG_NAME: soar.meta.configName,
+      ...(process.env.FSR_SRC
+        ? { PYTHONPATH: [process.env.FSR_SRC, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter) }
+        : {}),
+    },
     box: { connectorVersion: soar.meta.version },
     boxName: box,
     // One headless browser for the ui lane, logged in once.
