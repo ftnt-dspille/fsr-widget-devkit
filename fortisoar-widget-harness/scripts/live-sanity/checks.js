@@ -140,6 +140,11 @@ const REGISTRY = [
         await page.page.waitForTimeout(3000);
         const { ours: e, other } = errs.stop();
         if (!ok) return { status: "FAIL", detail: `Monitor root never rendered${e.length ? "; errors: " + e.slice(0, 2).join(" | ") : ""}` };
+        // The root alone is the widget shell; the default tab's body (a chart or
+        // its empty state) proves the tab content loaded too -- since the view
+        // split, a tab body is a separate template that can fail on its own.
+        const tab = await page.page.waitForSelector('[data-testid="sm-overview-chart"], [data-testid="sm-overview-empty"]', { timeout: 20000 }).then(() => true, () => false);
+        if (!tab) return { status: "FAIL", detail: "Monitor shell rendered but the Overview tab body never did (tab template not loaded?)" };
         if (e.length) return { status: "FAIL", detail: `Monitor rendered with ${e.length} widget console error(s): ${e.slice(0, 3).join(" | ").slice(0, 300)}` };
         return { status: "PASS", detail: `Monitor ${w.version} rendered, no widget console errors (${other} page-wide, not the widget's)` };
       } finally {
