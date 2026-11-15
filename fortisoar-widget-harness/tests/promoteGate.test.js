@@ -43,7 +43,7 @@ function stamp(s, fields) {
 }
 function promote(env = {}) {
   const r = spawnSync("make", ["-s", "promote", `REPO=${repo}`, "BRANCH=feat/x"],
-    { cwd: ROOT, env: baseEnv({ FSR_LIVE_SANITY_DIR: stamps, ...env }), encoding: "utf8", timeout: 60000 });
+    { cwd: ROOT, env: baseEnv({ FSR_LIVE_SANITY_DIR: stamps, ...env }), encoding: "utf8", timeout: Number(process.env.MAKE_SPAWN_TIMEOUT_MS) || 60000 });
   return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}` };
 }
 

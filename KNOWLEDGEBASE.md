@@ -3138,3 +3138,66 @@ value across digest cycles.
 
 - Connector: `operations.py:3923` (`_on_event` / `nonlocal _approval_count`)
 - Widget: `view.controller.js:217` (`users()` caching)
+
+## 37. Widget and harness traps (consolidated from agent notes)
+
+Traps that cost real time. Record new ones here, in the same change.
+
+### Widget code traps (box and harness)
+- Never put `data-ng-controller` on a widget `view.html` root. SOAR's publish rewrites `...DevCtrl` registrations
+  but not that attribute: a second dead scope appears, text `{{ }}` renders literally, ng-if anchors stay as
+  comments. Let `csWidgetContent` wire the controller by name; the harness wraps the view in its own node.
+- Controller names derive from `info.json` version (`<name><numver>Ctrl`). Bump and rename only through the
+  tooling (`make widget-push BUMP=patch`, `widget rename`) or lint blocks boot.
+- A controller that throws during construction is swallowed by `$exceptionHandler` and leaves a blank host.
+  The harness now shows a red panel and `window.__HARNESS_RENDER_ERROR`; check it before suspecting CSS.
+- `csGrid` paints `pagedCollection.list`/`keyPairs`, NOT `data['hydra:member']`; an empty `list` gives headers
+  and zero rows.
+- `data-cs-conditional` builds its field dropdown only on `conditional:fieldListChanged` or a `resetField`
+  change; after async `loadFields()` resolves, broadcast the event yourself.
+- Field templates bind `data-ng-model="$parent.value"`; in the harness a wrong parent scope shows
+  `[object Object]` inputs (harness-only; production is fine).
+- Widget category picklist must exist on the target box (see platform skill); drawer visibility is
+  `metadata.view.enableFor` by state name.
+- After redeploying a widget the browser serves the old bundle: hard-refresh before judging.
+- Monaco is served at `/node_modules/monaco-editor/min/vs/` (trimmed: no `base/`); the box sends a malformed
+  `default-src self` CSP that blocks worker `importScripts`. Toast UI + Monaco in one page throws "only one
+  anonymous define"; load order matters.
+- Chart queries infer picklist fields by name substring; add new picklist names to the heuristic or the query
+  500s.
+- Chat widget: connector identity has one source (`fsrPbAgent.service.js`); `fsrPbRender.js` is compiled from
+  `.ts` (parity test). Chat UI copy has no tool names, ids, emoji or em dashes.
+
+### Harness quirks
+- App bundle has vendor modules stripped: `uib-popover/tooltip/typeahead` silently no-op. The harness must load
+  them separately; do not strip the trailing `||` in SOAR `ui-select-choices` `ng-show` (ui-select appends).
+- `moduleAttribute.types` can be `{}` in the harness (45 field-type registrations missing) giving empty value
+  inputs and "Invalid field type" warnings; probe `inj.get('moduleAttribute').types`.
+- `$state` is a stub; context options set `window.__HARNESS_STATE`. Entity context race: init can run before
+  UI-Router settles (re-detect before seeding).
+- Harness JS and the compiled render asset are gitignored build output: `make install` after pulls and restart
+  the dev server before packaging. About 15 `.ts/.js` pairs outside the tsconfig include are hand-maintained
+  (their `.js` is the real code); do not import them from compiled code.
+- Mock e2e is hermetic (`FSR_HERMETIC=1`): an un-snapshotted call returns `599 HERMETIC-MISS`
+  (list at `/_fsr/hermetic-misses`). Specs use `./_isolated` per-worker base URLs. To assert outgoing
+  chat wire payloads, route-intercept the execute endpoint AND add `&real=1` (default on localhost is mock).
+- Never start the harness by hand; a stale server holding the port silently serves an old env. Use the make
+  targets (`make dev`, `make stop`); `scripts/ship.sh` exists and verifies the listening PID matches the one it started, but the project rule is make targets only.
+- Live UI against a WAF-fronted 8.x box must run headed (headless fingerprinted, Sign In never enables) and
+  should locate the drawer icon by its title. Headed runs steal focus; do not auto-launch them.
+- For a one-off computed-style or position check use `make widget-inspect ARGS=...` or a tiny jsdom test, not
+  the angularjs-page-tester agent (it ran 10+ minutes on a colour check).
+- Fixture layer ("NS1"): minimal fixed connector catalog + seeded alert/incident so record widgets are green on
+  mock e2e with no per-spec stubs. `scripts/new-widget` generates dashboard / `KIND=record` / `TRIGGER=1`
+  variants.
+
+### Packaging and release
+- The packager mirrors the user's reference packaging script: controller names rewritten to
+  `<name><numericVersion>DevCtrl`, plus `view.html` ng-controller and versioned CSS href.
+- Widget repos auto-release a tgz on a version bump pushed to the default branch (`develop`); a tag pushed with
+  the default token does not trigger tag workflows, so tag+package+release live in one branch-triggered job.
+  Harness publish must send `draft:false` and validate it. A GitHub release is not a box deploy.
+- Two linters exist: the harness-server lint (info.json, controller name, files) and `lint-angular` /
+  `lint-testids` (rich rules). ship runs both.
+- Do not hand-maintain version numbers in README files; derive from source.
+

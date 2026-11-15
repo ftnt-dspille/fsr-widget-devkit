@@ -69,6 +69,25 @@ investigation into a playbook. The widget is the window; the connector is the en
   over it. For branch work, `git worktree add <scratch>/wt_<name> -b <branch> <base>`
   and work there. Check `git status` first, and leave the main checkout alone.
 
+## Agents and subagents: permissions
+
+These apply to every agent, subagents included (briefs must repeat them).
+
+- MAY, without asking: run the model policy below (Frank first, Haiku fallback);
+  dev-push or dev-sync any working tree to an experimental-role box (`BOX=<alias>`,
+  `scripts/box.sh --list`), unreleased code included.
+- MUST NOT: push unreleased code to a stable-role box (the guard refuses it; don't look
+  for a way around it); run a PyPI release; push `main`.
+- Default scope is one widget or the agentic assistant solution pack (chat widget,
+  Monitor, connector, framework), never every widget.
+- Briefs (cost): point at the exact file section to read (the tracker ROADMAP is large;
+  grep the heading), give a time budget and sample size, and say "run anything over
+  ~2 min in the background and wait for its completion notice; never poll with sleep
+  loops". Before a long or paid run, run ONE case first and check it measures the
+  right thing (box tree, framework version, config). Default subagent model: Sonnet.
+- Procedures live in skills: box-live-runs, worktree-test-env, session-diagnosis-regrade,
+  connector-dev-deploy, fortisoar-platform-gotchas, agentic-eval-method.
+
 ## Testing
 
 Tier ladder, cheapest first. All targets run from the repo root:
@@ -109,9 +128,14 @@ Rules:
   A jest test once passed with or without its fix. Tests written from the same
   model as the fix inherit its blind spots.
 - **A skip is not a pass.** Report skipped tests as not run, with the reason.
-- No paid LLM batch runs. Prove mechanics with fake-model tests, and quality offline
-  on Frank (the free gateway; at most 3 concurrent turns). At most one live paid run,
-  and only when the user asks for it.
+- Models: Frank (the free gateway; at most 3 concurrent turns) first whenever it is
+  reachable (VPN on). If it is not, or the run needs the Anthropic side, paid Haiku is
+  allowed without asking; live Sonnet for verification only. Prove mechanics with
+  fake-model tests first and state the run count up front.
+- Routine verification must be fast: the fast tiers (tool-sweep, t1, unit) plus a small
+  deterministic sample of slow tiers (a few sessions or scenarios, 2 runs). Give
+  subagents a time budget and sample size. Full analyst-sim, known-answer or 30-session
+  runs are for sprint-level gates or when the owner asks.
 - Verify the write, not the card. A rendered card proves nothing. Clicking Apply on a
   live box found two more bugs behind a card that looked right. Check the effect on the box.
 - Don't run headed targets (`make test-e2e-headed`, or a headed live matrix) unless the

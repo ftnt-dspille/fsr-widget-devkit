@@ -4,13 +4,16 @@
 
 const path = require("path");
 const { spawnSync } = require("child_process");
+// Each `make -n` here recurses through several sub-makes; on a machine with slow process spawns the 60 s default is too
+// tight. MAKE_SPAWN_TIMEOUT_MS raises it (the assertions stay exactly as strict).
+const SPAWN_TIMEOUT_MS = Number(process.env.MAKE_SPAWN_TIMEOUT_MS) || 60000;
 
 const REPO = path.resolve(__dirname, "..", "..");
 
 function plan(args) {
   const base = { ...process.env };
   for (const k of ["CLAUDECODE", "CONFIRM_DEPLOY", "VIA_MAKE"]) delete base[k];
-  const r = spawnSync("make", ["-n", "test-e2e-spec", ...args], { cwd: REPO, env: base, encoding: "utf8", timeout: 60000 });
+  const r = spawnSync("make", ["-n", "test-e2e-spec", ...args], { cwd: REPO, env: base, encoding: "utf8", timeout: SPAWN_TIMEOUT_MS });
   expect(r.status).toBe(0);
   return r.stdout.split("\n").find((l) => l.includes("pnpm test:e2e")) || "";
 }

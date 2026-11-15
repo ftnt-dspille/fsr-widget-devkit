@@ -8,6 +8,9 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+// Each `make -n` here recurses through several sub-makes; on a machine with slow process spawns the 60 s default is too
+// tight. MAKE_SPAWN_TIMEOUT_MS raises it (the assertions stay exactly as strict).
+const SPAWN_TIMEOUT_MS = Number(process.env.MAKE_SPAWN_TIMEOUT_MS) || 60000;
 
 const REPO = path.resolve(__dirname, "..", "..");
 // The GitHub/PyPI release path -- the user's to run. Box-only dev deploys
@@ -26,7 +29,7 @@ const GUARD_MSG = /deploys\/releases are the user's to run; a human can override
 function make(args, env = {}) {
   const base = { ...process.env };
   for (const k of ["CLAUDECODE", "CONFIRM_DEPLOY", "VIA_MAKE"]) delete base[k];
-  const r = spawnSync("make", args, { cwd: REPO, env: { ...base, ...env }, encoding: "utf8", timeout: 60000 });
+  const r = spawnSync("make", args, { cwd: REPO, env: { ...base, ...env }, encoding: "utf8", timeout: SPAWN_TIMEOUT_MS });
   return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}` };
 }
 
@@ -102,7 +105,7 @@ describe("runner marks and unguarded targets", () => {
     const r = spawnSync("bash", [path.join(REPO, "fortisoar-widget-harness", "scripts", "ship.sh"),
                                   "--bogus-flag"],
       { cwd: REPO, env: { ...process.env, CLAUDECODE: "1", VIA_LOOP: "", VIA_WIDGET_PUSH: "",
-                          CONFIRM_DEPLOY: "" }, encoding: "utf8", timeout: 20000 });
+                          CONFIRM_DEPLOY: "" }, encoding: "utf8", timeout: Math.max(20000, SPAWN_TIMEOUT_MS / 3) });
     expect(r.status).toBe(2);
     expect(`${r.stdout || ""}${r.stderr || ""}`).toMatch(GUARD_MSG);
   });

@@ -10,6 +10,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
+// Each `make -n` here recurses through several sub-makes; on a machine with slow process spawns the 60 s default is too
+// tight. MAKE_SPAWN_TIMEOUT_MS raises it (the assertions stay exactly as strict).
+const SPAWN_TIMEOUT_MS = Number(process.env.MAKE_SPAWN_TIMEOUT_MS) || 60000;
 
 const REPO = path.resolve(__dirname, "..", "..");
 
@@ -34,7 +37,7 @@ function make(args) {
   const env = { ...process.env, CONN_REPO: stub };
   for (const k of ["MAKEFLAGS", "MFLAGS", "MAKELEVEL", "CLAUDECODE", "BOX", "ENV", "SHIP_ENV", "SWEEP_ENV", "MATRIX_ENV", "LIVE_ENV", "SSH_HOST", "WIDGETS_SRC"]) delete env[k];
   fs.writeFileSync(log, "");
-  const r = spawnSync("make", ["-n", "--no-print-directory", ...args], { cwd: REPO, env, encoding: "utf8", timeout: 60000 });
+  const r = spawnSync("make", ["-n", "--no-print-directory", ...args], { cwd: REPO, env, encoding: "utf8", timeout: SPAWN_TIMEOUT_MS });
   return { code: r.status, out: `${r.stdout || ""}${r.stderr || ""}`, calls: fs.readFileSync(log, "utf8") };
 }
 

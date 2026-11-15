@@ -16,7 +16,6 @@
       "Bash(git stash *)",
       "Bash(git rebase *)",
       "Bash(git push *)",
-      "Bash(git merge *)",
       "Bash(git update-ref *)",
       "Bash(git commit *--no-verify*)",
       "Bash(git commit -n *)",
