@@ -661,7 +661,7 @@ stateDiagram-v2
 <tr><td><code>make widget-push WIDGET= SHIP_ENV=.env.&lt;box&gt;</code></td><td>Lint, unit, deploy one widget (1-2 min)</td><td><span class="pill p-box">box</span></td></tr>
 <tr><td><code>make push ENV= SSH_HOST= [DRY_RUN=1]</code></td><td>Connector, framework and every changed widget, idempotent</td><td><span class="pill p-box">box</span></td></tr>
 <tr><td><code>make ship-verify WIDGET=</code></td><td>Tier 4 release gate: lints, unit, e2e, introspect, deploy (bumps), live sweep</td><td><span class="pill p-high">release</span></td></tr>
-<tr><td><code>make release WIDGET=</code></td><td>Bump, commit, push to <code>develop</code>, GitHub release</td><td><span class="pill p-high">public</span></td></tr>
+<tr><td><code>make release WIDGET=</code></td><td>Bump, commit, push <code>main</code>, tag <code>v&lt;new&gt;</code>; the tag publishes the GitHub release</td><td><span class="pill p-high">public</span></td></tr>
 <tr><td><code>make release-ship [FW=next]</code> (connector repo)</td><td>Framework PyPI release, wait for PyPI, pin bump, connector ship</td><td><span class="pill p-high">release</span></td></tr>
 </table></div>
 <p>Release targets are run by you, never by an agent. Agents commit on branches and stop.</p>

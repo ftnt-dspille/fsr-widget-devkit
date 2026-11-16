@@ -2644,52 +2644,49 @@ the widget's own unit/e2e suite with a stale hardcoded controller name.
 
 ## 35. Releasing a widget (GitHub release flow)
 
-Each widget lives in **its own git repo** (e.g. `ftnt-dspille/widget-c3-charts`),
-with a single GitHub Actions workflow that publishes a downloadable `.tgz` on
-every version bump. The flow is **bump → commit → push to `develop`** -- nothing
-else. No manual tagging, no manual `gh release`.
+Each widget lives in **its own git repo** on `main`, with its own GitHub repo
+(e.g. `ftnt-dspille/fsr-agentic-assistant-widget`). Cut a release from the root
+repo with one command:
 
-### 30.1 How to cut a release
+```
+make release WIDGET=<name> [BUMP=patch]
+```
 
-1. **Bump the version through the CLI/packager -- never hand-edit `info.json`.**
-   The controller name embeds the numeric version (`c3Charts131DevCtrl` →
-   `c3Charts132DevCtrl`); hand-editing desyncs it and trips the stale-version
-   lint. Use `widget bump <id> --bump patch`, or call the packager's
-   `syncSourceToInfoJson(<widgetDir>, <name>, <newVersion>)` against the **inner
-   `widget/` dir** (it joins `view.controller.js` etc. directly and sweeps the
-   sibling `tests/` tree). It rewrites `info.json` + every controller name +
-   versioned path/ID refs in source **and** tests atomically.
-2. **Verify locally what CI runs:** `npm test` (jest) and `npm run package`
-   (must emit `dist/<name>-<version>.tgz`).
-3. **Commit and push to `develop`.** If you split into multiple commits, the
-   commit that bumps `info.json` must be **HEAD** (or at least the version at
-   HEAD must differ from HEAD~1) -- the workflow compares `HEAD` vs `HEAD~1`
-   `info.json` and skips if unchanged.
+`scripts/release.sh` bumps the version through the harness CLI, commits
+`release: bump to <new>`, pushes `main`, then creates the annotated tag
+`v<new>` and pushes it. Pushing `main` alone publishes nothing; the tag push
+starts the widget's `.github/workflows/release.yml`, which:
 
-The workflow then tags `v<version>`, packages, and publishes a GitHub Release
-with two assets:
-- `<name>-<version>.tgz` -- the versioned artifact
-- `<name>-latest.tgz` -- a version-agnostic copy, so there is a **permanent
-  latest-download URL**:
-  `https://github.com/<owner>/<repo>/releases/latest/download/<name>-latest.tgz`
+1. checks out the widget repo and the public devkit repo
+   (`ftnt-dspille/fsr-widget-devkit`), which holds the packager;
+2. fails unless the tag equals `widget/info.json`'s `version`;
+3. runs `pnpm install --frozen-lockfile` in the devkit's harness (its `prepare`
+   step compiles `packager.js`, which is not tracked);
+4. packs `widget/` into `<name>-<version>.tgz` with `packageWidget()`, which
+   needs no harness server;
+5. creates the GitHub release for the tag with the `.tgz` attached.
 
-### 30.2 Two hazards the pipeline design avoids (don't reintroduce them)
+`release.sh` refuses under Claude Code unless a human sets `CONFIRM_DEPLOY=1`:
+releases are the user's to cut.
 
-- **One workflow, not two.** A tag pushed by a separate job using the default
-  `GITHUB_TOKEN` does **not** trigger a tag-keyed workflow -- GitHub suppresses
-  workflow runs from `GITHUB_TOKEN` events to prevent recursion. A split
-  `tag.yml` (push tag) → `release.yml` (on `v*` tag) chain therefore never hands
-  off and silently produces zero releases. Keep tagging + releasing in the
-  **same** job (branch-triggered), or push the tag with a PAT.
-- **Trigger on the real default branch.** This repo's default branch is
-  `develop` (there is no `main`); release branches are `release/*` and legacy
-  tags are `release-*`. A workflow keyed on `main` never fires. Confirm the
-  branch name (`git remote show origin` / `remotes/origin/HEAD`) before keying a
-  workflow to it.
+### 35.1 Rules this flow depends on
 
-The canonical example was `widget-json-to-grid/.github/workflows/release.yml` (archived; the repo is still on GitHub)
-(`on: push: branches:[develop], paths:[widget/info.json]` + `workflow_dispatch`;
-detect version change → install → test → package + latest copy → tag → release).
+- **Bump through the CLI/packager -- never hand-edit `info.json`.** The
+  controller name embeds the numeric version (`c3Charts131DevCtrl` →
+  `c3Charts132DevCtrl`); hand-editing desyncs it and trips the stale-version
+  lint. `release.sh` calls `widget bump <id> --bump <part>`, which rewrites
+  `info.json`, every controller name, and the versioned path/ID refs in source
+  and the sibling `tests/` tree.
+- **Push the tag with your own credentials, never from a workflow.** A tag pushed
+  with the default `GITHUB_TOKEN` does not start other workflows (GitHub
+  suppresses them to prevent recursion), so a split "tag job, then release job"
+  chain silently produces no release. `release.sh` pushes the tag from your
+  machine; keep it that way.
+- **Tag the version that is in `info.json`.** The workflow refuses a tag that
+  does not equal the version; `release.sh` refuses a tag that already exists on
+  origin.
+- **origin must be on GitHub.** `release.sh` refuses otherwise. GitLab copies
+  of these repos are not release sources.
 
 (Deploying to a live FortiSOAR box is a **separate** path -- see §19.3 and the
 harness `make ship-verify` / `widget push` flow, which uploads the tgz via
@@ -3194,8 +3191,7 @@ Traps that cost real time. Record new ones here, in the same change.
 ### Packaging and release
 - The packager mirrors the user's reference packaging script: controller names rewritten to
   `<name><numericVersion>DevCtrl`, plus `view.html` ng-controller and versioned CSS href.
-- Widget repos auto-release a tgz on a version bump pushed to the default branch (`develop`); a tag pushed with
-  the default token does not trigger tag workflows, so tag+package+release live in one branch-triggered job.
+- Widget repos publish a tgz when a `v*` tag is pushed from `main` (`make release`, see section 35); the tag must be pushed with your own credentials, because a tag pushed with the default token does not trigger workflows.
   Harness publish must send `draft:false` and validate it. A GitHub release is not a box deploy.
 - Two linters exist: the harness-server lint (info.json, controller name, files) and `lint-angular` /
   `lint-testids` (rich rules). ship runs both.

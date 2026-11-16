@@ -13,14 +13,14 @@
 # Lines starting with # and blank lines are ignored. Access is whatever your
 # git credentials allow.
 #
-# Private remotes: this repo is public, so lab-internal hosts are placeholders
+# Private remotes: this repo is public, so private hosts are placeholders
 # (gitlab.example.invalid). Put the real URL for an entry in
 # widgets.local.manifest (gitignored, same format). clone-widgets.sh reads that
 # file first, and its entry replaces the same-named entry below.
 
 # Agentic Assistant product widgets (the chat and the autonomy monitor).
-agenticAssistant git@gitlab.example.invalid:your-group/widget-fsr-agentic-assistant.git  master
-agenticAssistantMonitor     git@gitlab.example.invalid:your-group/widget-agentic-assistant-monitor.git  master
+agenticAssistant https://github.com/ftnt-dspille/fsr-agentic-assistant-widget.git main
+agenticAssistantMonitor https://github.com/ftnt-dspille/fsr-agentic-assistant-monitor-widget.git main
 
 ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git          main
 

@@ -257,7 +257,7 @@ push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box:
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
 	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
 
-release: deploy-guard harness-build ## GitHub release for one widget: bump info.json -> commit -> push develop (fires release.yml). WIDGET=, BUMP=patch
+release: deploy-guard harness-build ## GitHub release for one widget: bump info.json -> commit -> push main -> tag v<new> (the tag fires the widget's release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
 	cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) scripts/release.sh $(WIDGET) $(BUMP)
 
