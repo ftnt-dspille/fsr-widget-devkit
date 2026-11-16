@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -89,11 +89,17 @@ stop: ## Kill both the dev (14400) and test (14401) servers
 	-lsof -ti:$(DEV_PORT)  | xargs kill -9 2>/dev/null || true
 	-lsof -ti:$(TEST_PORT) | xargs kill -9 2>/dev/null || true
 
-# alias of test-unit
-test: test-unit ## Full check: jest unit tests (use test-e2e-spec WIDGET=<name> for e2e)
+# Ship paths (widget-push, ship-verify, loop) run test-unit, which skips the repo's
+# own TOOLING suites (push/promote/guard/box-role tests that spawn make and git
+# hundreds of times; the ONE list is TOOLING_SUITES in fortisoar-widget-harness/
+# jest.config.js). Those belong to the repo's own gate: `make test-full` (= `make test`).
+test: test-full ## The repo's own full gate (alias of test-full)
 
-test-unit: harness-build ## Jest unit tests -- harness only by default; WIDGET=<name>[,<name>] adds widget project(s), WIDGET=all runs every widget
-	cd $(HARNESS) && WIDGET="$(WIDGET)" pnpm test
+test-full: ## FULL gate: every harness suite INCLUDING the tooling suites, plus every widget's jest (minutes; never part of a ship)
+	@$(MAKE) --no-print-directory test-unit FULL=1 WIDGET=all
+
+test-unit: harness-build ## Jest unit tests for shipping: harness (tooling suites skipped, FULL=1 adds them) + WIDGET=<name>[,<name>] (WIDGET=all for every widget)
+	cd $(HARNESS) && WIDGET="$(WIDGET)" SKIP_TOOLING_TESTS=$(if $(FULL),0,1) pnpm test
 
 test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on 14401)
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e:headed
@@ -238,7 +244,7 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	$(require_push_box)
 	@bash scripts/lap.sh lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
-	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- env SKIP_TOOLING_TESTS=1 $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
+	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
 	    bash $(CURDIR)/scripts/lap.sh deploy -- scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
