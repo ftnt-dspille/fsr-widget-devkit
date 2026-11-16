@@ -43,12 +43,21 @@ investigation into a playbook. The widget is the window; the connector is the en
 - **The user owns GitHub releases (release tags, release objects, and the PyPI
   publish they trigger). Agents own everything else: pushing code to GitHub and
   pushing code to FortiSOAR boxes.** Agents push `main` to its remote after
-  `make promote` (never an unverified head), and push code to a SOAR box without
-  asking -- `make deploy` (box-only connector install), `make dev-push`,
+  `make promote` (never an unverified head), and push code over ssh to an
+  experimental-role box without asking: `make push`, `make dev-push`,
   `make ship-dev`, `make loop`, `make widget-push`. Never cut a GitHub release, tag,
-  or a PyPI framework release (`make release-ship FW=...`, `make deploy FW=...`)
-  unless the user asks; `CONFIRM_DEPLOY=1` is only for that. The connector deploy
-  scripts enforce this; see `TESTING.md`, Guardrails.
+  or a PyPI framework release (`make release-ship FW=...`, `make deploy FW=...`);
+  releases are for outside users now, and `CONFIRM_DEPLOY=1` is only for that.
+  The connector deploy scripts enforce this; see `TESTING.md`, Guardrails.
+- **A stable-role box (the customer demo) takes code only through `make stable
+  BOX=<alias>`.** It is the FortiSOAR Import Wizard's import API, over REST: one
+  solution pack carries the connector (the promoted framework wheel bundled inside),
+  both widgets and the dashboard. No ssh, no rsync, no PyPI reaches the box. Every
+  ssh target refuses a stable box (`scripts/box.sh`), with no override. `make stable`
+  refuses unless every source repo is clean on its package inputs, on main, equal to
+  its remote's main, and each HEAD has a VERIFIED, clean live-sanity stamp taken on an
+  experimental box (`scripts/stable_guard.py`). It re-runs idempotently: the box
+  is skipped when it already carries the same heads, and a changed head re-imports.
 - Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
   WIDGET=<name> BOX=<alias>` (lint + unit + deploy, ~1-2 min; `BOX` is required). `ship-verify` is for public releases only.
@@ -77,9 +86,11 @@ These apply to every agent, subagents included (briefs must repeat them).
 - MAY, without asking: run the model policy below (Frank first, Haiku fallback);
   dev-push or dev-sync any working tree to an experimental-role box (`BOX=<alias>`,
   `scripts/box.sh --list`), unreleased code included.
-- MUST NOT: push unreleased code to a stable-role box (the guard refuses it; don't look
-  for a way around it); cut a GitHub release, tag or PyPI release; force-push; push
-  an unpromoted `main`.
+- MAY, when the owner asks for it: `make stable BOX=<stable alias>` (the Import Wizard
+  install; the guard in front of it is the rule, not a permission to skip it).
+- MUST NOT: push code to a stable-role box over ssh (every ssh target refuses it; the
+  only path is `make stable`, and do not look for a way around the refusal); cut a
+  GitHub release, tag or PyPI release; force-push; push an unpromoted `main`.
 - Default scope is one widget or the agentic assistant solution pack (chat widget,
   Monitor, connector, framework), never every widget.
 - Briefs (cost): point at the exact file section to read (the tracker ROADMAP is large;
@@ -105,6 +116,9 @@ Tier ladder, cheapest first. All targets run from the repo root:
    pushing. `SKIP_LIVE_SANITY=1` opts out (NOT verified). TESTING.md, Live sanity.
 4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
    sweep. Releases only, and the user runs it.
+5. `make stable BOX=<stable alias>`: not a test tier. It installs the promoted mains on
+   a stable box through the Import Wizard, then runs live sanity and stamps the heads
+   it installed. `ARGS=--build-only` builds the package without touching the box.
 
 Several targets reach a box (deploys, live sweeps, the connector's loop and doctor).
 The authoritative list is "Targets that reach a box" in `TESTING.md`. Of those,

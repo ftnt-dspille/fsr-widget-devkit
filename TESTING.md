@@ -73,9 +73,10 @@ gets a warning and a registered env file maps to its alias; agents are refused.
 
 | Target | Reaches the box when |
 |---|---|
-| `make push` | always: deploys the connector, framework and changed widgets |
-| `make widget-push` | always: deploys one widget, then live sanity scoped to it |
-| `make ship-verify` | always: deploys, then live-sweeps the same box |
+| `make stable` | the box is a stable box (`role = "stable"`), over REST only: the promoted mains go through the Import Wizard, then live sanity. Refused unless the stable guard passes (below) |
+| `make push` | an experimental box only: deploys the connector, framework and changed widgets over ssh. A stable box is refused |
+| `make widget-push` | an experimental box only: deploys one widget over ssh, then live sanity scoped to it. A stable box is refused |
+| `make ship-verify` | an experimental box only: deploys over ssh, then live-sweeps the same box. A stable box is refused |
 | `make test-live-sweep` | always: the live sweep |
 | `make test-mcp-surface-live` | always |
 | `make test-matrix-live` | always, headed (WAF blocks headless) |
@@ -86,6 +87,23 @@ gets a warning and a registered env file maps to its alias; agents are refused.
 | `make doctor` | reads the box (`LOCAL=1` skips it); `SANITY=1` adds the live sanity pass |
 | `make session-health` | reads box sessions (`SOURCE=local` skips it) |
 | `make test-e2e-spec` | only with `E2E_LIVE=1` (live wire, `&real=1`; no BOX) |
+
+**Stable boxes.** A registry entry with `role = "stable"` (the customer demo) takes
+code only through `make stable BOX=<alias>`. That target builds the promoted mains and
+uploads one solution-pack zip through the FortiSOAR Import Wizard's import API (pyfsr
+`import_config`): the connector tarball (with the framework wheel built from the
+framework's main checkout bundled inside, so the box's pip needs no PyPI for it), both
+widget tarballs packed fresh by the harness packager, and the dashboard. It runs no
+ssh, rsync or PyPI step against the box. Every ssh push target (`push`, `widget-push`,
+`ship-verify`, `loop`, `dev-push`, `ship-dev`, the connector `deploy`/`deploy_chain`)
+refuses a stable box, with no override; `scripts/box.sh` `_bx_check_push_role` is the
+one check. `make stable` runs `scripts/stable_guard.py` first. It refuses unless the box
+is stable, each source repo (monorepo, framework, connector, both widgets) is clean on
+its package inputs, on `main`, and equal to its remote's `main`, and each HEAD has a
+VERIFIED, clean live-sanity stamp whose box reads `role = "experimental"`. Then it
+builds and imports (idempotent: a box that already carries the same heads and
+versions is not re-uploaded; `ARGS=--force` reinstalls; `ARGS=--build-only` stops before
+the box), and runs live sanity on the box, stamping the five heads.
 
 Worktrees need no hand-set paths: `WIDGETS_SRC` defaults to the main checkout's
 `widgets-src/` when the worktree's is empty, and the connector's `FSR_SRC` and venv
@@ -158,6 +176,7 @@ is never refused. A human who means to deploy from an agent shell passes
 | Script headers | `ship.sh`, `release.sh`, `scripts/push.sh`, `install.sh`, `soar-add-theme.sh`, and `widget.js push` / `ship` unless `CONFIRM_DEPLOY=1` | The first statement of each script, or the subcommand handler in `widget.ts`. `make loop` exports `VIA_LOOP=1` so the connector's loop can still widget-push through `ship.sh`. |
 | `make promote` + git hook | any update of `main` (commit, merge incl. fast-forward, reset, pull; not `git update-ref` plumbing, which skips the hook; a permission deny rule covers the usual spelling) under `CLAUDECODE`, except the one `make promote REPO= BRANCH=` makes after finding a VERIFIED, clean live-sanity stamp for the branch head (or a stamped commit with the identical tree). `ALLOW_UNVERIFIED=1` is human-only | `scripts/promote.sh`; `scripts/githooks/reference-transaction` (aborts in the `prepared` phase; promote hands it a one-shot `<old> <new>` allow file in the git common dir). `make setup` points this repo and every `widgets-src/*` repo at `scripts/githooks` (repo-local `core.hooksPath`; shims chain to the global hooks). For another repo: `bash scripts/install-git-hooks.sh <repo>`. |
 | Connector/framework scripts | connector `deploy.sh`, `deploy_chain.sh`, `ship_dev.sh`, `dev_push.sh`, `dev_push_deps.sh`, `install_to_fsr.py` run directly under `CLAUDECODE` (no `MAKELEVEL`/`VIA_MAKE`); framework `release.sh` without `CONFIRM_DEPLOY=1` | `scripts/via_make_guard.sh` sourced first in each connector script; top of framework `scripts/release.sh`. |
+| Stable box | every ssh push target (`push`, `widget-push`, `ship-verify`, `loop`, connector `dev-push`, `ship-dev`, `deploy`) on a `role = "stable"` alias, with no override; `make stable` on a non-stable alias, or without the stable guard passing | `scripts/box.sh` `_bx_check_push_role` (every `push` token); `scripts/stable.sh` runs `scripts/stable_guard.py` before the install. Tests: connector `tests/test_box.py` (stable role), `tests/test_stable_guard.py` (the guard). |
 | Permission rules (advisory) | git `stash`, `rebase`, `push`, `merge`, `update-ref`, `commit --no-verify` / `-n`, `-c core.hooksPath`; bare jest/Playwright (direct, npx, pnpm); `scp`, `rsync`; direct deploy/install scripts and `widget.js push/ship`; the release make targets | `permissions.deny` in `.claude/settings.json`, matched by Claude Code itself. Per the Claude Code permissions docs a Bash deny pattern covers the usual spelling and is NOT a security boundary (`bash -c`, quoting, `git -C . push` get past it). It replaced a shell-parsing PreToolUse hook that kept drawing parser-bypass review findings; the docs say to use permission rules, not a hook, for hard allow/deny. The effect guards above are the enforcement. |
 
 Not guarded at effect level, on purpose:

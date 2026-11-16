@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -251,6 +251,15 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(WIDGETS_SRC)" CONN_REPO="$(CONN_REPO)" \
 	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" bash scripts/lap.sh "live sanity" -- bash scripts/live-sanity.sh
+
+# The stable-box path: the ONLY way code reaches a stable (customer demo) box. Build
+# the promoted mains and install them through the FortiSOAR Import Wizard, over REST.
+# No ssh, no rsync, no PyPI for the framework (it is bundled in the connector). Every
+# ssh target above (push, widget-push, loop, doctor SANITY, ship-verify) refuses a
+# stable box; scripts/stable.sh refuses unless each repo is clean, on remote main and
+# VERIFIED on an experimental box (scripts/stable_guard.py).
+stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Refuses unless the box is stable, every repo is clean, on remote main and VERIFIED on an experimental box. ARGS=--build-only | --force
+	@BOX='$(BOX)' ARGS='$(ARGS)' bash scripts/stable.sh
 
 push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_push_box)

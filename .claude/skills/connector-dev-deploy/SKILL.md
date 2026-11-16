@@ -7,7 +7,8 @@ description: Use when changing the agentic-assistant connector or the fsr_playbo
 
 The connector repo's `CLAUDE.md` and `make help` are authoritative; this skill carries the gotchas.
 Agents use the make front doors only: never `scripts/deploy.sh`, raw ssh or ad-hoc pyfsr snippets.
-PyPI releases (`make deploy FW=...`, `release-ship`) are the owner's.
+PyPI releases (`make deploy FW=...`, `release-ship`) are the owner's, and releases are now only for
+outside users. A STABLE box never gets a deploy or a release: it takes code only through `make stable`.
 
 ## Ordering and ownership
 - Framework and connector are a producer/consumer pair: the connector pins `fsr-playbooks==X` in
@@ -19,6 +20,26 @@ PyPI releases (`make deploy FW=...`, `release-ship`) are the owner's.
   requirements_installed = 'In-Progress'` is a symptom, and several built-in connectors sit there forever.
 - Dev-sync + live proof comes BEFORE any publish. Dev-ship the working tree to validate a fix; do not reach
   for `release-ship` to test (it aborted twice on unrelated flaky gates once).
+
+## Stable box (make stable)
+- `make stable BOX=<stable alias>` (root Makefile -> `scripts/stable.sh`) is the only path to a stable
+  box. It builds the promoted mains and uploads one solution pack through the Import Wizard (pyfsr
+  `import_config`, REST). No ssh, no rsync, no PyPI for the framework.
+- The framework wheel is built from `packaging/fsr_playbooks` at framework main (hatch-vcs: the version
+  carries `g<sha>`). `build.sh` with `FSR_PLAYBOOKS_WHEEL=<wheel>` bundles it in the tarball: the tarball
+  is built from a staged copy whose `requirements.txt` pins that exact version and adds `--find-links
+  wheels`. Tracked `requirements.txt` is untouched (it pins the PyPI release for every other path).
+  pip resolves the relative `--find-links` against the requirements file, so the platform's pip finds the
+  bundled wheel from any working directory.
+- The widgets are packed fresh with the harness packager (`packageWidget`), not taken from a cached tgz.
+  The pack builder (`build_agentic_assistant_pack.py`) takes explicit `--connector-tgz`/`--widget-tgz`.
+- The stable guard (`scripts/stable_guard.py`) refuses unless the box is `role = "stable"`, every repo is
+  clean on its package inputs, on main, equal to its remote main, and each HEAD has a VERIFIED clean
+  stamp taken on an experimental box. To get that stamp for a head: push it to an experimental box
+  (`make push`/`dev-push`/`widget-push`), then `make doctor BOX=<exp> SANITY=1 STAMP=<checkout>`.
+- Idempotent: the install record (`dist/stable/installed-<box>.json`) holds the heads; a box already
+  carrying them with its versions is not re-uploaded. A changed head re-imports, and `bump_existing`
+  re-versions any installer the box would silently skip (the bump is reported).
 
 ## Dev loop
 - `make loop BOX=<alias>` is the default. `make dev-push BOX=<alias>` copies framework + connector trees and

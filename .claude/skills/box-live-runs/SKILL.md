@@ -13,9 +13,13 @@ gitignored `docs/plans/`.
 - Pass `BOX=<alias>` to every box target. There is no default box. The old `ENV`, `FSR_ENV`,
   `SSH_HOST` knobs are refused under Claude Code.
 - Roles live in the pyfsr registry (`scripts/box.sh --role <alias>` -> stable|experimental|unset).
-  A `stable` box takes released builds only (customer demos). Unreleased pushes
-  (`push`, `widget-push`, `ship-verify`, `loop`, `dev-push`) are refused there by the Makefile/box.sh
-  guard. Push experiments to an experimental box.
+  A `stable` box is the customer demo. It takes code ONLY through `make stable BOX=<alias>`:
+  the FortiSOAR Import Wizard over REST, one solution pack (connector with the promoted framework
+  wheel bundled, both widgets, dashboard). Every ssh push target (`push`, `widget-push`,
+  `ship-verify`, `loop`, `dev-push`, `ship-dev`, `deploy`) is refused on a stable box, with no
+  override (`scripts/box.sh`). `make stable` refuses unless each source repo is clean, on remote
+  main, and VERIFIED by a live-sanity stamp from an experimental box (`scripts/stable_guard.py`).
+  Push experiments to an experimental box.
 - Read the first line printed, `>> target box: <alias>`, before anything installs.
 - Before trusting a live result run `make doctor BOX=<alias>` (version, dev-patch state) and, in the
   connector repo, `make ship-dev ACTION=status`: a dev-patched box reports the wheel's version
@@ -28,8 +32,12 @@ gitignored `docs/plans/`.
 ## What agents may do on their own
 - Dev-push / dev-sync any working tree to an experimental box without asking (`make loop`,
   `make dev-push`, `make widget-push`, `make push`). Nothing there is permanent.
+- `make stable BOX=<stable alias>` when the owner asks to put promoted mains on the stable box.
+  It is the Import Wizard install, not a push: the guard in front of it is the rule. Run
+  `ARGS=--build-only` first to check the package, and read the first line (`>> target box`).
 - Never `make deploy FW=...` (PyPI release), `release-ship`, or `git push` main. Releases are the
-  owner's, and permission for one release does not carry to the next request.
+  owner's, and permission for one release does not carry to the next request. Releases are now
+  only for outside users; the stable box does not need one.
 - Model choice: Frank first whenever it is reachable (VPN on; several free models). If Frank is
   unreachable, or the run needs the Anthropic side (A/B outside agent), use paid Haiku without
   asking. Live Sonnet only for verification.
@@ -65,7 +73,9 @@ gitignored `docs/plans/`.
 - Connector pip: the platform installs the pinned `fsr-playbooks` itself once the box's pip has a PyPI
   extra-index. Never `ssh ... pip install` a wheel; if a dep will not install, the release is wrong
   (ship raced the PyPI release). Push tooling re-applies the extra-index (lift and restore the
-  immutable bit on `pip.conf`).
+  immutable bit on `pip.conf`). The stable package is the exception by design: `build.sh` with
+  `FSR_PLAYBOOKS_WHEEL` bundles the framework built from main and adds `--find-links wheels` to the
+  staged requirements, so fsr-playbooks resolves from the tarball with no PyPI.
 - Live LLM provider per box differs: a box without a route to the lab gateway must use a real
   OpenAI/Anthropic config, never the lab gateway. Check `llm_provider` before blaming the agent.
 - Credentials: Bash auto-mode blocks sourcing credential `.env` files. Pre-load env via the
