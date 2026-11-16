@@ -40,15 +40,15 @@ investigation into a playbook. The widget is the window; the connector is the en
 
 ## Git and shipping
 
-- **The user owns PyPI releases; agents own direct-to-box work.** Agents commit
-  locally on a branch and never push `main`. Agents MAY push code to a SOAR box
-  for live testing without asking -- `make deploy` (box-only connector install),
-  `make dev-push`, `make ship-dev`, `make loop` -- these are fast and nothing
-  they do is permanent. What stays the user's is a **PyPI framework release**
-  (`make deploy FW=next|X.Y.Z`): it waits on GitHub CI, publishes a permanent
-  public wheel, and is slow, so an agent triggers it only with `CONFIRM_DEPLOY=1`
-  when the user asked. The connector deploy scripts enforce exactly this split;
-  see `TESTING.md`, Guardrails.
+- **The user owns GitHub releases (release tags, release objects, and the PyPI
+  publish they trigger). Agents own everything else: pushing code to GitHub and
+  pushing code to FortiSOAR boxes.** Agents push `main` to its remote after
+  `make promote` (never an unverified head), and push code to a SOAR box without
+  asking -- `make deploy` (box-only connector install), `make dev-push`,
+  `make ship-dev`, `make loop`, `make widget-push`. Never cut a GitHub release, tag,
+  or a PyPI framework release (`make release-ship FW=...`, `make deploy FW=...`)
+  unless the user asks; `CONFIRM_DEPLOY=1` is only for that. The connector deploy
+  scripts enforce this; see `TESTING.md`, Guardrails.
 - Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
   WIDGET=<name> BOX=<alias>` (lint + unit + deploy, ~1-2 min; `BOX` is required). `ship-verify` is for public releases only.
@@ -56,8 +56,9 @@ investigation into a playbook. The widget is the window; the connector is the en
   a push target or `make doctor BOX=<box> SANITY=1 STAMP=<repo dir>` stamped that branch head VERIFIED on a clean tree. It merges
   into local main (ff or merge commit, other WIP kept) and never pushes. A git
   hook (`scripts/githooks`, installed by `make setup`) refuses any other update of
-  main under Claude Code. Agents never `git push`, and never run deploy/install
-  scripts directly; use the make front doors.
+  main under Claude Code. After a promote, the agent pushes that main to its
+  remote. Never force-push, and never run deploy/install scripts directly; use the
+  make front doors.
 - Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or
   releaseNotes; a hand edit desyncs the controller name and lint then blocks boot.
   Rename with the `widget rename` CLI, not by hand.
@@ -77,7 +78,8 @@ These apply to every agent, subagents included (briefs must repeat them).
   dev-push or dev-sync any working tree to an experimental-role box (`BOX=<alias>`,
   `scripts/box.sh --list`), unreleased code included.
 - MUST NOT: push unreleased code to a stable-role box (the guard refuses it; don't look
-  for a way around it); run a PyPI release; push `main`.
+  for a way around it); cut a GitHub release, tag or PyPI release; force-push; push
+  an unpromoted `main`.
 - Default scope is one widget or the agentic assistant solution pack (chat widget,
   Monitor, connector, framework), never every widget.
 - Briefs (cost): point at the exact file section to read (the tracker ROADMAP is large;
