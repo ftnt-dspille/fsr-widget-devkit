@@ -13,7 +13,7 @@
 # Exit: 0 VERIFIED or PARTIAL, 1 FAIL, 2 bad box.
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONN_REPO="${CONN_REPO:-$HOME/PycharmProjects/ConnectorsV2/conn_main}"
+CONN_REPO="${CONN_REPO:-$(bash "$ROOT/scripts/repo_paths.sh" conn)}"
 
 if [[ -n "${SKIP_LIVE_SANITY:-}" ]]; then
     echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"

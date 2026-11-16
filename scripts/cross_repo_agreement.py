@@ -40,12 +40,14 @@ from pathlib import Path
 
 HARNESS = Path(__file__).resolve().parents[1]
 WIDGETS = Path(os.environ.get("FSR_ALL_WIDGETS", HARNESS / "widgets-src"))
-FRAMEWORK = Path(os.environ.get(
-    "FSR_FRAMEWORK_REPO",
-    Path.home() / "PycharmProjects" / "fsr-playbook-framework"))
-CONN_PARENT = Path(os.environ.get(
-    "FSR_CONNECTOR_REPO",
-    Path.home() / "PycharmProjects" / "ConnectorsV2" / "conn_main"))
+def _repo_path(which: str) -> str:
+    import subprocess
+    return subprocess.run(["bash", str(HARNESS / "scripts" / "repo_paths.sh"), which],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+FRAMEWORK = Path(os.environ.get("FSR_FRAMEWORK_REPO") or _repo_path("framework"))
+CONN_PARENT = Path(os.environ.get("FSR_CONNECTOR_REPO") or _repo_path("conn"))
 CONN = CONN_PARENT / "connector-fsr-soc-assistant"
 LEGACY_CONN_CLONE = CONN_PARENT.parent / "fsr-playbook-builder"
 ONBOARDING = HARNESS / "ONBOARDING.md"

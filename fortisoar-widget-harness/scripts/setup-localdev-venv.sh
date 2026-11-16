@@ -14,8 +14,8 @@ VENV_DIR="$HARNESS_DIR/.venv-localdev"
 
 # --- repo roots (adjust here if your layout differs) -----------------------
 FSR_ALL_WIDGETS="/Users/dylanspille/WebstormProjects/fsr_all_widgets"
-CONNECTORS_V2="/Users/dylanspille/PycharmProjects/ConnectorsV2"
-FRAMEWORK="/Users/dylanspille/PycharmProjects/fsr-playbook-framework"
+REPO_PATHS="$HARNESS_DIR/../scripts/repo_paths.sh"
+FRAMEWORK="$(bash "$REPO_PATHS" framework)"
 PYFSR="/Users/dylanspille/PycharmProjects/pyfsr"
 VSCODE_EXT="$HOME/.vscode/extensions/fortisoar.fortisoar-connector-0.0.1"
 ENGINE_WHEEL="$VSCODE_EXT/resources/wheels/fortisoar_connector_engine-3.0.0.3-py3-none-any.whl"

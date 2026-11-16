@@ -38,8 +38,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 # "real connector" tier ran month-old connector code.
 HARNESS_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _HOME = os.path.expanduser("~")
-CONN_REPO = os.environ.get("CONN_REPO") or os.path.join(
-    _HOME, "PycharmProjects", "ConnectorsV2", "conn_main")
+def _repo_path(which: str) -> str:
+    """The one resolver lives in the root repo: scripts/repo_paths.sh."""
+    import subprocess
+    sh = os.path.join(os.path.dirname(HARNESS_DIR), "scripts", "repo_paths.sh")
+    return subprocess.run(["bash", sh, which], capture_output=True, text=True,
+                          check=True).stdout.strip()
+
+
+CONN_REPO = os.environ.get("CONN_REPO") or _repo_path("conn")
 CONNECTOR_DIR = os.path.join(CONN_REPO, "connector-fsr-agentic-assistant")
 ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "localdev.env")
 PORT = int(os.environ.get("FSRPB_SIDECAR_PORT", "4771"))
@@ -95,8 +102,7 @@ os.environ.setdefault("FSRPB_DEV", "1")
 # Make probes._env find the framework's tooling dir (for run_op's box client)
 # and ensure fsr_playbooks resolves -- editable install covers it, but this is
 # belt-and-suspenders if the venv wasn't built editable.
-_FRAMEWORK = os.environ.get("FSR_SRC") or os.path.join(
-    _HOME, "PycharmProjects", "fsr-playbook-framework")
+_FRAMEWORK = os.environ.get("FSR_SRC") or _repo_path("framework")
 for p in (os.path.join(_FRAMEWORK, "tooling"), _FRAMEWORK):
     if p not in sys.path:
         sys.path.insert(0, p)

@@ -38,7 +38,7 @@ fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # fsr_all_widgets
 HARNESS="$ROOT/fortisoar-widget-harness"
-CONN_REPO="${CONN_REPO:-$HOME/PycharmProjects/ConnectorsV2/conn_main}"
+CONN_REPO="${CONN_REPO:-$(bash "$ROOT/scripts/repo_paths.sh" conn)}"
 # No default box: BOX=<alias> from the pyfsr registry (the connector repo's
 # scripts/box.sh). An unknown alias or a box with no ssh profile stops here,
 # before anything is pushed. The `push` need also refuses a box whose registry

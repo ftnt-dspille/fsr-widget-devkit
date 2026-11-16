@@ -182,7 +182,7 @@ BUMP ?= patch
 #
 # INVARIANT (ship-verify): the box it DEPLOYS to and the box its live sweep GRADES
 # are the same BOX. There is one knob, so they cannot differ.
-CONN_REPO ?= $(HOME)/PycharmProjects/ConnectorsV2/conn_main
+CONN_REPO ?= $(shell bash "$(CURDIR)/scripts/repo_paths.sh" conn)
 BOX_SH := $(CONN_REPO)/scripts/box.sh
 # A worktree of this repo has no widget repos under widgets-src/: default to the
 # main checkout's (D10). An explicit WIDGETS_SRC= wins.
