@@ -171,7 +171,8 @@ Known limits:
 - The permission deny rules match the usual spelling only, so `bash -c "git stash"` gets past them. They catch honest slips; the effect guards above are what hold.
 
 Checking it:
-- `make test-unit` runs `viaMakeGuard.test.js`, `makeDeployGuard.test.js` and `deployScriptGuards.test.js` (harness tests). They pass under `CLAUDECODE=1` only through the make targets.
+- `make test-full` (alias `make test`) runs `viaMakeGuard.test.js`, `makeDeployGuard.test.js` and `deployScriptGuards.test.js` (harness tests). They pass under `CLAUDECODE=1` only through the make targets.
+- **Ships run only the shipped thing's tests.** `make test-unit` (what `widget-push`, `ship-verify` and `loop` call) skips the repo's own tooling suites, the push/promote/guard/box-role tests that spawn make and git hundreds of times (`TOOLING_SUITES` in `fortisoar-widget-harness/jest.config.js`, the one list). They run in the repo's own gate: `make test-full` (= `make test`, `test-unit FULL=1 WIDGET=all`); run it before `make promote`. The connector does the same: `deploy.sh` and `loop.sh` pass `SKIP_TOOLING_TESTS=1` (`FULL_GATE=1` opts in), `make test` and pre-push run everything.
 - `promoteGate.test.js` (harness): promote refuses with no stamp, PARTIAL, FAIL, dirty, or another commit's stamp; fast-forwards and merges with a VERIFIED clean stamp (keeping unrelated WIP); the git hook refuses ff/merge/reset/update-ref/commit on main under `CLAUDECODE`.
 - `guardOtherReposInstall.test.js` (harness): the `--chain` install on a framework-style repo (global hooks + `.git/hooks`) and a connector-style bare repo (relative `scripts/hooks`, main in a worktree): main updates refused (ff, update-ref without an old value, `branch -f`), branch commits and integ merges allowed, every pre-existing hook still runs, `make promote` still lands.
 
