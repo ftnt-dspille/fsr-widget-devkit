@@ -209,7 +209,9 @@ _FWD_BOX = BOX=$(or $(RESOLVED_BOX),$(BOX))
 ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	$(require_push_box)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
-	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && node scripts/widget.js lint $(WIDGET)
+	@echo "▶ 0/6 harness (fresh server on $(DEV_PORT), aimed at BOX=$(RESOLVED_BOX))"; \
+	  cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) scripts/ship.sh --restart
+	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && PORT=$(DEV_PORT) HARNESS_URL=http://localhost:$(DEV_PORT) node scripts/widget.js lint $(WIDGET)
 	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
 	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-testids.js $(WIDGET)
 	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/typecheck-widgets.js $(WIDGET)
