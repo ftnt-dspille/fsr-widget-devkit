@@ -671,7 +671,7 @@ stateDiagram-v2
 <li><strong><code>make ship</code></strong>: test gate, bump, build, check the box can resolve the pin, install, verify workers, force a warmup.</li>
 <li><strong><code>make dev-push</code></strong>: rsyncs working trees and waits for every worker to report the new <code>build_id</code>. FortiSOAR registers ops at install, so a new op or config field needs a bumped install; <code>dev_push.sh</code> detects this and escalates.</li>
 <li><strong><code>make ship-dev ACTION=status</code></strong> must say <code>clean</code> before you trust a version number. <code>release-ship</code> does not clear the dev-patch marker; <code>ACTION=restore</code> does.</li>
-<li><strong>Remotes:</strong> <code>origin</code> (GitLab) is authoritative and runs CI; <code>fndn</code> is fetch-only. History was scrubbed of lab details.</li>
+<li><strong>Remotes:</strong> <code>origin</code> is the public GitHub repo (<code>ftnt-dspille/fsr-agentic-assistant-connector</code>) and runs CI (GitHub Actions). The old internal GitLab remote is no longer pushed. The framework is its own repo, released to PyPI.</li>
 </ul>
 
 <h3>How do I...</h3>

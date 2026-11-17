@@ -13,14 +13,15 @@ change, and package + install in one click. Read this once, then keep
 
 ## The three repos
 
-A full working setup is three independent git repos. The kit ties them together
-but does not contain the other two.
+A full working setup is four independent git repos. The kit ties them together
+but does not contain the others.
 
 | Repo | What it is | Where it lives |
 |------|------------|----------------|
 | **Dev Kit** (this repo) | Harness, `Makefile`, `scripts/`, `KNOWLEDGEBASE.md`, lint configs, widget template. Ships `widgets-src/` **empty**. | `fsr_all_widgets/` |
 | **Widget(s)** | One repo per widget (e.g. `agenticAssistant`). Cloned into `widgets-src/` via the manifest. | their own git remotes |
-| **Connector** | The agentic backend (`connector-fsr-agentic-assistant`, label "FSR Agentic Assistant"; pins `fsr_playbooks`) the Agentic Assistant widget talks to. Published + deployed separately. | separate repo (Dylan) |
+| **Connector** | The agentic backend (`connector-fsr-agentic-assistant`, label "FSR Agentic Assistant"; pins `fsr_playbooks`) the Agentic Assistant widget talks to. Published + deployed separately. | `github.com/ftnt-dspille/fsr-agentic-assistant-connector` |
+| **Framework** | `fsr_playbooks`, the library the connector imports (compiler, agent tools). Released to PyPI as `fsr-playbooks`; the connector pins it in `requirements.txt`. | `github.com/ftnt-dspille/fsr-playbook-framework` |
 
 The harness (`fortisoar-widget-harness/`) is **part of this repo** -- plain files,
 not a separate git repo. (It used to be its own repo; that standalone repo is now
