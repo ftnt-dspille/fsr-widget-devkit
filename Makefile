@@ -45,8 +45,8 @@ loop: export VIA_LOOP := 1
 # 4. Feature branches reach main only after live confirmation. make promote is the
 #    ONE way an agent moves main (any repo: root, widgets-src/*, connector,
 #    framework, docubot); scripts/githooks/reference-transaction refuses every
-#    other update of main under CLAUDECODE. Local merge only, never pushes.
-promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>). Never pushes
+#    other update of main under CLAUDECODE. Merges locally, then pushes main to its upstream (NO_PUSH=1 skips).
+promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>), then pushes main to its upstream (NO_PUSH=1 skips)
 	@bash scripts/promote.sh
 
 help:

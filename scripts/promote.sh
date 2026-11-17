@@ -17,7 +17,7 @@
 # built in a temporary worktree (authored as the configured git user). main is
 # then moved with `git merge --ff-only` inside whatever checkout has main checked
 # out (git keeps unrelated WIP and refuses on overlap), or with update-ref when
-# none does. Never pushes, never releases.
+# none does. Then pushes main to its upstream (NO_PUSH=1 skips). Never releases.
 #
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
 # The reference-transaction hook (scripts/githooks) refuses any other update of
@@ -43,7 +43,25 @@ if [ "$(basename "$common")" = .git ]; then name="$(basename "$(dirname "$common
 head="$(g rev-parse --verify -q "refs/heads/$BRANCH^{commit}")" || die "no local branch '$BRANCH' in $REPO"
 old="$(g rev-parse --verify -q "refs/heads/$MAIN^{commit}")" || die "no local '$MAIN' in $REPO"
 [ "$BRANCH" != "$MAIN" ] || die "BRANCH is $MAIN"
-if g merge-base --is-ancestor "$head" "$old"; then echo "promote: $BRANCH ($head) is already in $MAIN; nothing to do."; exit 0; fi
+# --- push ---------------------------------------------------------------------
+# A promoted main is verified, so it goes to its remote (the user still owns
+# releases and tags; this pushes the branch only, never a tag, never --force).
+# Also runs when BRANCH is already in main, so re-running finishes a failed push.
+push_main() {
+  if [ "${NO_PUSH:-0}" = "1" ]; then echo "promote: NO_PUSH=1, $MAIN not pushed"; return 0; fi
+  local up remote rbranch
+  up="$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || true)"
+  if [ -z "$up" ]; then echo "promote: $MAIN has no upstream, not pushed"; return 0; fi
+  remote="${up%%/*}"; rbranch="${up#*/}"
+  if [ "$(g rev-parse "$MAIN")" = "$(g rev-parse --verify -q "refs/remotes/$up" || true)" ]; then
+    echo "promote: $up already at $MAIN"; return 0
+  fi
+  echo "promote: pushing $MAIN to $remote/$rbranch (runs that repo's pre-push gate)"
+  g push "$remote" "refs/heads/$MAIN:refs/heads/$rbranch" \
+    || die "local $MAIN is promoted but the push to $up failed; fix it and re-run make promote (it retries the push)"
+}
+
+if g merge-base --is-ancestor "$head" "$old"; then echo "promote: $BRANCH ($head) is already in $MAIN."; push_main; exit 0; fi
 
 # --- proof --------------------------------------------------------------------
 sdir="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}/$name"
@@ -115,8 +133,9 @@ else
   g update-ref -m "promote: $BRANCH" "refs/heads/$MAIN" "$target" "$old"
 fi
 
-echo "promote: $name: merged $BRANCH ($head) into local $MAIN as $kind -> $target (not pushed)"
+echo "promote: $name: merged $BRANCH ($head) into local $MAIN as $kind -> $target"
 if [ -n "$proof" ]; then
   echo "promote: proof $(jq -r '"box=\(.box) verdict=\(.verdict) ts=\(.timestamp // .ts) sha=\(.sha)"' "$proof")"
   [ "$PROOF_SHA" = "$head" ] || echo "promote: (stamp is for $PROOF_SHA, identical tree to $head)"
 fi
+push_main

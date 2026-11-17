@@ -42,8 +42,8 @@ investigation into a playbook. The widget is the window; the connector is the en
 
 - **The user owns GitHub releases (release tags, release objects, and the PyPI
   publish they trigger). Agents own everything else: pushing code to GitHub and
-  pushing code to FortiSOAR boxes.** Agents push `main` to its remote after
-  `make promote` (never an unverified head), and push code over ssh to an
+  pushing code to FortiSOAR boxes.** `make promote` pushes `main` to its remote
+  (never an unverified head), and push code over ssh to an
   experimental-role box without asking: `make push`, `make dev-push`,
   `make ship-dev`, `make loop`, `make widget-push`. Never cut a GitHub release, tag,
   or a PyPI framework release (`make release-ship FW=...`, `make deploy FW=...`);
@@ -63,10 +63,10 @@ investigation into a playbook. The widget is the window; the connector is the en
   WIDGET=<name> BOX=<alias>` (lint + unit + deploy, ~1-2 min; `BOX` is required). `ship-verify` is for public releases only.
 - **Main moves only through `make promote REPO=<repo> BRANCH=<branch>`**, after
   a push target or `make doctor BOX=<box> SANITY=1 STAMP=<repo dir>` stamped that branch head VERIFIED on a clean tree. It merges
-  into local main (ff or merge commit, other WIP kept) and never pushes. A git
+  into local main (ff or merge commit, other WIP kept), then pushes that main to
+  its upstream (`NO_PUSH=1` skips). A git
   hook (`scripts/githooks`, installed by `make setup`) refuses any other update of
-  main under Claude Code. After a promote, the agent pushes that main to its
-  remote. Never force-push, and never run deploy/install scripts directly; use the
+  main under Claude Code. Never force-push, and never run deploy/install scripts directly; use the
   make front doors.
 - Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or
   releaseNotes; a hand edit desyncs the controller name and lint then blocks boot.

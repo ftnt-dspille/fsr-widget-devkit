@@ -66,6 +66,34 @@ describe("make promote", () => {
     expect(git(["log", "-1", "--format=%B", "main"]).out).not.toMatch(/Co-Authored-By|Claude/);
   });
 
+  test("pushes the promoted main to its upstream; NO_PUSH=1 leaves the remote alone", () => {
+    const remote = path.join(path.dirname(S.repo), "remote.git");
+    require("child_process").execFileSync("git", ["init", "-q", "--bare", "-b", "main", remote]);
+    git(["remote", "add", "up", remote]);
+    git(["push", "-q", "up", "main"]);
+    git(["branch", "--set-upstream-to=up/main", "main"]);
+    const remoteMain = () => require("child_process").execFileSync("git", ["-C", remote, "rev-parse", "main"]).toString().trim();
+    const before = remoteMain();
+    stamp(sha("feat/x"), {});
+
+    const held = promote({ CLAUDECODE: "1", NO_PUSH: "1" });
+    expect(held.code).toBe(0);
+    expect(held.out).toMatch(/NO_PUSH=1/);
+    expect(remoteMain()).toBe(before);
+
+    const r = promote({ CLAUDECODE: "1" });
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/pushing main to up\/main/);
+    expect(remoteMain()).toBe(sha("feat/x"));
+  });
+
+  test("no upstream: promotes locally and says it did not push", () => {
+    stamp(sha("feat/x"), {});
+    const r = promote({ CLAUDECODE: "1" });
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/no upstream, not pushed/);
+  });
+
   test("ALLOW_UNVERIFIED=1 is refused under Claude Code, honored for a human", () => {
     const before = sha("main");
     const a = promote({ CLAUDECODE: "1", ALLOW_UNVERIFIED: "1" });

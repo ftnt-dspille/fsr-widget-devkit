@@ -96,12 +96,12 @@ describe("unreleased-code pushes refuse a stable box before anything is sent", (
     expect(`${r.stderr}`).toMatch(/STABLE/);
     expect(`${r.stdout}`).not.toMatch(/^>> (plan|connector|widget)/im);
   });
-  t("ALLOW_STABLE_PUSH=1 is the owner's override: not refused for a human, refused under Claude Code", async () => {
-    const human = await ash("bash", ["scripts/push.sh"], { BOX: "stab", DRY_RUN: "1", ALLOW_STABLE_PUSH: "1" });
-    expect(`${human.stderr}`).not.toMatch(/is a STABLE box/);
-    const agent = await ash("bash", ["scripts/push.sh"], { BOX: "stab", DRY_RUN: "1", ALLOW_STABLE_PUSH: "1", CLAUDECODE: "1", CONFIRM_DEPLOY: "1" });
-    expect(agent.status).not.toBe(0);
-    expect(`${agent.stderr}`).toMatch(/refused under Claude Code/);
+  t("ALLOW_STABLE_PUSH=1 is no override: a stable box takes only make stable, for a human too", async () => {
+    for (const env of [{}, { CLAUDECODE: "1", CONFIRM_DEPLOY: "1" }]) {
+      const r = await ash("bash", ["scripts/push.sh"], { BOX: "stab", DRY_RUN: "1", ALLOW_STABLE_PUSH: "1", ...env });
+      expect(r.status).not.toBe(0);
+      expect(`${r.stderr}`).toMatch(/is a STABLE box: it takes code only through 'make stable/);
+    }
   });
 });
 
