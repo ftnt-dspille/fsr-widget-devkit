@@ -1,0 +1,26 @@
+[
+  {
+    "name": "fortiGuardThreatLandscape",
+    "label": null,
+    "version": "1.0.2",
+    "install_mode": "tgz",
+    "installer_path": "fortiGuardThreatLandscape-1.0.2.tgz",
+    "title": "FortiGuard Threat Landscape"
+  },
+  {
+    "name": "fortiGuardThreatMap",
+    "label": null,
+    "version": "1.0.2",
+    "install_mode": "tgz",
+    "installer_path": "fortiGuardThreatMap-1.0.2.tgz",
+    "title": "FortiGuard Threat Map (Enhanced)"
+  },
+  {
+    "name": "fortiGuardThreatAnalyticsDemo",
+    "label": null,
+    "version": "1.0.0",
+    "install_mode": "tgz",
+    "installer_path": "fortiGuardThreatAnalyticsDemo-1.0.0.tgz",
+    "title": "FortiGuard Threat Analytics (Enhanced)"
+  }
+]

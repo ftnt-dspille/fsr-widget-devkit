@@ -1,0 +1,47 @@
+{
+  "type": "solutionpack",
+  "name": "fortiGuardThreatEnhanced",
+  "label": "FortiGuard Threat (Enhanced)",
+  "version": "1.0.0",
+  "description": "Enhanced FortiGuard Threat widgets (Landscape, Map, Analytics) + dashboard.",
+  "publisher": "Fortinet",
+  "dependencies": [
+    {
+      "name": "sOARFramework",
+      "type": "solutionpack",
+      "label": "SOAR Framework",
+      "minVersion": null
+    }
+  ],
+  "contents": {
+    "connectors": [
+      {
+        "apiName": "fortinet-fortiguard-threat-intelligence",
+        "name": "Fortinet FortiGuard Threat Intelligence"
+      },
+      {
+        "apiName": "fortinet-fortiguard-outbreak",
+        "name": "Fortinet FortiGuard Outbreak"
+      }
+    ],
+    "widgets": [
+      {
+        "apiName": "fortiGuardThreatLandscape",
+        "name": "FortiGuard Threat Landscape"
+      },
+      {
+        "apiName": "fortiGuardThreatMap",
+        "name": "FortiGuard Threat Map (Enhanced)"
+      },
+      {
+        "apiName": "fortiGuardThreatAnalyticsDemo",
+        "name": "FortiGuard Threat Analytics (Enhanced)"
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "FortiGuard Threat (Enhanced)"
+      }
+    ]
+  }
+}

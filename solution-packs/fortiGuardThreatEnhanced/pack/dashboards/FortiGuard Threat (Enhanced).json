@@ -1,0 +1,148 @@
+{
+  "@type": "Dashboard",
+  "isDefault": false,
+  "hidden": false,
+  "uuid": "5520c324-03f8-5ea7-99e9-f30edd50f5b6",
+  "displayName": "FortiGuard Threat (Enhanced)",
+  "type": "rows",
+  "templateType": "dashboard",
+  "parentTemplateId": null,
+  "config": {
+    "rows": [
+      {
+        "columns": [
+          {
+            "widgets": [
+              {
+                "type": "tabs",
+                "config": {
+                  "wid": "42bff83b-54f2-59cf-a1db-e95317b9830c",
+                  "tabs": [
+                    {
+                      "title": "Landscape",
+                      "active": 0,
+                      "widget": {
+                        "type": "rows",
+                        "config": {
+                          "wid": "340fec50-84ae-5c70-a6ce-f291c43e14c8",
+                          "rows": [
+                            {
+                              "columns": [
+                                {
+                                  "widgets": [
+                                    {
+                                      "type": "fortiGuardThreatLandscape-1.0.2",
+                                      "config": {
+                                        "wid": "e7580ade-1f14-4a20-b6a4-750e8e1b4afe"
+                                      }
+                                    }
+                                  ],
+                                  "style": "col-lg-12"
+                                }
+                              ],
+                              "wid": "b00087fe-fe58-56ec-b45b-d5cf29954bac",
+                              "_collapsed": false
+                            }
+                          ]
+                        },
+                        "visible": true
+                      },
+                      "icon": "icon icon-threat-intel-management",
+                      "subtitle": "Threat Activities & Kill Chain",
+                      "show": true,
+                      "visible": true
+                    },
+                    {
+                      "title": "Analytics",
+                      "active": 0,
+                      "widget": {
+                        "type": "rows",
+                        "config": {
+                          "wid": "de5a22cf-aae6-5580-b554-e0c3aa12c0da",
+                          "rows": [
+                            {
+                              "columns": [
+                                {
+                                  "widgets": [
+                                    {
+                                      "type": "fortiGuardThreatAnalyticsDemo-1.0.0",
+                                      "config": {
+                                        "wid": "dadd1d76-9ccc-56be-937d-4646e171f721",
+                                        "threat_type": "virus",
+                                        "order": "desc",
+                                        "time_windows": 21,
+                                        "max_records": 5
+                                      }
+                                    }
+                                  ],
+                                  "style": "col-lg-12"
+                                }
+                              ],
+                              "wid": "bfcf9479-b7a3-5a09-97d3-7398e74e5601",
+                              "_collapsed": false
+                            }
+                          ]
+                        },
+                        "visible": true
+                      },
+                      "icon": "icon icon-vulnerability",
+                      "subtitle": "Vulnerabilities & Malware",
+                      "show": false,
+                      "visible": true
+                    },
+                    {
+                      "title": "Global Map",
+                      "active": 0,
+                      "widget": {
+                        "type": "rows",
+                        "config": {
+                          "wid": "48b5e6e5-a194-5b71-8614-5670e35d1082",
+                          "rows": [
+                            {
+                              "columns": [
+                                {
+                                  "widgets": [
+                                    {
+                                      "type": "fortiGuardThreatMap-1.0.2",
+                                      "config": {
+                                        "wid": "cbb0b5ae-1754-58d9-b828-8db0a179b4ef",
+                                        "demoMode": true,
+                                        "demoIntensity": 60
+                                      }
+                                    }
+                                  ],
+                                  "style": "col-lg-12"
+                                }
+                              ],
+                              "wid": "fdd9e556-f444-5927-a30f-1a88a1e81394",
+                              "_collapsed": false
+                            }
+                          ]
+                        },
+                        "visible": true
+                      },
+                      "icon": "fa fa-globe",
+                      "subtitle": "Real Time Attacks",
+                      "show": false,
+                      "visible": true
+                    }
+                  ],
+                  "isPrimaryTab": true
+                }
+              }
+            ],
+            "style": "col-lg-12"
+          }
+        ],
+        "wid": "63fc39c1-b374-5acc-b67b-1b84740ae3d8",
+        "_collapsed": false
+      }
+    ],
+    "metadata": {
+      "customTemplateTitle": "COMPONENTS.BREADCRUMB.DASHBOARD",
+      "name": "FortiGuard Threat (Enhanced)"
+    },
+    "wid": "58bcae6f-758a-5c30-ac94-a63d58fa3708"
+  },
+  "filterArray": []
+}

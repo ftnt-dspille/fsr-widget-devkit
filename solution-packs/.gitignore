@@ -1,0 +1,3 @@
+# Fortinet connector packages and built zips stay local (see each pack's README).
+*/connectors/*.tgz
+*/dist/

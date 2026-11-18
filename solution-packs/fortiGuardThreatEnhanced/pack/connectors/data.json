@@ -1,0 +1,56 @@
+[
+  {
+    "name": "fortinet-fortiguard-threat-intelligence",
+    "label": "Fortinet FortiGuard Threat Intelligence",
+    "version": "4.2.0",
+    "install_mode": "tgz",
+    "installer_path": "fortinet-fortiguard-threat-intelligence-4.2.0.tgz",
+    "category": "Threat Intelligence",
+    "description": "FortiGuard Threat Intelligence is the global threat intelligence and research organization at Fortinet. This connector facilitates automated operations to check IP, URL, Domain and File Hash Lookup\u2019s and ingestion of daily threat feeds.<br/><br/>This connector has a dependency on the <a href=\"/content-hub/all-content/?contentType=solutionpack&amp;tag=ThreatIntelManagement\" target=\"_blank\" rel=\"noopener\">Threat Intel Management Solution Pack</a>. Install the Solution Pack before enabling ingestion of Threat Feeds from this source.",
+    "publisher": "Fortinet",
+    "operation_roles": [],
+    "configurations": [
+      {
+        "config_id": "9df4de68-e0e5-568b-8ba8-22b85253dbd3",
+        "status": 1,
+        "name": "FortiGuard",
+        "default": true,
+        "config": {
+          "server_url": "https://productapi.fortinet.com",
+          "verify_ssl": true
+        },
+        "remote_status": [],
+        "health_status": [],
+        "teams": []
+      }
+    ],
+    "dataImports": []
+  },
+  {
+    "name": "fortinet-fortiguard-outbreak",
+    "label": "Fortinet FortiGuard Outbreak",
+    "version": "3.1.0",
+    "install_mode": "tgz",
+    "installer_path": "fortinet-fortiguard-outbreak-3.1.0.tgz",
+    "category": "Threat Intelligence",
+    "description": "Fortinet FortiGuard Outbreak provides key information about on-going cybersecurity attack with significant ramifications affecting numerous companies, organizations and industries. This connector facilitates automated operations to fetch the iocs of outbreak alert",
+    "publisher": "Fortinet",
+    "operation_roles": [],
+    "configurations": [
+      {
+        "config_id": "39e415b4-a2a1-52ad-90e0-7715fa435616",
+        "status": 1,
+        "name": "FortiGuard",
+        "default": true,
+        "config": {
+          "server_url": "https://productapi.fortinet.com",
+          "verify_ssl": true
+        },
+        "remote_status": [],
+        "health_status": [],
+        "teams": []
+      }
+    ],
+    "dataImports": []
+  }
+]

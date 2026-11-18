@@ -13,6 +13,8 @@ pnpm-debug.log*
 # Build / package outputs
 widget-packages/
 widgets/
+# ...but not a solution pack's own widgets/ descriptor folder (solution-packs/<pack>/pack/widgets)
+!solution-packs/*/pack/widgets/
 widgets-extracted/
 templates-extracted/
 
