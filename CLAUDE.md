@@ -31,7 +31,8 @@ analyst-approved actions · **P3** reach on-prem targets · **P4** bottle each
 investigation into a playbook. The widget is the window; the connector is the engine.
 
 - **Roadmap:** `ROADMAP.md` in `~/PycharmProjects/agentic-assistant-tracker` (private) is
-  the source: edit it there, the user pushes. §1-2 is the fastest context load.
+  the source: edit it there, commit, and push it like any other repo (the user owns
+  releases, not pushes). §1-2 is the fastest context load.
 - **Board:** https://github.com/users/ftnt-dspille/projects/1. **Claim a card before
   working it** (several agents run in parallel) and close or update it in the same
   session. Card ops: the framework's `scripts/tracker.sh`, never raw `gh issue`.
