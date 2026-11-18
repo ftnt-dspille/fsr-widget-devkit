@@ -4,7 +4,7 @@
   "label": "FortiGuard Threat (Enhanced)",
   "version": "1.0.0",
   "description": "Enhanced FortiGuard Threat widgets (Landscape, Map, Analytics) + dashboard.",
-  "publisher": "Fortinet",
+  "publisher": "Dylan Spille",
   "dependencies": [
     {
       "name": "sOARFramework",
