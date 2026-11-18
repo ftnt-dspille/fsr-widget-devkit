@@ -1794,6 +1794,28 @@ In the template:
 
 Preview inside Content Hub only works on 7.4.1+ when locales are present.
 
+### Raw translation keys on screen (late-loading locale file)
+
+The platform loads each installed widget's `widgetAssets/locales/<lang>.json` asynchronously
+after login. A widget that renders first shows the raw key (`threatMap.BTN_HEAT_MAP`), and it
+does so intermittently (one fresh session shows keys, the next does not). Two patterns freeze it:
+
+- `{{ ::'ns.KEY' | translate }}`: a one-time binding keeps the raw key forever. Use a normal
+  binding (`{{ 'ns.KEY' | translate }}`); the `translate` filter re-evaluates when the file arrives.
+- `translationService.instantTranslate('ns.KEY')` in a controller at construction time returns the
+  raw key if the file is not loaded yet. Store the key and translate in the template, or wait on
+  `checkTranslationMode()` as above.
+
+### A pack must ship widgets in the published form
+
+Source folders use the harness form (`<name><digits>DevCtrl`, `development: true`). A package
+imported in that form lands as a **draft** that must be published by hand. Ship the published form
+(`<name><digits>Ctrl`, `development: false`, what Content Hub widgets look like) and the Import
+Wizard installs it live. `pyfsr.widget_dev.to_published_form` does the conversion and
+`Pack.add_installer("widgets", ...)` applies it. A dashboard JSON in a pack must not carry `@id` /
+`@context` (the importer then tries an update and fails on a box without it) nor embedded
+`createUser` / `modifyUser` person records.
+
 ---
 
 ## 23.1 Shared filter state across tabs: scope keys per panel
