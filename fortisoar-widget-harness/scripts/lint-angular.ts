@@ -16,6 +16,7 @@
 
 import fs = require('fs');
 import path = require('path');
+import HarnessUtils = require('../lib/harnessUtils');
 
 interface Violation {
   sev: 'error' | 'warning';
@@ -632,8 +633,12 @@ function lintWidget(widgetDir: string): void {
   const info = path.join(widgetRoot, 'info.json');
   if (fs.existsSync(info)) {
     const json = readJson(info);
-    if (json) checkInfoJson(info, json);
+    if (json) {
+      checkInfoJson(info, json);
+      checkControllerForm(widgetRoot, json as Record<string, unknown>);
+    }
   }
+  checkUmdAnonymousDefine(widgetRoot);
 
   const htmlFiles = ['view.html', 'edit.html'].map((n) => path.join(widgetRoot, n))
     .filter((p) => fs.existsSync(p));
@@ -675,6 +680,68 @@ function lintWidget(widgetDir: string): void {
     if (f.endsWith('edit.controller.js')) {
       checkEditModalContract(f, lines);
     }
+  });
+}
+
+// R-ctrl-form: the view/edit controller must register the DevCtrl SOURCE form the
+// harness dev-preview and the packager both expect (`<name><digits>DevCtrl` /
+// `edit<Name><digits>DevCtrl`). A source in any other form -- notably the shipped
+// `<name><digits>Ctrl` -- is lint-blocked at bootstrap by the dev-preview, and when
+// shipped to a box WITHOUT SOAR's publish step (e.g. a raw REST import) leaves the
+// widget registered under the wrong name: the dashboard then renders the template
+// uncompiled (literal `{{ }}`). The packaged tgz keeps DevCtrl; SOAR's publish
+// strips `Dev` to the final `Ctrl`. This runs here so `make lint` / widget-push /
+// ship-verify fail BEFORE a wrong-form source is ever packaged or shipped.
+function checkControllerForm(widgetRoot: string, info: Record<string, unknown>): void {
+  if (!info || !info.name || !info.version) return;
+  const one = (file: string, expected: string, rule: string): void => {
+    if (!fs.existsSync(file)) return;
+    const lines = readLines(file) || [];
+    const names: string[] = [];
+    let firstLine = 1;
+    lines.forEach((t, i) => {
+      const m = /\.controller\(\s*['"]([^'"]+)['"]/.exec(t);
+      if (m) { if (names.length === 0) firstLine = i + 1; names.push(m[1]); }
+    });
+    if (names.length > 0 && !names.includes(expected)) {
+      record('error', file, firstLine, rule,
+        `registers ${names.join(', ')}, expected ${expected} -- the source must use the DevCtrl form `
+        + `(the harness rejects any other, and the packager + SOAR publish derive the shipped `
+        + `<name><version>Ctrl from it). A hand-stripped Ctrl source silently fails to bootstrap.`);
+    }
+  };
+  try {
+    one(path.join(widgetRoot, 'view.controller.js'),
+      HarnessUtils.deriveControllerName(String(info.name), info.version), 'controller-form');
+    one(path.join(widgetRoot, 'edit.controller.js'),
+      HarnessUtils.deriveEditControllerName(String(info.name), info.version), 'edit-controller-form');
+  } catch (e) {
+    // derive throws only on a missing name/version, already guarded above.
+  }
+}
+
+// R-umd-define: a bundled widget-asset library whose UMD preamble still CALLS
+// define() on its AMD branch collides with the platform's own AMD loader
+// (monaco-editor's vs/loader) as soon as a second such script loads, throwing
+// "Can only have one anonymous define call per script file" and aborting widget
+// bootstrap -- so the whole widget template renders uncompiled. Vendored libs are
+// skipped by every other rule (_isVendorFile), so this rule walks them on purpose.
+// A neutralized preamble (`false?define(...)`, or the AMD branch removed so only
+// the global assignment remains) does NOT match and passes.
+const UMD_AMD_ACTIVE = /(?:["']function["']\s*===?\s*typeof\s+define|typeof\s+define\s*===?\s*["']function["'])\s*&&\s*[\w.$]*define\.amd\s*\?\s*[\w.$]*define\(/;
+function checkUmdAnonymousDefine(widgetRoot: string): void {
+  const assetsRoot = path.join(widgetRoot, 'widgetAssets');
+  _walkFiles(assetsRoot, ['.js']).forEach((f) => {
+    let src: string;
+    try { src = fs.readFileSync(f, 'utf8'); } catch (e) { return; }
+    if (!UMD_AMD_ACTIVE.test(src)) return;
+    const srcLines = src.split('\n');
+    const idx = srcLines.findIndex((l) => UMD_AMD_ACTIVE.test(l));
+    record('error', f, idx >= 0 ? idx + 1 : 1, 'umd-anonymous-define',
+      'bundled library calls define() on its UMD AMD branch; on a real dashboard this '
+      + 'collides with the platform AMD loader (monaco) and aborts widget bootstrap, leaving '
+      + 'the template uncompiled. Neutralize the AMD branch so define() is never called '
+      + '(force the global assignment, e.g. replace the `typeof define&&define.amd?define(...)` test).');
   });
 }
 

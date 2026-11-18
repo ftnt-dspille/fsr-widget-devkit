@@ -172,7 +172,16 @@ function extractInjectedDependencies(source: string): string[] {
   const refRe = /\.controller\s*\(\s*["'][^"']+["']\s*,\s*([A-Za-z_$][\w$]*)\s*\)/g;
   const refs = new Set<string>();
   while ((m = refRe.exec(source)) !== null) refs.add(m[1]);
+  // A function with its own `Fn.$inject = [...]` is authoritatively annotated:
+  // its parameter names are local aliases (e.g. `function Ctrl(svc, utility)` with
+  // `Ctrl.$inject = ['realSvc', 'realUtility']`), NOT dependency names. Angular
+  // resolves by the $inject strings, already captured by form 1 above, so reading
+  // the params too would flag the aliases as unknown services. Skip those.
+  const annotated = new Set<string>();
+  const annotatedRe = /([A-Za-z_$][\w$]*)\s*\.\s*\$inject\s*=/g;
+  while ((m = annotatedRe.exec(source)) !== null) annotated.add(m[1]);
   for (const ident of refs) {
+    if (annotated.has(ident)) continue;
     const fnRe = new RegExp(
       "function\\s+" + ident.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&") + "\\s*\\(([^)]*)\\)",
       "g"

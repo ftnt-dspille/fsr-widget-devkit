@@ -231,6 +231,21 @@ describe("extractInjectedDependencies", () => {
     expect(extractInjectedDependencies(src).sort()).toEqual(["$scope", "Bar", "$http"].sort());
   });
 
+  test("prefers an explicit $inject over aliased parameter names", () => {
+    // A referenced controller function with its own $inject uses param names that
+    // are LOCAL ALIASES of the real services (e.g. svc -> threatAnalyticsDemoService).
+    // Angular resolves by the $inject strings, so the aliases must not be reported
+    // as dependencies -- doing so wrongly flags them as unregistered and blocks boot.
+    const src = `
+      function Ctrl($scope, svc, utility) {}
+      Ctrl.$inject = ["$scope", "threatAnalyticsDemoService", "threatAnalyticsDemoUtilityService"];
+      angular.module("x").controller("Ctrl", Ctrl);
+    `;
+    expect(extractInjectedDependencies(src).sort()).toEqual(
+      ["$scope", "threatAnalyticsDemoService", "threatAnalyticsDemoUtilityService"].sort()
+    );
+  });
+
   test("returns [] for empty / non-string input", () => {
     expect(extractInjectedDependencies("")).toEqual([]);
     expect(extractInjectedDependencies(null)).toEqual([]);
