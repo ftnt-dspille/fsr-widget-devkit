@@ -3,6 +3,12 @@
 Three widgets (Landscape, Global Map, Analytics), the dashboard that places them, and the two
 FortiGuard connectors they call, with a default configuration for each connector.
 
+## Widget sources
+
+Each widget is its own repo, listed in `widgets.manifest` (`make widgets` clones them into `widgets-src/`):
+`widget-fortiguard-threat-map-enhanced`, `widget-fortiguard-threat-landscape-enhanced`,
+`widget-fortiguard-threat-analytics-enhanced` (all under the `ftnt-dspille` GitHub account).
+
 ## Build
 
 ```sh

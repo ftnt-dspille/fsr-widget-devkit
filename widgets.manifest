@@ -24,5 +24,10 @@ agenticAssistantMonitor https://github.com/ftnt-dspille/fsr-agentic-assistant-mo
 
 ztpAutomationGraph     https://github.com/ftnt-dspille/widget-ztp-automation-graph.git          main
 
+# FortiGuard Threat (Enhanced) widgets (built into solution-packs/fortiGuardThreatEnhanced).
+fortiGuardThreatMap            https://github.com/ftnt-dspille/widget-fortiguard-threat-map-enhanced.git        main
+fortiGuardThreatLandscape      https://github.com/ftnt-dspille/widget-fortiguard-threat-landscape-enhanced.git  main
+fortiGuardThreatAnalyticsDemo  https://github.com/ftnt-dspille/widget-fortiguard-threat-analytics-enhanced.git  main
+
 # Local-only widgets (no remote yet) - add a URL here once they're pushed:
 # c3charts              <url>  master
