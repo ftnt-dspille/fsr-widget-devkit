@@ -12,7 +12,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -32,7 +32,7 @@ deploy-guard:
 #    CLAUDECODE unless VIA_MAKE=1 (scripts/via-make-guard.js). Target-specific,
 #    so only these runs and their prerequisites carry it. Not guarded: loop,
 #    doctor, session-health and the other non-runner targets.
-test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-designer-stage-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
+test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-designer-stage-live test-widget-ui-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
 
 # 3. Box-only dev deploys are the agent's iteration (CLAUDE.md: agents own
 #    direct-to-box work; only the GitHub/PyPI release path -- release, push,
@@ -439,6 +439,13 @@ test-designer-stage-live: harness-build ## LIVE: Apply to designer stages an edi
 	$(require_box)
 	@cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	  E2E_LIVE=1 pnpm test:live tests/live/designerStage.live.test.js
+
+test-widget-ui-live: harness-build ## LIVE: drive the deployed assistant drawer: poll streaming, the model badge, and Save summary to comments (writes then deletes one comment; stages a block, never approves it). BOX=<name> RECORD=<uuid of a record with comments> [MODULE=alerts]
+	$(require_box)
+	@if [ -z "$(RECORD)" ]; then echo "Usage: make test-widget-ui-live BOX=<name> RECORD=<uuid> [MODULE=alerts]"; exit 2; fi
+	@cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
+	  FSRPB_LIVE=1 FSRPB_LIVE_RECORD="$(RECORD)" FSRPB_LIVE_MODULE="$(or $(MODULE),alerts)" \
+	    pnpm test:live tests/live/widgetUi.live.test.js tests/live/commentSummary.live.test.js
 
 # docubot (TEC kit) drives the live designer tier. DOCUBOT= points at a kit
 # checkout or worktree (its own node_modules and Playwright pin); its config +

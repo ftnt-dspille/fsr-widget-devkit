@@ -2307,6 +2307,19 @@ State name | URL-ish | Use for
     loss-check waves every deletion through while appearing to pass. The guard
     that enforces this is `fsr_playbooks.compiler.prewrite.check_prewrite`
     (HARDEN-1).
+- **One `track by` key per ng-repeat item, or the whole block renders empty.**
+  A duplicate key throws `ngRepeat:dupes` and Angular renders NOTHING for that
+  repeat, not just the duplicate. The chat timeline keys tool chips on their
+  tool-use id, and the connector sends each chip twice under one id (an early
+  chip when the model starts the call, then the dispatch frame with the full
+  input). Two entries meant a blank reply bubble with the staged action card
+  behind it. Merge by id when building the list; mock e2e did not catch it
+  because the mock feed sends each chip once. `make test-widget-ui-live` does.
+- **Writing a comment on a record.** `POST /api/3/comments` with
+  `{"content": "<p>...</p>", "<module>": ["/api/3/<module>/<uuid>"]}`. The
+  content is stored as sent (HTML). A record GET does NOT carry a `comments`
+  key, so detect support from `GET /api/3/model_metadatas?type=<module>&$relationships=true`
+  (an attribute of type `comments`); about half the stock modules lack one.
 
 ## 29. Platform source references (host UI code)
 
