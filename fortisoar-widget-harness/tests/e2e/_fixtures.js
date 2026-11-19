@@ -74,6 +74,7 @@ const BENIGN_CONSOLE_PATTERNS = [
   // itself as an overlay or per-section message. The DOM assertion is the
   // test; the console line is the breadcrumb for whoever reads the trace.
   /\[fortiGuardThreatLandscape\]/,
+  /\[fortiGuardThreatAnalyticsDemo\]/,
 ];
 
 function attachConsoleCapture(page, sink) {
