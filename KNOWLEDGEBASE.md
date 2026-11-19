@@ -1828,6 +1828,17 @@ Wizard installs it live. `pyfsr.widget_dev.to_published_form` does the conversio
 `@context` (the importer then tries an update and fails on a box without it) nor embedded
 `createUser` / `modifyUser` person records.
 
+### Re-importing a pack bumps widget versions, and re-points the dashboard itself
+
+Re-importing a pack whose widgets already exist on the box makes the Import Wizard install each
+widget as a NEW patch version (the pack's 1.0.4 lands as 1.0.5) even when the content is identical,
+and it re-points the imported dashboard's widget references at the newly installed versions on its
+own. Two consequences: never hand-patch dashboard references after a re-import (they are already
+current), and verify with `pyfsr widget export-dashboard <uuid> <dir> --no-nested`, which lists the
+widget versions the dashboard actually places. The dashboard keeps its UUID across re-imports, so
+the UUID in the pack's dashboard JSON works as the handle. Direct `dashboards` queries can 403 for
+a scoped admin (the import path has its own permissions); `export-dashboard` still works.
+
 ---
 
 ## 23.1 Shared filter state across tabs: scope keys per panel
