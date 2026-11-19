@@ -94,6 +94,73 @@ describe("make promote", () => {
     expect(r.out).toMatch(/no upstream, not pushed/);
   });
 
+  // A refused push must not leave main moved (live, a push guard refused lab
+  // detail AFTER promote had moved main, and only a human could reset it).
+  function refusingRemote() {
+    const cp = require("child_process");
+    const remote = path.join(path.dirname(S.repo), "remote.git");
+    cp.execFileSync("git", ["init", "-q", "--bare", "-b", "main", remote]);
+    git(["remote", "add", "up", remote]);
+    git(["push", "-q", "up", "main"]);
+    git(["branch", "--set-upstream-to=up/main", "main"]);
+    const hook = path.join(remote, "hooks", "pre-receive");
+    fs.writeFileSync(hook, "#!/bin/sh\necho 'remote: refused by test' >&2\nexit 1\n");
+    fs.chmodSync(hook, 0o755);
+    // A global core.hooksPath applies to this bare repo too and would hide its
+    // own hooks/ dir; point it back so the refusing pre-receive actually runs.
+    cp.execFileSync("git", ["-C", remote, "config", "core.hooksPath", path.join(remote, "hooks")]);
+    return { remote, remoteMain: () => cp.execFileSync("git", ["-C", remote, "rev-parse", "main"]).toString().trim() };
+  }
+
+  test("a refused push rolls main back to where it was, under CLAUDECODE, through the hook", () => {
+    const { remoteMain } = refusingRemote();
+    const before = sha("main");
+    const remoteBefore = remoteMain();
+    stamp(sha("feat/x"), {});
+    const r = promote({ CLAUDECODE: "1" });
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/rolled local main back to/);
+    expect(r.out).toMatch(/feat\/x is unchanged/);
+    expect(sha("main")).toBe(before);
+    expect(remoteMain()).toBe(remoteBefore);
+    expect(sha("feat/x")).not.toBe(before);   // the branch is untouched
+  });
+
+  test("the rollback keeps unrelated WIP in the main checkout", () => {
+    refusingRemote();
+    const before = sha("main");
+    fs.writeFileSync(path.join(S.repo, "a.txt"), "local edit\n");      // tracked, unrelated to feat/x
+    fs.writeFileSync(path.join(S.repo, "scratch.txt"), "untracked\n");
+    stamp(sha("feat/x"), {});
+    const r = promote({ CLAUDECODE: "1" });
+    expect(r.code).not.toBe(0);
+    expect(sha("main")).toBe(before);
+    expect(fs.readFileSync(path.join(S.repo, "a.txt"), "utf8")).toBe("local edit\n");
+    expect(fs.existsSync(path.join(S.repo, "scratch.txt"))).toBe(true);
+    expect(fs.existsSync(path.join(S.repo, "b.txt"))).toBe(false);    // feat/x's file is gone again
+  });
+
+  test("a diverged main rolls back off its merge commit too", () => {
+    refusingRemote();
+    commit("c.txt", "main moved on");
+    const before = sha("main");
+    stamp(sha("feat/x"), {});
+    const r = promote({ CLAUDECODE: "1" });
+    expect(r.code).not.toBe(0);
+    expect(sha("main")).toBe(before);
+  });
+
+  test("after a rollback, fixing the remote and re-running promotes and pushes", () => {
+    const { remote, remoteMain } = refusingRemote();
+    stamp(sha("feat/x"), {});
+    expect(promote({ CLAUDECODE: "1" }).code).not.toBe(0);
+    fs.rmSync(path.join(remote, "hooks", "pre-receive"));
+    const r = promote({ CLAUDECODE: "1" });
+    expect(r.code).toBe(0);
+    expect(sha("main")).toBe(sha("feat/x"));
+    expect(remoteMain()).toBe(sha("feat/x"));
+  });
+
   test("ALLOW_UNVERIFIED=1 is refused under Claude Code, honored for a human", () => {
     const before = sha("main");
     const a = promote({ CLAUDECODE: "1", ALLOW_UNVERIFIED: "1" });

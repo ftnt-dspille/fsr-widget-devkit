@@ -19,6 +19,13 @@
 # out (git keeps unrelated WIP and refuses on overlap), or with update-ref when
 # none does. Then pushes main to its upstream (NO_PUSH=1 skips). Never releases.
 #
+# A failed push ROLLS BACK: when this run moved main and the push is refused (a
+# pre-push guard, the repo's own pre-push tests, the remote, the network), main
+# goes back to where this run found it, so a refused push never leaves a local
+# main that only a human can reset. The branch is untouched; fix it, re-stamp,
+# re-run. (A main this run did not move, e.g. a re-run that finds the branch
+# already merged, is left as it is and the push is just retried.)
+#
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
 # The reference-transaction hook (scripts/githooks) refuses any other update of
 # main under Claude Code; this script hands it a one-shot allow file.
@@ -57,8 +64,30 @@ push_main() {
     echo "promote: $up already at $MAIN"; return 0
   fi
   echo "promote: pushing $MAIN to $remote/$rbranch (runs that repo's pre-push gate)"
-  g push "$remote" "refs/heads/$MAIN:refs/heads/$rbranch" \
-    || die "local $MAIN is promoted but the push to $up failed; fix it and re-run make promote (it retries the push)"
+  if g push "$remote" "refs/heads/$MAIN:refs/heads/$rbranch"; then return 0; fi
+  if [ "${MOVED:-0}" = 1 ]; then
+    rollback_main
+    die "the push to $up was refused, so local $MAIN was put back to $old (where this run found it). $BRANCH is unchanged: fix it, re-stamp it, and re-run make promote."
+  fi
+  die "the push to $up failed; local $MAIN was already at this commit before this run, so it is left as is. Fix the cause and re-run make promote (it retries the push)."
+}
+
+# Put main back to $old after a refused push: the exact reverse of the update
+# this run made, announced to the reference-transaction hook the same way.
+rollback_main() {
+  printf '%s %s\n' "$target" "$old" > "$allow"
+  if [ -n "$main_wt" ]; then
+    # --keep: refuses rather than touch uncommitted changes that overlap the
+    # files the promoted commits changed; unrelated WIP survives.
+    git -C "$main_wt" reset -q --keep "$old" \
+      || die "push refused AND could not restore $MAIN in $main_wt (uncommitted changes overlap). $MAIN is at $target; restore it with: git -C $main_wt reset --keep $old"
+  else
+    g update-ref -m "promote: roll back $BRANCH (push refused)" "refs/heads/$MAIN" "$old" "$target" \
+      || die "push refused AND could not restore $MAIN; it is at $target, was $old"
+  fi
+  [ "$(g rev-parse "refs/heads/$MAIN")" = "$old" ] \
+    || die "push refused and $MAIN did not return to $old; check it by hand"
+  echo "promote: push refused; rolled local $MAIN back to $old" >&2
 }
 
 if g merge-base --is-ancestor "$head" "$old"; then echo "promote: $BRANCH ($head) is already in $MAIN."; push_main; exit 0; fi
@@ -93,7 +122,7 @@ if [ -z "$proof" ]; then
   fi
 fi
 
-tmp=""; wt=""; allow=""
+tmp=""; wt=""; allow=""; MOVED=0; main_wt=""; target=""
 cleanup() {
   [ -n "$allow" ] && rm -f "$allow"
   if [ -n "$wt" ]; then git -C "$REPO" worktree remove --force "$wt" >/dev/null 2>&1 || true; fi
@@ -132,6 +161,7 @@ if [ -n "$main_wt" ]; then
 else
   g update-ref -m "promote: $BRANCH" "refs/heads/$MAIN" "$target" "$old"
 fi
+MOVED=1
 
 echo "promote: $name: merged $BRANCH ($head) into local $MAIN as $kind -> $target"
 if [ -n "$proof" ]; then
