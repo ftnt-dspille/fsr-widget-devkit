@@ -1828,16 +1828,20 @@ Wizard installs it live. `pyfsr.widget_dev.to_published_form` does the conversio
 `@context` (the importer then tries an update and fails on a box without it) nor embedded
 `createUser` / `modifyUser` person records.
 
-### Re-importing a pack bumps widget versions, and re-points the dashboard itself
+### Re-importing a pack re-points the dashboard; the widget version number may bump OR be replaced in place
 
-Re-importing a pack whose widgets already exist on the box makes the Import Wizard install each
-widget as a NEW patch version (the pack's 1.0.4 lands as 1.0.5) even when the content is identical,
-and it re-points the imported dashboard's widget references at the newly installed versions on its
-own. Two consequences: never hand-patch dashboard references after a re-import (they are already
-current), and verify with `pyfsr widget export-dashboard <uuid> <dir> --no-nested`, which lists the
-widget versions the dashboard actually places. The dashboard keeps its UUID across re-imports, so
-the UUID in the pack's dashboard JSON works as the handle. Direct `dashboards` queries can 403 for
-a scoped admin (the import path has its own permissions); `export-dashboard` still works.
+Re-importing a pack whose widgets already exist on the box re-points the imported dashboard's widget
+references on its own, but the version numbering depends on what the box already carries: a pack
+version the box lacks lands as a NEW patch version (pack 1.0.0 onto a box with 1.0.1 landed as
+1.0.2), while a re-import whose pack version is already on the box (deployed separately by
+widget-push) overwrote the box's LATEST version content in place, keeping its number (the box's
+1.0.2 got the pack's 1.0.1 content). Two consequences: never hand-patch dashboard references after a
+re-import, and never assume a version number maps to the newest code - verify BOTH with
+`pyfsr widget export-dashboard <uuid> <dir> --no-nested` (the versions the dashboard actually
+places) AND a content grep in `/opt/cyops-ui/widgets/installed/<name>-<version>/` for a marker of
+the change you care about. The dashboard keeps its UUID across re-imports, so the UUID in the
+pack's dashboard JSON works as the handle. Direct `dashboards` queries can 403 for a scoped admin
+(the import path has its own permissions); `export-dashboard` still works.
 
 ---
 
