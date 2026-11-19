@@ -970,6 +970,18 @@ is reopened. Two rules (`ztpAutomationGraph` does both):
 - Before touching a kept instance, check `cy.destroyed() || cy.container() !== container`
   and rebuild if either is true.
 
+#### 7.6.4 `ng-repeat` over an object iterates keys alphabetically, not in insertion order
+
+`ng-repeat="(k, v) in cardsObject"` walks the keys in alphabetical order
+(ngRepeat sorts object keys; plain JavaScript string-key order is insertion
+order, but Angular does not honor it). Two ways this bites: a "featured" card
+meant to render first lands wherever its key sorts, and a date-range object
+`{1: ..., 3: ..., 7: ..., 14: ...}` renders a dropdown as `1, 14, 21, 3, 7`
+(`ng-options` over an object does it too). Keep ordered collections in arrays
+and drive `ng-repeat`/`ng-options` from the array; use objects only as lookup
+maps. Found in `fortiGuardThreatLandscape` v1.0.2, where the hero card was
+whichever key sorted first.
+
 ## 8. Services catalog
 
 Platform services widget controllers can inject -- `FormEntityService`, `$state`, `$rootScope`, `websocketService`, `Query`, `Entity`, `Modules`, and the rest -- with inject names and usage notes.

@@ -69,6 +69,11 @@ const BENIGN_CONSOLE_PATTERNS = [
   // execute. Chrome logs that block as a console error -- it's the sandbox
   // doing its job, not a bug.
   /Blocked script execution in '(about:blank|about:srcdoc)' because the document's frame is sandboxed/i,
+  // The FortiGuard widgets log the failing connector call to the console on
+  // purpose (diagnosability) while surfacing the same failure in the widget
+  // itself as an overlay or per-section message. The DOM assertion is the
+  // test; the console line is the breadcrumb for whoever reads the trace.
+  /\[fortiGuardThreatLandscape\]/,
 ];
 
 function attachConsoleCapture(page, sink) {
