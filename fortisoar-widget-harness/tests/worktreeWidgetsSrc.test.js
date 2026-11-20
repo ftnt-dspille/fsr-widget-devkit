@@ -5,7 +5,7 @@
 // and failed widget_versions on every run.
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const { spawnSync, execFileSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 
@@ -24,8 +24,10 @@ test("make resolves WIDGETS_SRC past a _template-only widgets-src", () => {
   expect(path.isAbsolute(got)).toBe(true);
   const real = fs.readdirSync(path.join(ROOT, "widgets-src")).filter((n) => !n.startsWith("_") && !n.startsWith("."))
     .some((n) => fs.existsSync(path.join(ROOT, "widgets-src", n, "widget", "info.json")));
-  if (real) expect(got).toBe(path.join(ROOT, "widgets-src"));
-  else expect(got).not.toBe(path.join(ROOT, "widgets-src"));
+  // The main checkout of ROOT (ROOT itself in CI, where it is no worktree).
+  const common = execFileSync("git", ["-C", ROOT, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim();
+  const main = path.dirname(common);
+  expect(got).toBe(real ? path.join(ROOT, "widgets-src") : path.join(main, "widgets-src"));
 });
 
 test("live-sanity.sh ignores _template when choosing widgets-src", () => {
