@@ -58,6 +58,21 @@ head="$(g rev-parse --verify -q "refs/heads/$BRANCH^{commit}")" || die "no local
 old="$(g rev-parse --verify -q "refs/heads/$MAIN^{commit}")" || die "no local '$MAIN' in $REPO"
 [ "$BRANCH" != "$MAIN" ] || die "BRANCH is $MAIN"
 # --- push ---------------------------------------------------------------------
+# Every push runs FROM A DETACHED WORKTREE AT THE COMMIT BEING PUSHED. A repo's
+# own pre-push (the connector's: its full-suite gate) runs from the pushing
+# checkout and sources files there; pushed from the shared checkout, that was
+# whatever branch another session had out, not the code being pushed.
+push_commit() {  # push_commit <remote> <sha> <dst ref> [git push flags...]
+  local remote="$1" sha="$2" dst="$3" pw rc; shift 3
+  pw="$(mktemp -d "${TMPDIR:-/tmp}/promote-push.XXXXXX")"
+  if ! g worktree add -q --detach "$pw/t" "$sha" >/dev/null 2>&1; then
+    rm -rf "$pw"; echo "promote: could not make a worktree at ${sha:0:9} to push from" >&2; return 1
+  fi
+  git -C "$pw/t" push "$@" "$remote" "$sha:$dst"; rc=$?
+  g worktree remove --force "$pw/t" >/dev/null 2>&1 || true; g worktree prune >/dev/null 2>&1 || true
+  rm -rf "$pw"
+  return $rc
+}
 # A promoted main is verified, so it goes to its remote (the user still owns
 # releases and tags; this pushes the branch only, never a tag, never --force).
 # Also runs when BRANCH is already in main, so re-running finishes a failed push.
@@ -71,7 +86,7 @@ push_main() {
     echo "promote: $up already at $MAIN"; return 0
   fi
   echo "promote: pushing $MAIN to $remote/$rbranch (runs that repo's pre-push gate)"
-  if g push "$remote" "refs/heads/$MAIN:refs/heads/$rbranch"; then return 0; fi
+  if push_commit "$remote" "$(g rev-parse "refs/heads/$MAIN")" "refs/heads/$rbranch"; then return 0; fi
   if [ "${MOVED:-0}" = 1 ]; then
     rollback_main
     die "the push to $up was refused, so local $MAIN was put back to $old (where this run found it). $BRANCH is unchanged: fix it, re-stamp it, and re-run make promote."
@@ -181,7 +196,7 @@ ci_gate() {
   if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' 2>&1)"; then
     if printf '%s' "$runs" | grep -qiE 'No commit found|HTTP 422|HTTP 404'; then
       echo "promote: $head is not on GitHub yet; pushing $BRANCH so CI runs on it"
-      g push -q "$remote" "refs/heads/$BRANCH:refs/heads/$BRANCH" || die "refusing: could not push $BRANCH to start CI"
+      push_commit "$remote" "$head" "refs/heads/$BRANCH" -q || die "refusing: could not push $BRANCH to start CI"
       die "refusing: CI has just started on $head. Re-run make promote once it finishes (gh run watch -R $slug)."
     fi
     die "refusing: could not read CI for $head: $runs"
@@ -194,7 +209,7 @@ ci_gate() {
   done <<< "$req"
   [ -z "$bad" ] || die "refusing: required CI failed on $head:$bad"
   if [ -n "$missing" ]; then
-    printf '%s' "$runs" | grep -q . || { g push -q "$remote" "refs/heads/$BRANCH:refs/heads/$BRANCH" 2>/dev/null || true; }
+    printf '%s' "$runs" | grep -q . || { push_commit "$remote" "$head" "refs/heads/$BRANCH" -q 2>/dev/null || true; }
     die "refusing: required CI not finished on $head:$missing. Re-run make promote when it completes (gh run watch -R $slug)."
   fi
   echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
