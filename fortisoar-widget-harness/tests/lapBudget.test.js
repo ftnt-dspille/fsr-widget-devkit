@@ -49,9 +49,11 @@ test("a failed step keeps its last 20 lines in the ledger, whatever the caller f
   const [row] = rows();
   expect(row[3]).toBe("1");
   const log = fs.readFileSync(row[6], "utf8").trim().split("\n");
-  expect(log).toHaveLength(20);
-  expect(log.join("\n")).toMatch(/refusing: the real reason/);
-  expect(log.join("\n")).not.toMatch(/^line1$/m);
+  // stdout's last 10, then stderr: the reason is the log's last line, whatever
+  // order the two streams arrived in.
+  expect(log[log.length - 1]).toBe("promote: refusing: the real reason");
+  expect(log).toContain("line30");
+  expect(log).not.toContain("line20");
   const s = spawnSync("bash", [path.join(ROOT, "scripts/laps.sh")], { encoding: "utf8", env: { ...process.env, FSR_LAP_LEDGER: ledger } });
   expect(s.stdout).toMatch(/recent failures[\s\S]*promote rc=1/);
 });
@@ -62,7 +64,16 @@ test("a passing step keeps no log", () => {
 });
 
 test("time a step reports as not its own (promote's CI wait) comes off the lap", () => {
-  const r = lap("promote", "--budget", "1", "--", "bash", "-c", 'sleep 2.2; echo 2 >> "$LAP_EXCLUDE_FILE"');
+  // 4s of the step is reported as not its own; without the exclusion it is over
+  // a 3s budget, with it ~0s (3s of slack for a loaded machine).
+  const r = lap("promote", "--budget", "3", "--", "bash", "-c", 'sleep 4.1; echo 4 >> "$LAP_EXCLUDE_FILE"');
   expect(r.stderr).not.toMatch(/WARNING/);
-  expect(Number(rows()[0][2])).toBeLessThanOrEqual(1);
+  expect(Number(rows()[0][2])).toBeLessThanOrEqual(3);
+});
+
+test("make laps counts a target called wrong separately from a failing gate", () => {
+  lap("promote", "--", "bash", "-c", "echo 'promote: usage: make promote REPO=<path> BRANCH=<branch>' >&2; exit 2");
+  lap("promote", "--", "bash", "-c", "echo 'promote: refusing: CI failed' >&2; exit 1");
+  const s = spawnSync("bash", [path.join(ROOT, "scripts/laps.sh")], { encoding: "utf8", env: { ...process.env, FSR_LAP_LEDGER: ledger } });
+  expect(s.stdout).toMatch(/called wrong \(usage \/ unknown variable\), per step: promote 1/);
 });

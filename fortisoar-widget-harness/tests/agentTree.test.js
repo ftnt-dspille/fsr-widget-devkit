@@ -36,7 +36,7 @@ function world() {
   const w = { root: src(path.join(T, "root")), fw: src(path.join(T, "fw"), "github"), conn: src(path.join(T, "conn")),
               a: src(path.join(T, "widgets", "agenticAssistant")), m: src(path.join(T, "widgets", "agenticAssistantMonitor")) };
   w.env = { ...ENV, AT_ROOT_REPO: w.root.dir, AT_FRAMEWORK_REPO: w.fw.dir, AT_CONN_REPO: w.conn.dir,
-            AT_WIDGETS_DIR: path.join(T, "widgets"), AGENT_TREES: path.join(T, "trees"), AT_NO_BUILD: "1" };
+            AT_WIDGETS_DIR: path.join(T, "widgets"), AGENT_TREES: path.join(T, "trees"), AT_NO_BUILD: "1", AT_NO_HOOKS_CHECK: "1" };
   return w;
 }
 const at = (env, ...a) => spawnSync("bash", [path.join(ROOT, "scripts", "agent_tree.sh"), ...a], { env, encoding: "utf8" });
@@ -65,4 +65,63 @@ test("a failed fetch is refused by repo name and nothing is built", () => {
   expect(r.stderr).toMatch(/nothing was built/);
   expect(fs.existsSync(path.join(T, "trees", "t2"))).toBe(false);
   for (const s of [w.root, w.fw, w.conn, w.a, w.m]) expect(g(s.dir, "worktree", "list").split("\n")).toHaveLength(1);
+});
+
+describe("whole-tree operations", () => {
+  function changedTree() {
+    const w = world();
+    const c = at(w.env, "create", "t3"); if (c.status !== 0) throw new Error("create: " + c.stderr + c.stdout);
+    const tree = path.join(T, "trees", "t3");
+    // The root and connector worktrees get a branch with a commit; the rest stay at main.
+    for (const [repo, br] of [["root", "feat/r"], ["connector", "feat/c"]]) {
+      const d = path.join(tree, repo);
+      g(d, "checkout", "-q", "-b", br); fs.writeFileSync(path.join(d, "x"), "1\n"); g(d, "add", "x"); g(d, "commit", "-qm", "x");
+    }
+    const bin = path.join(T, "bin"); fs.mkdirSync(bin, { recursive: true });
+    const log = path.join(T, "make.log");
+    // make stands in for the real promote: record the call; refuse REPO=$FAIL_REPO.
+    fs.writeFileSync(path.join(bin, "make"), `#!/bin/sh
+echo "$*" >> "${log}"
+case "$*" in *"REPO=$FAIL_REPO "*) exit 1 ;; esac
+exit 0
+`, { mode: 0o755 });
+    return { w, tree, log, env: { ...w.env, PATH: `${bin}:${process.env.PATH}`, FAIL_REPO: "/none" } };
+  }
+
+  test("status lists every repo with its branch and how far ahead of main it is", () => {
+    const { w } = changedTree();
+    const r = at(w.env, "status", "t3");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/^connector\s+feat\/c\s+\S+\s+1\s+no\s+none$/m);
+    expect(r.stdout).toMatch(/^root\s+feat\/r\s+\S+\s+1\s/m);
+    expect(r.stdout).toMatch(/^framework\s+\(detached\)\s+\S+\s+0\s/m);
+  });
+
+  test("promote promotes only the changed repos, connector before root", () => {
+    const { w, log, env } = changedTree();
+    const r = at(env, "promote", "t3");
+    expect(r.status).toBe(0);
+    const calls = fs.readFileSync(log, "utf8").trim().split("\n");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatch(new RegExp(`promote REPO=${w.conn.dir} BRANCH=feat/c`));
+    expect(calls[1]).toMatch(new RegExp(`promote REPO=${w.root.dir} BRANCH=feat/r`));
+  });
+
+  test("promote stops at the first refusal, naming the repo, and promotes nothing after it", () => {
+    const { w, log, env } = changedTree();
+    const r = at({ ...env, FAIL_REPO: w.conn.dir }, "promote", "t3");
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/promote-tree stopped at connector \(feat\/c\)/);
+    expect(fs.readFileSync(log, "utf8").trim().split("\n")).toHaveLength(1);
+  });
+
+  test("stamp refuses without a BOX and stamps only the changed repos in one run", () => {
+    const { tree, log, env } = changedTree();
+    expect(at(env, "stamp", "t3").stderr).toMatch(/stamp-tree needs BOX=/);
+    const r = at({ ...env, BOX: "92" }, "stamp", "t3");
+    expect(r.status).toBe(0);
+    const [call] = fs.readFileSync(log, "utf8").trim().split("\n");
+    expect(call).toMatch(/doctor BOX=92 SANITY=1/);
+    expect(call).toContain(`STAMP=${path.join(tree, "connector")}:${path.join(tree, "root")}`);
+  });
 });

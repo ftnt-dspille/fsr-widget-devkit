@@ -1,5 +1,17 @@
 HARNESS := fortisoar-widget-harness
 
+# A misspelt command-line variable (make promote BRNCH=x) is refused at once
+# with a did-you-mean, instead of being silently ignored. scripts/make_args.sh.
+ifneq ($(strip $(MAKEOVERRIDES)),)
+ifneq ($(MAKELEVEL),0)
+else
+_ARGS_ERR := $(shell bash scripts/make_args.sh $(MAKEOVERRIDES) 2>&1 >/dev/null)
+ifneq ($(_ARGS_ERR),)
+$(error $(_ARGS_ERR))
+endif
+endif
+endif
+
 # Three dedicated, never-overlapping ports:
 #   DEV_PORT        -- the harness you drive by hand (`make dev`)
 #   TEST_PORT       -- the isolated server Playwright boots for `make test`
@@ -48,6 +60,18 @@ loop: export VIA_LOOP := 1
 #    other update of main under CLAUDECODE. Merges locally, then pushes main to its upstream (NO_PUSH=1 skips).
 test-docker: ## Harness jest suites in a Linux container (starts Colima if needed): seconds instead of minutes for the shell-heavy tooling suites. TESTS=<pattern>. A local check only; promote still needs CI
 	@TESTS="$(TESTS)" bash scripts/test_docker.sh
+
+status-tree: ## One table for an agent tree: each repo's branch, head, commits ahead of main, dirty, stamp (NAME=<tree>)
+	@test -n "$(NAME)" || { echo "usage: make status-tree NAME=<tree>"; exit 2; }
+	@bash scripts/agent_tree.sh status "$(NAME)"
+
+stamp-tree: ## One live run on BOX that stamps every repo in the tree that is ahead of main (NAME=<tree> BOX=<alias>)
+	@test -n "$(NAME)" -a -n "$(BOX)" || { echo "usage: make stamp-tree NAME=<tree> BOX=<alias>"; exit 2; }
+	@BOX='$(BOX)' bash scripts/agent_tree.sh stamp "$(NAME)"
+
+promote-tree: ## Promote every repo in the tree that is ahead of main, framework -> connector -> widgets -> root; stops at the first refusal (NAME=<tree>)
+	@test -n "$(NAME)" || { echo "usage: make promote-tree NAME=<tree>"; exit 2; }
+	@bash scripts/agent_tree.sh promote "$(NAME)"
 
 agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="connector=new:fix/x ..."]); then eval "$$(bash scripts/agent_tree.sh env <name>)"
 	@test -n "$(NAME)" || { echo "usage: make agent-tree NAME=<name> [REPOS=\"repo=branch ...\"]"; exit 2; }
