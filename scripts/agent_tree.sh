@@ -180,6 +180,8 @@ cmd_verify() {
         local fw; fw="$(env -u FSR_SRC -u FSRPB_FRAMEWORK_DIR bash "$tree/connector/scripts/framework_dir.sh" "$tree/connector" 2>/dev/null || true)"
         [[ "$fw" == "$(cd "$tree/framework" && pwd)" ]] || { echo "FAIL framework_dir.sh resolves to '$fw'" >&2; bad=1; }
     fi
+    # The hooks that run in this tree's repos are the one central copy, at root main's guard.
+    bash "$HERE/scripts/hooks_central.sh" check >&2 || bad=1
     [[ $bad == 0 ]] && echo "agent_tree: verify OK ($tree)"
     return $bad
 }

@@ -283,6 +283,7 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)
 	$(if $(LOCAL),,$(require_box))
+	@bash scripts/hooks_central.sh check
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
 	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/live-sanity.sh),true)
 
