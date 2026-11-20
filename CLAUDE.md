@@ -69,6 +69,15 @@ investigation into a playbook. The widget is the window; the connector is the en
   hook (`scripts/githooks`, installed by `make setup`) refuses any other update of
   main under Claude Code. Never force-push, and never run deploy/install scripts directly; use the
   make front doors.
+- **Tooling-only promotes need CI, not a box stamp.** When every path in the
+  branch's diff (from the merge base, both sides of renames, deletes included) is
+  on main's `.github/tooling-paths`, `make promote` takes the repo's required CI
+  (`.github/required-checks`, read from main) as the whole proof. One path off the
+  list, and it needs the live stamp as before. The list is read from main, never
+  the branch, and it leaves out everything that deploys or verifies a deploy
+  (ship, live-sanity, stable, push), the Makefile, and the policy files
+  themselves. Promote prints how it classified the change. Batch related tooling
+  changes and promote them once; run timing comparisons in the background.
 - Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or
   releaseNotes; a hand edit desyncs the controller name and lint then blocks boot.
   Rename with the `widget rename` CLI, not by hand.

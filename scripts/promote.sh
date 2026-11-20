@@ -99,6 +99,36 @@ rollback_main() {
 
 if g merge-base --is-ancestor "$head" "$old"; then echo "promote: $BRANCH ($head) is already in $MAIN."; push_main; exit 0; fi
 
+# --- classify: tooling-only or shipped -----------------------------------------
+# .github/tooling-paths (globs, one per line, # comments) lists paths whose
+# proof is CI alone, with no box stamp. It is read from MAIN (the upstream main,
+# else local main), never from the branch, so a branch cannot widen it for
+# itself. Every path in the diff from the merge base counts, both sides of a
+# rename or copy, deletes included; one path off the list makes it shipped.
+policy_ref="$(g rev-parse -q --verify "refs/remotes/$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || echo none)" 2>/dev/null || echo "$old")"
+CLASS=shipped; class_why=""
+tooling_globs="$(g show "$policy_ref:.github/tooling-paths" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
+if [ -n "$tooling_globs" ]; then
+  mb="$(g merge-base "$old" "$head")"
+  off=""; n=0
+  while IFS=$'\t' read -r st p1 p2; do
+    [ -n "$st" ] || continue
+    for p in "$p1" ${p2:+"$p2"}; do
+      n=$((n+1)); hit=""
+      while IFS= read -r glob; do [[ "$p" == $glob ]] && { hit=1; break; }; done <<< "$tooling_globs"
+      [ -n "$hit" ] || off="$off $p"
+    done
+  done < <(g diff --name-status -M "$mb" "$head")
+  if [ "$n" -gt 0 ] && [ -z "$off" ]; then
+    CLASS=tooling; class_why="all $n path(s) are on main's .github/tooling-paths"
+  else
+    class_why="shipped path(s):${off:- (empty diff)}"
+  fi
+else
+  class_why="main has no .github/tooling-paths"
+fi
+echo "promote: classified $CLASS ($class_why)"
+
 # --- proof --------------------------------------------------------------------
 sdir="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}/$name"
 proof=""; why="no stamp for $head in $sdir"
@@ -121,7 +151,9 @@ if [ -z "$proof" ] && [ -d "$sdir" ]; then
     keep="$why"; check_stamp "$f" && break; why="$keep"
   done
 fi
-if [ -z "$proof" ]; then
+if [ -z "$proof" ] && [ "$CLASS" = tooling ]; then
+  echo "promote: tooling-only: no box stamp needed; the proof is main's required CI on $head"
+elif [ -z "$proof" ]; then
   if [ "${ALLOW_UNVERIFIED:-}" = 1 ]; then
     echo "promote: WARNING no live proof ($why); ALLOW_UNVERIFIED=1 given by a human." >&2
   else
@@ -131,9 +163,15 @@ fi
 
 # --- CI gate ------------------------------------------------------------------
 ci_gate() {
-  local req up remote url slug runs missing="" bad="" name st co
-  req="$(g show "$head:.github/required-checks" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
-  [ -n "$req" ] || return 0
+  local req up remote url slug runs missing="" bad="" name st co src="$head"
+  # A tooling-only promote has no box stamp, so its CI list comes from main
+  # (a branch could otherwise delete the checks that are its only proof).
+  [ "$CLASS" = tooling ] && src="$policy_ref"
+  req="$(g show "$src:.github/required-checks" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
+  if [ -z "$req" ]; then
+    [ "$CLASS" = tooling ] && die "refusing: tooling-only needs CI, and main lists no .github/required-checks"
+    return 0
+  fi
   command -v gh >/dev/null || die "refusing: $BRANCH lists required CI checks but gh is not installed"
   up="$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || true)"; remote="${up%%/*}"
   [ -n "$remote" ] || die "refusing: $BRANCH lists required CI checks but $MAIN tracks no remote"
@@ -161,7 +199,7 @@ ci_gate() {
   fi
   echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
 }
-if [ "${ALLOW_UNVERIFIED:-}" = 1 ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
+if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
 
 tmp=""; wt=""; allow=""; MOVED=0; main_wt=""; target=""
 cleanup() {

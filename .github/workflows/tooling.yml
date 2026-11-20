@@ -1,0 +1,33 @@
+# The proof for tooling-only promotes (.github/tooling-paths): the promote,
+# guard, hooks and agent-tree suites, on every push. make promote requires the
+# `tooling` check green on the branch head (.github/required-checks), so these
+# suites never have to run in an agent's wait.
+name: tooling
+on:
+  push:
+  pull_request:
+jobs:
+  tooling:
+    name: tooling
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: fortisoar-widget-harness/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: fortisoar-widget-harness/pnpm-lock.yaml
+      - name: Install and build the harness
+        working-directory: fortisoar-widget-harness
+        run: pnpm install --frozen-lockfile && pnpm build
+      - name: Tooling suites
+        working-directory: fortisoar-widget-harness
+        run: >-
+          pnpm exec jest --ci
+          promoteGate promoteRunsMain hooksCentral agentTree worktreeWidgetsSrc localData stableSource

@@ -1,0 +1,27 @@
+# Paths whose promote proof is CI alone (no box stamp). make promote reads this
+# file from MAIN, never from the branch being promoted. A path not listed here is
+# shipped and keeps the live stamp. Deliberately NOT listed: anything that
+# deploys or verifies a deploy (ship.sh, live-sanity, stable*, push, deploy
+# scripts), the Makefile, jest.config.js, and this file, required-checks and the
+# CI workflow themselves (changing the policy takes the box-stamp path).
+scripts/promote.sh
+scripts/promote_main.sh
+scripts/githooks/*
+scripts/hooks_central.sh
+scripts/install-git-hooks.sh
+scripts/agent_tree.sh
+fortisoar-widget-harness/tests/promoteGate.helpers.js
+fortisoar-widget-harness/tests/promoteGate.test.js
+fortisoar-widget-harness/tests/promoteGate.hook.test.js
+fortisoar-widget-harness/tests/promoteGate.ci.test.js
+fortisoar-widget-harness/tests/promoteGate.tooling.test.js
+fortisoar-widget-harness/tests/promoteRunsMain.test.js
+fortisoar-widget-harness/tests/hooksCentral.test.js
+fortisoar-widget-harness/tests/agentTree.test.js
+fortisoar-widget-harness/tests/worktreeWidgetsSrc.test.js
+CLAUDE.md
+TESTING.md
+ONBOARDING.md
+CONTRIBUTING.md
+KNOWLEDGEBASE.md
+docs/*.md
