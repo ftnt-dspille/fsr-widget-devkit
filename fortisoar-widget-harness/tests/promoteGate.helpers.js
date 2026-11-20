@@ -13,7 +13,13 @@ const HOOKS = path.join(ROOT, "scripts", "githooks");
 function baseEnv(extra = {}) {
   const e = { ...process.env };
   for (const k of ["CLAUDECODE", "CONFIRM_DEPLOY", "VIA_MAKE", "ALLOW_UNVERIFIED", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete e[k];
-  return { ...e, PROMOTE_FROM_TREE: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com", ...extra };
+  // Fixture git env (cost): no machine-wide config (its global hooks scanned
+  // every fixture commit) and no gc/maintenance (pack-refs and gc ran inside
+  // fixture repos): ~90s of a 356s promoteGate run.
+  const fx = S.tmp ? { GIT_CONFIG_GLOBAL: path.join(S.tmp, "gitconfig"), GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_COUNT: "2", GIT_CONFIG_KEY_0: "gc.auto", GIT_CONFIG_VALUE_0: "0",
+    GIT_CONFIG_KEY_1: "maintenance.auto", GIT_CONFIG_VALUE_1: "false" } : {};
+  return { ...e, ...fx, PROMOTE_FROM_TREE: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com", ...extra };
 }
 
 const S = {};
@@ -45,6 +51,7 @@ function promote(env = {}) {
 const beforeEachFixture = () => {
 
   S.tmp = fs.mkdtempSync(path.join(os.tmpdir(), "promote-"));
+  fs.writeFileSync(path.join(S.tmp, "gitconfig"), "");
   S.repo = path.join(S.tmp, "promote-fixture");
   S.stamps = path.join(S.tmp, "stamps");
   fs.mkdirSync(S.repo);

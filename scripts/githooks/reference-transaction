@@ -48,7 +48,9 @@ fi
 # The global hooks dir, read from the global config files in bash (no git
 # process); `git config` only when neither file names one.
 global=""
-for _cf in "$HOME/.gitconfig" "${XDG_CONFIG_HOME:-$HOME/.config}/git/config"; do
+if [ -n "${GIT_CONFIG_GLOBAL:-}" ]; then _cfs=("$GIT_CONFIG_GLOBAL")
+else _cfs=("$HOME/.gitconfig" "${XDG_CONFIG_HOME:-$HOME/.config}/git/config"); fi
+for _cf in "${_cfs[@]}"; do
   [ -f "$_cf" ] || continue
   _sec=""
   while IFS= read -r _l || [ -n "$_l" ]; do
@@ -59,7 +61,7 @@ for _cf in "$HOME/.gitconfig" "${XDG_CONFIG_HOME:-$HOME/.config}/git/config"; do
     esac
   done < "$_cf"
 done
-[ -n "$global" ] || global="$(git config --global core.hooksPath 2>/dev/null || true)"
+[ -n "$global" ] || [ -n "${GIT_CONFIG_GLOBAL:-}" ] || global="$(git config --global core.hooksPath 2>/dev/null || true)"
 global="${global/#\~/$HOME}"
 if [ -z "${FSR_HOOK_SHIM:-}" ] && [ -n "$global" ] && [ -x "$global/reference-transaction" ]; then
   export FSR_HOOK_SHIM=1
