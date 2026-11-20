@@ -150,3 +150,18 @@ test("stable.sh hands the promoted widgets to the build and the live check", () 
   for (const b of calls) expect(b).toMatch(/WIDGETS_SRC="\$SRC_ROOT\/widgets-src"/);
   expect(src).toMatch(/unset WIDGETS_SRC/);
 });
+
+// Live: make stable run from a monorepo worktree (no widget repos in it) died
+// with "main tracks no remote". The widgets come from the main checkout.
+test("a monorepo worktree takes the widgets from the main checkout", () => {
+  const w = world();
+  const wt = path.join(T, "mono-wt");
+  git(w.mono.dir, "worktree", "add", "-q", "--detach", wt, "main");
+  const script = `set -u; source "${LIB}"
+    stable_source_prepare "${wt}" "${w.fw.dir}" "${w.conn.dir}" || exit 7
+    git -C "$SRC_ROOT/widgets-src/agenticAssistant" rev-parse HEAD`;
+  const r = sh(script, T, { PATH: stubPnpm(), TMPDIR: T });
+  expect(r.stderr).not.toMatch(/tracks no remote/);
+  expect(r.status).toBe(0);
+  expect(r.stdout.trim().split("\n").pop()).toBe(w.a.remote);
+});

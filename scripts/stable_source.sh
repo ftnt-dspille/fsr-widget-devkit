@@ -61,8 +61,15 @@ stable_source_prepare() {
     _ss_tree "$fw" "$SRC_FW" || return 1
     _ss_tree "$conn" "$SRC_CONN" || return 1
     mkdir -p "$SRC_ROOT/widgets-src"
+    # The widget repos live in the MAIN checkout's widgets-src (gitignored nested
+    # repos); a worktree of the monorepo has none (D10).
+    local wsrc="$mono/widgets-src" top
+    if [[ ! -d "$wsrc/agenticAssistant/.git" && ! -f "$wsrc/agenticAssistant/.git" ]]; then
+        top="$(git -C "$mono" rev-parse --path-format=absolute --git-common-dir)"; top="${top%/.git}"
+        wsrc="$top/widgets-src"
+    fi
     for w in agenticAssistant agenticAssistantMonitor; do
-        _ss_tree "$mono/widgets-src/$w" "$SRC_ROOT/widgets-src/$w" || return 1
+        _ss_tree "$wsrc/$w" "$SRC_ROOT/widgets-src/$w" || return 1
     done
     # The widget packer is compiled from the harness sources at this commit
     # (packager.js is build output, not tracked). Offline: the lockfile is

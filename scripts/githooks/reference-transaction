@@ -24,6 +24,14 @@ if [ "$state" = prepared ] && [ -n "${CLAUDECODE:-}" ]; then
       [ -z "$cur" ] && continue                # creating main (fresh clone/init)
       old="$cur"
     fi
+    # git pack-refs (gc/maintenance runs it after a fetch) writes main into
+    # packed-refs at its own value, then drops the loose ref. Neither moves main:
+    # the drop is allowed only while the loose ref still exists AND packed-refs
+    # already holds main at that value (a real delete of a packed main has no
+    # loose file, and is refused).
+    [ "$old" = "$new" ] && continue
+    if [ "$new" = "$zero" ] && [ -f "$common/$main_ref" ] \
+       && grep -qx "$old $main_ref" "$common/packed-refs" 2>/dev/null; then continue; fi
     if [ -n "$allow" ] && [ "$allow" = "$old $new" ]; then continue; fi
     echo "refused: agents update ${main_ref#refs/heads/} only through 'make promote REPO=<repo> BRANCH=<branch>', which requires a VERIFIED live-sanity stamp. Work on a branch." >&2
     exit 1
