@@ -62,7 +62,9 @@ test("a passing step keeps no log", () => {
 });
 
 test("time a step reports as not its own (promote's CI wait) comes off the lap", () => {
-  const r = lap("promote", "--budget", "1", "--", "bash", "-c", 'sleep 2.2; echo 2 >> "$LAP_EXCLUDE_FILE"');
+  // 4s of the step is reported as not its own; without the exclusion it is over
+  // a 3s budget, with it ~0s (3s of slack for a loaded machine).
+  const r = lap("promote", "--budget", "3", "--", "bash", "-c", 'sleep 4.1; echo 4 >> "$LAP_EXCLUDE_FILE"');
   expect(r.stderr).not.toMatch(/WARNING/);
-  expect(Number(rows()[0][2])).toBeLessThanOrEqual(1);
+  expect(Number(rows()[0][2])).toBeLessThanOrEqual(3);
 });

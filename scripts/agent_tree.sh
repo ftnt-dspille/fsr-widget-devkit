@@ -154,6 +154,9 @@ export FSR_FRAMEWORK_REPO='$tree/framework'
 export FSR_ALL_WIDGETS='$tree/root'
 export FSR_WIDGET_HARNESS='$tree/root/fortisoar-widget-harness'
 export FSR_LEASE_HOLDER='tree:$name'
+# Plain python in the tree imports the tree's framework, not the shared venv's
+# editable checkout (pytest's conftest already did; scripts run directly did not).
+export PYTHONPATH='$tree/framework'
 EOF
 
     if [[ "${AT_NO_BUILD:-}" != 1 ]]; then
@@ -176,6 +179,7 @@ cmd_env() {
     cat "$t/agent-tree.env"
     # Trees built before the box lease: the holder is still the tree.
     grep -q FSR_LEASE_HOLDER "$t/agent-tree.env" || echo "export FSR_LEASE_HOLDER='tree:$1'"
+    grep -q PYTHONPATH "$t/agent-tree.env" || echo "export PYTHONPATH='$t/framework'"
 }
 
 # The check that would have caught this session's bug class: every path an agent's
@@ -204,7 +208,8 @@ cmd_verify() {
         [[ "$fw" == "$(cd "$tree/framework" && pwd)" ]] || { echo "FAIL framework_dir.sh resolves to '$fw'" >&2; bad=1; }
     fi
     # The hooks that run in this tree's repos are the one central copy, at root main's guard.
-    bash "$HERE/scripts/hooks_central.sh" check >&2 || bad=1
+    # The central hooks are machine state; a fixture world without them sets AT_NO_HOOKS_CHECK=1.
+    [[ "${AT_NO_HOOKS_CHECK:-}" == 1 ]] || bash "$HERE/scripts/hooks_central.sh" check >&2 || bad=1
     # Plain python (not pytest, whose conftest fixes sys.path) in the tree must
     # import the tree's framework, not the shared venv's editable checkout.
     local py got; py="$(bash "$tree/connector/scripts/dev_env.sh" python 2>/dev/null || true)"

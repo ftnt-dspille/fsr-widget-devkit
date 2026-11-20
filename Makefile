@@ -61,6 +61,18 @@ loop: export VIA_LOOP := 1
 test-docker: ## Harness jest suites in a Linux container (starts Colima if needed): seconds instead of minutes for the shell-heavy tooling suites. TESTS=<pattern>. A local check only; promote still needs CI
 	@TESTS="$(TESTS)" bash scripts/test_docker.sh
 
+status-tree: ## One table for an agent tree: each repo's branch, head, commits ahead of main, dirty, stamp (NAME=<tree>)
+	@test -n "$(NAME)" || { echo "usage: make status-tree NAME=<tree>"; exit 2; }
+	@bash scripts/agent_tree.sh status "$(NAME)"
+
+stamp-tree: ## One live run on BOX that stamps every repo in the tree that is ahead of main (NAME=<tree> BOX=<alias>)
+	@test -n "$(NAME)" -a -n "$(BOX)" || { echo "usage: make stamp-tree NAME=<tree> BOX=<alias>"; exit 2; }
+	@BOX='$(BOX)' bash scripts/agent_tree.sh stamp "$(NAME)"
+
+promote-tree: ## Promote every repo in the tree that is ahead of main, framework -> connector -> widgets -> root; stops at the first refusal (NAME=<tree>)
+	@test -n "$(NAME)" || { echo "usage: make promote-tree NAME=<tree>"; exit 2; }
+	@bash scripts/agent_tree.sh promote "$(NAME)"
+
 agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="connector=new:fix/x ..."]); then eval "$$(bash scripts/agent_tree.sh env <name>)"
 	@test -n "$(NAME)" || { echo "usage: make agent-tree NAME=<name> [REPOS=\"repo=branch ...\"]"; exit 2; }
 	@bash scripts/agent_tree.sh create "$(NAME)" $(REPOS)
