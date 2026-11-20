@@ -139,3 +139,14 @@ test("a failed step still removes everything it created", () => {
   }
   expect(fs.readdirSync(T).filter((n) => n.startsWith("fsr-stable-src."))).toEqual([]);
 });
+
+// Live: make exports WIDGETS_SRC (the shared checkout's widgets), and the build
+// packed the Monitor from someone's release branch. Every step gets the tree's.
+test("stable.sh hands the promoted widgets to the build and the live check", () => {
+  const src = fs.readFileSync(path.join(ROOT, "scripts", "stable.sh"), "utf8");
+  const uses = src.split("\n").filter((l) => /stable_install\.py|live-sanity\.sh/.test(l) && !/^\s*#/.test(l));
+  expect(uses.length).toBeGreaterThanOrEqual(2);
+  const calls = src.split(/\n(?=\S)/).filter((b) => /stable_install\.py"|live-sanity\.sh"/.test(b));
+  for (const b of calls) expect(b).toMatch(/WIDGETS_SRC="\$SRC_ROOT\/widgets-src"/);
+  expect(src).toMatch(/unset WIDGETS_SRC/);
+});

@@ -32,6 +32,7 @@ resolve_box env || exit 2          # prints ">> target box: <alias> [role: ...]"
 
 PY="$(bash "$CONN_REPO/scripts/dev_env.sh" python)" || exit 2
 # shellcheck source=stable_source.sh
+unset WIDGETS_SRC   # make exports the shared checkout's; the build uses the promoted trees only
 source "$ROOT/scripts/stable_source.sh"
 stable_source_prepare "$ROOT" "$FSR_FRAMEWORK_REPO" "$CONN_REPO" || exit 1
 
@@ -40,7 +41,7 @@ echo ">> guard: pushed, VERIFIED on an experimental box"
     --monorepo "$SRC_ROOT" --framework "$SRC_FW" --conn "$SRC_CONN" || exit 1
 
 echo ">> build and import through the Import Wizard"
-MONOREPO="$SRC_ROOT" FRAMEWORK="$SRC_FW" CONN_REPO="$SRC_CONN" \
+MONOREPO="$SRC_ROOT" WIDGETS_SRC="$SRC_ROOT/widgets-src" FRAMEWORK="$SRC_FW" CONN_REPO="$SRC_CONN" \
     DIST_STABLE="${DIST_STABLE:-$CONN_REPO/dist/stable}" \
     BOX="$BOX" BOX_ENV="$BOX_ENV" \
     "$PY" "$SRC_CONN/scripts/stable_install.py" ${ARGS:-} || exit $?
@@ -51,4 +52,4 @@ esac
 
 echo ">> live sanity on BOX=$BOX (stamps the heads this install carries)"
 STAMP_REPOS="$SRC_ROOT:$SRC_FW:$SRC_CONN:$SRC_ROOT/widgets-src/agenticAssistant:$SRC_ROOT/widgets-src/agenticAssistantMonitor"
-BOX="$BOX" CONN_REPO="$SRC_CONN" LIVE_SANITY_STAMP_REPOS="$STAMP_REPOS" bash "$SRC_ROOT/scripts/live-sanity.sh"
+BOX="$BOX" CONN_REPO="$SRC_CONN" WIDGETS_SRC="$SRC_ROOT/widgets-src" LIVE_SANITY_STAMP_REPOS="$STAMP_REPOS" bash "$SRC_ROOT/scripts/live-sanity.sh"
