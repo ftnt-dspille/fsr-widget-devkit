@@ -98,8 +98,8 @@ test: test-full ## The repo's own full gate (alias of test-full)
 test-full: ## FULL gate: every harness suite INCLUDING the tooling suites, plus every widget's jest (minutes; never part of a ship)
 	@$(MAKE) --no-print-directory test-unit FULL=1 WIDGET=all
 
-test-unit: harness-build ## Jest unit tests for shipping: harness (tooling suites skipped, FULL=1 adds them) + WIDGET=<name>[,<name>] (WIDGET=all for every widget)
-	cd $(HARNESS) && WIDGET="$(WIDGET)" SKIP_TOOLING_TESTS=$(if $(FULL),0,1) pnpm test
+test-unit: harness-build ## Jest unit tests for shipping: harness (tooling suites skipped, FULL=1 adds them) + WIDGET=<name>[,<name>] (WIDGET=all for every widget). TESTS=<pattern> runs only the matching test files
+	cd $(HARNESS) && WIDGET="$(WIDGET)" SKIP_TOOLING_TESTS=$(if $(FULL),0,1) pnpm test $(if $(TESTS),-- $(TESTS),)
 
 test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on 14401)
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e:headed
