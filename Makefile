@@ -445,7 +445,7 @@ test-widget-ui-live: harness-build ## LIVE: drive the deployed assistant drawer:
 	@if [ -z "$(RECORD)" ]; then echo "Usage: make test-widget-ui-live BOX=<name> RECORD=<uuid> [MODULE=alerts]"; exit 2; fi
 	@cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	  FSRPB_LIVE=1 FSRPB_LIVE_RECORD="$(RECORD)" FSRPB_LIVE_MODULE="$(or $(MODULE),alerts)" \
-	    pnpm test:live tests/live/widgetUi.live.test.js tests/live/commentSummary.live.test.js
+	    pnpm test:live tests/live/widgetUi.live.test.js tests/live/commentSummary.live.test.js tests/live/scopePaths.live.test.js
 
 # docubot (TEC kit) drives the live designer tier. DOCUBOT= points at a kit
 # checkout or worktree (its own node_modules and Playwright pin); its config +

@@ -233,6 +233,8 @@ export interface ChatSession {
   turns: Turn[];
   composerOpen: boolean;
   sendChat(text: string, opts?: SendChatOpts): Promise<SendChatResult>;
+  /** Click a turn-starting control (quick action, card option) and wait for its turn. */
+  clickAndWait(selector: string, opts?: SendChatOpts): Promise<SendChatResult>;
   respondApprovals(opts?: ApprovalOpts): Promise<ApprovalResult>;
   screenshot(path: string, full?: boolean): Promise<string>;
   /**
@@ -284,6 +286,45 @@ export interface MakeChatSessionArgs {
 export function makeChatSession({
   page, browser, context, base, feed, composerOpen, closesBrowser, capture,
 }: MakeChatSessionArgs): ChatSession {
+
+  async function awaitTurn(before: number, trigger: () => Promise<unknown>,
+                           { timeoutMs = 90000, pollEveryMs = 3000 }: SendChatOpts = {}): Promise<SendChatResult> {
+    await trigger();
+    // Confirm the submit registered by watching for the turn to actually
+    // start (a chat_turn/chat_poll request appears in the feed). This is the
+    // unambiguous signal: if no poll fires within the verify window, the send
+    // silently no-op'd (the ng-model debounce race) -- report
+    // submitConfirmed=false so the matrix treats it as a drive error rather
+    // than a bad agent verdict. (A "composer cleared" heuristic is unreliable:
+    // the widget can inject case-context text into the box, so "text changed"
+    // is not proof the turn was sent.)
+    let submitConfirmed = false;
+    const verifyDeadline = Date.now() + 8000;
+    while (Date.now() < verifyDeadline) {
+      await page.waitForTimeout(500);
+      if (feed.polls.slice(before).some((p) => p.turn != null || p.frames > 0)) {
+        submitConfirmed = true;
+        break;
+      }
+    }
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(pollEveryMs);
+      const last = feed.polls[feed.polls.length - 1];
+      if (last && last.done) break;
+    }
+    const mine = feed.polls.slice(before);
+    const streaming = mine.filter((p) => p.turn != null && p.frames > 0);
+    return {
+      polls: mine,
+      sawStreamingTurn: streaming.length > 0,    // the fix's acceptance signal
+      maxFrames: Math.max(0, ...mine.map((p) => p.frames)),
+      done: !!(mine[mine.length - 1] && mine[mine.length - 1].done),
+      submitConfirmed: submitConfirmed || streaming.length > 0,
+    };
+  }
+
   return {
     page, browser, context, base, polls: feed.polls, turns: feed.turns, composerOpen,
 
@@ -308,41 +349,20 @@ export function makeChatSession({
       await composer.evaluate((el: HTMLElement) =>
         el.dispatchEvent(new Event("input", { bubbles: true })));
       await page.waitForTimeout(250);
-      await page.keyboard.press("Enter");
+      return awaitTurn(before, () => page.keyboard.press("Enter"), { timeoutMs, pollEveryMs });
+    },
 
-      // Confirm the submit registered by watching for the turn to actually
-      // start (a chat_turn/chat_poll request appears in the feed). This is the
-      // unambiguous signal: if no poll fires within the verify window, the send
-      // silently no-op'd (the ng-model debounce race) -- report
-      // submitConfirmed=false so the matrix treats it as a drive error rather
-      // than a bad agent verdict. (A "composer cleared" heuristic is unreliable:
-      // the widget can inject case-context text into the box, so "text changed"
-      // is not proof the turn was sent.)
-      let submitConfirmed = false;
-      const verifyDeadline = Date.now() + 8000;
-      while (Date.now() < verifyDeadline) {
-        await page.waitForTimeout(500);
-        if (feed.polls.slice(before).some((p) => p.turn != null || p.frames > 0)) {
-          submitConfirmed = true;
-          break;
-        }
-      }
-
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        await page.waitForTimeout(pollEveryMs);
-        const last = feed.polls[feed.polls.length - 1];
-        if (last && last.done) break;
-      }
-      const mine = feed.polls.slice(before);
-      const streaming = mine.filter((p) => p.turn != null && p.frames > 0);
-      return {
-        polls: mine,
-        sawStreamingTurn: streaming.length > 0,    // the fix's acceptance signal
-        maxFrames: Math.max(0, ...mine.map((p) => p.frames)),
-        done: !!(mine[mine.length - 1] && mine[mine.length - 1].done),
-        submitConfirmed: submitConfirmed || streaming.length > 0,
-      };
+    /**
+     * Click something that starts a turn -- a quick-action chip, a choice-card
+     * option -- and wait for that turn the way sendChat does. Those paths send
+     * no typed text, and they are where the widget's turns differ from a typed
+     * ask (no scope declaration used to reach them).
+     */
+    async clickAndWait(selector: string, { timeoutMs = 90000, pollEveryMs = 3000 }: SendChatOpts = {}): Promise<SendChatResult> {
+      const before = feed.polls.length;
+      const el = page.locator(selector).last();
+      await el.waitFor({ state: "visible", timeout: 30000 });
+      return awaitTurn(before, () => el.click(), { timeoutMs, pollEveryMs });
     },
 
     /**
