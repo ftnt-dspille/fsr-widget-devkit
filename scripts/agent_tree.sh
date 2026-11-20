@@ -199,6 +199,14 @@ cmd_verify() {
     fi
     # The hooks that run in this tree's repos are the one central copy, at root main's guard.
     bash "$HERE/scripts/hooks_central.sh" check >&2 || bad=1
+    # Plain python (not pytest, whose conftest fixes sys.path) in the tree must
+    # import the tree's framework, not the shared venv's editable checkout.
+    local py got; py="$(bash "$tree/connector/scripts/dev_env.sh" python 2>/dev/null || true)"
+    if [[ -x "$py" ]]; then
+        got="$( (eval "$(cmd_env "$name")"; cd "$tree/connector" && "$py" -c 'import fsr_playbooks,os;print(os.path.dirname(os.path.dirname(os.path.realpath(fsr_playbooks.__file__))))') 2>/dev/null)"
+        [[ "$got" == "$(cd "$tree/framework" && pwd -P)" ]] \
+            || { echo "FAIL python in the tree imports fsr_playbooks from '$got', not $tree/framework" >&2; bad=1; }
+    fi
     [[ $bad == 0 ]] && echo "agent_tree: verify OK ($tree)"
     return $bad
 }
@@ -222,7 +230,63 @@ cmd_remove() {
     echo "agent_tree: removed $tree (branches kept)"
 }
 
+# --- whole-tree operations: so nobody loops over make targets by hand -----------
+# A repo is CHANGED when it is on a branch whose HEAD is not in its remote main.
+# Promote order: framework, connector, widgets, root (what depends on what).
+PROMOTE_ORDER=(framework connector "${WIDGETS[@]}" root)
+_branch_of() { git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null || true; }
+_changed() {  # $1 dest dir: 0 when on a branch with commits not in remote main
+    local d="$1" rem; [[ -n "$(_branch_of "$d")" ]] || return 1
+    rem="$(remote_of "$d")"
+    ! git -C "$d" merge-base --is-ancestor HEAD "refs/remotes/$rem/main" 2>/dev/null
+}
+_stamp_of() {  # $1 dest dir -> "VERIFIED@92" | "none"
+    local d="$1" common repo sha f
+    common="$(cd "$d" && cd "$(git rev-parse --git-common-dir)" && pwd)"
+    repo="$(basename "$([[ "$(basename "$common")" == .git ]] && dirname "$common" || echo "$common")")"
+    sha="$(git -C "$d" rev-parse HEAD)"; f="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}/$repo/$sha.json"
+    [[ -f "$f" ]] || { echo none; return; }
+    python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); print("%s@%s%s" % (s.get("verdict"), s.get("box"), " dirty" if s.get("dirty") else ""))' "$f" 2>/dev/null || echo "?"
+}
+cmd_status() {
+    local name="${1:?NAME required}" tree="$TREES/$1" r d br ahead dirty rem
+    [[ -f "$tree/agent-tree.json" ]] || die "no tree $tree"
+    printf '%-24s %-28s %-9s %5s %-5s %s\n' repo branch head ahead dirty stamp
+    for r in "${PROMOTE_ORDER[@]}"; do
+        d="$(dest_of "$tree" "$r")"; [[ -d "$d" ]] || continue
+        br="$(_branch_of "$d")"; rem="$(remote_of "$d")"
+        ahead="$(git -C "$d" rev-list --count "refs/remotes/$rem/main..HEAD" 2>/dev/null || echo "?")"
+        dirty="$([[ -n "$(git -C "$d" status --porcelain --untracked-files=no)" ]] && echo yes || echo no)"
+        printf '%-24s %-28s %-9s %5s %-5s %s\n' "$r" "${br:-(detached)}" "$(git -C "$d" rev-parse --short=9 HEAD)" "$ahead" "$dirty" "$(_stamp_of "$d")"
+    done
+}
+cmd_stamp() {  # one live run that stamps every changed repo in the tree
+    local name="${1:?NAME required}" tree="$TREES/$1" r d dirs=()
+    [[ -f "$tree/agent-tree.json" ]] || die "no tree $tree"
+    [[ -n "${BOX:-}" ]] || die "stamp-tree needs BOX=<alias> (scripts/box.sh --list)"
+    for r in "${PROMOTE_ORDER[@]}"; do d="$(dest_of "$tree" "$r")"; [[ -d "$d" ]] && _changed "$d" && dirs+=("$d"); done
+    (( ${#dirs[@]} )) || { echo "agent_tree: nothing in $name is ahead of main; nothing to stamp"; return 0; }
+    echo "agent_tree: stamping ${#dirs[@]} changed repo(s) on BOX=$BOX: $(for d in "${dirs[@]}"; do basename "$d"; done | paste -sd' ' -)"
+    local joined; joined="$(IFS=:; echo "${dirs[*]}")"
+    ( eval "$(cmd_env "$name")"
+      make --no-print-directory -C "$tree/root" doctor BOX="$BOX" SANITY=1 STAMP="$joined" CONN_REPO="$tree/connector" )
+}
+cmd_promote() {  # every changed repo, in dependency order; stops at the first refusal
+    local name="${1:?NAME required}" tree="$TREES/$1" r d br n=0
+    [[ -f "$tree/agent-tree.json" ]] || die "no tree $tree"
+    for r in "${PROMOTE_ORDER[@]}"; do
+        d="$(dest_of "$tree" "$r")"; [[ -d "$d" ]] && _changed "$d" || continue
+        br="$(_branch_of "$d")"
+        echo "agent_tree: promote $r ($br)"
+        if ! make --no-print-directory -C "$ROOT_SRC" promote REPO="$(src_of "$r")" BRANCH="$br"; then
+            die "promote-tree stopped at $r ($br); the repos before it were promoted. Fix it, then re-run make promote-tree NAME=$name"
+        fi
+        n=$((n+1))
+    done
+    echo "agent_tree: promoted $n repo(s) from $name"
+}
+
 case "${1:-}" in
-    create|verify|env|remove) c="$1"; shift; "cmd_$c" "$@" ;;
+    create|verify|env|remove|status|stamp|promote) c="$1"; shift; "cmd_$c" "$@" ;;
     *) sed -n '2,15p' "$0" >&2; exit 2 ;;
 esac
