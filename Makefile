@@ -46,6 +46,9 @@ loop: export VIA_LOOP := 1
 #    ONE way an agent moves main (any repo: root, widgets-src/*, connector,
 #    framework, docubot); scripts/githooks/reference-transaction refuses every
 #    other update of main under CLAUDECODE. Merges locally, then pushes main to its upstream (NO_PUSH=1 skips).
+test-docker: ## Harness jest suites in a Linux container (starts Colima if needed): seconds instead of minutes for the shell-heavy tooling suites. TESTS=<pattern>. A local check only; promote still needs CI
+	@TESTS="$(TESTS)" bash scripts/test_docker.sh
+
 agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="connector=new:fix/x ..."]); then eval "$$(bash scripts/agent_tree.sh env <name>)"
 	@test -n "$(NAME)" || { echo "usage: make agent-tree NAME=<name> [REPOS=\"repo=branch ...\"]"; exit 2; }
 	@bash scripts/agent_tree.sh create "$(NAME)" $(REPOS)

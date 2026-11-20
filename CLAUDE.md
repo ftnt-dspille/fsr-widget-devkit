@@ -136,6 +136,12 @@ The authoritative list is "Targets that reach a box" in `TESTING.md`. Of those,
 `[[SWEEP-ENV-SKIP]]` means the backend is down or lacks an integration the row
 needs, so it is **not** verified.
 
+Shell-heavy tooling suites (promote, guards, hooks, agent tree, stable source)
+run in seconds in a Linux container and in minutes on the Mac host: run them with
+`make test-docker TESTS="<pattern>"` (starts Colima if it is not running; box-free
+tests only). It is a fast local check, not proof: promote still requires CI, and it
+never writes a stamp.
+
 Rules:
 - Never hand-start a server, and never run `pnpm exec playwright` or `pnpm jest`
   directly (refused at run time under Claude Code; see `TESTING.md`, Guardrails). Specs build URLs from `baseURL` or `E2E_BASE_PORT`, never a literal port.
