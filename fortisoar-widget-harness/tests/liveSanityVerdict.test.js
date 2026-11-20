@@ -100,6 +100,32 @@ describe("live-sanity stamps", () => {
     expect(proves(s)).toBe(true);
   });
 
+  // Live: the stable box's post-install run (FAIL on a known false check)
+  // replaced two widgets' experimental VERIFIED stamps; make stable then refused.
+  test("another box's failing run never replaces a proving stamp", () => {
+    const sha = g("rev-parse", "HEAD");
+    writeStamps([repo], { box: "exp", verdict: "VERIFIED", results: [P("a")] });
+    const [file] = writeStamps([repo], { box: "stable", verdict: "FAIL", results: [P("a")] });
+    expect(path.basename(file)).toBe(`${sha}.stable.json`);
+    expect(readStamp("demoRepo", sha)).toMatchObject({ box: "exp", verdict: "VERIFIED" });
+    expect(proves(readStamp("demoRepo", sha))).toBe(true);
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({ box: "stable", verdict: "FAIL" });
+  });
+
+  test("the same box's failing re-run does replace its stamp", () => {
+    const sha = g("rev-parse", "HEAD");
+    writeStamps([repo], { box: "exp", verdict: "VERIFIED", results: [P("a")] });
+    writeStamps([repo], { box: "exp", verdict: "FAIL", results: [P("a")] });
+    expect(readStamp("demoRepo", sha)).toMatchObject({ box: "exp", verdict: "FAIL" });
+  });
+
+  test("a proving run on another box replaces the stamp as before", () => {
+    const sha = g("rev-parse", "HEAD");
+    writeStamps([repo], { box: "exp", verdict: "VERIFIED", results: [P("a")] });
+    writeStamps([repo], { box: "exp2", verdict: "VERIFIED", results: [P("a")] });
+    expect(readStamp("demoRepo", sha)).toMatchObject({ box: "exp2", verdict: "VERIFIED" });
+  });
+
   test("a dirty tree is stamped dirty and never proves the commit", () => {
     fs.writeFileSync(path.join(repo, "f.txt"), "2");
     writeStamps([repo], { box: "b", verdict: "VERIFIED", results: [P("a")] });
