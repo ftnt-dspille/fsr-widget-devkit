@@ -91,12 +91,29 @@ cmd_create() {
                    && die "$r: '$b' is checked out elsewhere (shared checkouts are never switched; use $r=new:<branch>)" ;;
         esac
     done
+    # Fetch every repo at once (each is ~2-4s, network plus git's own work), wait
+    # for all of them, and refuse by name before building anything.
+    if [[ "${AT_NO_FETCH:-}" != 1 ]]; then
+        local flog; flog="$(mktemp -d "${TMPDIR:-/tmp}/agent-tree-fetch.XXXXXX")"
+        declare -A fpid=()
+        for r in "${REPOS[@]}"; do
+            src="$(src_of "$r")"; rem="$(remote_of "$src")"
+            git -C "$src" fetch -q "$rem" main >"$flog/$r" 2>&1 &
+            fpid[$r]=$!
+        done
+        local failed=()
+        for r in "${REPOS[@]}"; do wait "${fpid[$r]}" || failed+=("$r"); done
+        if (( ${#failed[@]} )); then
+            for r in "${failed[@]}"; do echo "agent_tree: fetch failed for $r: $(tr '\n' ' ' < "$flog/$r")" >&2; done
+            rm -rf "$flog"; die "nothing was built (fetch failed: ${failed[*]})"
+        fi
+        rm -rf "$flog"
+    fi
     mkdir -p "$tree"
     local json="{" sep=""
     # root first: the widget worktrees live inside it.
     for r in "${REPOS[@]}"; do
         src="$(src_of "$r")"; dest="$(dest_of "$tree" "$r")"; ref="${want[$r]:-main}"; rem="$(remote_of "$src")"
-        [[ "${AT_NO_FETCH:-}" == 1 ]] || git -C "$src" fetch -q "$rem" main || die "$r: fetch $rem main failed"
         git -C "$src" worktree prune
         mkdir -p "$(dirname "$dest")"
         case "$ref" in
