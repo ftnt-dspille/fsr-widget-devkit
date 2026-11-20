@@ -45,5 +45,5 @@ test("PROMOTE_FROM_TREE=1 runs the working-tree copy (for developing promote.sh)
 });
 
 test("the make target goes through the wrapper", () => {
-  expect(fs.readFileSync(path.join(ROOT, "Makefile"), "utf8")).toMatch(/^promote:.*\n\t@bash scripts\/promote_main\.sh$/m);
+  expect(fs.readFileSync(path.join(ROOT, "Makefile"), "utf8")).toMatch(/^promote:.*\n\t@bash scripts\/lap\.sh promote --budget \d+ -- bash scripts\/promote_main\.sh$/m);
 });
