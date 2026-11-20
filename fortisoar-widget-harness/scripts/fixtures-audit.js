@@ -39,7 +39,7 @@ const FIXTURES = path.resolve(opt("--fixtures",
 // deleted by the next unrelated `npx playwright test`, and the audit reported
 // the fixtures as UNVERIFIED with no sign they ever had a recording.
 const CAPTURES = path.resolve(opt("--captures",
-  path.join(__dirname, "..", "tests", "live", "captures")));
+  require("./localData").localDataDir("tests/live/captures")));
 // Anything still sitting in the old location is read too, so a capture recorded
 // before the move is not silently ignored -- but it is named as stranded,
 // because the next Playwright run will delete it.

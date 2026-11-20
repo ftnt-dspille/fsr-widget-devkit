@@ -123,6 +123,11 @@ const TOOLING_SUITES = [
   "makeDeployGuard", "makeE2eSpecArgs", "promoteGate", "promoteGate.hook", "promoteGate.ci",
   "deployScriptGuards", "e2ePort", "lintAngular", "lintEmptySet",
   "shipSkipsToolingSuites",
+  // These read gitignored, machine-local data (tests/live/captures,
+  // introspection-reports). It is not committed, so their result depends on the
+  // machine, not the commit: never a ship gate. A worktree reads the main
+  // checkout's copy (scripts/localData.js).
+  "cardKeyParity", "fixtureAudit", "introspectGateStale",
 ];
 const SKIP_TOOLING = process.env.SKIP_TOOLING_TESTS === "1";
 

@@ -29,7 +29,7 @@ const WIDGET = path.join(
 const RENDERER = path.join(WIDGET, "widget", "widgetAssets", "js", "fsrPbRender.ts");
 const FIXTURES = path.join(WIDGET, "widget", "widgetAssets", "fixtures");
 const DOC = path.join(HARNESS, "docs", "CARD_KEY_PARITY.md");
-const CAPTURES = path.join(HARNESS, "tests", "live", "captures");
+const CAPTURES = require("../scripts/localData").localDataDir("tests/live/captures");
 
 // The analyst-actionable cards. Display-only frames (text, tool_use, info_card)
 // are not gated here -- see docs/CARD_DOM_COVERAGE.md for that boundary.

@@ -20,7 +20,7 @@ const path = require("path");
 
 const HARNESS = path.resolve(__dirname, "..");
 const GATE = path.join(HARNESS, "scripts", "introspect-gate.js");
-const REPORTS = path.join(HARNESS, "introspection-reports");
+const REPORTS = require("../scripts/localData").localDataDir("introspection-reports");
 const SRC = path.resolve(HARNESS, "..", "widgets-src");
 
 function runGate(filter) {
