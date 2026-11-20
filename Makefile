@@ -1,5 +1,17 @@
 HARNESS := fortisoar-widget-harness
 
+# A misspelt command-line variable (make promote BRNCH=x) is refused at once
+# with a did-you-mean, instead of being silently ignored. scripts/make_args.sh.
+ifneq ($(strip $(MAKEOVERRIDES)),)
+ifneq ($(MAKELEVEL),0)
+else
+_ARGS_ERR := $(shell bash scripts/make_args.sh $(MAKEOVERRIDES) 2>&1 >/dev/null)
+ifneq ($(_ARGS_ERR),)
+$(error $(_ARGS_ERR))
+endif
+endif
+endif
+
 # Three dedicated, never-overlapping ports:
 #   DEV_PORT        -- the harness you drive by hand (`make dev`)
 #   TEST_PORT       -- the isolated server Playwright boots for `make test`

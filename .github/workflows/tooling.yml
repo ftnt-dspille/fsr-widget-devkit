@@ -33,4 +33,4 @@ jobs:
         working-directory: fortisoar-widget-harness
         run: >-
           pnpm exec jest --ci
-          promoteGate promoteRunsMain hooksCentral lapBudget liveSanityScope agentTree testDocker worktreeWidgetsSrc localData stableSource
+          promoteGate promoteRunsMain hooksCentral lapBudget makeArgs liveSanityScope agentTree testDocker worktreeWidgetsSrc localData stableSource
