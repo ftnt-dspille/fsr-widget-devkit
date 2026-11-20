@@ -187,7 +187,8 @@ BOX_SH := $(CONN_REPO)/scripts/box.sh
 # A worktree of this repo has no widget repos under widgets-src/: default to the
 # main checkout's (D10). An explicit WIDGETS_SRC= wins.
 MAIN_CHECKOUT := $(or $(patsubst %/.git,%,$(shell git -C "$(CURDIR)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)),$(CURDIR))
-WIDGETS_SRC ?= $(if $(wildcard $(CURDIR)/widgets-src/*/widget/info.json),$(CURDIR)/widgets-src,$(MAIN_CHECKOUT)/widgets-src)
+# _template is tracked, so it is in every worktree: it never counts as having widgets.
+WIDGETS_SRC ?= $(if $(filter-out %/_template/widget/info.json,$(wildcard $(CURDIR)/widgets-src/*/widget/info.json)),$(CURDIR)/widgets-src,$(MAIN_CHECKOUT)/widgets-src)
 export WIDGETS_SRC
 _DEP_KNOBS := ENV FSR_ENV SHIP_ENV SWEEP_ENV MATRIX_ENV LIVE_ENV SSH_HOST
 _DEP_ARGS := $(strip $(foreach v,$(_DEP_KNOBS),$(if $(filter command line environment,$(origin $(v))),$(v)='$($(v))')))
