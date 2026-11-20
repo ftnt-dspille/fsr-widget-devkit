@@ -13,7 +13,7 @@ const HOOKS = path.join(ROOT, "scripts", "githooks");
 function baseEnv(extra = {}) {
   const e = { ...process.env };
   for (const k of ["CLAUDECODE", "CONFIRM_DEPLOY", "VIA_MAKE", "ALLOW_UNVERIFIED", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete e[k];
-  return { ...e, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com", ...extra };
+  return { ...e, PROMOTE_FROM_TREE: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.com", ...extra };
 }
 
 const S = {};
