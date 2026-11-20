@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-explicit-any -- FortiSOAR Hydra JSON responses are untyped here; typing them is not worth it for a dev script */
 "use strict";
 /**
  * Real-SOAR fidelity introspection (Phase 2 of the introspection plan).

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-explicit-any -- acorn/acorn-walk AST nodes and visitor state are untyped; typing them is not worth it for a dev script */
 'use strict';
 // Catches the AngularJS + FortiSOAR widget footguns we keep hitting. Run
 // scoped to one widget (recommended for CI) or across every widget.

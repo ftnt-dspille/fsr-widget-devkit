@@ -26,6 +26,9 @@ jobs:
       - name: Install and build the harness
         working-directory: fortisoar-widget-harness
         run: pnpm install --frozen-lockfile && pnpm build
+      - name: Lint (harness TypeScript)
+        working-directory: fortisoar-widget-harness
+        run: pnpm -s lint:eslint:ts
       - name: Tooling suites
         working-directory: fortisoar-widget-harness
         run: >-
