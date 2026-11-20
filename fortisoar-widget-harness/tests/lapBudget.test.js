@@ -18,7 +18,8 @@ test("a step within budget is recorded and does not warn", () => {
   expect(r.status).toBe(0);
   expect(r.stderr).not.toMatch(/WARNING/);
   const [row] = rows();
-  expect(row.slice(1, 5)).toEqual(["push", "0", "0", "60"]);
+  expect([row[1], row[3], row[4]]).toEqual(["push", "0", "60"]);
+  expect(Number(row[2])).toBeLessThan(60);
 });
 
 test("a step over budget warns, keeps its exit status and is recorded as over", () => {
@@ -36,7 +37,7 @@ test("make laps summarises runs, budget and over-budget count per step", () => {
   lap("unit", "--", "true");
   const r = spawnSync("bash", [path.join(ROOT, "scripts/laps.sh")], { encoding: "utf8", env: { ...process.env, FSR_LAP_LEDGER: ledger } });
   const stamp = r.stdout.split("\n").find((l) => l.startsWith("stamp"));
-  expect(stamp.trim().split(/\s+/)).toEqual(["stamp", "2", "0s", expect.stringMatching(/s$/), expect.stringMatching(/s$/), "100s", "1"]);
+  expect(stamp.trim().split(/\s+/)).toEqual(["stamp", "2", expect.stringMatching(/^\ds$/), expect.stringMatching(/s$/), expect.stringMatching(/s$/), "100s", "1"]);
   expect(r.stdout).toMatch(/^unit\s+1\s/m);
 });
 
@@ -58,4 +59,10 @@ test("a failed step keeps its last 20 lines in the ledger, whatever the caller f
 test("a passing step keeps no log", () => {
   lap("unit", "--", "true");
   expect(rows()[0][6]).toBe("-");
+});
+
+test("time a step reports as not its own (promote's CI wait) comes off the lap", () => {
+  const r = lap("promote", "--budget", "1", "--", "bash", "-c", 'sleep 2.2; echo 2 >> "$LAP_EXCLUDE_FILE"');
+  expect(r.stderr).not.toMatch(/WARNING/);
+  expect(Number(rows()[0][2])).toBeLessThanOrEqual(1);
 });

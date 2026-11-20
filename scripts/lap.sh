@@ -15,9 +15,15 @@ t0=$SECONDS
 # they happen) so a FAILED step's reason lands in the ledger even when the
 # caller filters what it shows.
 out="$(mktemp "${TMPDIR:-/tmp}/lap.XXXXXX")"
+# A step can report time that is not its own work (promote's wait for CI):
+# it appends seconds to $LAP_EXCLUDE_FILE, they are taken off this lap, and the
+# step records them as their own ledger line (scripts/lap_record.sh).
+LAP_EXCLUDE_FILE="$(mktemp "${TMPDIR:-/tmp}/lap-x.XXXXXX")"; export LAP_EXCLUDE_FILE
 "$@" > >(tee -a "$out") 2> >(tee -a "$out" >&2); rc=$?
 wait 2>/dev/null
 secs=$((SECONDS - t0))
+excl=$(awk '{s+=$1} END{print s+0}' "$LAP_EXCLUDE_FILE" 2>/dev/null); rm -f "$LAP_EXCLUDE_FILE"
+(( excl > 0 && excl <= secs )) && secs=$((secs - excl))
 note=""; [[ $rc -ne 0 ]] && note=" FAILED"
 if [[ -n "$budget" && $secs -gt $budget ]]; then
     note="$note OVER BUDGET (${budget}s)"

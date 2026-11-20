@@ -80,3 +80,17 @@ test("a branch without required-checks is not gated", () => {
   expect(r.code).toBe(0);
   expect(fs.existsSync(path.join(S.tmp, "gh.log"))).toBe(false);
 });
+
+test("the CI wait is its own ledger line, not promote's time", () => {
+  const n = path.join(S.tmp, "polls2"); const led = path.join(S.tmp, "laps.tsv");
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh
+c=$(cat "${n}" 2>/dev/null || echo 0); c=$((c+1)); echo $c > "${n}"
+if [ $c -lt 2 ]; then printf 'test (bundled framework)\\tin_progress\\t\\n'; else printf 'test (bundled framework)\\tcompleted\\tsuccess\\n'; fi
+`, { mode: 0o755 });
+  stamp(sha("feat/x"), {});
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "60", PROMOTE_CI_POLL: "1", FSR_LAP_LEDGER: led });
+  expect(r.code).toBe(0);
+  const row = fs.readFileSync(led, "utf8").trim().split("\n").map((l) => l.split("\t")).find((x) => x[1] === "promote ci-wait");
+  expect(row).toBeDefined();
+  expect(row[4]).toBe("300");
+});

@@ -199,6 +199,7 @@ ci_gate() {
   # GitHub has not seen is pushed as its branch first, so CI starts.
   local wait_s="${PROMOTE_CI_WAIT:-900}" poll="${PROMOTE_CI_POLL:-15}" pushed=0 deadline said=""
   deadline=$((SECONDS + wait_s))
+  local wait_t0=$SECONDS
   while :; do
     missing=""; bad=""
     if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' 2>&1)"; then
@@ -229,6 +230,15 @@ ci_gate() {
     [ -n "$said" ] || { echo "promote: waiting for CI on ${head:0:9}:$missing (up to ${wait_s}s)"; said=1; }
     sleep "$poll"
   done
+  # The wait is CI's time, not promote's: its own ledger line (300s budget).
+  if (( SECONDS - wait_t0 > 0 )) && [ -n "$said" ]; then
+    local ws=$((SECONDS - wait_t0)) wb="${PROMOTE_CI_WAIT_BUDGET:-300}" led="${FSR_LAP_LEDGER:-$HOME/.cache/fsr-laps.tsv}"
+    (( ws > wb )) && echo "lap: WARNING promote ci-wait took ${ws}s, budget ${wb}s (a CI problem, not promote's)" >&2
+    [ -n "${LAP_EXCLUDE_FILE:-}" ] && echo "$ws" >> "$LAP_EXCLUDE_FILE"   # off the enclosing promote lap
+    mkdir -p "$(dirname "$led")" 2>/dev/null
+    printf '%s\tpromote ci-wait\t%s\t0\t%s\t%s\t-\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ws" "$wb" "$(basename "$REPO")" >> "$led" 2>/dev/null || true
+    echo "promote: waited ${ws}s for CI"
+  fi
   echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
 }
 if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
