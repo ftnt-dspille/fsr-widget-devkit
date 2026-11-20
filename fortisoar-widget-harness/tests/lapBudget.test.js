@@ -39,3 +39,23 @@ test("make laps summarises runs, budget and over-budget count per step", () => {
   expect(stamp.trim().split(/\s+/)).toEqual(["stamp", "2", "0s", expect.stringMatching(/s$/), expect.stringMatching(/s$/), "100s", "1"]);
   expect(r.stdout).toMatch(/^unit\s+1\s/m);
 });
+
+test("a failed step keeps its last 20 lines in the ledger, whatever the caller filtered", () => {
+  const r = lap("promote", "--budget", "60", "--", "bash", "-c",
+    "for i in $(seq 1 30); do echo line$i; done; echo 'promote: refusing: the real reason' >&2; exit 1");
+  expect(r.status).toBe(1);
+  expect(r.stdout).toMatch(/line30/);                     // still streamed to the caller
+  const [row] = rows();
+  expect(row[3]).toBe("1");
+  const log = fs.readFileSync(row[6], "utf8").trim().split("\n");
+  expect(log).toHaveLength(20);
+  expect(log.join("\n")).toMatch(/refusing: the real reason/);
+  expect(log.join("\n")).not.toMatch(/^line1$/m);
+  const s = spawnSync("bash", [path.join(ROOT, "scripts/laps.sh")], { encoding: "utf8", env: { ...process.env, FSR_LAP_LEDGER: ledger } });
+  expect(s.stdout).toMatch(/recent failures[\s\S]*promote rc=1/);
+});
+
+test("a passing step keeps no log", () => {
+  lap("unit", "--", "true");
+  expect(rows()[0][6]).toBe("-");
+});

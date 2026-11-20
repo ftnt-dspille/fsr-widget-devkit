@@ -11,7 +11,12 @@ budget=""
 if [[ "${1:-}" == "--budget" ]]; then budget="$2"; shift 2; fi
 [[ "${1:-}" == "--" ]] && shift
 t0=$SECONDS
-"$@"; rc=$?
+# Keep a copy of the step's output (both streams still reach the caller as
+# they happen) so a FAILED step's reason lands in the ledger even when the
+# caller filters what it shows.
+out="$(mktemp "${TMPDIR:-/tmp}/lap.XXXXXX")"
+"$@" > >(tee -a "$out") 2> >(tee -a "$out" >&2); rc=$?
+wait 2>/dev/null
 secs=$((SECONDS - t0))
 note=""; [[ $rc -ne 0 ]] && note=" FAILED"
 if [[ -n "$budget" && $secs -gt $budget ]]; then
@@ -21,6 +26,15 @@ fi
 echo "   [${secs}s] $label$note"
 ledger="${FSR_LAP_LEDGER:-$HOME/.cache/fsr-laps.tsv}"
 mkdir -p "$(dirname "$ledger")" 2>/dev/null
-printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$label" "$secs" "$rc" "${budget:--}" \
-    "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")" >> "$ledger" 2>/dev/null || true
+ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+faillog="-"
+if [[ $rc -ne 0 ]]; then
+    # Column 7: the last 20 lines of a failed step, kept beside the ledger.
+    faillog="$(dirname "$ledger")/fsr-laps-failed/${ts//:/}-${label// /_}.log"
+    mkdir -p "$(dirname "$faillog")" 2>/dev/null
+    tail -n 20 "$out" > "$faillog" 2>/dev/null || faillog="-"
+fi
+rm -f "$out"
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$ts" "$label" "$secs" "$rc" "${budget:--}" \
+    "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")" "$faillog" >> "$ledger" 2>/dev/null || true
 exit $rc
