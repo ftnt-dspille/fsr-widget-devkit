@@ -9,9 +9,16 @@
 set -uo pipefail
 state="${1:-}"
 main_ref="refs/heads/${FSR_PROTECTED_BRANCH:-main}"
-input="$(cat)"
+# Fast path (cost): git runs this hook ~17 times for ONE `git worktree add`, and
+# a process start costs 0.15-0.3s on an endpoint-protected Mac, so the old
+# body (cat, git rev-parse, git config per run) was ~0.38s a run and ~80% of a
+# worktree add. Read stdin and decide in pure bash; start git only when an
+# update of main actually has to be judged.
+input=""
+while IFS= read -r _l || [ -n "$_l" ]; do input+="$_l"$'\n'; done
 
-if [ "$state" = prepared ] && [ -n "${CLAUDECODE:-}" ]; then
+case "$input" in *" $main_ref"$'\n'*) touches_main=1 ;; *) touches_main="" ;; esac
+if [ "$state" = prepared ] && [ -n "${CLAUDECODE:-}" ] && [ -n "$touches_main" ]; then
   common="$(git rev-parse --git-common-dir 2>/dev/null)"
   allow="$(cat "$common/fsr-promote-allow" 2>/dev/null || true)"
   zero="0000000000000000000000000000000000000000"
@@ -38,10 +45,24 @@ if [ "$state" = prepared ] && [ -n "${CLAUDECODE:-}" ]; then
   done <<< "$input"
 fi
 
-global="$(git config --global core.hooksPath 2>/dev/null || true)"
+# The global hooks dir, read from the global config files in bash (no git
+# process); `git config` only when neither file names one.
+global=""
+for _cf in "$HOME/.gitconfig" "${XDG_CONFIG_HOME:-$HOME/.config}/git/config"; do
+  [ -f "$_cf" ] || continue
+  _sec=""
+  while IFS= read -r _l || [ -n "$_l" ]; do
+    _l="${_l#"${_l%%[![:space:]]*}"}"
+    case "$_l" in
+      \[*) _sec="${_l,,}" ;;
+      [Hh]ooks[Pp]ath*=*) [ "$_sec" = "[core]" ] && { global="${_l#*=}"; global="${global#"${global%%[![:space:]]*}"}"; } ;;
+    esac
+  done < "$_cf"
+done
+[ -n "$global" ] || global="$(git config --global core.hooksPath 2>/dev/null || true)"
 global="${global/#\~/$HOME}"
 if [ -z "${FSR_HOOK_SHIM:-}" ] && [ -n "$global" ] && [ -x "$global/reference-transaction" ]; then
   export FSR_HOOK_SHIM=1
-  printf '%s\n' "$input" | "$global/reference-transaction" "$@"; exit $?
+  printf '%s' "$input" | "$global/reference-transaction" "$@"; exit $?
 fi
 exit 0

@@ -10,7 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { S, git, sha, commit, stamp, promote, beforeEachFixture, afterEachFixture } = require("./promoteGate.helpers");
+const { S, HOOKS, git, sha, commit, stamp, promote, beforeEachFixture, afterEachFixture } = require("./promoteGate.helpers");
 
 beforeEach(beforeEachFixture);
 afterEach(afterEachFixture);
@@ -45,6 +45,26 @@ describe("reference-transaction hook", () => {
     expect(r.out).not.toMatch(/refused/);
     expect(r.code).toBe(0);
     expect(sha("main")).toBe(before);
+  });
+
+  // Cost: git runs this hook ~17 times per `git worktree add`; each git/cat it
+  // started cost 0.15-0.3s here, ~80% of the worktree add. An update that does
+  // not touch main must be decided without starting any process.
+  test("an update that does not touch main starts no git process", () => {
+    const { spawnSync } = require("child_process");
+    const bash = spawnSync("bash", ["-c", "command -v bash"], { encoding: "utf8" }).stdout.trim();
+    const bin = path.join(S.tmp, "nogit");
+    fs.mkdirSync(bin);
+    const mark = path.join(S.tmp, "git-started");
+    fs.writeFileSync(path.join(bin, "git"), `#!/bin/sh\necho "$@" >> "${mark}"; exit 97\n`, { mode: 0o755 });
+    // A global config like the real one: core.hooksPath set (to a dir with no reference-transaction).
+    fs.mkdirSync(path.join(S.tmp, "ghooks"));
+    fs.writeFileSync(path.join(S.tmp, ".gitconfig"), `[user]\n\tname = t\n[core]\n\thooksPath = ${path.join(S.tmp, "ghooks")}\n`);
+    const r = spawnSync(bash, [path.join(HOOKS, "reference-transaction"), "prepared"], {
+      input: `${"0".repeat(40)} ${sha("feat/x")} refs/heads/feat/x\n`,
+      env: { ...process.env, CLAUDECODE: "1", PATH: `${bin}:/usr/bin:/bin`, HOME: S.tmp }, encoding: "utf8" });
+    expect(r.status).toBe(0);
+    expect(fs.existsSync(mark) ? fs.readFileSync(mark, "utf8") : "").toBe("");
   });
 
   test("still refuses deleting main, loose or packed", () => {
