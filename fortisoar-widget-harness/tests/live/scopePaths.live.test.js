@@ -44,6 +44,10 @@ d("turns that are not a typed ask", () => {
     const r1 = await s.sendChat("Block ip 198.51.100.10", { timeoutMs: 300000 });
     expect(r1.done).toBe(true);
     await s.page.locator('[data-testid^="step-action_card-"]').last().waitFor({ state: "visible", timeout: 60000 });
+    // The duration is a dropdown on the card: asking for it in prose wastes a turn.
+    const prose = (await s.page.$$eval('[data-testid^="chat-message-assistant"] .msg-text, [data-testid^="chat-message-assistant"] p',
+      (ns) => ns.map((n) => n.innerText))).join(" ").toLowerCase();
+    expect(prose).not.toMatch(/how long|which duration|what duration|time[ _]to[ _]live|need (a )?values?/);
     const verdictsBefore = await count(s.page, "step-verdict_card-");
     const actionsBefore = await count(s.page, "step-action_card-");
     const r2 = await s.sendChat("make it 6 hours", { timeoutMs: 300000 });
