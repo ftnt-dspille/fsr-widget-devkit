@@ -45,16 +45,19 @@ d("turns that are not a typed ask", () => {
     expect(r1.done).toBe(true);
     await s.page.locator('[data-testid^="step-action_card-"]').last().waitFor({ state: "visible", timeout: 60000 });
     const verdictsBefore = await count(s.page, "step-verdict_card-");
+    const actionsBefore = await count(s.page, "step-action_card-");
     const r2 = await s.sendChat("make it 6 hours", { timeoutMs: 300000 });
     expect(r2.done).toBe(true);
     expect(await count(s.page, "step-verdict_card-")).toBe(verdictsBefore);
+    // The follow-up re-stages the block (live it was deferred behind a hunt).
+    expect(await count(s.page, "step-action_card-")).toBeGreaterThan(actionsBefore);
     expect(looksEnglish((await bubbles(s.page)).join("\n"))).toBe(true);
     await s.close();
   });
 
   test("answering a choice card resumes in English", async () => {
     const s = await openWidgetDrawer({ module: "alerts", recordUuid: RECORD });
-    const r1 = await s.sendChat("Build a playbook that blocks a malicious IP with FortiGate.", { timeoutMs: 600000 });
+    const r1 = await s.sendChat("I want to create a new playbook that looks up an IP and opens a ticket if it is malicious.", { timeoutMs: 600000 });
     expect(r1.done).toBe(true);
     const choice = s.page.locator('[data-testid^="choice-card-"] button[data-testid^="choice-"]:not([data-testid$="-submit"]):not([data-testid$="-text-send"])');
     const n = await choice.count();
