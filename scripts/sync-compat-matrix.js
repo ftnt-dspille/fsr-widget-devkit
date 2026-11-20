@@ -13,7 +13,7 @@ const path = require("path");
 
 const REPO = path.resolve(__dirname, "..");
 const ONBOARDING = path.join(REPO, "ONBOARDING.md");
-const WIDGETS_SRC = path.join(REPO, "widgets-src");
+const WIDGETS_SRC = process.env.WIDGETS_SRC ? path.resolve(process.env.WIDGETS_SRC) : path.join(REPO, "widgets-src");
 
 function infoVersion(dir) {
   const hits = [
