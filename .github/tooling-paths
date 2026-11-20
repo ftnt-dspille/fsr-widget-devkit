@@ -15,6 +15,8 @@ fortisoar-widget-harness/tests/promoteGate.test.js
 fortisoar-widget-harness/tests/promoteGate.hook.test.js
 fortisoar-widget-harness/tests/promoteGate.ci.test.js
 fortisoar-widget-harness/tests/promoteGate.tooling.test.js
+fortisoar-widget-harness/tests/promoteGate.push.test.js
+fortisoar-widget-harness/tests/lapBudget.test.js
 fortisoar-widget-harness/tests/promoteRunsMain.test.js
 fortisoar-widget-harness/tests/hooksCentral.test.js
 fortisoar-widget-harness/tests/agentTree.test.js

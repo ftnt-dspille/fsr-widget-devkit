@@ -54,7 +54,10 @@ agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="c
 	@bash scripts/agent_tree.sh create "$(NAME)" $(REPOS)
 
 promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>), then pushes main to its upstream (NO_PUSH=1 skips)
-	@bash scripts/promote_main.sh
+	@bash scripts/lap.sh promote --budget 60 -- bash scripts/promote_main.sh
+
+laps: ## Step timings from the lap ledger (~/.cache/fsr-laps.tsv): runs, last, median, max, budget, over-budget count
+	@bash scripts/laps.sh
 
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -254,7 +257,7 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@bash scripts/lap.sh lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
 	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
-	    bash $(CURDIR)/scripts/lap.sh deploy -- scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
+	    bash $(CURDIR)/scripts/lap.sh deploy --budget 90 -- scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
 	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(WIDGETS_SRC)" CONN_REPO="$(CONN_REPO)" \
@@ -288,7 +291,7 @@ doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no b
 	$(if $(LOCAL),,$(require_box))
 	@bash scripts/hooks_central.sh check
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
-	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/live-sanity.sh),true)
+	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/lap.sh stamp --budget 120 -- bash scripts/live-sanity.sh),true)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
 	$(if $(filter local,$(SOURCE)),,$(require_box))
