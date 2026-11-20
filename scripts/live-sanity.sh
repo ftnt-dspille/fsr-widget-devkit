@@ -51,7 +51,20 @@ export WIDGETS="${WIDGETS:-}"
 # A worktree of this repo has no widget repos: default to the main checkout's (D10).
 if [[ -z "${WIDGETS_SRC:-}" ]]; then
     WIDGETS_SRC="$ROOT/widgets-src"
-    compgen -G "$WIDGETS_SRC/[!_]*/widget/info.json" >/dev/null || WIDGETS_SRC="$(bx_main_checkout "$ROOT")/widgets-src"
+    if ! compgen -G "$WIDGETS_SRC/[!_]*/widget/info.json" >/dev/null; then
+        WIDGETS_SRC="$(bx_main_checkout "$ROOT")/widgets-src"
+        # That is a shared checkout: its widget repos may be on another session's
+        # branch, and widget_versions would then compare the box with that
+        # branch (live: expected 1.4.6 while main and the box were at 1.4.7).
+        for _w in "$WIDGETS_SRC"/[!_]*/; do
+            [[ -e "$_w/.git" ]] || continue
+            _rem="$(git -C "$_w" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"
+            if [[ "$(git -C "$_w" rev-parse HEAD 2>/dev/null)" != "$(git -C "$_w" rev-parse "refs/remotes/${_rem:-origin}/main" 2>/dev/null)" ]]; then
+                echo "live-sanity: refusing: no WIDGETS_SRC given, and the shared checkout's $(basename "$_w") is at $(git -C "$_w" rev-parse --abbrev-ref HEAD), not its remote main; widget_versions would check the box against that branch. Run from an agent tree (make agent-tree NAME=<n>), or pass WIDGETS_SRC=<widgets at the code you deployed>." >&2
+                exit 2
+            fi
+        done
+    fi
 fi
 export WIDGETS_SRC
 cd "$ROOT/fortisoar-widget-harness" || exit 2
