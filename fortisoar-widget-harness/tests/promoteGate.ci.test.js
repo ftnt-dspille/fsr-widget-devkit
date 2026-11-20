@@ -30,7 +30,7 @@ function gh(rows) {
     : `cat <<'X'\n${rows.map((r) => r.join("\t")).join("\n")}\nX`;
   fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho "$@" >> "${S.tmp}/gh.log"\n${body}\n`, { mode: 0o755 });
   stamp(sha("feat/x"), {});
-  return promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}` });
+  return promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "0", PROMOTE_CI_POLL: "0" });
 }
 
 test("green required check: promoted, and the API was asked about the branch head", () => {
@@ -53,6 +53,22 @@ test.each([
   expect(r.code).not.toBe(0);
   expect(r.out).toMatch(msg);
   expect(sha("main")).toBe(before);
+});
+
+test("pending CI is waited for, then the promote goes through on its own", () => {
+  // gh reports in_progress twice, then success: promote polls instead of refusing.
+  const n = path.join(S.tmp, "polls");
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh
+c=$(cat "${n}" 2>/dev/null || echo 0); c=$((c+1)); echo $c > "${n}"
+if [ $c -lt 3 ]; then printf 'test (bundled framework)\tin_progress\t\n'; else printf 'test (bundled framework)\tcompleted\tsuccess\n'; fi
+`, { mode: 0o755 });
+  stamp(sha("feat/x"), {});
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "60", PROMOTE_CI_POLL: "0" });
+  expect(r.out).toMatch(/waiting for CI on/);
+  expect(r.out).toMatch(/CI green/);
+  expect(r.code).toBe(0);
+  expect(sha("main")).toBe(sha("feat/x"));
+  expect(Number(fs.readFileSync(n, "utf8"))).toBe(3);
 });
 
 test("a branch without required-checks is not gated", () => {

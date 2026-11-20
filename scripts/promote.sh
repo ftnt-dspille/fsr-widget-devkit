@@ -193,25 +193,42 @@ ci_gate() {
   url="$(g remote get-url "$remote")"
   slug="$(printf '%s' "$url" | sed -E 's#^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)##; s#\.git$##')"
   [ "$slug" != "$url" ] || die "refusing: $remote ($url) is not a GitHub remote; cannot read CI for $head"
-  if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' 2>&1)"; then
-    if printf '%s' "$runs" | grep -qiE 'No commit found|HTTP 422|HTTP 404'; then
-      echo "promote: $head is not on GitHub yet; pushing $BRANCH so CI runs on it"
-      push_commit "$remote" "$head" "refs/heads/$BRANCH" -q || die "refusing: could not push $BRANCH to start CI"
-      die "refusing: CI has just started on $head. Re-run make promote once it finishes (gh run watch -R $slug)."
+  # Wait for CI here rather than refusing and asking for a re-run: poll the
+  # check-runs until every required check has completed (PROMOTE_CI_WAIT
+  # seconds, default 900; PROMOTE_CI_POLL between polls, default 15). A head
+  # GitHub has not seen is pushed as its branch first, so CI starts.
+  local wait_s="${PROMOTE_CI_WAIT:-900}" poll="${PROMOTE_CI_POLL:-15}" pushed=0 deadline said=""
+  deadline=$((SECONDS + wait_s))
+  while :; do
+    missing=""; bad=""
+    if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' 2>&1)"; then
+      if printf '%s' "$runs" | grep -qiE 'No commit found|HTTP 422|HTTP 404'; then
+        if [ "$pushed" = 0 ]; then
+          echo "promote: $head is not on GitHub yet; pushing $BRANCH so CI runs on it"
+          push_commit "$remote" "$head" "refs/heads/$BRANCH" -q || die "refusing: could not push $BRANCH to start CI"
+          pushed=1
+        fi
+        runs=""; missing=" (CI has not started on $head yet)"
+      else
+        die "refusing: could not read CI for $head: $runs"
+      fi
+    else
+      while IFS= read -r name; do
+        st="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $2"\t"$3}' | tail -1)"
+        if [ -z "$st" ]; then missing="$missing '$name'"; continue; fi
+        co="${st#*	}"; st="${st%%	*}"
+        if [ "$st" != completed ]; then missing="$missing '$name'($st)"; elif [ "$co" != success ]; then bad="$bad '$name'($co)"; fi
+      done <<< "$req"
+      [ -z "$bad" ] || die "refusing: required CI failed on $head:$bad"
+      [ -n "$missing" ] || break
+      if [ "$pushed" = 0 ] && ! printf '%s' "$runs" | grep -q .; then
+        push_commit "$remote" "$head" "refs/heads/$BRANCH" -q 2>/dev/null || true; pushed=1
+      fi
     fi
-    die "refusing: could not read CI for $head: $runs"
-  fi
-  while IFS= read -r name; do
-    st="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $2"\t"$3}' | tail -1)"
-    if [ -z "$st" ]; then missing="$missing '$name'"; continue; fi
-    co="${st#*	}"; st="${st%%	*}"
-    if [ "$st" != completed ]; then missing="$missing '$name'($st)"; elif [ "$co" != success ]; then bad="$bad '$name'($co)"; fi
-  done <<< "$req"
-  [ -z "$bad" ] || die "refusing: required CI failed on $head:$bad"
-  if [ -n "$missing" ]; then
-    printf '%s' "$runs" | grep -q . || { push_commit "$remote" "$head" "refs/heads/$BRANCH" -q 2>/dev/null || true; }
-    die "refusing: required CI not finished on $head:$missing. Re-run make promote when it completes (gh run watch -R $slug)."
-  fi
+    [ "$SECONDS" -lt "$deadline" ] || die "refusing: required CI not finished on $head after ${wait_s}s:$missing (gh run watch -R $slug, then re-run make promote)"
+    [ -n "$said" ] || { echo "promote: waiting for CI on ${head:0:9}:$missing (up to ${wait_s}s)"; said=1; }
+    sleep "$poll"
+  done
   echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
 }
 if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
