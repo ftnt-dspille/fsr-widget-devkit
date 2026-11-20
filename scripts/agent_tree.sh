@@ -153,6 +153,7 @@ export CONN_REPO='$tree/connector'
 export FSR_FRAMEWORK_REPO='$tree/framework'
 export FSR_ALL_WIDGETS='$tree/root'
 export FSR_WIDGET_HARNESS='$tree/root/fortisoar-widget-harness'
+export FSR_LEASE_HOLDER='tree:$name'
 EOF
 
     if [[ "${AT_NO_BUILD:-}" != 1 ]]; then
@@ -170,7 +171,12 @@ EOF
     echo "  eval \"\$(bash $HERE/scripts/agent_tree.sh env $name)\"; cd $tree/root"
 }
 
-cmd_env() { local t="$TREES/${1:?NAME required}"; [[ -f "$t/agent-tree.env" ]] || die "no tree $t"; cat "$t/agent-tree.env"; }
+cmd_env() {
+    local t="$TREES/${1:?NAME required}"; [[ -f "$t/agent-tree.env" ]] || die "no tree $t"
+    cat "$t/agent-tree.env"
+    # Trees built before the box lease: the holder is still the tree.
+    grep -q FSR_LEASE_HOLDER "$t/agent-tree.env" || echo "export FSR_LEASE_HOLDER='tree:$1'"
+}
 
 # The check that would have caught this session's bug class: every path an agent's
 # tools will resolve is inside the tree, and every repo is where agent-tree.json says.

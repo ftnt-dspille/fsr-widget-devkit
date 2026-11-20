@@ -24,7 +24,10 @@ fi
 
 # shellcheck source=/dev/null
 source "$CONN_REPO/scripts/box.sh"
-resolve_box env || exit 2
+# `lease`: take or renew this box's lease (connector box.sh), refused while
+# another agent holds it, so these checks test the code this caller deployed.
+resolve_box env,lease || exit 2
+export LIVE_SANITY_LEASE="${BOX_LEASE:-}"
 
 # The env file is loaded literally by run.js (sourcing it would expand $ in passwords).
 export LIVE_SANITY_ENV_FILE="$BOX_ENV" LIVE_SANITY_BOX="$BOX" CONN_REPO

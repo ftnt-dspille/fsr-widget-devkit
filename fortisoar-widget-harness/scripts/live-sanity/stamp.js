@@ -74,7 +74,9 @@ function writeStamps(repoDirs, { box, verdict, results, now = new Date() }) {
     try { st = repoState(d); } catch (_) { continue; }
     if (seen.has(st.path)) continue;
     seen.add(st.path);
-    const stamp = { ...st, box, verdict,
+    // lease: the box lease this run held (connector box.sh), proving no other
+    // agent could deploy to the box while these checks ran.
+    const stamp = { ...st, box, verdict, lease: process.env.LIVE_SANITY_LEASE || null,
       checks: results.map((r) => ({ name: r.name, status: r.status, detail: r.detail || "" })),
       timestamp: now.toISOString() };
     let file = path.join(stampDir(), st.repo, `${st.sha}.json`);

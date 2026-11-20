@@ -100,6 +100,13 @@ describe("live-sanity stamps", () => {
     expect(proves(s)).toBe(true);
   });
 
+  test("the stamp records the box lease the run held", () => {
+    process.env.LIVE_SANITY_LEASE = "tree:a#3";
+    try { writeStamps([repo], { box: "b", verdict: "VERIFIED", results: [P("a")] }); }
+    finally { delete process.env.LIVE_SANITY_LEASE; }
+    expect(readStamp("demoRepo", g("rev-parse", "HEAD")).lease).toBe("tree:a#3");
+  });
+
   // Live: the stable box's post-install run (FAIL on a known false check)
   // replaced two widgets' experimental VERIFIED stamps; make stable then refused.
   test("another box's failing run never replaces a proving stamp", () => {
