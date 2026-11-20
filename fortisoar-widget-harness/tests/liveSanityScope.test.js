@@ -11,11 +11,11 @@ beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lss-"));
   bin = path.join(tmp, "bin"); fs.mkdirSync(bin);
   // node stands in for run.js: report the scope it was handed.
-  fs.writeFileSync(path.join(bin, "node"), '#!/bin/sh\necho "SCOPE=[$WIDGETS]"\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, "node"), '#!/bin/sh\necho "SCOPE=[$WIDGETS] LEASE=[$LIVE_SANITY_LEASE]"\n', { mode: 0o755 });
   fs.writeFileSync(path.join(bin, "pnpm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   conn = path.join(tmp, "conn"); fs.mkdirSync(path.join(conn, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(conn, "scripts", "box.sh"),
-    'resolve_box() { BOX_ENV=/dev/null; }\nbx_main_checkout() { echo "$1"; }\n');
+    'resolve_box() { echo "NEED=$1"; BOX_ENV=/dev/null; BOX_LEASE="tree:t#7"; }\nbx_main_checkout() { echo "$1"; }\n');
 });
 afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
 const widgetRepo = (name) => {
@@ -39,4 +39,10 @@ test("a connector (or any non-widget) repo in the stamp list keeps every check",
 test("no stamp list, and an explicit WIDGETS, are left alone", () => {
   expect(run({ LIVE_SANITY_STAMP_REPOS: "" }).stdout).toMatch(/SCOPE=\[\]/);
   expect(run({ LIVE_SANITY_STAMP_REPOS: widgetRepo("a"), WIDGETS: "b" }).stdout).toMatch(/SCOPE=\[b\]/);
+});
+
+test("a stamp takes the box lease and hands it to the stamp writer", () => {
+  const r = run({ LIVE_SANITY_STAMP_REPOS: "" });
+  expect(r.stdout).toMatch(/NEED=env,lease/);
+  expect(r.stdout).toMatch(/LEASE=\[tree:t#7\]/);
 });

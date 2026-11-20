@@ -68,6 +68,16 @@ agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="c
 promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>), then pushes main to its upstream (NO_PUSH=1 skips)
 	@bash scripts/lap.sh promote --budget 60 -- bash scripts/promote_main.sh
 
+box-lease: ## Take or renew the lease on an experimental box (BOX=<alias>); pushes and stamps take it too, and refuse while another agent holds it
+	@BOX='$(BOX)' bash "$(BOX_SH)" --need env,lease >/dev/null
+
+box-release: ## Release your lease on BOX=<alias> (FORCE=1 frees another holder's: owner only)
+	@test -n "$(BOX)" || { echo "Usage: make box-release BOX=<alias> [FORCE=1]"; exit 2; }
+	@bash "$(BOX_SH)" --release '$(BOX)' $(if $(FORCE),force,)
+
+box-leases: ## Who holds which box, and until when
+	@bash "$(BOX_SH)" --leases
+
 laps: ## Step timings from the lap ledger (~/.cache/fsr-laps.tsv): runs, last, median, max, budget, over-budget count
 	@bash scripts/laps.sh
 
