@@ -120,8 +120,13 @@ cmd_create() {
         [[ -f "$ROOT_SRC/$f" ]] && cp "$ROOT_SRC/$f" "$tree/root/$f"
     done
     # Big read-only data stays shared: localData.js already falls back to the main
-    # checkout for captures and introspection reports, and fsr_src assets are box data.
-    [[ -d "$ROOT_SRC/fortisoar-widget-harness/fsr_src" ]] && ln -sfn "$ROOT_SRC/fortisoar-widget-harness/fsr_src" "$tree/root/fortisoar-widget-harness/fsr_src"
+    # checkout for captures and introspection reports. fsr_src/ is partly tracked;
+    # its ignored entries (app.unmin.js and other platform extracts the lint
+    # indexer reads) are linked one by one, so tracked files stay the tree's own.
+    local e
+    while IFS= read -r e; do
+        e="${e%/}"; [[ -n "$e" && ! -e "$tree/root/$e" ]] && ln -s "$ROOT_SRC/$e" "$tree/root/$e"
+    done < <(git -C "$ROOT_SRC" ls-files --others --ignored --exclude-standard --directory -- fsr_src 2>/dev/null)
 
     cat > "$tree/agent-tree.env" <<EOF
 export AGENT_TREE='$tree'
@@ -185,8 +190,9 @@ cmd_remove() {
     # Files this script created (gitignored in the real repos) go first, so
     # `worktree remove` without --force only refuses on the agent's own work.
     rm -f "$tree/connector/.fsr_src" "$tree/root/fortisoar-widget-harness/widgets-src" \
-          "$tree/root/fortisoar-widget-harness/fsr_src" "$tree/root/fortisoar-widget-harness/node_modules" \
+          "$tree/root/fortisoar-widget-harness/node_modules" \
           "$tree/root/fortisoar-widget-harness/.env" "$tree/root/fortisoar-widget-harness/.harness-active-env"
+    find "$tree/root/fsr_src" -maxdepth 1 -type l -lname "$ROOT_SRC/*" -delete 2>/dev/null || true
     # Widgets first: they sit inside root's worktree.
     for r in "${WIDGETS[@]}" connector framework root; do
         src="$(src_of "$r")"; dest="$(dest_of "$tree" "$r")"

@@ -46,6 +46,10 @@ loop: export VIA_LOOP := 1
 #    ONE way an agent moves main (any repo: root, widgets-src/*, connector,
 #    framework, docubot); scripts/githooks/reference-transaction refuses every
 #    other update of main under CLAUDECODE. Merges locally, then pushes main to its upstream (NO_PUSH=1 skips).
+agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="connector=new:fix/x ..."]); then eval "$$(bash scripts/agent_tree.sh env <name>)"
+	@test -n "$(NAME)" || { echo "usage: make agent-tree NAME=<name> [REPOS=\"repo=branch ...\"]"; exit 2; }
+	@bash scripts/agent_tree.sh create "$(NAME)" $(REPOS)
+
 promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>), then pushes main to its upstream (NO_PUSH=1 skips)
 	@bash scripts/promote_main.sh
 
