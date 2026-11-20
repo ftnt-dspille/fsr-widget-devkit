@@ -7,11 +7,14 @@
 # framework wheel built from promoted main bundled in), and both widget packages.
 #
 #   1. resolve BOX through the registry (scripts/box.sh: no default box)
-#   2. guard (scripts/stable_guard.py): the box is stable; each source repo is clean on
-#      its package inputs, on main, HEAD = the remote's main, and HEAD carries a
-#      VERIFIED, clean live-sanity stamp taken on an EXPERIMENTAL box
-#   3. build + install (scripts/stable_install.py; idempotent per box and heads)
-#   4. live sanity on the box, stamping the five heads it just verified
+#   2. source (scripts/stable_source.sh): detached trees of all five repos at each
+#      remote's main, removed on exit. The shared checkouts are never built from:
+#      other sessions keep them on their own branches, with their own WIP.
+#   3. guard (scripts/stable_guard.py --promoted-source): the box is stable; each
+#      tree's HEAD = the remote's main, and carries a VERIFIED, clean live-sanity
+#      stamp taken on an EXPERIMENTAL box
+#   4. build + install (scripts/stable_install.py; idempotent per box and heads)
+#   5. live sanity on the box, stamping the five heads it just verified
 #
 # Set CONN_REPO / FSR_FRAMEWORK_REPO through scripts/repo_paths.sh as elsewhere.
 set -euo pipefail
@@ -28,19 +31,25 @@ resolve_box env || exit 2          # prints ">> target box: <alias> [role: ...]"
 [[ "$BOX_ROLE" == stable ]] || { echo "make stable: BOX=$BOX is role '$BOX_ROLE'; stable installs only on a stable box" >&2; exit 2; }
 
 PY="$(bash "$CONN_REPO/scripts/dev_env.sh" python)" || exit 2
-echo ">> guard: clean, pushed, VERIFIED on an experimental box"
-"$PY" "$CONN_REPO/scripts/stable_guard.py" --box "$BOX" \
-    --monorepo "$ROOT" --framework "$FSR_FRAMEWORK_REPO" --conn "$CONN_REPO" || exit 1
+# shellcheck source=stable_source.sh
+unset WIDGETS_SRC   # make exports the shared checkout's; the build uses the promoted trees only
+source "$ROOT/scripts/stable_source.sh"
+stable_source_prepare "$ROOT" "$FSR_FRAMEWORK_REPO" "$CONN_REPO" || exit 1
+
+echo ">> guard: pushed, VERIFIED on an experimental box"
+"$PY" "$SRC_CONN/scripts/stable_guard.py" --box "$BOX" --promoted-source \
+    --monorepo "$SRC_ROOT" --framework "$SRC_FW" --conn "$SRC_CONN" || exit 1
 
 echo ">> build and import through the Import Wizard"
-MONOREPO="$ROOT" FRAMEWORK="$FSR_FRAMEWORK_REPO" CONN_REPO="$CONN_REPO" \
+MONOREPO="$SRC_ROOT" WIDGETS_SRC="$SRC_ROOT/widgets-src" FRAMEWORK="$SRC_FW" CONN_REPO="$SRC_CONN" \
+    DIST_STABLE="${DIST_STABLE:-$CONN_REPO/dist/stable}" \
     BOX="$BOX" BOX_ENV="$BOX_ENV" \
-    "$PY" "$CONN_REPO/scripts/stable_install.py" ${ARGS:-} || exit $?
+    "$PY" "$SRC_CONN/scripts/stable_install.py" ${ARGS:-} || exit $?
 
 case " ${ARGS:-} " in
   *" --build-only "*) echo ">> build-only: the box was not touched"; exit 0 ;;
 esac
 
 echo ">> live sanity on BOX=$BOX (stamps the heads this install carries)"
-STAMP_REPOS="$ROOT:$FSR_FRAMEWORK_REPO:$CONN_REPO:$ROOT/widgets-src/agenticAssistant:$ROOT/widgets-src/agenticAssistantMonitor"
-BOX="$BOX" CONN_REPO="$CONN_REPO" LIVE_SANITY_STAMP_REPOS="$STAMP_REPOS" bash "$ROOT/scripts/live-sanity.sh"
+STAMP_REPOS="$SRC_ROOT:$SRC_FW:$SRC_CONN:$SRC_ROOT/widgets-src/agenticAssistant:$SRC_ROOT/widgets-src/agenticAssistantMonitor"
+BOX="$BOX" CONN_REPO="$SRC_CONN" WIDGETS_SRC="$SRC_ROOT/widgets-src" LIVE_SANITY_STAMP_REPOS="$STAMP_REPOS" bash "$SRC_ROOT/scripts/live-sanity.sh"

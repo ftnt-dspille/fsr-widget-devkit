@@ -183,10 +183,28 @@ fi
 PUSH_ARGS=(push "$WIDGET_ID")
 [ -n "$BUMP" ] && PUSH_ARGS=(push "$WIDGET_ID" --bump "$BUMP")
 
+# A bump commits itself when the widget repo was clean before it: the live-sanity
+# stamp that follows then proves a commit, not a dirty tree, and nobody has to
+# commit and re-stamp by hand before make promote. A tree with other WIP is
+# left uncommitted (the bump would mix into someone's change).
+WREPO="$WIDGETS_SRC/$WIDGET_ID"
+BUMP_COMMIT=0
+if [ -n "$BUMP" ] && git -C "$WREPO" rev-parse --git-dir >/dev/null 2>&1 \
+   && [ -z "$(git -C "$WREPO" status --porcelain --untracked-files=no)" ]; then
+  BUMP_COMMIT=1
+fi
+
 say "pushing $WIDGET_ID → $EXPECTED_HOST (via PID $SRV_PID)"
 # Same sourced env + explicit HARNESS_URL so widget.js targets THIS server.
 HARNESS_URL="http://localhost:$PORT" node "$HARNESS_DIR/scripts/widget.js" "${PUSH_ARGS[@]}"
 ok "push complete -- $WIDGET_ID → $EXPECTED_HOST"
+if [ "$BUMP_COMMIT" = 1 ]; then
+  NEWVER="$(node -e 'process.stdout.write(require(process.argv[1]).version)' "$WREPO/widget/info.json")"
+  git -C "$WREPO" commit -q -a -m "Bump to $NEWVER" && ok "committed the bump: $WIDGET_ID $NEWVER ($(git -C "$WREPO" rev-parse --short HEAD))" \
+    || warn "could not commit the bump in $WREPO; commit it before make promote"
+elif [ -n "$BUMP" ]; then
+  warn "$WREPO had other uncommitted changes; the bump is NOT committed"
+fi
 
 # Sync the ONBOARDING.md compat matrix from the (possibly bumped) info.json.
 # The compat-matrix test runs BEFORE the bump in ship-verify, so without this

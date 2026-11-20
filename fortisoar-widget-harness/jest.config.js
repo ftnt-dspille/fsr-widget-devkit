@@ -120,9 +120,14 @@ if (WIDGET_FILTER && WIDGET_FILTER !== "all") {
 // A bare `pnpm test` (SKIP_TOOLING_TESTS unset) also runs them.
 const TOOLING_SUITES = [
   "guardOtherReposInstall", "guardOtherReposInstall.connector", "liveSanityVerdict", "makeBoxRoles", "makeBoxSelection",
-  "makeDeployGuard", "makeE2eSpecArgs", "promoteGate", "promoteGate.hook",
+  "makeDeployGuard", "makeE2eSpecArgs", "promoteGate", "promoteGate.hook", "promoteGate.ci", "promoteRunsMain", "stableSource", "worktreeWidgetsSrc", "localData",
   "deployScriptGuards", "e2ePort", "lintAngular", "lintEmptySet",
   "shipSkipsToolingSuites",
+  // These read gitignored, machine-local data (tests/live/captures,
+  // introspection-reports). It is not committed, so their result depends on the
+  // machine, not the commit: never a ship gate. A worktree reads the main
+  // checkout's copy (scripts/localData.js).
+  "cardKeyParity", "fixtureAudit", "introspectGateStale",
 ];
 const SKIP_TOOLING = process.env.SKIP_TOOLING_TESTS === "1";
 

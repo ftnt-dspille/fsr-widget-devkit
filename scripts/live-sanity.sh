@@ -32,7 +32,7 @@ export WIDGETS="${WIDGETS:-}"
 # A worktree of this repo has no widget repos: default to the main checkout's (D10).
 if [[ -z "${WIDGETS_SRC:-}" ]]; then
     WIDGETS_SRC="$ROOT/widgets-src"
-    compgen -G "$WIDGETS_SRC/*/widget/info.json" >/dev/null || WIDGETS_SRC="$(bx_main_checkout "$ROOT")/widgets-src"
+    compgen -G "$WIDGETS_SRC/[!_]*/widget/info.json" >/dev/null || WIDGETS_SRC="$(bx_main_checkout "$ROOT")/widgets-src"
 fi
 export WIDGETS_SRC
 cd "$ROOT/fortisoar-widget-harness" || exit 2

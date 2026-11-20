@@ -37,6 +37,25 @@ describe("reference-transaction hook", () => {
     expect(sha("main")).toBe(before);
   });
 
+  // Live: gc/maintenance after every fetch runs pack-refs, which rewrites main
+  // with its own value; the guard refused it ("task 'pack-refs' failed").
+  test("allows pack-refs under CLAUDECODE (main keeps its value)", () => {
+    const before = sha("main");
+    const r = git(["pack-refs", "--all"], { CLAUDECODE: "1" });
+    expect(r.out).not.toMatch(/refused/);
+    expect(r.code).toBe(0);
+    expect(sha("main")).toBe(before);
+  });
+
+  test("still refuses deleting main, loose or packed", () => {
+    expect(git(["checkout", "-q", "feat/x"]).code).toBe(0);
+    const before = sha("main");
+    expect(git(["update-ref", "-d", "refs/heads/main"], { CLAUDECODE: "1" }).code).not.toBe(0);
+    expect(git(["pack-refs", "--all"], { CLAUDECODE: "1" }).code).toBe(0);
+    expect(git(["update-ref", "-d", "refs/heads/main"], { CLAUDECODE: "1" }).code).not.toBe(0);
+    expect(sha("main")).toBe(before);
+  });
+
   test("allows branch work under CLAUDECODE and main updates for a human", () => {
     expect(git(["checkout", "-q", "feat/x"], { CLAUDECODE: "1" }).code).toBe(0);
     fs.writeFileSync(path.join(S.repo, "e.txt"), "x\n");

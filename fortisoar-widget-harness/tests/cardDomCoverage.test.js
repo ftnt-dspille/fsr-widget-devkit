@@ -18,7 +18,7 @@ const {
 } = require("./live/lib/cardDomCoverage");
 
 const HARNESS = path.join(__dirname, "..");
-const WIDGET = path.join(HARNESS, "..", "widgets-src", "agenticAssistant");
+const WIDGET = path.join(process.env.WIDGETS_SRC ? path.resolve(process.env.WIDGETS_SRC) : path.join(HARNESS, "..", "widgets-src"), "agenticAssistant");
 const RENDERER = path.join(WIDGET, "widget", "widgetAssets", "js", "fsrPbRender.ts");
 const REGISTRY = path.join(HARNESS, "docs", "CARD_DOM_COVERAGE.md");
 

@@ -44,7 +44,8 @@ import fs = require("fs");
 import path = require("path");
 import { RenderReport } from "../lib/types";
 
-const REPORT_DIR = path.resolve(__dirname, "..", "introspection-reports");
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const REPORT_DIR: string = require("./localData").localDataDir("introspection-reports");
 const BASELINE_DIR = path.resolve(__dirname, "..", "tests", "introspect", "baseline");
 
 // Documented pre-existing no-mounts. The gate must NOT fail these. Empty today:

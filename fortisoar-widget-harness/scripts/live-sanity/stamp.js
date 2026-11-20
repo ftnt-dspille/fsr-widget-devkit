@@ -6,7 +6,11 @@
 //   { repo, path, branch, sha, dirty, box, verdict, checks:[{name,status,detail}], timestamp }
 //
 // Every verdict writes a stamp (VERIFIED, PARTIAL, FAIL); a later run for the
-// same sha overwrites it. A dirty tree is recorded as dirty: what ran on the box
+// same sha overwrites it, with one exception: a run on ANOTHER box that does not
+// prove the commit never replaces a stamp that does. It is written beside it as
+// <sha>.<box>.json. Live, the stable box's post-install run (FAIL on a known
+// false check) overwrote the experimental VERIFIED stamps of two widgets, and
+// the next `make stable` refused commits that had been proven. A dirty tree is recorded as dirty: what ran on the box
 // was not that commit, so a dirty stamp never proves it.
 //
 // Reader (internal; the promote gate calls it):
@@ -73,7 +77,12 @@ function writeStamps(repoDirs, { box, verdict, results, now = new Date() }) {
     const stamp = { ...st, box, verdict,
       checks: results.map((r) => ({ name: r.name, status: r.status, detail: r.detail || "" })),
       timestamp: now.toISOString() };
-    const file = path.join(stampDir(), st.repo, `${st.sha}.json`);
+    let file = path.join(stampDir(), st.repo, `${st.sha}.json`);
+    let prior = null;
+    try { prior = JSON.parse(fs.readFileSync(file, "utf8")); } catch (_) { prior = null; }
+    if (proves(prior) && prior.box !== box && !proves(stamp)) {
+      file = path.join(stampDir(), st.repo, `${st.sha}.${String(box).replace(/[^A-Za-z0-9_.-]/g, "_")}.json`);
+    }
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify(stamp, null, 2) + "\n");
     written.push(file);
@@ -84,8 +93,9 @@ function writeStamps(repoDirs, { box, verdict, results, now = new Date() }) {
 function readStamp(repo, sha) {
   const dir = path.join(stampDir(), repo);
   if (!fs.existsSync(dir)) return null;
-  // Accept an abbreviated sha.
-  const f = fs.readdirSync(dir).find((n) => n.startsWith(sha) && n.endsWith(".json"));
+  // Accept an abbreviated sha. The commit's own stamp is <sha>.json; a
+  // <sha>.<box>.json beside it is another box's non-proving run, never the proof.
+  const f = fs.readdirSync(dir).find((n) => n.startsWith(sha) && /^[0-9a-f]+\.json$/.test(n));
   return f ? JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) : null;
 }
 

@@ -46,8 +46,12 @@ loop: export VIA_LOOP := 1
 #    ONE way an agent moves main (any repo: root, widgets-src/*, connector,
 #    framework, docubot); scripts/githooks/reference-transaction refuses every
 #    other update of main under CLAUDECODE. Merges locally, then pushes main to its upstream (NO_PUSH=1 skips).
+agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="connector=new:fix/x ..."]); then eval "$$(bash scripts/agent_tree.sh env <name>)"
+	@test -n "$(NAME)" || { echo "usage: make agent-tree NAME=<name> [REPOS=\"repo=branch ...\"]"; exit 2; }
+	@bash scripts/agent_tree.sh create "$(NAME)" $(REPOS)
+
 promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>), then pushes main to its upstream (NO_PUSH=1 skips)
-	@bash scripts/promote.sh
+	@bash scripts/promote_main.sh
 
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
@@ -98,8 +102,8 @@ test: test-full ## The repo's own full gate (alias of test-full)
 test-full: ## FULL gate: every harness suite INCLUDING the tooling suites, plus every widget's jest (minutes; never part of a ship)
 	@$(MAKE) --no-print-directory test-unit FULL=1 WIDGET=all
 
-test-unit: harness-build ## Jest unit tests for shipping: harness (tooling suites skipped, FULL=1 adds them) + WIDGET=<name>[,<name>] (WIDGET=all for every widget)
-	cd $(HARNESS) && WIDGET="$(WIDGET)" SKIP_TOOLING_TESTS=$(if $(FULL),0,1) pnpm test
+test-unit: harness-build ## Jest unit tests for shipping: harness (tooling suites skipped, FULL=1 adds them) + WIDGET=<name>[,<name>] (WIDGET=all for every widget). TESTS=<pattern> runs only the matching test files
+	cd $(HARNESS) && WIDGET="$(WIDGET)" SKIP_TOOLING_TESTS=$(if $(FULL),0,1) pnpm test $(if $(TESTS),-- $(TESTS),)
 
 test-e2e-headed: harness-build ## Playwright e2e with browser UI (test server on 14401)
 	cd $(HARNESS) && PORT=$(TEST_PORT) pnpm test:e2e:headed
@@ -187,7 +191,8 @@ BOX_SH := $(CONN_REPO)/scripts/box.sh
 # A worktree of this repo has no widget repos under widgets-src/: default to the
 # main checkout's (D10). An explicit WIDGETS_SRC= wins.
 MAIN_CHECKOUT := $(or $(patsubst %/.git,%,$(shell git -C "$(CURDIR)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)),$(CURDIR))
-WIDGETS_SRC ?= $(if $(wildcard $(CURDIR)/widgets-src/*/widget/info.json),$(CURDIR)/widgets-src,$(MAIN_CHECKOUT)/widgets-src)
+# _template is tracked, so it is in every worktree: it never counts as having widgets.
+WIDGETS_SRC ?= $(if $(filter-out %/_template/widget/info.json,$(wildcard $(CURDIR)/widgets-src/*/widget/info.json)),$(CURDIR)/widgets-src,$(MAIN_CHECKOUT)/widgets-src)
 export WIDGETS_SRC
 _DEP_KNOBS := ENV FSR_ENV SHIP_ENV SWEEP_ENV MATRIX_ENV LIVE_ENV SSH_HOST
 _DEP_ARGS := $(strip $(foreach v,$(_DEP_KNOBS),$(if $(filter command line environment,$(origin $(v))),$(v)='$($(v))')))
@@ -445,7 +450,7 @@ test-widget-ui-live: harness-build ## LIVE: drive the deployed assistant drawer:
 	@if [ -z "$(RECORD)" ]; then echo "Usage: make test-widget-ui-live BOX=<name> RECORD=<uuid> [MODULE=alerts]"; exit 2; fi
 	@cd $(HARNESS) && set -a && . "$(BOX_ENV)" && set +a && \
 	  FSRPB_LIVE=1 FSRPB_LIVE_RECORD="$(RECORD)" FSRPB_LIVE_MODULE="$(or $(MODULE),alerts)" \
-	    pnpm test:live tests/live/widgetUi.live.test.js tests/live/commentSummary.live.test.js
+	    pnpm test:live tests/live/widgetUi.live.test.js tests/live/commentSummary.live.test.js tests/live/scopePaths.live.test.js
 
 # docubot (TEC kit) drives the live designer tier. DOCUBOT= points at a kit
 # checkout or worktree (its own node_modules and Playwright pin); its config +

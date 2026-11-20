@@ -26,6 +26,13 @@
 # re-run. (A main this run did not move, e.g. a re-run that finds the branch
 # already merged, is left as it is and the push is just retried.)
 #
+# CI gate: when the branch head carries .github/required-checks (one GitHub
+# check-run name per line, # comments), every listed check must have COMPLETED
+# with success on that exact sha (gh api .../commits/<sha>/check-runs). Pending,
+# missing or failed refuses. A head GitHub has never seen is pushed as its branch
+# (never main, never --force) so CI starts; re-run promote when it is done. Only
+# listed checks count: a continue-on-error job reports "failure" as a check-run.
+#
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
 # The reference-transaction hook (scripts/githooks) refuses any other update of
 # main under Claude Code; this script hands it a one-shot allow file.
@@ -121,6 +128,40 @@ if [ -z "$proof" ]; then
     die "refusing: $why. Run a push target (widget-push / deploy / ship-dev) or make doctor BOX=<box> SANITY=1 STAMP=<repo dir> with $BRANCH checked out clean at $head, then retry."
   fi
 fi
+
+# --- CI gate ------------------------------------------------------------------
+ci_gate() {
+  local req up remote url slug runs missing="" bad="" name st co
+  req="$(g show "$head:.github/required-checks" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
+  [ -n "$req" ] || return 0
+  command -v gh >/dev/null || die "refusing: $BRANCH lists required CI checks but gh is not installed"
+  up="$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || true)"; remote="${up%%/*}"
+  [ -n "$remote" ] || die "refusing: $BRANCH lists required CI checks but $MAIN tracks no remote"
+  url="$(g remote get-url "$remote")"
+  slug="$(printf '%s' "$url" | sed -E 's#^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)##; s#\.git$##')"
+  [ "$slug" != "$url" ] || die "refusing: $remote ($url) is not a GitHub remote; cannot read CI for $head"
+  if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' 2>&1)"; then
+    if printf '%s' "$runs" | grep -qiE 'No commit found|HTTP 422|HTTP 404'; then
+      echo "promote: $head is not on GitHub yet; pushing $BRANCH so CI runs on it"
+      g push -q "$remote" "refs/heads/$BRANCH:refs/heads/$BRANCH" || die "refusing: could not push $BRANCH to start CI"
+      die "refusing: CI has just started on $head. Re-run make promote once it finishes (gh run watch -R $slug)."
+    fi
+    die "refusing: could not read CI for $head: $runs"
+  fi
+  while IFS= read -r name; do
+    st="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $2"\t"$3}' | tail -1)"
+    if [ -z "$st" ]; then missing="$missing '$name'"; continue; fi
+    co="${st#*	}"; st="${st%%	*}"
+    if [ "$st" != completed ]; then missing="$missing '$name'($st)"; elif [ "$co" != success ]; then bad="$bad '$name'($co)"; fi
+  done <<< "$req"
+  [ -z "$bad" ] || die "refusing: required CI failed on $head:$bad"
+  if [ -n "$missing" ]; then
+    printf '%s' "$runs" | grep -q . || { g push -q "$remote" "refs/heads/$BRANCH:refs/heads/$BRANCH" 2>/dev/null || true; }
+    die "refusing: required CI not finished on $head:$missing. Re-run make promote when it completes (gh run watch -R $slug)."
+  fi
+  echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
+}
+if [ "${ALLOW_UNVERIFIED:-}" = 1 ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
 
 tmp=""; wt=""; allow=""; MOVED=0; main_wt=""; target=""
 cleanup() {

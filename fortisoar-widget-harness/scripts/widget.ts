@@ -111,7 +111,11 @@ download & rename:
 
 if (!cmd || cmd === "-h" || cmd === "--help") usage(0);
 
-const widgetsSrc = path.resolve(__dirname, "..", "widgets-src");
+// WIDGETS_SRC (make exports it; a widget worktree sets it) wins over the local
+// harness/widgets-src symlink, which only `make setup` creates in the main checkout.
+const widgetsSrc = process.env.WIDGETS_SRC
+  ? path.resolve(process.env.WIDGETS_SRC)
+  : path.resolve(__dirname, "..", "widgets-src");
 
 // Local-widget resolution is lazy: commands that operate on a folder
 // (bump/pack/push/rename/lint/info/...) call resolveLocalWidget() to populate
