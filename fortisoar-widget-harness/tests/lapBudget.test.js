@@ -68,3 +68,10 @@ test("time a step reports as not its own (promote's CI wait) comes off the lap",
   expect(r.stderr).not.toMatch(/WARNING/);
   expect(Number(rows()[0][2])).toBeLessThanOrEqual(3);
 });
+
+test("make laps counts a target called wrong separately from a failing gate", () => {
+  lap("promote", "--", "bash", "-c", "echo 'promote: usage: make promote REPO=<path> BRANCH=<branch>' >&2; exit 2");
+  lap("promote", "--", "bash", "-c", "echo 'promote: refusing: CI failed' >&2; exit 1");
+  const s = spawnSync("bash", [path.join(ROOT, "scripts/laps.sh")], { encoding: "utf8", env: { ...process.env, FSR_LAP_LEDGER: ledger } });
+  expect(s.stdout).toMatch(/called wrong \(usage \/ unknown variable\), per step: promote 1/);
+});

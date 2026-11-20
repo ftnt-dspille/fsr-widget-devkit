@@ -36,7 +36,7 @@ ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 faillog="-"
 if [[ $rc -ne 0 ]]; then
     # Column 7: the last 20 lines of a failed step, kept beside the ledger.
-    faillog="$(dirname "$ledger")/fsr-laps-failed/${ts//:/}-${label// /_}.log"
+    faillog="$(dirname "$ledger")/fsr-laps-failed/${ts//:/}-${label// /_}-$$.log"
     mkdir -p "$(dirname "$faillog")" 2>/dev/null
     tail -n 20 "$out" > "$faillog" 2>/dev/null || faillog="-"
 fi

@@ -62,6 +62,13 @@ investigation into a playbook. The widget is the window; the connector is the en
 - Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
   working trees to the box, ~35s live smoke). Single widget: `make widget-push
   WIDGET=<name> BOX=<alias>` (lint + unit + deploy, ~1-2 min; `BOX` is required). `ship-verify` is for public releases only.
+- **More than one repo: use the tree targets.** `make status-tree NAME=<tree>`,
+  `make stamp-tree NAME=<tree> BOX=<alias>`, `make promote-tree NAME=<tree>`. Never loop
+  over make targets in the shell. zsh does not split `$var` into words: use arrays, or a
+  make target. A misspelt variable (`BRNCH=`) is refused with a did-you-mean.
+- **Box lease.** A push or stamp takes the box's lease (`tree:<name>` from `agent-tree env`)
+  and is refused while another agent holds it. `make box-leases` shows holders;
+  `make box-release BOX=<alias>` when you are done.
 - **Main moves only through `make promote REPO=<repo> BRANCH=<branch>`**, after
   a push target or `make doctor BOX=<box> SANITY=1 STAMP=<repo dir>` stamped that branch head VERIFIED on a clean tree. It merges
   into local main (ff or merge commit, other WIP kept), then pushes that main to
