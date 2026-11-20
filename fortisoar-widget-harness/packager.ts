@@ -678,7 +678,55 @@ interface PackageWidgetResult {
   warnings: string[];
 }
 
-async function packageWidget(widgetDir: string, outputDir: string): Promise<PackageWidgetResult> {
+interface PackageWidgetOpts {
+  // A RELEASE package: `development: false` and the production controller
+  // names `<name><ver>Ctrl` / `edit<Name><ver>Ctrl`, the form Fortinet's own
+  // Content Hub widgets ship in. The default (dev) form keeps `DevCtrl` and
+  // the source's `development` flag, which the harness and dev-push need.
+  release?: boolean;
+}
+
+// Rewrites a dev-form package tree (tmp copy only) into the release form.
+function rewriteForRelease(dir: string, version: string): void {
+  const numver = versionToNumeric(version);
+  const devCtrl = new RegExp(`([A-Za-z][A-Za-z0-9]*${numver})DevCtrl\\b`, "g");
+  const walk = (d: string): void => {
+    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, ent.name);
+      if (ent.isDirectory()) { walk(p); continue; }
+      if (!/\.(js|html|json)$/.test(ent.name)) continue;
+      const before = fs.readFileSync(p, "utf8");
+      const after = before.replace(devCtrl, "$1Ctrl");
+      if (after !== before) fs.writeFileSync(p, after);
+    }
+  };
+  walk(dir);
+  const infoPath = path.join(dir, "info.json");
+  const info = JSON.parse(fs.readFileSync(infoPath, "utf8"));
+  info.development = false;
+  fs.writeFileSync(infoPath, JSON.stringify(info, null, 2) + "\n");
+}
+
+// The release form, checked on the finished tree: no DevCtrl anywhere and
+// development false. Returns the problems (empty when clean).
+function releaseFormProblems(dir: string): string[] {
+  const out: string[] = [];
+  const info = JSON.parse(fs.readFileSync(path.join(dir, "info.json"), "utf8"));
+  if (info.development !== false) out.push(`info.json development is ${JSON.stringify(info.development)}, want false`);
+  const walk = (d: string): void => {
+    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, ent.name);
+      if (ent.isDirectory()) { walk(p); continue; }
+      if (!/\.(js|html|json)$/.test(ent.name)) continue;
+      if (/DevCtrl\b/.test(fs.readFileSync(p, "utf8"))) out.push(`${path.relative(dir, p)} still names a DevCtrl`);
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+async function packageWidget(widgetDir: string, outputDir: string,
+                             opts: PackageWidgetOpts = {}): Promise<PackageWidgetResult> {
   buildWidgetAssets(widgetRepoDir(widgetDir));
   const infoPath = path.join(widgetDir, "info.json");
   if (!fs.existsSync(infoPath)) throw new Error("info.json not found");
@@ -697,6 +745,11 @@ async function packageWidget(widgetDir: string, outputDir: string): Promise<Pack
   try {
     copyCleanRecursive(widgetDir, tmpDir);
     rewriteForVersion(tmpDir, widgetName, version);
+    if (opts.release) {
+      rewriteForRelease(tmpDir, version);
+      const bad = releaseFormProblems(tmpDir);
+      if (bad.length > 0) throw new Error(`release form check failed:\n  - ${bad.join("\n  - ")}`);
+    }
     validateStructure(tmpDir);
 
     const report = validateWidget(tmpDir, info);
@@ -736,6 +789,8 @@ async function packageWidget(widgetDir: string, outputDir: string): Promise<Pack
 
 export = {
   packageWidget,
+  rewriteForRelease,
+  releaseFormProblems,
   versionToNumeric,
   bumpVersion,
   isValidVersion,

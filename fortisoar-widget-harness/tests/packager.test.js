@@ -305,6 +305,44 @@ describe("packageWidget", () => {
     fs.rmSync(outDir, { recursive: true, force: true });
   });
 
+  function extract(archivePath) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fsr-pkg-x-"));
+    require("child_process").execFileSync("tar", ["-xzf", archivePath, "-C", dir]);
+    return dir;
+  }
+
+  function readAll(dir) {
+    let text = "";
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true, recursive: true })) {
+      if (ent.isFile()) text += fs.readFileSync(path.join(ent.parentPath || ent.path, ent.name), "utf8");
+    }
+    return text;
+  }
+
+  test("a dev package keeps DevCtrl and the source's development flag", async () => {
+    makeFullWidget(srcDir, "testWidget", "1.0.0", { development: true });
+    const result = await packageWidget(srcDir, outDir);
+    const x = extract(result.archivePath);
+    const text = readAll(x);
+    expect(text).toMatch(/editTestWidget100DevCtrl/);
+    expect(JSON.parse(fs.readFileSync(path.join(x, "testWidget-1.0.0", "info.json"), "utf8")).development).toBe(true);
+    fs.rmSync(x, { recursive: true, force: true });
+  });
+
+  test("a release package is development false with production Ctrl names", async () => {
+    makeFullWidget(srcDir, "testWidget", "1.0.0", { development: true });
+    const result = await packageWidget(srcDir, outDir, { release: true });
+    const x = extract(result.archivePath);
+    const text = readAll(x);
+    expect(text).not.toMatch(/DevCtrl/);
+    expect(text).toMatch(/"TestWidget100Ctrl"|"testWidget100Ctrl"/);
+    expect(text).toMatch(/editTestWidget100Ctrl/);
+    expect(JSON.parse(fs.readFileSync(path.join(x, "testWidget-1.0.0", "info.json"), "utf8")).development).toBe(false);
+    // the source tree is never edited
+    expect(fs.readFileSync(path.join(srcDir, "info.json"), "utf8")).toMatch(/"development": true/);
+    fs.rmSync(x, { recursive: true, force: true });
+  });
+
   test("produces a .tgz archive in the output directory", async () => {
     makeFullWidget(srcDir, "testWidget", "1.0.0");
     const result = await packageWidget(srcDir, outDir);
