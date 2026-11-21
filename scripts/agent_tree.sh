@@ -6,6 +6,7 @@
 #   make agent-tree NAME=<name> [REPOS="repo=branch ..."]   (or bash scripts/agent_tree.sh create ...)
 #   bash scripts/agent_tree.sh create NAME [repo=branch ...]   # default: every repo at its remote main, detached
 #   bash scripts/agent_tree.sh verify NAME                     # rc 0 only if nothing points at a shared checkout
+#   bash scripts/agent_tree.sh selfcheck NAME                  # venv imports (repaired if broken), framework-path, doctor LOCAL=1 -> READY / NOT READY
 #   bash scripts/agent_tree.sh env    NAME                     # print the exports (eval "$(... env NAME)")
 #   bash scripts/agent_tree.sh remove NAME                     # remove the worktrees; branches survive
 #
@@ -170,8 +171,10 @@ EOF
         (cd "$h" && pnpm build)
     fi
     cmd_verify "$name"
-    echo "agent_tree: ready: $tree"
+    local rc=0
+    [[ "${AT_NO_SELFCHECK:-}" == 1 ]] || cmd_selfcheck "$name" || rc=1
     echo "  eval \"\$(bash $HERE/scripts/agent_tree.sh env $name)\"; cd $tree/root"
+    return $rc
 }
 
 cmd_env() {
@@ -220,6 +223,70 @@ cmd_verify() {
     fi
     [[ $bad == 0 ]] && echo "agent_tree: verify OK ($tree)"
     return $bad
+}
+
+# The last step of create (and `agent_tree.sh selfcheck NAME` on an existing tree):
+# prove the tree is usable BEFORE a subagent is told to use it, so nobody debugs the
+# environment mid-task. Three checks, one verdict line:
+#   1. the connector's dev python imports what the suites need (a package that
+#      imported as an empty namespace, e.g. pluggy or pyyaml missing __init__.py,
+#      is reinstalled at its installed version, no deps; then re-probed)
+#   2. `make framework-path` in the tree's connector resolves to the tree's framework
+#   3. `make doctor LOCAL=1` in the tree's root passes
+# Prints "agent_tree: READY (<tree>)" or "agent_tree: NOT READY: <reasons>" (rc 1).
+# Test hooks: AT_SELFCHECK_PY, AT_SELFCHECK_IMPORTS, AT_SELFCHECK_PYPATH,
+# AT_SELFCHECK_INSTALL (command taking <python> <dist==version>), AT_SELFCHECK_MAKE.
+_probe_py='import importlib.util, sys
+bad = []
+for n in sys.argv[1:]:
+    try:
+        sp = importlib.util.find_spec(n)
+        if sp is None or sp.origin in (None, "namespace"):
+            bad.append(n); continue
+        __import__(n)
+    except Exception:
+        bad.append(n)
+print(" ".join(bad))'
+_dist_of() { case "$1" in yaml) echo pyyaml ;; xdist) echo pytest-xdist ;; *) echo "$1" ;; esac; }
+cmd_selfcheck() {
+    local name="${1:?NAME required}" tree="$TREES/$1" py mk imports bad n d v why=() fixed=() fw got log
+    [[ -f "$tree/agent-tree.json" ]] || die "no tree $tree"
+    mk="${AT_SELFCHECK_MAKE:-make}"; imports="${AT_SELFCHECK_IMPORTS:-pluggy yaml pytest xdist fsr_playbooks}"
+    py="${AT_SELFCHECK_PY:-$(bash "$tree/connector/scripts/dev_env.sh" python 2>/dev/null || true)}"
+    local pp="$tree/framework${AT_SELFCHECK_PYPATH:+:$AT_SELFCHECK_PYPATH}"
+    if [[ ! -x "$py" ]]; then
+        why+=("no connector dev python (run make setup in $tree/connector)")
+    else
+        bad="$(PYTHONPATH="$pp" "$py" -c "$_probe_py" $imports 2>/dev/null)"
+        for n in $bad; do
+            [[ "$n" == fsr_playbooks ]] && continue
+            d="$(_dist_of "$n")"
+            v="$(PYTHONPATH="$pp" "$py" -c 'import importlib.metadata as m,sys;print(m.version(sys.argv[1]))' "$d" 2>/dev/null || true)"
+            [[ -n "$v" ]] || { why+=("$n is broken and its version is unknown, cannot reinstall"); continue; }
+            echo "agent_tree: selfcheck: $n imports empty or fails; reinstalling $d==$v into the dev venv" >&2
+            if [[ -n "${AT_SELFCHECK_INSTALL:-}" ]]; then $AT_SELFCHECK_INSTALL "$py" "$d==$v" >/dev/null 2>&1 || true
+            elif command -v uv >/dev/null 2>&1; then uv pip install -q --python "$py" --reinstall --no-deps "$d==$v" >/dev/null 2>&1 || true
+            else "$py" -m pip install -q --force-reinstall --no-deps "$d==$v" >/dev/null 2>&1 || true; fi
+            fixed+=("$n")
+        done
+        bad="$(PYTHONPATH="$pp" "$py" -c "$_probe_py" $imports 2>/dev/null)"
+        [[ -z "$bad" ]] || why+=("venv imports still broken: $bad")
+        [[ -n "$bad" || ${#fixed[@]} -eq 0 ]] || echo "agent_tree: selfcheck: repaired ${fixed[*]}" >&2
+    fi
+    fw="$(cd "$tree/framework" && pwd -P)"
+    got="$( (eval "$(cmd_env "$name")"; "$mk" -s -C "$tree/connector" framework-path 2>/dev/null | tail -1) )"
+    got="$( (cd "$got" 2>/dev/null && pwd -P) || echo "$got")"
+    [[ "$got" == "$fw" ]] || why+=("make framework-path is '${got:-nothing}', not the tree framework $fw")
+    log="$(mktemp "${TMPDIR:-/tmp}/agent-tree-doctor.XXXXXX")"
+    if ! (eval "$(cmd_env "$name")"; "$mk" --no-print-directory -C "$tree/root" doctor LOCAL=1 CONN_REPO="$tree/connector") >"$log" 2>&1; then
+        why+=("make doctor LOCAL=1 failed: $(grep -v '^[[:space:]]*$' "$log" | tail -1 | cut -c1-200)")
+    fi
+    rm -f "$log"
+    if (( ${#why[@]} )); then
+        echo "agent_tree: NOT READY: $(IFS=';'; echo "${why[*]}" | sed 's/;/; /g') ($tree)"
+        return 1
+    fi
+    echo "agent_tree: READY ($tree)"
 }
 
 cmd_remove() {
@@ -298,6 +365,6 @@ cmd_promote() {  # every changed repo, in dependency order; stops at the first r
 }
 
 case "${1:-}" in
-    create|verify|env|remove|status|stamp|promote) c="$1"; shift; "cmd_$c" "$@" ;;
-    *) sed -n '2,15p' "$0" >&2; exit 2 ;;
+    create|verify|env|remove|status|stamp|promote|selfcheck) c="$1"; shift; "cmd_$c" "$@" ;;
+    *) sed -n '2,16p' "$0" >&2; exit 2 ;;
 esac

@@ -36,7 +36,7 @@ function world() {
   const w = { root: src(path.join(T, "root")), fw: src(path.join(T, "fw"), "github"), conn: src(path.join(T, "conn")),
               a: src(path.join(T, "widgets", "agenticAssistant")), m: src(path.join(T, "widgets", "agenticAssistantMonitor")) };
   w.env = { ...ENV, AT_ROOT_REPO: w.root.dir, AT_FRAMEWORK_REPO: w.fw.dir, AT_CONN_REPO: w.conn.dir,
-            AT_WIDGETS_DIR: path.join(T, "widgets"), AGENT_TREES: path.join(T, "trees"), AT_NO_BUILD: "1", AT_NO_HOOKS_CHECK: "1" };
+            AT_WIDGETS_DIR: path.join(T, "widgets"), AGENT_TREES: path.join(T, "trees"), AT_NO_BUILD: "1", AT_NO_HOOKS_CHECK: "1", AT_NO_SELFCHECK: "1" };
   return w;
 }
 const at = (env, ...a) => spawnSync("bash", [path.join(ROOT, "scripts", "agent_tree.sh"), ...a], { env, encoding: "utf8" });
@@ -123,5 +123,68 @@ exit 0
     const [call] = fs.readFileSync(log, "utf8").trim().split("\n");
     expect(call).toMatch(/doctor BOX=92 SANITY=1/);
     expect(call).toContain(`STAMP=${path.join(tree, "connector")}:${path.join(tree, "root")}`);
+  });
+});
+
+describe("selfcheck: the tree proves itself usable before anyone is sent into it", () => {
+  // A fake make answers framework-path (FAKE_FW) and doctor (FAKE_DOCTOR_RC); a
+  // package dir without __init__.py (the pluggy/pyyaml symptom) sits on the probe's path.
+  function checkedWorld({ fw, doctorRc = 0, broken = true } = {}) {
+    const w = world();
+    delete w.env.AT_NO_SELFCHECK;
+    const site = path.join(T, "site"); fs.mkdirSync(path.join(site, "brokenpkg"), { recursive: true });
+    if (!broken) fs.writeFileSync(path.join(site, "brokenpkg", "__init__.py"), "");
+    fs.mkdirSync(path.join(site, "brokenpkg-1.0.dist-info"), { recursive: true });
+    fs.writeFileSync(path.join(site, "brokenpkg-1.0.dist-info", "METADATA"), "Metadata-Version: 2.1\nName: brokenpkg\nVersion: 1.0\n");
+    const bin = path.join(T, "bin"); fs.mkdirSync(bin, { recursive: true });
+    const installs = path.join(T, "installs.log");
+    fs.writeFileSync(path.join(bin, "make"), `#!/bin/sh
+case "$*" in
+  *framework-path*) echo "\${FAKE_FW:-$AGENT_TREE/framework}" ;;
+  *doctor*) echo "doctor ran"; echo "doctor said: stale thing"; exit \${FAKE_DOCTOR_RC:-0} ;;
+esac
+`, { mode: 0o755 });
+    // The installer repairs by writing the missing __init__.py, and records the call.
+    fs.writeFileSync(path.join(bin, "fake-install"), `#!/bin/sh
+echo "$@" >> "${installs}"
+touch "${site}/brokenpkg/__init__.py"
+`, { mode: 0o755 });
+    w.env = { ...w.env, AT_SELFCHECK_PY: execFileSync("which", ["python3"], { encoding: "utf8" }).trim(),
+      AT_SELFCHECK_IMPORTS: "json brokenpkg", AT_SELFCHECK_PYPATH: site,
+      AT_SELFCHECK_INSTALL: path.join(bin, "fake-install"), AT_SELFCHECK_MAKE: path.join(bin, "make"),
+      FAKE_DOCTOR_RC: String(doctorRc), ...(fw ? { FAKE_FW: fw } : {}) };
+    return { w, installs };
+  }
+
+  test("create ends with the self-check: a broken package is reinstalled, and the line says READY", () => {
+    const { w, installs } = checkedWorld();
+    const r = at(w.env, "create", "s1");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/agent_tree: READY \(/);
+    expect(r.stderr).toMatch(/brokenpkg imports empty or fails/);
+    expect(fs.readFileSync(installs, "utf8")).toMatch(/brokenpkg==/);
+  });
+
+  test("a framework-path that is not the tree's framework is NOT READY, with the path in the reason", () => {
+    const { w } = checkedWorld({ fw: "/somewhere/shared/framework", broken: false });
+    const r = at(w.env, "create", "s2");
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/agent_tree: NOT READY: make framework-path is '\/somewhere\/shared\/framework'/);
+    expect(r.stdout).not.toMatch(/agent_tree: READY/);
+  });
+
+  test("a failing doctor LOCAL=1 is NOT READY and quotes its last line", () => {
+    const { w } = checkedWorld({ doctorRc: 1, broken: false });
+    const r = at(w.env, "create", "s3");
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/NOT READY: make doctor LOCAL=1 failed: doctor said: stale thing/);
+  });
+
+  test("a package the installer cannot fix is NOT READY", () => {
+    const { w } = checkedWorld();
+    fs.writeFileSync(path.join(T, "bin", "fake-install"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    const r = at(w.env, "create", "s4");
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toMatch(/NOT READY: venv imports still broken: brokenpkg/);
   });
 });
