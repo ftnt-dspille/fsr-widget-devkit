@@ -94,3 +94,21 @@ if [ $c -lt 2 ]; then printf 'test (bundled framework)\\tin_progress\\t\\n'; els
   expect(row).toBeDefined();
   expect(row[4]).toBe("300");
 });
+
+test("CI is checked first, and said so: a red check on an unstamped head is reported as CI, not as a missing stamp", () => {
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\nprintf 'test (bundled framework)\\tcompleted\\tfailure\\n'\n`, { mode: 0o755 });
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "0", PROMOTE_CI_POLL: "0" });
+  expect(r.code).not.toBe(0);
+  expect(r.out).toMatch(/checking required CI first/);
+  expect(r.out).toMatch(/required CI failed/);
+  expect(r.out).not.toMatch(/no stamp/);
+  expect(r.out.indexOf("checking required CI first")).toBeLessThan(r.out.indexOf("required CI failed"));
+});
+
+test("CI green but no stamp: still refused for the stamp, after CI was checked", () => {
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\nprintf 'test (bundled framework)\\tcompleted\\tsuccess\\n'\n`, { mode: 0o755 });
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "0", PROMOTE_CI_POLL: "0" });
+  expect(r.code).not.toBe(0);
+  expect(r.out).toMatch(/CI green/);
+  expect(r.out).toMatch(/no stamp/);
+});

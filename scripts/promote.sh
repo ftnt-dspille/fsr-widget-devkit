@@ -26,7 +26,7 @@
 # re-run. (A main this run did not move, e.g. a re-run that finds the branch
 # already merged, is left as it is and the push is just retried.)
 #
-# CI gate: when the branch head carries .github/required-checks (one GitHub
+# CI gate (runs first, before the stamp check): when the branch head carries .github/required-checks (one GitHub
 # check-run name per line, # comments), every listed check must have COMPLETED
 # with success on that exact sha (gh api .../commits/<sha>/check-runs). Pending,
 # missing or failed refuses. A head GitHub has never seen is pushed as its branch
@@ -144,39 +144,10 @@ else
 fi
 echo "promote: classified $CLASS ($class_why)"
 
-# --- proof --------------------------------------------------------------------
-sdir="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}/$name"
-proof=""; why="no stamp for $head in $sdir"
-check_stamp() {  # $1 = stamp file; sets proof or why
-  local f="$1" v d s
-  v="$(jq -r '.verdict // ""' "$f" 2>/dev/null)"; d="$(jq -r '.dirty' "$f" 2>/dev/null)"; s="$(jq -r '.sha // ""' "$f" 2>/dev/null)"
-  if [ "$v" != VERIFIED ]; then why="stamp $(basename "$f") verdict is '${v:-?}', not VERIFIED"; return 1; fi
-  if [ "$d" != false ]; then why="stamp $(basename "$f") was taken on a dirty tree (what ran was not that commit)"; return 1; fi
-  proof="$f"; PROOF_SHA="$s"
-}
-PROOF_SHA=""
-if [ -f "$sdir/$head.json" ]; then check_stamp "$sdir/$head.json" || true; fi
-if [ -z "$proof" ] && [ -d "$sdir" ]; then
-  tree="$(g rev-parse "$head^{tree}")"
-  for f in "$sdir"/*.json; do
-    [ -f "$f" ] || continue
-    s="$(jq -r '.sha // ""' "$f" 2>/dev/null)"; [ -n "$s" ] && [ "$s" != "$head" ] || continue
-    t="$(g rev-parse -q --verify "$s^{tree}" 2>/dev/null)" || continue
-    [ "$t" = "$tree" ] || continue
-    keep="$why"; check_stamp "$f" && break; why="$keep"
-  done
-fi
-if [ -z "$proof" ] && [ "$CLASS" = tooling ]; then
-  echo "promote: tooling-only: no box stamp needed; the proof is main's required CI on $head"
-elif [ -z "$proof" ]; then
-  if [ "${ALLOW_UNVERIFIED:-}" = 1 ]; then
-    echo "promote: WARNING no live proof ($why); ALLOW_UNVERIFIED=1 given by a human." >&2
-  else
-    die "refusing: $why. Run a push target (widget-push / deploy / ship-dev) or make doctor BOX=<box> SANITY=1 STAMP=<repo dir> with $BRANCH checked out clean at $head, then retry."
-  fi
-fi
-
-# --- CI gate ------------------------------------------------------------------
+# --- CI gate (first) ----------------------------------------------------------
+# CI comes BEFORE the stamp check: a required check that goes red on the branch
+# head (the connector's 'test (bundled framework)' leg, which a local run does
+# not mirror) used to surface only after the live proof was already spent.
 ci_gate() {
   local req up remote url slug runs missing="" bad="" name st co src="$head"
   # A tooling-only promote has no box stamp, so its CI list comes from main
@@ -187,6 +158,7 @@ ci_gate() {
     [ "$CLASS" = tooling ] && die "refusing: tooling-only needs CI, and main lists no .github/required-checks"
     return 0
   fi
+  echo "promote: checking required CI first (before the stamp and merge checks): $(printf '%s' "$req" | paste -sd, -) on ${head:0:9}; waits for it to finish if it is still running"
   command -v gh >/dev/null || die "refusing: $BRANCH lists required CI checks but gh is not installed"
   up="$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || true)"; remote="${up%%/*}"
   [ -n "$remote" ] || die "refusing: $BRANCH lists required CI checks but $MAIN tracks no remote"
@@ -242,6 +214,39 @@ ci_gate() {
   echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
 }
 if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
+
+# --- proof --------------------------------------------------------------------
+sdir="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}/$name"
+proof=""; why="no stamp for $head in $sdir"
+check_stamp() {  # $1 = stamp file; sets proof or why
+  local f="$1" v d s
+  v="$(jq -r '.verdict // ""' "$f" 2>/dev/null)"; d="$(jq -r '.dirty' "$f" 2>/dev/null)"; s="$(jq -r '.sha // ""' "$f" 2>/dev/null)"
+  if [ "$v" != VERIFIED ]; then why="stamp $(basename "$f") verdict is '${v:-?}', not VERIFIED"; return 1; fi
+  if [ "$d" != false ]; then why="stamp $(basename "$f") was taken on a dirty tree (what ran was not that commit)"; return 1; fi
+  proof="$f"; PROOF_SHA="$s"
+}
+PROOF_SHA=""
+if [ -f "$sdir/$head.json" ]; then check_stamp "$sdir/$head.json" || true; fi
+if [ -z "$proof" ] && [ -d "$sdir" ]; then
+  tree="$(g rev-parse "$head^{tree}")"
+  for f in "$sdir"/*.json; do
+    [ -f "$f" ] || continue
+    s="$(jq -r '.sha // ""' "$f" 2>/dev/null)"; [ -n "$s" ] && [ "$s" != "$head" ] || continue
+    t="$(g rev-parse -q --verify "$s^{tree}" 2>/dev/null)" || continue
+    [ "$t" = "$tree" ] || continue
+    keep="$why"; check_stamp "$f" && break; why="$keep"
+  done
+fi
+if [ -z "$proof" ] && [ "$CLASS" = tooling ]; then
+  echo "promote: tooling-only: no box stamp needed; the proof is main's required CI on $head"
+elif [ -z "$proof" ]; then
+  if [ "${ALLOW_UNVERIFIED:-}" = 1 ]; then
+    echo "promote: WARNING no live proof ($why); ALLOW_UNVERIFIED=1 given by a human." >&2
+  else
+    die "refusing: $why. Run a push target (widget-push / deploy / ship-dev) or make doctor BOX=<box> SANITY=1 STAMP=<repo dir> with $BRANCH checked out clean at $head, then retry."
+  fi
+fi
+
 
 tmp=""; wt=""; allow=""; MOVED=0; main_wt=""; target=""
 cleanup() {
