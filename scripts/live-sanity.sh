@@ -67,7 +67,7 @@ _widgets_at_main() {  # $1 shared widgets-src; sets _picked to a dir of its widg
         rem="$(git -C "$w" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"; rem="${rem:-origin}"
         git -C "$w" fetch -q "$rem" main 2>/dev/null || true
         git -C "$w" worktree add -q --detach "$_at_main_tmp/widgets-src/$(basename "$w")" "refs/remotes/$rem/main" >/dev/null 2>&1 \
-            || { echo "live-sanity: could not check out $(basename "$w") at $rem/main" >&2; return 1; }
+            || echo "live-sanity: note: $(basename "$w") has no $rem/main to check out; it is left out of the widget sources" >&2
     done
     _picked="$_at_main_tmp/widgets-src"
 }

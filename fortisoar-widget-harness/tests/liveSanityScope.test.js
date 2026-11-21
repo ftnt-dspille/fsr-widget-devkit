@@ -117,3 +117,15 @@ test("make doctor hands live sanity only a WIDGETS_SRC the caller gave", () => {
   expect(mk({})).toMatch(/GIVEN=\[\]/);
   expect(mk({ WIDGETS_SRC: "/some/where" })).toMatch(/GIVEN=\[\/some\/where\]/);
 });
+
+test("a shared widget repo with no remote main is left out of the main-widgets checkout, not fatal", () => {
+  const sh = sharedOnOtherBranch(); sh.otherBranch();
+  const { execFileSync } = require("child_process");
+  const odd = path.join(sh.main, "widgets-src", "oddballWidget"); fs.mkdirSync(path.join(odd, "widget"), { recursive: true });
+  fs.writeFileSync(path.join(odd, "widget", "info.json"), "{}");
+  execFileSync("git", ["-C", odd, "init", "-q", "-b", "feature"], { env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null" } });
+  const r = run({ FAKE_MAIN: sh.main, LIVE_SANITY_STAMP_REPOS: conn, WIDGETS_SRC: "" });
+  expect(r.status).toBe(0);
+  expect(r.stdout).toMatch(/"version":"1\.0\.0"/);
+  expect(r.stderr).toMatch(/oddballWidget has no origin\/main/);
+});
