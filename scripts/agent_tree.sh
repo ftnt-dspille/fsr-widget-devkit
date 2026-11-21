@@ -35,7 +35,7 @@
 set -euo pipefail
 (( BASH_VERSINFO[0] >= 4 )) || { echo "agent_tree: needs bash >= 4 (macOS /bin/bash is 3.2; run 'bash scripts/agent_tree.sh' with Homebrew bash on PATH)" >&2; exit 2; }
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+HERE="${FSR_TOOL_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"  # FSR_TOOL_HOME: set by run_from_main.sh (this script then runs from a temp file)
 _main_of() { local c; c="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir)"; dirname "$c"; }
 
 ROOT_SRC="${AT_ROOT_REPO:-$(_main_of "$HERE")}"
