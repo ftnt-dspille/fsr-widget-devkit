@@ -32,5 +32,5 @@ test("make resolves WIDGETS_SRC past a _template-only widgets-src", () => {
 
 test("live-sanity.sh ignores _template when choosing widgets-src", () => {
   const src = fs.readFileSync(path.join(ROOT, "scripts", "live-sanity.sh"), "utf8");
-  expect(src).toMatch(/compgen -G "\$WIDGETS_SRC\/\[!_\]\*\/widget\/info\.json"/);
+  expect(src).toMatch(/compgen -G "\$1\/\[!_\]\*\/widget\/info\.json"/);
 });

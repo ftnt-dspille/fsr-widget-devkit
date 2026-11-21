@@ -232,6 +232,10 @@ BOX_SH := $(CONN_REPO)/scripts/box.sh
 # main checkout's (D10). An explicit WIDGETS_SRC= wins.
 MAIN_CHECKOUT := $(or $(patsubst %/.git,%,$(shell git -C "$(CURDIR)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)),$(CURDIR))
 # _template is tracked, so it is in every worktree: it never counts as having widgets.
+# WIDGETS_SRC_GIVEN is the caller's own value (command line or environment), or empty:
+# doctor hands only that to live-sanity, which otherwise resolves widget sources from
+# the repo being stamped (scripts/live-sanity.sh), not from this checkout's branch.
+WIDGETS_SRC_GIVEN := $(if $(filter command line environment,$(origin WIDGETS_SRC)),$(WIDGETS_SRC))
 WIDGETS_SRC ?= $(if $(filter-out %/_template/widget/info.json,$(wildcard $(CURDIR)/widgets-src/*/widget/info.json)),$(CURDIR)/widgets-src,$(MAIN_CHECKOUT)/widgets-src)
 export WIDGETS_SRC
 _DEP_KNOBS := ENV FSR_ENV SHIP_ENV SWEEP_ENV MATRIX_ENV LIVE_ENV SSH_HOST
@@ -325,7 +329,7 @@ doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no b
 	$(if $(LOCAL),,$(require_box))
 	@bash scripts/hooks_central.sh check
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
-	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/lap.sh stamp --budget 120 -- bash scripts/live-sanity.sh),true)
+	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" WIDGETS_SRC="$(WIDGETS_SRC_GIVEN)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/lap.sh stamp --budget 120 -- bash scripts/live-sanity.sh),true)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
 	$(if $(filter local,$(SOURCE)),,$(require_box))

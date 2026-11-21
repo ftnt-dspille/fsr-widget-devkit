@@ -48,26 +48,78 @@ if [[ -z "${WIDGETS:-}" && -n "${LIVE_SANITY_STAMP_REPOS:-}" ]]; then
     fi
 fi
 export WIDGETS="${WIDGETS:-}"
-# A worktree of this repo has no widget repos: default to the main checkout's (D10).
-if [[ -z "${WIDGETS_SRC:-}" ]]; then
-    WIDGETS_SRC="$ROOT/widgets-src"
-    if ! compgen -G "$WIDGETS_SRC/[!_]*/widget/info.json" >/dev/null; then
-        WIDGETS_SRC="$(bx_main_checkout "$ROOT")/widgets-src"
-        # That is a shared checkout: its widget repos may be on another session's
-        # branch, and widget_versions would then compare the box with that
-        # branch (live: expected 1.4.6 while main and the box were at 1.4.7).
-        for _w in "$WIDGETS_SRC"/[!_]*/; do
+# Widget sources come from what is being proven, never from the caller's cwd.
+# widget_versions compares the box with <WIDGETS_SRC>/<w>/widget/info.json, so a
+# source on another session's branch makes a false FAIL (live: expected 1.4.6
+# while main and the box were at 1.4.7). Resolution, first match wins:
+#   1. a stamped widget repo: its parent dir (an agent tree's root/widgets-src)
+#   2. a stamped root repo that carries widget repos: its widgets-src
+#   3. a stamp with neither (connector, framework): the widgets at their remote main
+#   4. no stamp: an explicit WIDGETS_SRC, else this checkout's widgets-src when it
+#      has widget repos (the caller's own work), else the main checkout's at main
+_has_widgets() { compgen -G "$1/[!_]*/widget/info.json" >/dev/null; }
+_at_main_tmp=""; _picked=""
+_widgets_at_main() {  # $1 shared widgets-src; sets _picked to a dir of its widget repos at their remote main
+    local src="$1" w rem
+    _at_main_tmp="$(mktemp -d "${TMPDIR:-/tmp}/live-sanity-widgets.XXXXXX")"; mkdir -p "$_at_main_tmp/widgets-src"
+    for w in "$src"/[!_]*/; do
+        w="${w%/}"; [[ -e "$w/.git" ]] || continue
+        rem="$(git -C "$w" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"; rem="${rem:-origin}"
+        git -C "$w" fetch -q "$rem" main 2>/dev/null || true
+        git -C "$w" worktree add -q --detach "$_at_main_tmp/widgets-src/$(basename "$w")" "refs/remotes/$rem/main" >/dev/null 2>&1 \
+            || { echo "live-sanity: could not check out $(basename "$w") at $rem/main" >&2; return 1; }
+    done
+    _picked="$_at_main_tmp/widgets-src"
+}
+_cleanup_widgets_at_main() {
+    [[ -n "$_at_main_tmp" ]] || return 0
+    local w
+    for w in "$_at_main_tmp"/widgets-src/*/; do
+        [[ -e "${w%/}/.git" ]] || continue
+        git -C "${w%/}" worktree remove --force "${w%/}" >/dev/null 2>&1 || true
+    done
+    rm -rf "$_at_main_tmp"
+}
+trap _cleanup_widgets_at_main EXIT
+_why=""
+if [[ -n "${LIVE_SANITY_STAMP_REPOS:-}" ]]; then
+    IFS=: read -ra _stamp_dirs <<< "$LIVE_SANITY_STAMP_REPOS"
+    for _d in "${_stamp_dirs[@]}"; do
+        [[ -n "$_d" && -f "$_d/widget/info.json" ]] || continue
+        _picked="$(cd "$_d/.." && pwd)"; _why="the stamped widget repo $(basename "$_d")"; break
+    done
+    if [[ -z "$_picked" ]]; then
+        for _d in "${_stamp_dirs[@]}"; do
+            [[ -n "$_d" && -d "$_d/fortisoar-widget-harness" ]] && _has_widgets "$_d/widgets-src" || continue
+            _picked="$(cd "$_d/widgets-src" && pwd)"; _why="the stamped root repo's widgets-src"; break
+        done
+    fi
+    if [[ -z "$_picked" ]]; then
+        _cand="$ROOT/widgets-src"; _has_widgets "$_cand" || _cand="$(bx_main_checkout "$ROOT")/widgets-src"
+        _widgets_at_main "$_cand" || exit 2; _why="the widgets at their remote main (the stamp has no widget or root repo)"
+    fi
+elif [[ -z "${WIDGETS_SRC:-}" ]]; then
+    _picked="$ROOT/widgets-src"
+    if ! _has_widgets "$_picked"; then
+        _picked="$(bx_main_checkout "$ROOT")/widgets-src"
+        # A shared checkout: its widget repos may be on another session's branch.
+        _cand="$_picked"
+        for _w in "$_cand"/[!_]*/; do
             [[ -e "$_w/.git" ]] || continue
             _rem="$(git -C "$_w" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"
             if [[ "$(git -C "$_w" rev-parse HEAD 2>/dev/null)" != "$(git -C "$_w" rev-parse "refs/remotes/${_rem:-origin}/main" 2>/dev/null)" ]]; then
-                echo "live-sanity: refusing: no WIDGETS_SRC given, and the shared checkout's $(basename "$_w") is at $(git -C "$_w" rev-parse --abbrev-ref HEAD), not its remote main; widget_versions would check the box against that branch. Run from an agent tree (make agent-tree NAME=<n>), or pass WIDGETS_SRC=<widgets at the code you deployed>." >&2
-                exit 2
+                _widgets_at_main "$_cand" || exit 2; _why="the widgets at their remote main (the shared checkout is on another branch)"
+                break
             fi
         done
     fi
+fi
+if [[ -n "$_picked" ]]; then
+    [[ "$_picked" == "${WIDGETS_SRC:-}" ]] || echo "live-sanity: widget sources from ${_why:-this checkout}: $_picked"
+    WIDGETS_SRC="$_picked"
 fi
 export WIDGETS_SRC
 cd "$ROOT/fortisoar-widget-harness" || exit 2
 # Connector hooks reach here without make's harness-build: compile if needed.
 [[ -f lib/soarBrowser.js && -f lib/chatSession.js ]] || pnpm -s build >/dev/null || exit 2
-exec node scripts/live-sanity/run.js
+node scripts/live-sanity/run.js

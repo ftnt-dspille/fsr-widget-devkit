@@ -11,7 +11,7 @@ beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lss-"));
   bin = path.join(tmp, "bin"); fs.mkdirSync(bin);
   // node stands in for run.js: report the scope it was handed.
-  fs.writeFileSync(path.join(bin, "node"), '#!/bin/sh\necho "SCOPE=[$WIDGETS] LEASE=[$LIVE_SANITY_LEASE]"\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, "node"), '#!/bin/sh\necho "SCOPE=[$WIDGETS] LEASE=[$LIVE_SANITY_LEASE]"\necho "WSRC=[$WIDGETS_SRC] V=[$(cat "$WIDGETS_SRC/agenticAssistant/widget/info.json" 2>/dev/null)]"\n', { mode: 0o755 });
   fs.writeFileSync(path.join(bin, "pnpm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   conn = path.join(tmp, "conn"); fs.mkdirSync(path.join(conn, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(conn, "scripts", "box.sh"),
@@ -47,7 +47,9 @@ test("a stamp takes the box lease and hands it to the stamp writer", () => {
   expect(r.stdout).toMatch(/LEASE=\[tree:t#7\]/);
 });
 
-test("with no WIDGETS_SRC, a shared checkout widget off its remote main is refused, not checked", () => {
+// A shared checkout whose widget is on another session's branch: remote main has
+// 1.0.0, the checked-out branch 0.9.0.
+function sharedOnOtherBranch() {
   const { execFileSync } = require("child_process");
   const main = path.join(tmp, "shared"); const w = path.join(main, "widgets-src", "agenticAssistant");
   fs.mkdirSync(path.join(w, "widget"), { recursive: true });
@@ -56,18 +58,62 @@ test("with no WIDGETS_SRC, a shared checkout widget off its remote main is refus
   g("init", "-q", "-b", "main");
   fs.writeFileSync(path.join(w, "widget", "info.json"), '{"version":"1.0.0"}');
   g("add", "-A"); g("commit", "-q", "-m", "main"); g("update-ref", "refs/remotes/origin/main", "HEAD");
-  const env = { WIDGETS_SRC: "", FAKE_MAIN: main, LIVE_SANITY_STAMP_REPOS: "" };
-  delete env.WIDGETS_SRC;
-  // At remote main: fine.
-  let r = spawnSync("bash", [path.join(ROOT, "scripts/live-sanity.sh")], { encoding: "utf8",
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CONN_REPO: conn, BOX: "x", WIDGETS: "", FAKE_MAIN: main, WIDGETS_SRC: "" } });
-  // WIDGETS_SRC="" means unset for the script ([[ -z ]]).
-  expect(r.stderr).not.toMatch(/refusing/);
-  // Another session's branch: refused, naming the repo and the fix.
-  g("checkout", "-q", "-b", "someone/else"); fs.writeFileSync(path.join(w, "widget", "info.json"), '{"version":"0.9.0"}'); g("commit", "-qam", "old");
-  r = spawnSync("bash", [path.join(ROOT, "scripts/live-sanity.sh")], { encoding: "utf8",
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, CONN_REPO: conn, BOX: "x", WIDGETS: "", FAKE_MAIN: main, WIDGETS_SRC: "" } });
-  expect(r.status).toBe(2);
-  expect(r.stderr).toMatch(/agenticAssistant is at someone\/else, not its remote main/);
-  expect(r.stdout).not.toMatch(/SCOPE=/);
+  return { main, w, g, otherBranch() {
+    g("checkout", "-q", "-b", "someone/else"); fs.writeFileSync(path.join(w, "widget", "info.json"), '{"version":"0.9.0"}'); g("commit", "-qam", "old");
+  } };
+}
+const runNoSrc = (env) => {
+  const e = { ...process.env, PATH: `${bin}:${process.env.PATH}`, CONN_REPO: conn, BOX: "x", WIDGETS: "", ...env };
+  delete e.WIDGETS_SRC;
+  return spawnSync("bash", [path.join(ROOT, "scripts/live-sanity.sh")], { encoding: "utf8", env: e });
+};
+
+test("no WIDGETS_SRC and a shared checkout widget off its remote main: checked at its remote main, not that branch", () => {
+  const sh = sharedOnOtherBranch(); sh.otherBranch();
+  const r = runNoSrc({ FAKE_MAIN: sh.main, LIVE_SANITY_STAMP_REPOS: "" });
+  expect(r.status).toBe(0);
+  expect(r.stdout).toMatch(/"version":"1\.0\.0"/);
+  expect(r.stdout).not.toMatch(/0\.9\.0/);
+  const wsrc = r.stdout.match(/WSRC=\[([^\]]+)\]/)[1];
+  expect(wsrc).not.toContain(sh.main);
+  expect(fs.existsSync(wsrc)).toBe(false);                 // the temporary checkout is removed again
+  expect(sh.g("worktree", "list").split("\n")).toHaveLength(1);
+});
+
+test("a stamp with no widget or root repo (a connector) never reads the shared checkout's branch, even when WIDGETS_SRC names it", () => {
+  const sh = sharedOnOtherBranch(); sh.otherBranch();
+  // make exports the shared checkout's widgets-src as a default; a connector stamp must not trust it.
+  const r = run({ FAKE_MAIN: sh.main, LIVE_SANITY_STAMP_REPOS: conn, WIDGETS_SRC: "" });
+  expect(r.stdout).toMatch(/"version":"1\.0\.0"/);
+});
+
+test("a stamped widget repo in an agent tree is its own widget source, whatever WIDGETS_SRC says", () => {
+  const tree = path.join(tmp, "tree", "root", "widgets-src");
+  const w = path.join(tree, "agenticAssistant", "widget"); fs.mkdirSync(w, { recursive: true });
+  fs.writeFileSync(path.join(w, "info.json"), '{"version":"1.4.6"}');
+  const sh = sharedOnOtherBranch(); sh.otherBranch();
+  const r = run({ LIVE_SANITY_STAMP_REPOS: path.join(tree, "agenticAssistant"), WIDGETS_SRC: path.join(sh.main, "widgets-src") });
+  expect(r.stdout).toMatch(/"version":"1\.4\.6"/);
+  expect(r.stdout).toMatch(/WSRC=\[[^\]]*\/tree\/root\/widgets-src\]/);
+});
+
+test("a stamped root worktree that carries widgets is its own widget source", () => {
+  const rootDir = path.join(tmp, "wtroot"); fs.mkdirSync(path.join(rootDir, "fortisoar-widget-harness"), { recursive: true });
+  const w = path.join(rootDir, "widgets-src", "agenticAssistant", "widget"); fs.mkdirSync(w, { recursive: true });
+  fs.writeFileSync(path.join(w, "info.json"), '{"version":"2.0.0"}');
+  const sh = sharedOnOtherBranch(); sh.otherBranch();
+  const r = run({ LIVE_SANITY_STAMP_REPOS: rootDir, WIDGETS_SRC: path.join(sh.main, "widgets-src") });
+  expect(r.stdout).toMatch(/"version":"2\.0\.0"/);
+});
+
+test("make doctor hands live sanity only a WIDGETS_SRC the caller gave", () => {
+  const mk = (env) => {
+    const e = { ...process.env, ...env }; delete e.MAKEFLAGS; delete e.MAKELEVEL;
+    if (!env.WIDGETS_SRC) delete e.WIDGETS_SRC;
+    const extra = path.join(tmp, "p.mk");
+    fs.writeFileSync(extra, "zz-print:\n\t@echo GIVEN=[$(WIDGETS_SRC_GIVEN)]\n");
+    return spawnSync("make", ["-s", "-C", ROOT, "-f", "Makefile", "-f", extra, "zz-print"], { env: e, encoding: "utf8" }).stdout;
+  };
+  expect(mk({})).toMatch(/GIVEN=\[\]/);
+  expect(mk({ WIDGETS_SRC: "/some/where" })).toMatch(/GIVEN=\[\/some\/where\]/);
 });
