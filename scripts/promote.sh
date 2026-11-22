@@ -40,7 +40,8 @@
 # listed checks count: a continue-on-error job reports "failure" as a check-run.
 #
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
-# CLASSIFY_ONLY=1 prints the shipped/tooling classification and exits (a dry run).
+# CLASSIFY_ONLY=1 prints the shipped/tooling classification and exits.
+# PROMOTE_DRY_RUN=1 runs every check (classification, CI, stamp) and stops before the merge.
 # The reference-transaction hook (scripts/githooks) refuses any other update of
 # main under Claude Code; this script hands it a one-shot allow file.
 set -euo pipefail
@@ -306,6 +307,11 @@ elif [ -z "$proof" ]; then
   else
     die "refusing: $why. Run a push target (widget-push / deploy / ship-dev) or make doctor BOX=<box> SANITY=1 STAMP=<repo dir> with $BRANCH checked out clean at $head, then retry."
   fi
+fi
+
+if [ "${PROMOTE_DRY_RUN:-}" = 1 ]; then
+  echo "promote: DRY RUN: $BRANCH (${head:0:9}) is ready to merge into $MAIN (CI and proof checked); nothing merged"
+  exit 0
 fi
 
 

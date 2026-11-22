@@ -265,28 +265,16 @@ them from your own licensed box. Without it, e2e fails with a
 
 ## The dev loop -- the default while building the agent
 
-Speed first. Most iterations should never touch the release path below.
-
-```sh
-make doctor        # ~15s, read-only: can a result taken right now be trusted?
-make loop          # ~2.5 min: local -> copy working trees to the box -> live smoke
-make loop LOCAL_ONLY=1   # stage 1 only, no box
-make test-live-sweep ROWS=2   # one UI row (~1 min); prints [[SWEEP-PARTIAL]]
-```
-
-`make loop` (in the connector repo; forwarded from here) runs three stages. It
-stops at the first failure and prints that log's tail.
-
-1. **Local, in parallel.** The connector pytest suite under xdist (~20s), the
-   tool-sweep, and a 3-row agent smoke. The smoke drives your Python source with
-   a Frank model (`LOOP_MODEL`, default deepseek-v4-flash, ~1 min).
-2. **Push.** `dev_push.sh` rsyncs the framework and connector working trees onto
-   the box, recycles once, and waits until every worker reports this tree's
-   `build_id`. The widget is pushed too if its files changed since the last
-   push. About 40s. This is **not a release**: the box keeps its installed
-   version number, and `_DEV_PATCHED` markers record what was pushed.
-3. **Live smoke.** health, compile, validate, resolve and render, plus one LLM
-   turn that must card a containment. About 30s.
+Two commands (project CLAUDE.md): `make check` (tests for what you changed, no box, plus
+`make local-chat` when the agent loop changed) and `make ship [BOX=<alias>]` (push, box stamp only
+when the diff ships per `.github/package-inputs`, promote). Both work from the shared checkout, an
+agent tree or a worktree, and both record their phases in the lap ledger (`make laps`);
+`make doctor` warns when a step's recent median is over its budget. `make bench BOX=<alias>` runs
+the 11-22 timed task through the two doors on a throwaway branch (promote is a dry run) and prints
+it against that baseline (`scripts/devloop_baseline.tsv`). `make push`, `dev-push`, `widget-push`,
+`loop`, `ship-dev`, `promote` and the `*-tree` targets are what the doors compose; they stay as
+internals. One live UI row while iterating: `make test-live-sweep ROWS=2` (~1 min,
+`[[SWEEP-PARTIAL]]`).
 
 **What's actually failing in real chats?** `make session-health` reads the box's
 stored sessions (`LIMIT=30`, or `SOURCE=local`). It lists every failing tool call

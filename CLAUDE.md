@@ -10,20 +10,14 @@ commit inside that repo, not here.
 - Docs, trackers and memory go stale. Before acting on "release owed", "X is
   broken" or "pin is Y", check git and code: `info.json` version, the connector's
   `requirements.txt` pin, `git log`.
-- Box, version and env state comes from `make doctor` (~15s, `LOCAL=1` for no box).
-  Run it before believing any live result.
-- `make session-health` classifies failing chat tools (model/remote/guard/env/tool_bug,
-  recovered vs stuck) when triaging a session.
-- One box knob: `BOX=<alias>` (pyfsr registry `~/.pyfsr/instances.toml`, resolved by
-  the connector's `scripts/box.sh`; `scripts/box.sh --list` shows the targetable aliases).
-  It drives every box target in all repos, ssh included. No default box. The old
-  `ENV`/`SHIP_ENV`/`SWEEP_ENV`/`MATRIX_ENV`/`LIVE_ENV`/`FSR_ENV`/`SSH_HOST` knobs are
-  refused for agents.
+- `make doctor` (~15s, `LOCAL=1` for no box) is the preflight: box, version, env, hooks, and
+  warnings when a lap step trends over budget or a doc names a missing target or path.
+  Run it before believing a live result. `make session-health` triages failing chat tools.
+- One box knob: `BOX=<alias>` (pyfsr registry; the connector's `scripts/box.sh --list` shows the
+  targetable aliases). No default box.
 - If grep finds nothing in a file you know exists, use `/usr/bin/grep`: the
   interactive `grep` is a ugrep wrapper that skips big files.
-- Find each repo with `bash scripts/repo_paths.sh <conn|framework|root|agenticAssistant|agenticAssistantMonitor>`
-  (today: `~/PycharmProjects/ConnectorsV2/conn_main`, `~/PycharmProjects/fsr-playbook-framework`,
-  this checkout, `widgets-src/<name>`); `make promote REPO=<name>` takes those names too.
+- Find a repo: `bash scripts/repo_paths.sh <conn|framework|root|agenticAssistant|agenticAssistantMonitor>`.
 
 ## The product and where work is tracked
 
@@ -42,168 +36,71 @@ investigation into a playbook. The widget is the window; the connector is the en
 - **Local-only detail:** `docs/plans/` is gitignored because it carries box details.
   Index: `docs/plans/INDEX.md`.
 
-## Git and shipping
+## The dev loop: two commands
 
-- **The user owns GitHub releases (release tags, release objects, and the PyPI
-  publish they trigger). Agents own everything else: pushing code to GitHub and
-  pushing code to FortiSOAR boxes.** `make promote` pushes `main` to its remote
-  (never an unverified head), and push code over ssh to an
-  experimental-role box without asking: `make push`, `make dev-push`,
-  `make ship-dev`, `make loop`, `make widget-push`. Never cut a GitHub release, tag,
-  or a PyPI framework release (`make release-ship FW=...`, `make deploy FW=...`);
-  releases are for outside users now, and `CONFIRM_DEPLOY=1` is only for that.
-  The connector deploy scripts enforce this; see `TESTING.md`, Guardrails.
-- **A stable-role box (the customer demo) takes code only through `make stable
-  BOX=<alias>`.** It is the FortiSOAR Import Wizard's import API, over REST: one
-  solution pack carries the connector (the promoted framework wheel bundled inside),
-  both widgets and the dashboard. No ssh, no rsync, no PyPI reaches the box. Every
-  ssh target refuses a stable box (`scripts/box.sh`), with no override. `make stable`
-  refuses unless every source repo is clean on its package inputs, on main, equal to
-  its remote's main, and each HEAD has a VERIFIED, clean live-sanity stamp taken on an
-  experimental box (`scripts/stable_guard.py`). It re-runs idempotently: the box
-  is skipped when it already carries the same heads, and a changed head re-imports.
-- Box testing: `make loop` (the default dev loop: local tests, Frank smoke, copy
-  working trees to the box, ~35s live smoke). Single widget: `make widget-push
-  WIDGET=<name> BOX=<alias>` (lint + unit + deploy, ~1-2 min; `BOX` is required). `ship-verify` is for public releases only.
-- **More than one repo: use the tree targets.** `make status-tree NAME=<tree>`,
-  `make stamp-tree NAME=<tree> BOX=<alias>`, `make promote-tree NAME=<tree>`. Never loop
-  over make targets in the shell. zsh does not split `$var` into words: use arrays, or a
-  make target. A misspelt variable (`BRNCH=`) is refused with a did-you-mean.
-- **Box lease.** A push or stamp takes the box's lease (`tree:<name>` from `agent-tree env`)
-  and is refused while another agent holds it. `make box-leases` shows holders;
-  `make box-release BOX=<alias>` when you are done.
-- **Main moves only through `make promote REPO=<repo> BRANCH=<branch>`**, after
-  a push target or `make doctor BOX=<box> SANITY=1 STAMP=<repo dir>` stamped that branch head VERIFIED on a clean tree. It merges
-  into local main (ff or merge commit, other WIP kept), then pushes that main to
-  its upstream (`NO_PUSH=1` skips). A git
-  hook (`scripts/githooks`, installed by `make setup`) refuses any other update of
-  main under Claude Code. Never force-push, and never run deploy/install scripts directly; use the
-  make front doors.
-- **Tooling-only promotes need CI, not a box stamp.** When every path in the
-  branch's diff (from the merge base, both sides of renames, deletes included) is
-  on main's `.github/tooling-paths`, `make promote` takes the repo's required CI
-  (`.github/required-checks`, read from main) as the whole proof. One path off the
-  list, and it needs the live stamp as before. The list is read from main, never
-  the branch, and it leaves out everything that deploys or verifies a deploy
-  (ship, live-sanity, stable, push), the Makefile, and the policy files
-  themselves. Promote prints how it classified the change (`CLASSIFY_ONLY=1` is a
-  dry run). For the connector, framework and widget repos "shipped" is what
-  `.github/package-inputs` lists (package dir, build and deploy scripts,
-  requirements; dev scripts, tests, Makefile and docs are tooling). That file is the
-  ONE definition: `scripts/stable_guard.py` reads it too (its clean-tree set is the
-  `ship` lines plus the `extra` lines). Batch related tooling
-  changes and promote them once; run timing comparisons in the background.
-- Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or
-  releaseNotes; a hand edit desyncs the controller name and lint then blocks boot.
-  Rename with the `widget rename` CLI, not by hand.
-- Commits: author as the user. No AI attribution (no `Co-Authored-By`, no
-  "Generated with" lines) in commits or PRs.
-- A global pre-commit hook (`core.hooksPath=~/.git-hooks`) rejects en and em dashes.
-  The connector is latin-1 on the box, so write hyphens. Don't use `--no-verify`.
-- **Shared checkouts hold other people's WIP.** Never `git stash`, `pop` or rebase
-  over it. For branch work, `git worktree add <scratch>/wt_<name> -b <branch> <base>`
-  and work there. Check `git status` first, and leave the main checkout alone.
+Work in a worktree off origin/main (one repo) or an agent tree (`make agent-tree NAME=<n>
+REPOS="connector=new:fix/x ..."`, then `eval "$(bash scripts/agent_tree.sh env <n>)"`), never in
+the shared checkouts: they hold other people's WIP, so never `git stash`, `pop` or rebase there.
+Then:
 
-## Agents and subagents: permissions
+1. **`make check`**: the tests for what you changed, no box. Root: the jest files the diff touches
+   or names. Connector and framework: the pytest files it touches or imports. Widget: its unit
+   tests (and e2e when markup or CSS changed). When the diff touches the agent loop (framework
+   `fsr_playbooks/llm` or `mcp_server`, or the connector package) it also runs `make local-chat` on
+   a bundle (a sweep spec in the diff, else a default). It covers uncommitted and untracked files.
+   A part with no mapped test prints `NOT RUN`: that is not a pass, so add the test.
+2. **`make ship [BOX=<alias>]`**: commit first (ship proves a commit). It pushes the branch (CI
+   starts), classifies the diff with `.github/package-inputs`, and only when something ships
+   (package dir, build and deploy scripts) puts the code on `BOX` and stamps the head (BOX is then
+   required; a stable box is refused; a head already stamped is not redone). Then it runs
+   `make promote` per repo in dependency order, and frees the box lease. `DRY_RUN=1` stops before
+   the merge. Tooling-only diffs need no box: CI is the proof. In the connector repo the same two
+   commands forward here.
 
-These apply to every agent, subagents included (briefs must repeat them).
+That is the whole loop. Everything else (`push`, `dev-push`, `widget-push`, `loop`, `ship-dev`,
+`promote`, `stamp-tree`, `promote-tree`, `doctor SANITY=1 STAMP=`, box leases, `framework-path`)
+is internal: the doors call it, so do not type it. Drill-downs while iterating:
+`make test-unit WIDGET=<n>` or `TESTS=<file>`, `make test-e2e-spec SPEC=<file>`,
+`make local-chat BUNDLE=<name> [ASK=...]` (box-free: real widget, real connector, Frank or fake, a
+fixture bundle; read the saved png), `make widget-inspect ARGS='--widget <n> ...'` for DOM facts.
+`make test-docker TESTS="<pattern>"` runs the shell-heavy tooling suites in seconds in a Linux
+container (a local check, not proof). A widget worktree goes at `<dir>/widgets-src/<name>` (the
+harness finds widgets through its real path; the door links the harness beside it). `make bench
+BOX=<alias>` times the loop on a throwaway branch (never promoted) against the 11-22 baseline;
+`make laps` shows step timings.
 
-- MAY, without asking: run the model policy below (Frank first, Haiku fallback);
-  dev-push or dev-sync any working tree to an experimental-role box (`BOX=<alias>`,
-  `scripts/box.sh --list`), unreleased code included.
-- MAY, when the owner asks for it: `make stable BOX=<stable alias>` (the Import Wizard
-  install; the guard in front of it is the rule, not a permission to skip it).
-- MUST NOT: push code to a stable-role box over ssh (every ssh target refuses it; the
-  only path is `make stable`, and do not look for a way around the refusal); cut a
-  GitHub release, tag or PyPI release; force-push; push an unpromoted `main`.
-- Default scope is one widget or the agentic assistant solution pack (chat widget,
-  Monitor, connector, framework), never every widget.
-- Briefs (cost): point at the exact file section to read (the tracker ROADMAP is large;
-  grep the heading), give a time budget and sample size, and say "run anything over
-  ~2 min in the background and wait for its completion notice; never poll with sleep
-  loops". Before a long or paid run, run ONE case first and check it measures the
-  right thing (box tree, framework version, config). Default subagent model: Sonnet.
+## Rules
+
+- **The user owns GitHub releases** (tags, release objects, the PyPI publish they trigger). Never
+  cut one, never `make release-ship` / `make deploy FW=...`, never force-push, never push an
+  unpromoted `main`. Agents own pushing code to GitHub (`make ship`) and to experimental boxes.
+- **A stable-role box (the customer demo) takes code only through `make stable BOX=<alias>`**
+  (Import Wizard over REST, when the owner asks). Every ssh path refuses it, with no override; do not
+  look for one. `make stable` refuses unless each repo is clean, on remote main, and VERIFIED on an
+  experimental box.
+- Main moves only through promote (inside `make ship`); a hook refuses any other update of main.
+  Never loop `make promote` in the shell: `ship` does it, one call per repo.
+- Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or releaseNotes (a hand edit
+  desyncs the controller name). Rename with the `widget rename` CLI.
+- Commits: author as the user, no AI attribution lines. A global hook rejects en and em dashes;
+  the connector is latin-1 on the box, so write hyphens. Never skip git hooks.
+- Never hand-start a server, never run `pnpm exec playwright` or `pnpm jest` directly (refused
+  under Claude Code; go through make). Specs build URLs from `baseURL`, never a literal port.
+  Headed targets only when the user is at the machine.
+- **A test for a fix must be shown red without the fix**: remove the fix in a scratch worktree, see
+  it fail, restore. **A skip is not a pass**: report skipped tests as not run, with the reason.
+- Every widget change ships with a test (controller logic: jest; DOM/CSS: e2e). Card tests assert
+  content, not shape. Verify the write, not the card: check the effect on the box.
+- Models: Frank (free gateway, at most 3 concurrent turns) first when reachable; otherwise paid
+  Haiku without asking; live Sonnet for verification only. Routine verification is small: the fast
+  tiers plus a deterministic sample, 2 runs. Full sims are for sprint gates.
+- To verify a finished widget change, delegate to the `widget-change-verifier` agent.
+- Briefs for subagents repeat these rules, point at the exact file section to read, give a time
+  budget and sample size, say "run anything over ~2 min in the background and wait for its notice;
+  never poll with sleep loops", and default to Sonnet. Default scope: one widget or the assistant
+  solution pack, never every widget.
 - Procedures live in skills: box-live-runs, worktree-test-env, session-diagnosis-regrade,
   connector-dev-deploy, fortisoar-platform-gotchas, agentic-eval-method.
-
-## Testing
-
-Tier ladder, cheapest first. All targets run from the repo root:
-
-1. `make test-unit WIDGET=<name>[,<name>]` (jest; `WIDGET=all` for every widget).
-   Controller logic. Must exit 0.
-2. `make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"` for scoped
-   runs, or `make test-e2e-spec WIDGET=<name>` for one widget. DOM and template.
-   Space- or comma-separated.
-3. `make local-chat BUNDLE=<name> [ASK="..."]`: the default FIRST check of anything the assistant does, before any
-   box run. No box: the real widget, the real connector in local Python, Frank (fake if it is down; it prints
-   which), a fixture bundle for FortiSOAR. One command starts and tears down everything, sends one message, and
-   saves `scratch/local-chat/<bundle>-<time>/chat.png` (Read it), `transcript.md`, `tool_calls.json`.
-   Bundles: connector `scripts/conversations/sweep/*.json` (ka_* are known-answer triage rows). It does not
-   prove the deployed install; `make loop` does.
-4. `make loop`: the default box iteration (above). Every push path (`widget-push`,
-   connector `deploy`/`loop`/`ship-dev`) ends with the ~1 min live sanity pass and
-   stamps the pushed commits; `make doctor BOX=<name> SANITY=1` re-checks without
-   pushing. `SKIP_LIVE_SANITY=1` opts out (NOT verified). TESTING.md, Live sanity.
-5. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
-   sweep. Releases only, and the user runs it.
-6. `make stable BOX=<stable alias>`: not a test tier. It installs the promoted mains on
-   a stable box through the Import Wizard, then runs live sanity and stamps the heads
-   it installed. `ARGS=--build-only` builds the package without touching the box.
-
-Several targets reach a box (deploys, live sweeps, the connector's loop and doctor).
-The authoritative list is "Targets that reach a box" in `TESTING.md`. Of those,
-`make test-live-sweep [RUNS=n]` is the one that grades a box. A
-`[[SWEEP-ENV-SKIP]]` means the backend is down or lacks an integration the row
-needs, so it is **not** verified.
-
-Shell-heavy tooling suites (promote, guards, hooks, agent tree, stable source)
-run in seconds in a Linux container and in minutes on the Mac host: run them with
-`make test-docker TESTS="<pattern>"` (starts Colima if it is not running; box-free
-tests only). It is a fast local check, not proof: promote still requires CI, and it
-never writes a stamp.
-
-Rules:
-- Never hand-start a server, and never run `pnpm exec playwright` or `pnpm jest`
-  directly (refused at run time under Claude Code; see `TESTING.md`, Guardrails). Specs build URLs from `baseURL` or `E2E_BASE_PORT`, never a literal port.
-- The mock e2e tier is hermetic (`FSR_HERMETIC=1`). An un-snapshotted call returns
-  `599 HERMETIC-MISS` and `globalTeardown` fails the run on any leak.
-- Every widget change ships with a test: controller logic gets jest, DOM/CSS gets
-  e2e. Iterate every input in integration tests and assert on all of them.
-- Testing a widget worktree: the harness resolves `widgets-src` through its real path,
-  so a test run from a worktree silently tests the shared checkout. Put the widget
-  worktree at `<scratch>/x/widgets-src/<name>` and pass `WIDGETS_SRC=<scratch>/x/widgets-src`.
-  The specs `require("../../../../fortisoar-widget-harness/...")`, so also symlink the
-  harness: `ln -s <main checkout>/fortisoar-widget-harness <scratch>/x/fortisoar-widget-harness`.
-  `make test-e2e-spec` takes SPEC over WIDGET when both are set.
-- **A test for a fix must be shown red without the fix.** Remove the fix (in a
-  scratch worktree, not the shared checkout), run the test, see it fail, restore.
-  A jest test once passed with or without its fix. Tests written from the same
-  model as the fix inherit its blind spots.
-- **A skip is not a pass.** Report skipped tests as not run, with the reason.
-- Models: Frank (the free gateway; at most 3 concurrent turns) first whenever it is
-  reachable (VPN on). If it is not, or the run needs the Anthropic side, paid Haiku is
-  allowed without asking; live Sonnet for verification only. Prove mechanics with
-  fake-model tests first and state the run count up front.
-- Routine verification must be fast: the fast tiers (tool-sweep, t1, unit) plus a small
-  deterministic sample of slow tiers (a few sessions or scenarios, 2 runs). Give
-  subagents a time budget and sample size. Full analyst-sim, known-answer or 30-session
-  runs are for sprint-level gates or when the owner asks.
-- Verify the write, not the card. A rendered card proves nothing. Clicking Apply on a
-  live box found two more bugs behind a card that looked right. Check the effect on the box.
-- Don't run headed targets (`make test-e2e-headed`, or a headed live matrix) unless the
-  user is at the machine. They pop a focus-stealing browser window.
-- Card tests assert content, not shape. "A card exists" is not proof that the
-  verdict or record is right.
-- To verify a finished widget change, delegate to the `widget-change-verifier` agent
-  (runs these gates and the red check, reports evidence, changes nothing).
-- Visual or DOM claims: `make widget-inspect ARGS='--widget <name> [--config <json>] [--click <sel>] ...'`
-  (wraps `fortisoar-widget-harness/scripts/widget-inspect.js`; `--help` lists the
-  flags). Don't hand-roll Playwright except for a tiny screenshot script.
-  The assistant's mock-state screenshots (quick actions, verdict, action card, offer)
-  come from `widgets-src/agenticAssistant/tests/e2e/agenticAssistant.docsScreenshots.spec.js`:
-  `DOCS_SHOTS=1 make test-e2e-spec SPEC=agenticAssistant.docsScreenshots` (rewrites
-  that widget's docs/images; it lives in the widget's own repo, so grep there, not here).
 
 ## Chat widget (agenticAssistant)
 

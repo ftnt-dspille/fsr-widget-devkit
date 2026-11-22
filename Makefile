@@ -24,7 +24,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
+.PHONY: check ship bench harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -58,6 +58,19 @@ loop: export VIA_LOOP := 1
 #    ONE way an agent moves main (any repo: root, widgets-src/*, connector,
 #    framework, docubot); scripts/githooks/reference-transaction refuses every
 #    other update of main under CLAUDECODE. Merges locally, then pushes main to its upstream (NO_PUSH=1 skips).
+# --- The two front doors (scripts/door.sh) -------------------------------------
+# Agents type these two. Every target below them is an internal they compose.
+# Works from the shared checkout, an agent tree (every changed repo) or a worktree.
+check: ## FRONT DOOR 1: tests for what you changed, no box (+ local-chat when the agent loop changed). Repo = the one you are in; DOOR_REPO=<path|name> picks another
+	@$(RFM) door.sh check
+
+ship: ## FRONT DOOR 2: push the branch, stamp on BOX=<alias> only when the diff ships (package inputs), then promote. DRY_RUN=1 stops before the merge
+	@$(RFM) door.sh ship
+
+bench: ## Run the timed dev-loop benchmark on a throwaway connector branch through the two doors (BOX=<alias>), record phases in the lap ledger, compare with the baseline. Never promotes
+	$(require_push_box)
+	@bash scripts/devloop_bench.sh
+
 test-docker: ## Harness jest suites in a Linux container (starts Colima if needed): seconds instead of minutes for the shell-heavy tooling suites. TESTS=<pattern>. A local check only; promote still needs CI
 	@TESTS="$(TESTS)" bash scripts/test_docker.sh
 
@@ -175,9 +188,6 @@ test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.sp
 	@# combining them would widen the run instead of narrowing it).
 	cd $(HARNESS) && PORT=$(TEST_PORT) E2E_LIVE=$(if $(SPEC),$$E2E_LIVE,) pnpm test:e2e $(if $(SPEC),$(SPEC_ARGS),$(WIDGET_ARG)) --reporter=list
 
-# Old name for `test-e2e-spec WIDGET=<name>`.
-test-e2e-widget: harness-build test-e2e-spec
-
 # Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
 # turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
 # fake LLM + cassette reads -- no box, no LLM credits), then runs the Seam C e2e
@@ -237,6 +247,7 @@ BUMP ?= patch
 # are the same BOX. There is one knob, so they cannot differ.
 CONN_REPO ?= $(shell bash "$(CURDIR)/scripts/repo_paths.sh" conn)
 BOX_SH := $(CONN_REPO)/scripts/box.sh
+FW_REPO ?= $(shell bash "$(CURDIR)/scripts/repo_paths.sh" framework)
 # A worktree of this repo has no widget repos under widgets-src/: default to the
 # main checkout's (D10). An explicit WIDGETS_SRC= wins.
 MAIN_CHECKOUT := $(or $(patsubst %/.git,%,$(shell git -C "$(CURDIR)" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)),$(CURDIR))
@@ -343,9 +354,10 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 	$(require_push_box)
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) loop $(_FWD_BOX)
 
-doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)
+doctor: ## Preflight: is anything about to make a test result lie? Also warns on lap steps over budget and docs naming missing targets/paths/variables. (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)
 	$(if $(LOCAL),,$(require_box))
 	@$(RFM) hooks_central.sh check
+	@python3 scripts/drift_check.py --connector "$(CONN_REPO)" --framework "$(FW_REPO)"
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
 	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" WIDGETS_SRC="$(WIDGETS_SRC_GIVEN)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" $(LAP) stamp --budget 120 -- $(RFM) live-sanity.sh),true)
 
@@ -459,10 +471,6 @@ test-matrix-live: harness-build ## LIVE prompt/flow matrix (docs/PROMPT_FLOW_TES
 	  FSRPB_LIVE=1 FSRPB_HEADED=1 MATRIX_GATE="$(MATRIX_GATE)" MATRIX_IDS="$(MATRIX_IDS)" MATRIX_SCENARIOS="$(MATRIX_SCENARIOS)" \
 	    pnpm test:live tests/live/matrix.live.test.js; \
 	fi
-
-# Old name for `test-matrix-live MATRIX_GATE=strict,xfail`: GATING rows only (gate:strict must stay clean + gate:xfail must stay broken-or-promote). Deliberately NOT in ship-verify -- each row is a headed box turn (~2-4 min). BOX=206 for build flows.
-test-matrix-gate: MATRIX_GATE = strict,xfail
-test-matrix-gate: test-matrix-live
 
 # ── The LOCAL matrix ────────────────────────────────────────────────────────
 #

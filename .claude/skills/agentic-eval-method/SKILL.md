@@ -6,7 +6,7 @@ description: Use when designing, running or grading an eval or test of the agent
 # Agentic eval and test method
 
 ## Budget and sample size
-- Cheapest look at one behaviour end to end (widget cards included): `make local-chat BUNDLE=<name> [ASK=...]` (root repo): real widget + real connector in local Python + Frank (fake if down) + a fixture bundle for the box, one turn, screenshot + transcript + tool calls in `scratch/local-chat/`. Read the png. Run it first; it needs no box. ka_* bundles are known-answer rows (graded by the connector sweep, not here).
+- Cheapest look at one behaviour end to end (widget cards included): `make local-chat BUNDLE=<name>` (`make check` runs it when the agent loop changed). ka_* bundles are known-answer rows (graded by the connector sweep).
 - Routine change: fast tiers (tool-sweep ~2-8s, t1 fake/frank ~11s, unit) plus a SMALL deterministic sample of
   the slow tiers (a few sessions or scenarios, 2 runs). Brief subagents with the time budget and sample size up
   front. Full analyst-sim / known-answer / 30-session runs are for sprint-level gates or when asked.
@@ -56,7 +56,3 @@ description: Use when designing, running or grading an eval or test of the agent
 - Re-grade stored transcripts instead of re-driving (see session-diagnosis-regrade).
 - Machine load can fail boot-time waits uniformly; judge by the shape of failures.
 
-Sources: feedback_verification_must_be_fast, eval_runs_default_two, sweeps_start_small, eval_llm_turns_are_stochastic,
-tests_inherit_the_fixs_blind_spots, tests_assert_shape_not_truth, verify_the_write_not_the_card,
-coverage_audits_must_be_closures, parallel_name_lists_drift, arg_gate_w1_replay_method, no_regex_intent_detection,
-t2_containment_drift, library_first_validation (conn_main/framework CLAUDE.md already hold the core rules).

@@ -1,7 +1,14 @@
-"""Lap ledger rows on stdin (ts, label, secs, rc, budget, repo) -> one line per step."""
+"""Lap ledger rows on stdin (ts, label, secs, rc, budget, repo) -> one line per step.
+
+--drift [N]  print only a warning per step whose median over its last N runs
+             (default 5, at least 3 runs) is above its budget; nothing when none is.
+             `make doctor` runs this: a step that quietly got slow is named before
+             anyone has to notice."""
 import re
 import statistics
 import sys
+
+DRIFT = "--drift" in sys.argv
 
 rows = {}
 failures = []
@@ -21,6 +28,18 @@ for line in sys.stdin:
             # door keeps being misused.
             if re.search(r"\busage:|unknown variable", text):
                 misuse[p[1]] = misuse.get(p[1], 0) + 1
+if DRIFT:
+    i = sys.argv.index("--drift")
+    n = int(sys.argv[i + 1]) if len(sys.argv) > i + 1 and sys.argv[i + 1].isdigit() else 5
+    for label, runs in sorted(rows.items()):
+        budget = runs[-1][1]
+        recent = [s for s, _ in runs[-n:]]
+        if budget == "-" or len(recent) < 3:
+            continue
+        med = int(statistics.median(recent))
+        if med > int(budget):
+            print("WARN lap step '%s': median %ds over its last %d runs, budget %ss (make laps)" % (label, med, len(recent), budget))
+    sys.exit(0)
 print("%-28s %4s %6s %6s %6s %6s %4s" % ("step", "runs", "last", "median", "max", "budget", "over"))
 for label, runs in sorted(rows.items()):
     secs = [s for s, _ in runs]

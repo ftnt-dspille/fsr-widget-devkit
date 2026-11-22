@@ -1,0 +1,9 @@
+# The timed task of 2026-11-22 (see DEV_LOOP_CONSOLIDATION.md in the plans repo): phase, seconds.
+# `make bench` compares a fresh run with these. orient is reading and planning time: not automatable, so not measured.
+orient	90
+setup	30
+code+test	120
+full suite	450
+commit	60
+push+stamp	360
+promote	90

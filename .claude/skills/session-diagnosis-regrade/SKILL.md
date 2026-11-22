@@ -59,7 +59,3 @@ Cheapest first: read stored data before re-driving any model.
   (connector `scripts/run.py` still does); pass `--expect-model`.
 - Cost math: OpenAI nests cached tokens inside `input_tokens`; Anthropic keeps them disjoint. Branch on model.
 
-Sources: regrade_*, session_health_report, session_defect_sweep_method, chat_history_full_chain_inspection,
-chat_turn_usage_lives_in_transcript, session_store_and_old_db, eval_transport_errors_arrive_pre_wrapped,
-harness_grader_blind_spots, conv_graders_were_vacuous, resolve_config_silently_falls_back (conn_main Makefile
-targets confirmed: session-health, regrade, session-export, local-turn).
