@@ -5,7 +5,8 @@
 # the harness's uncommitted diff, so any code or test change re-runs the suites.
 # FORCE_UNIT=1 always runs.
 set -uo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# FSR_TOOL_HOME: the invoking checkout, set by run_from_main.sh (this script then runs from main's copy in a temp file)
+ROOT="${FSR_TOOL_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SRC="$1"; W="$2"; shift 2; [[ "${1:-}" == "--" ]] && shift
 WD="$SRC/$W"
 key="$( {

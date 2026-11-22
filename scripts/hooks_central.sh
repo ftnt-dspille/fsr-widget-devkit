@@ -26,7 +26,7 @@ set -euo pipefail
 
 # FSR_ROOT_DIR: the root repo when this script runs from a copy (promote runs
 # root main's copy from a temp file).
-HERE="${FSR_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+HERE="${FSR_ROOT_DIR:-${FSR_TOOL_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}}"
 ROOT_MAIN="$(dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)")"
 DIR="${FSR_HOOKS_DIR:-$HOME/.local/share/fsr-hooks}"
 HOOK_NAMES=(pre-commit pre-push commit-msg prepare-commit-msg post-merge post-checkout)

@@ -52,7 +52,7 @@ test("widget-push deploys and live-sanities the ONE resolved box", () => {
 test("ship-verify: the deploy and the sweep get the same box", () => {
   const r = make(["ship-verify", "WIDGET=w", "BOX=alpha", "CONFIRM_DEPLOY=1"]);
   expect(r.out).toContain(`FSR_ENV_FILE=${stub}/.env.alpha`);
-  expect(r.out).toMatch(/BOX=alpha bash scripts\/ship-verify-sweep\.sh/);
+  expect(r.out).toMatch(/BOX=alpha bash \S*scripts\/run_from_main\.sh ship-verify-sweep\.sh/);
   expect(r.out).not.toMatch(/SWEEP_ENV|SHIP_ENV/);
 });
 

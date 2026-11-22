@@ -78,7 +78,7 @@ agent-tree: ## Build a complete agent tree of all 5 repos (NAME=<name> [REPOS="c
 	@bash scripts/run_from_main.sh agent_tree.sh create "$(NAME)" $(REPOS)
 
 promote: ## Merge BRANCH into local main of REPO, only with a VERIFIED clean live-sanity stamp for its head (REPO=<path> BRANCH=<branch>), then pushes main to its upstream (NO_PUSH=1 skips)
-	@bash scripts/lap.sh promote --budget 60 -- bash scripts/promote_main.sh
+	@$(LAP) promote --budget 60 -- bash $(CURDIR)/scripts/promote_main.sh
 
 box-lease: ## Take or renew the lease on an experimental box (BOX=<alias>); pushes and stamps take it too, and refuse while another agent holds it
 	@BOX='$(BOX)' bash "$(BOX_SH)" --need env,lease >/dev/null
@@ -261,11 +261,20 @@ endef
 # What to forward to the connector repo's make.
 _FWD_BOX = BOX=$(or $(RESOLVED_BOX),$(BOX))
 
+# Root-repo tooling runs from this repo's remote main (scripts/run_from_main.sh),
+# whatever branch this checkout is on; the script finds its siblings and the repo
+# through FSR_TOOL_HOME. FROM_TREE=1 runs the working-tree copies instead (for
+# developing the tooling itself; the tooling tests set it).
+RFM := bash $(CURDIR)/scripts/run_from_main.sh
+LAP := RUN_FROM_MAIN_QUIET=1 $(RFM) lap.sh
+SHIP_SH := fortisoar-widget-harness/scripts/ship.sh
+RELEASE_SH := fortisoar-widget-harness/scripts/release.sh
+
 ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck→unit→e2e(mock)→deploy→live-sweep for one widget (WIDGET=, BUMP=patch)
 	$(require_push_box)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make ship-verify WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	@echo "▶ 0/6 harness (fresh server on $(DEV_PORT), aimed at BOX=$(RESOLVED_BOX))"; \
-	  cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) scripts/ship.sh --restart
+	  cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) $(RFM) $(SHIP_SH) --restart
 	@echo "▶ 1/6 lint (server)";  cd $(HARNESS) && PORT=$(DEV_PORT) HARNESS_URL=http://localhost:$(DEV_PORT) node scripts/widget.js lint $(WIDGET)
 	@echo "▶ 1/6 lint (angular)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)
 	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-testids.js $(WIDGET)
@@ -279,27 +288,27 @@ ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck
 	@$(if $(SKIP_INTROSPECT),,$(MAKE) introspect-gate GATE_WIDGET=$(WIDGET))
 	@echo "▶ 5/6 deploy ($(if $(BUMP),$(BUMP),no bump)) via ship.sh (bulletproof start+push, BOX=$(RESOLVED_BOX) → same box tests hit)"; \
 	  cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
-	    scripts/ship.sh $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
+	    $(RFM) $(SHIP_SH) $(WIDGET) $(if $(filter-out none,$(BUMP)),--bump $(BUMP),)
 	@# A missing sweep spec used to "skip" and still print "live-verified" below.
 	@# That is the 0.2 bug class: the gate ran over an empty set and reported the
 	@# same thing it reports when it passes -- and it already burned us once at
 	@# the widget rename (see SWEEP_WIDGET). Skipping is now an explicit choice
 	@# (SKIP_LIVE_SWEEP=1), and the completion line says which gates actually ran.
 	@echo "▶ 6/6 live-sweep (BOX=$(RESOLVED_BOX) → the box just deployed to)"
-	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) BOX=$(RESOLVED_BOX) bash scripts/ship-verify-sweep.sh
+	@WIDGET=$(WIDGET) SKIP_LIVE_SWEEP=$(SKIP_LIVE_SWEEP) BOX=$(RESOLVED_BOX) $(RFM) ship-verify-sweep.sh
 
 widget-push: export VIA_WIDGET_PUSH := 1
 widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit -> deploy ONE widget to a box. No e2e/introspect/sweep (that is ship-verify, for releases). Box-only, agent-allowed (no CONFIRM_DEPLOY). WIDGET=, BOX=<alias>, BUMP=patch to bump (default: no bump)
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	$(require_push_box)
-	@bash scripts/lap.sh lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
-	@bash scripts/lap.sh unit -- bash scripts/unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
+	@$(LAP) lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
+	@$(LAP) unit -- $(RFM) unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
-	    bash $(CURDIR)/scripts/lap.sh deploy --budget 90 -- scripts/ship.sh $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
+	    $(LAP) deploy --budget 90 -- $(RFM) $(SHIP_SH) $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
 	@# Live sanity on the box just deployed to, scoped to this widget (SKIP_LIVE_SANITY=1 opts out, loudly).
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGET)" WIDGETS_SRC="$(WIDGETS_SRC)" CONN_REPO="$(CONN_REPO)" \
-	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" bash scripts/lap.sh "live sanity" -- bash scripts/live-sanity.sh
+	  LIVE_SANITY_STAMP_REPOS="$(WIDGETS_SRC)/$(WIDGET)" $(LAP) "live sanity" -- $(RFM) live-sanity.sh
 
 # The stable-box path: the ONLY way code reaches a stable (customer demo) box. Build
 # the promoted mains and install them through the FortiSOAR Import Wizard, over REST.
@@ -308,16 +317,16 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 # stable box; scripts/stable.sh refuses unless each repo is clean, on remote main and
 # VERIFIED on an experimental box (scripts/stable_guard.py).
 stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Refuses unless the box is stable, every repo is clean, on remote main and VERIFIED on an experimental box. ARGS=--build-only | --force
-	@BOX='$(BOX)' ARGS='$(ARGS)' bash scripts/stable.sh
+	@BOX='$(BOX)' ARGS='$(ARGS)' $(RFM) stable.sh
 
 push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_push_box)
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
-	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" bash scripts/push.sh
+	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" $(RFM) push.sh
 
 release: deploy-guard harness-build ## GitHub release for one widget: bump info.json -> commit -> push main -> tag v<new> (the tag fires the widget's release.yml). WIDGET=, BUMP=patch
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make release WIDGET=<name> [BUMP=patch]"; exit 2; fi
-	cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) scripts/release.sh $(WIDGET) $(BUMP)
+	cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) $(RFM) $(RELEASE_SH) $(WIDGET) $(BUMP)
 
 # The dev loop, doctor and session-health live in the connector repo (it owns the
 # Python venv with pyfsr); these forward so either repo is a fine place to type them.
@@ -327,9 +336,9 @@ loop: ## THE dev command: local tests + Frank agent smoke -> copy working trees 
 
 doctor: ## Preflight: is anything about to make a test result lie? (LOCAL=1 no box, RELEASE=1 strict, SANITY=1 adds the ~1-2 min live sanity pass: re-check a box without pushing; STAMP=<repo dir>[:<dir>] also stamps those checkouts for make promote)
 	$(if $(LOCAL),,$(require_box))
-	@bash scripts/hooks_central.sh check
+	@$(RFM) hooks_central.sh check
 	@$(MAKE) --no-print-directory -C $(CONN_REPO) doctor $(_FWD_BOX)
-	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" WIDGETS_SRC="$(WIDGETS_SRC_GIVEN)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" bash scripts/lap.sh stamp --budget 120 -- bash scripts/live-sanity.sh),true)
+	@$(if $(SANITY),$(if $(LOCAL),echo "doctor: SANITY=1 needs a box (drop LOCAL=1)"; exit 2,BOX="$(RESOLVED_BOX)" CONN_REPO="$(CONN_REPO)" WIDGETS="$(WIDGETS)" WIDGETS_SRC="$(WIDGETS_SRC_GIVEN)" LIVE_SANITY_STAMP_REPOS="$(STAMP)" $(LAP) stamp --budget 120 -- $(RFM) live-sanity.sh),true)
 
 session-health: ## Which chat tools fail, with inputs/outputs, classed model/remote/guard/env/tool_bug + recovered vs stuck (LIMIT=30 OUT=report.md SOURCE=local)
 	$(if $(filter local,$(SOURCE)),,$(require_box))

@@ -40,9 +40,15 @@ if [ -n "${CLAUDECODE:-}" ] && [ -z "${VIA_LOOP:-}" ] && [ -z "${VIA_WIDGET_PUSH
 fi
 
 # ---- locate ourselves / repo ------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HARNESS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_DIR="$(cd "$HARNESS_DIR/.." && pwd)"
+# FSR_TOOL_HOME: the invoking checkout, set by run_from_main.sh (this script then runs
+# from main's copy in a temp file, so its own path is not the checkout).
+if [ -n "${FSR_TOOL_HOME:-}" ]; then
+  REPO_DIR="$FSR_TOOL_HOME"; HARNESS_DIR="$REPO_DIR/fortisoar-widget-harness"; SCRIPT_DIR="$HARNESS_DIR/scripts"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  HARNESS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  REPO_DIR="$(cd "$HARNESS_DIR/.." && pwd)"
+fi
 
 # ---- config -----------------------------------------------------------------
 PORT="${PORT:-14400}"

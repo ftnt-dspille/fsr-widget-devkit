@@ -42,7 +42,9 @@ BUMP="${2:-patch}"
 [ -n "$WIDGET_ID" ] || { echo "usage: release.sh <widgetId> [patch|minor|major]" >&2; exit 2; }
 case "$BUMP" in patch|minor|major) ;; *) echo "bump must be patch|minor|major (got '$BUMP')" >&2; exit 2 ;; esac
 
-HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# FSR_TOOL_HOME: the invoking checkout, set by run_from_main.sh (this script then runs from main's copy in a temp file)
+HARNESS_DIR="${FSR_TOOL_HOME:+$FSR_TOOL_HOME/fortisoar-widget-harness}"
+HARNESS_DIR="${HARNESS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 WIDGETS_SRC="${WIDGETS_SRC:-$(cd "$HARNESS_DIR/../widgets-src" && pwd)}"
 REPO_DIR="$WIDGETS_SRC/$WIDGET_ID"
 

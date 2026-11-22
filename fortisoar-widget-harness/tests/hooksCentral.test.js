@@ -87,6 +87,6 @@ test("check fails when any repo points into a checkout", () => {
 test("promote, doctor and agent-tree verify all go through it", () => {
   const rd = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
   expect(rd("scripts/promote_main.sh")).toMatch(/hooks_central\.sh[\s\S]*install/);
-  expect(rd("Makefile")).toMatch(/^doctor:.*\n(?:\t.*\n)*\t@bash scripts\/hooks_central\.sh check/m);
+  expect(rd("Makefile")).toMatch(/^doctor:.*\n(?:\t.*\n)*\t@\$\(RFM\) hooks_central\.sh check/m);
   expect(rd("scripts/agent_tree.sh")).toMatch(/hooks_central\.sh" check/);
 });
