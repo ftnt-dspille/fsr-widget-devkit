@@ -240,20 +240,20 @@ ship_all() {
                     || die "framework ships through a connector at its main; $CONN is not (use an agent tree: make agent-tree)"
             fi
             say "code to $BOX: connector + framework (dev-push stamps what it pushed)"
-            lap "ship stamp" 240 env FSR_SRC="$FW" $MAKE -C "$CONN" dev-push BOX="$BOX" || { rc=1; say "dev-push failed"; }
+            lap "ship stamp" 420 env FSR_SRC="$FW" $MAKE -C "$CONN" dev-push BOX="$BOX" || { rc=1; say "dev-push failed"; }
         fi
         for d in "${need[@]}"; do
             [[ "$(kind_of "$d")" == widget ]] || continue
             (( rc == 0 )) || break
             w="$(basename "$d")"
             say "code to $BOX: widget $w"
-            lap "ship stamp" 240 $MAKE -C "$HERE" widget-push WIDGET="$w" WIDGETS_SRC="$(dirname "$d")" BOX="$BOX" || { rc=1; say "widget-push failed"; }
+            lap "ship stamp" 420 $MAKE -C "$HERE" widget-push WIDGET="$w" WIDGETS_SRC="$(dirname "$d")" BOX="$BOX" || { rc=1; say "widget-push failed"; }
         done
         # Whatever still has no stamp (root, or a push that stamped less than it pushed): one live run stamps them all.
         for d in "${need[@]}"; do stamp_ok "$d" || stampdirs+=("$d"); done
         if (( rc == 0 && ${#stampdirs[@]} )); then
             say "stamping $(for d in "${stampdirs[@]}"; do main_name "$d"; done | paste -sd' ' -) on $BOX"
-            lap "ship stamp" 240 $MAKE -C "$HERE" doctor BOX="$BOX" SANITY=1 STAMP="$(IFS=:; echo "${stampdirs[*]}")" CONN_REPO="$CONN" || rc=1
+            lap "ship stamp" 420 $MAKE -C "$HERE" doctor BOX="$BOX" SANITY=1 STAMP="$(IFS=:; echo "${stampdirs[*]}")" CONN_REPO="$CONN" || rc=1
         fi
     fi
     for i in "${!pids[@]}"; do

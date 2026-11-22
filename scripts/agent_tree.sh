@@ -160,6 +160,12 @@ export FSR_LEASE_HOLDER='tree:$name'
 export PYTHONPATH='$tree/framework'
 EOF
 
+    # The box-free local-chat python (setup-localdev-venv.sh) is one per machine: link the shared one, so
+    # `make check`'s local-chat works in a fresh tree without a second venv build.
+    if [[ -d "$ROOT_SRC/fortisoar-widget-harness/.venv-localdev" ]]; then
+        mkdir -p "$tree/root/fortisoar-widget-harness"
+        ln -sfn "$ROOT_SRC/fortisoar-widget-harness/.venv-localdev" "$tree/root/fortisoar-widget-harness/.venv-localdev"
+    fi
     if [[ "${AT_NO_BUILD:-}" != 1 ]]; then
         # node_modules per tree: reuse the shared one only when the lockfile is identical.
         local h="$tree/root/fortisoar-widget-harness" sh="$ROOT_SRC/fortisoar-widget-harness"
@@ -295,7 +301,7 @@ cmd_remove() {
     # Files this script created (gitignored in the real repos) go first, so
     # `worktree remove` without --force only refuses on the agent's own work.
     rm -f "$tree/connector/.fsr_src" "$tree/root/fortisoar-widget-harness/widgets-src" \
-          "$tree/root/fortisoar-widget-harness/node_modules" \
+          "$tree/root/fortisoar-widget-harness/node_modules" "$tree/root/fortisoar-widget-harness/.venv-localdev" \
           "$tree/root/fortisoar-widget-harness/.env" "$tree/root/fortisoar-widget-harness/.harness-active-env"
     find "$tree/root/fsr_src" -maxdepth 1 -type l -lname "$ROOT_SRC/*" -delete 2>/dev/null || true
     # Widgets first: they sit inside root's worktree.

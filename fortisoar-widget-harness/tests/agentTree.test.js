@@ -56,6 +56,19 @@ test("create: all 5 repos as worktrees at their remote's main; the sources keep 
   expect(r.stderr).not.toMatch(/fetch failed/);
 });
 
+test("create links the shared local-chat venv into the tree, and remove takes only the link away", () => {
+  const w = world();
+  const venv = path.join(w.root.dir, "fortisoar-widget-harness", ".venv-localdev");
+  fs.mkdirSync(path.join(venv, "bin"), { recursive: true }); fs.writeFileSync(path.join(venv, "bin", "python"), "");
+  const r = at(w.env, "create", "tv");
+  expect(r.status).toBe(0);
+  const link = path.join(T, "trees", "tv", "root", "fortisoar-widget-harness", ".venv-localdev");
+  expect(fs.lstatSync(link).isSymbolicLink()).toBe(true);
+  expect(fs.existsSync(path.join(link, "bin", "python"))).toBe(true);
+  expect(at(w.env, "remove", "tv").status).toBe(0);
+  expect(fs.existsSync(path.join(venv, "bin", "python"))).toBe(true);   // the shared venv is untouched
+});
+
 test("a failed fetch is refused by repo name and nothing is built", () => {
   const w = world();
   g(w.conn.dir, "remote", "set-url", "origin", path.join(T, "gone.git"));

@@ -51,7 +51,7 @@ describe("devloop_bench.sh", () => {
     fs.mkdirSync(path.join(dir, "connector-fsr-agentic-assistant"), { recursive: true });
     execFileSync("git", ["init", "-q", "--bare", "-b", "main", bare], { env: ENV });
     g(dir, "init", "-q", "-b", "main");
-    fs.writeFileSync(path.join(dir, "connector-fsr-agentic-assistant/tool_labels.py"), "X = 1\n");
+    fs.writeFileSync(path.join(dir, "connector-fsr-agentic-assistant/ops_notify.py"), "X = 1\n");
     g(dir, "add", "-A"); g(dir, "commit", "-q", "-m", "base");
     g(dir, "remote", "add", "origin", bare); g(dir, "push", "-q", "-u", "origin", "main");
     const make = path.join(T, "fakemake"), log = path.join(T, "make.log");

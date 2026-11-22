@@ -37,7 +37,7 @@ trap cleanup EXIT
 git -C "$CONN" fetch -q "$rem" main || { echo "bench: cannot fetch $rem main" >&2; exit 2; }
 phase setup git -C "$CONN" worktree add -q -b "$br" "$wt" "$rem/main" || exit 2
 
-target="connector-fsr-agentic-assistant/tool_labels.py"
+target="connector-fsr-agentic-assistant/ops_notify.py"
 phase code bash -c 'printf "\n# bench %s: a fixed one-line edit the benchmark makes and never keeps\n" "$1" >> "$2"' _ "$stamp" "$wt/$target" || exit 2
 
 # The two doors, from the connector worktree, forwarding to this checkout's root door.
