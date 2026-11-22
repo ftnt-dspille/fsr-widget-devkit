@@ -112,6 +112,16 @@ describe("make check", () => {
     expect(log().some((x) => /local-chat BUNDLE=my_row/.test(x))).toBe(true);
   });
 
+  test("a connector checked out under another name (its real main checkout is fsr-playbook-builder) is still the connector", () => {
+    const moved = path.join(T, "fsr-playbook-builder");
+    fs.renameSync(W.conn.dir, moved); W.conn.dir = moved;
+    branch(moved, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+    const r = door("check", { CONN_REPO: moved, DOOR_REPO: moved });
+    expect(r.code).toBe(0);
+    expect(r.out).not.toMatch(/no check is defined/);
+    expect(log().some((x) => /tool-sweep/.test(x))).toBe(true);
+  });
+
   test("uncommitted and untracked work is checked too, not only commits", () => {
     git(W.conn.dir, "switch", "-q", "-c", "feat/x");
     write(W.conn.dir, "connector-fsr-agentic-assistant/new_mod.py", "Z = 1\n");   // untracked, uncommitted

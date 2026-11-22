@@ -166,6 +166,9 @@ is_package_input() {  # is_package_input <path> <inputs...>
   return 1
 }
 pkg_inputs="$(package_inputs "$name" || true)"
+# The connector's main checkout is the bare-repo worktree "fsr-playbook-builder", but package-inputs names
+# it conn_main (the name its stable guard and its path use): same repo, one set of lines.
+[ -n "$pkg_inputs" ] || [ "$name" != fsr-playbook-builder ] || pkg_inputs="$(package_inputs conn_main || true)"
 CLASS=shipped; class_why=""
 tooling_globs="$(g show "$policy_ref:.github/tooling-paths" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
 if [ -n "$pkg_inputs" ]; then

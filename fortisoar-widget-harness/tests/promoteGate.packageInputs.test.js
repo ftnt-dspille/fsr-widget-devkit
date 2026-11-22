@@ -114,3 +114,13 @@ test("inside a worktree of another repo, a name is ambiguous and asks for a path
 test("an unknown name is refused", () => {
   expect(rp(["resolve", "nope"]).code).toBe(2);
 });
+
+test("the connector's real main checkout is named fsr-playbook-builder: it still gets conn_main's package inputs", () => {
+  const dest = path.join(S.tmp, "fsr-playbook-builder");
+  fs.renameSync(S.repo, dest); S.repo = dest;
+  put("tests/t.py", "t2\n"); put("docs/a.md", "d2\n"); commitAll("tooling");
+  expect(run().out).toMatch(/classified tooling \(all 2 path\(s\) are outside fsr-playbook-builder's package inputs/);
+  ok(git(["checkout", "-q", "feat/x"]));
+  put("connector-fsr-agentic-assistant/connector.py", "c2\n"); commitAll("package");
+  expect(run().out).toMatch(/classified shipped \(package input path\(s\): connector-fsr-agentic-assistant\/connector\.py\)/);
+});

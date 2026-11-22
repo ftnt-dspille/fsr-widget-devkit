@@ -47,7 +47,7 @@ the right trees themselves; this skill is for when a result still looks wrong.
 - A collection error is not a failure: a module once never ran for weeks. Check collected counts.
 - Framework release gate is `make tests` (tooling/tests), NOT `fsr_playbooks/tests`; run both in
   separate pytest processes. A tool-census count flake means a global registry was mutated by a test.
-- zsh does not word-split `$FLAGS`; `FLAGS="--model x"; cmd $FLAGS` passes ONE argument and fakes a
+- zsh does not word-split `$FLAGS`; `cmd $FLAGS` with FLAGS holding two words passes ONE argument and fakes a
   regression. Use arrays. `make` may be shadowed: use `command make`.
 - Interactive `grep` is ugrep and skips big files: use `/usr/bin/grep` for any "not in the code" claim.
 

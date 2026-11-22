@@ -47,7 +47,7 @@ test("docs naming a missing make target, script path or make variable are named;
   const out = run().stdout;
   expect(out).toMatch(/CLAUDE\.md:2: make target 'gone-target' is not defined/);
   expect(out).toMatch(/CLAUDE\.md:3: path 'scripts\/vanished\.sh' does not exist/);
-  expect(out).toMatch(/CLAUDE\.md:4: make variable MISSING_KNOB is read by nothing/);
+  expect(out).toMatch(/CLAUDE\.md:4: variable MISSING_KNOB is read by nothing/);
   expect(out).not.toMatch(/real-target|real\.sh|KNOWN_VAR|old-thing|<name>|\*/);
 });
 

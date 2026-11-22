@@ -42,11 +42,13 @@ say() { echo "door: $*"; }
 lap() { local label="$1" budget="$2"; shift 2; bash "$LAPSH" "$label" --budget "$budget" -- "$@"; }
 gc() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
 main_name() { local c; c="$(gc "$1")" || return 1; if [[ "$(basename "$c")" == .git ]]; then basename "$(dirname "$c")"; else basename "$c"; fi; }
-kind_of() {
-    case "$(main_name "$1")" in
-        fsr_all_widgets) echo root ;; conn_main) echo connector ;; fsr-playbook-framework) echo framework ;;
-        agenticAssistant|agenticAssistantMonitor) echo widget ;; *) echo other ;;
-    esac
+kind_of() {  # by what the tree holds, not by its name: the connector's main checkout is called fsr-playbook-builder, its worktrees anything
+    local d="$1"
+    if [[ -d "$d/connector-fsr-agentic-assistant" ]]; then echo connector
+    elif [[ -d "$d/fsr_playbooks" ]]; then echo framework
+    elif [[ -f "$d/widget/info.json" ]]; then echo widget
+    elif [[ -d "$d/fortisoar-widget-harness" ]]; then echo root
+    else echo other; fi
 }
 remote_of() { local r; r="$(git -C "$1" for-each-ref --format='%(upstream:remotename)' refs/heads/main 2>/dev/null)"; echo "${r:-origin}"; }
 branch_of() { git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null || true; }

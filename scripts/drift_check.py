@@ -24,6 +24,9 @@ SKIP_MARK = re.compile(r"\((retired|example|removed|gone)\)")
 RULE = re.compile(r"^([A-Za-z0-9_.%\- ]+?)\s*:(?![=:])")
 MAKE_CMD = re.compile(r"`([^`]*\bmake\b[^`]*)`")
 PATH_TOK = re.compile(r"(?<![\w/.<>$-])((?:scripts|fortisoar-widget-harness|\.github|\.claude)/[\w./-]*[\w])")
+TICK = re.compile(r"`([^`\n]+)`")
+ENV_ASSIGN = re.compile(r"(?<![\w$])([A-Z][A-Z0-9_]{3,})=")
+SYSTEM_ENV = {"PYTHONPATH", "CLAUDECODE", "HOME", "TMPDIR", "PATH"}   # not ours to define
 PROSE = {"targets", "and", "or", "the", "a", "an", "it", "sure", "to", "in", "is"}   # `make targets` in a sentence
 
 
@@ -48,16 +51,27 @@ def make_targets(*makefiles):
     return out
 
 
+PRUNE = {"node_modules", ".git", ".venv", ".venv-localdev", "fsr_src", "test-results", "dist", "__pycache__", "widgets-src", "docs"}
+
+
 def read_text(*paths):
     chunks = []
     for p in paths:
-        for f in (glob.glob(os.path.join(p, "**", "*"), recursive=True) if os.path.isdir(p) else [p]):
-            if os.path.isfile(f) and not f.endswith((".png", ".jpg", ".pdf", ".tgz", ".gz", ".pyc")) \
-                    and "node_modules" not in f and "/.git/" not in f and "/.venv" not in f:
-                try:
+        if os.path.isfile(p):
+            files = [p]
+        else:
+            files = []
+            for dp, dns, fns in os.walk(p):
+                dns[:] = [d for d in dns if d not in PRUNE]
+                files += [os.path.join(dp, f) for f in fns]
+        for f in files:
+            if f.endswith((".png", ".jpg", ".pdf", ".tgz", ".gz", ".pyc", ".map", ".lock")):
+                continue
+            try:
+                if os.path.getsize(f) < 2_000_000:
                     chunks.append(open(f, errors="replace").read())
-                except OSError:
-                    pass
+            except OSError:
+                pass
     return "\n".join(chunks)
 
 
@@ -73,8 +87,8 @@ def doc_drift(root, conn, fw):
     targets = make_targets(os.path.join(root, "Makefile"), *( [os.path.join(conn, "Makefile")] if conn else [] ),
                            *( [os.path.join(fw, "Makefile")] if fw else [] ))
     bases = [b for b in (root, os.path.join(root, "fortisoar-widget-harness"), conn, fw) if b]
-    haystack = read_text(*[os.path.join(b, d) for b in bases for d in ("Makefile", "scripts", "fortisoar-widget-harness/scripts",
-                                                                       "fortisoar-widget-harness/lib")] )
+    haystack = read_text(*[os.path.join(b, d) for b in (root, conn, fw) if b
+                           for d in ("Makefile", "scripts", "fortisoar-widget-harness", "connector-fsr-agentic-assistant", "fsr_playbooks")])
     warns = []
     for doc in doc_files(root, conn):
         rel = os.path.relpath(doc, root) if doc.startswith(root) else doc
@@ -91,10 +105,10 @@ def doc_drift(root, conn, fw):
                         t = words[j] if j < len(words) else ""
                         if re.fullmatch(r"[a-z][a-z0-9_-]*", t) and t not in targets and t not in PROSE:
                             warns.append(f"{rel}:{no}: make target '{t}' is not defined in any Makefile")
-                        for v in words[j + 1:]:
-                            m = re.fullmatch(r"([A-Z][A-Z0-9_]{2,})=.*", v.strip("`,;"))
-                            if m and not re.search(r"\b%s\b" % re.escape(m.group(1)), haystack):
-                                warns.append(f"{rel}:{no}: make variable {m.group(1)} is read by nothing")
+            for span in TICK.findall(line):   # `VAR=value` anywhere in a code span: some script or Makefile must read VAR
+                for v in ENV_ASSIGN.findall(span):
+                    if v not in SYSTEM_ENV and not re.search(r"\b%s\b" % re.escape(v), haystack):
+                        warns.append(f"{rel}:{no}: variable {v} is read by nothing")
             for tok in PATH_TOK.findall(line):
                 tok = tok.rstrip(".,:;)")
                 if any(c in tok for c in "*<>{}$") or tok.endswith("/"):
