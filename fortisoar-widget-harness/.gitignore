@@ -11,7 +11,7 @@ pnpm-debug.log*
 
 # Local-dev loop (scripts/local-connector-sidecar.py): real Frank + box creds
 localdev.env
-.venv-localdev/
+.venv-localdev
 
 # Live-matrix scenario rows: real record UUIDs, box-specific. Template ships
 # as tests/live/scenarios.local.example.json. The glob covers the per-box files
