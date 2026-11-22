@@ -36,14 +36,20 @@ outside users. A STABLE box never gets a deploy or a release: it takes code only
 - The stable guard (`scripts/stable_guard.py`) refuses unless the box is `role = "stable"`, every repo is
   clean on its package inputs, on main, equal to its remote main, and each HEAD has a VERIFIED clean
   stamp taken on an experimental box. To get that stamp for a head: push it to an experimental box
-  (`make push`/`dev-push`/`widget-push`), then `make doctor BOX=<exp> SANITY=1 STAMP=<checkout>`.
+  (`make push`/`dev-push`/`widget-push`); each ends with live sanity and stamps the pushed heads, so no
+  second `make doctor ... STAMP=` is needed (that stays the way to re-stamp without pushing).
 - Idempotent: the install record (`dist/stable/installed-<box>.json`) holds the heads; a box already
   carrying them with its versions is not re-uploaded. A changed head re-imports, and `bump_existing`
   re-versions any installer the box would silently skip (the bump is reported).
 
 ## Dev loop
+- Default first step, no box and no ship: `make local-chat BUNDLE=<name> [ASK=...]` (root repo): real widget + real connector in local Python + Frank (fake if down) + a fixture bundle for the box, one turn, screenshot + transcript + tool calls in `scratch/local-chat/`. Read the png. Run it first; it needs no box. Your working-tree connector runs as-is (reload by rerunning).
 - `make loop BOX=<alias>` is the default. `make dev-push BOX=<alias>` copies framework + connector trees and
-  recycles workers once. `make push` is the idempotent front door (connector + framework + CHANGED widgets).
+  recycles workers once, then runs live sanity and stamps the heads. It syncs your own framework tree
+  (agent tree / `.fsr_src`), else a clean export of the framework's remote main, never the shared
+  checkout, and prints the sha. Before a push run the tests for your change, not the full suite:
+  pre-push runs the changed-scope tests and `make promote` waits for CI's full run.
+  `make push` is the idempotent front door (connector + framework + CHANGED widgets).
 - Deleted files used to linger on the box (rsync has no `--delete`); `scripts/prune_remote_py.sh` runs after
   each dev sync (dry-run count first; over `PRUNE_MAX=40` deletes nothing).
 - A NEW operation in `info.json` is not callable after a plain copy ("Operation matching query does not

@@ -318,31 +318,116 @@ def _load_cassette(path: str) -> list:
     return rules
 
 
+# The fixture bundle (a conn_main eval bundle: records, strict ops, personas)
+# the turn's "box" is made of. Optional: with none, reads come from the cassette
+# alone (the original Seam C behavior).
+_BUNDLE = os.environ.get("FSRPB_SIDECAR_BUNDLE", "").strip() or None
+_WORLD = None        # scripts.world_server.WorldServer over the bundle: serves the HARNESS's reads
+_LLM_USED: dict = {"kind": "fake", "model": "fake-1", "reason": "default"}
+_REAL_CONFIG: dict = {}
+_TRACE = os.environ.get("FSRPB_SIDECAR_TRACE", "").strip() or None
+
+
+# The gateway's ids rotate every few weeks and a stale one is refused on every turn.
+# When no model was asked for and the configured one is gone, use the first of its
+# tier aliases that is served (routed server-side, so they follow the lineup).
+_FRANK_TIER_ALIASES = ("coding-b200/eco", "coding-b200/balanced", "coding-b200/max")
+
+
+def _frank_check(resolved, asked: bool) -> tuple[bool, str, str]:
+    """(usable, why, model): is Frank up and serving a model we can use? One GET
+    /models. Checks the id, not only the host: a blocked or retired id answers
+    every turn with a 403 that reads as a model result."""
+    import urllib.request
+    url = (resolved.base_url or "").rstrip("/") + "/models"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {resolved.api_key}"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            doc = json.loads(r.read() or b"{}")
+    except Exception as e:  # noqa: BLE001
+        return False, f"gateway unreachable ({type(e).__name__}: {e})", resolved.model
+    ids = {m.get("id") for m in (doc.get("data") or []) if isinstance(m, dict)}
+    if not ids or resolved.model in ids:
+        return True, "reachable", resolved.model
+    if not asked:
+        for alias in _FRANK_TIER_ALIASES:
+            if alias in ids:
+                return True, f"reachable; configured model {resolved.model!r} is not served, used {alias}", alias
+    return False, f"model {resolved.model!r} not served by the gateway", resolved.model
+
+
+def _fake_is_healthy() -> None:
+    """The widget gates its composer on health_check, which probes the configured
+    provider over the network (and imports the anthropic SDK). The fake has no
+    endpoint, so answer that probe as healthy; Frank keeps the real probe."""
+    import importlib
+    health = importlib.import_module("connector_fsr_agentic_assistant.ops_health")
+    _SCOPE.set_attr(health, "_probe_llm_reachable",
+                    lambda config, **kw: (True, "fake provider (no endpoint)", None))
+
+
+def _choose_llm(want: str, model: str | None) -> tuple[dict, dict]:
+    """(connector_config, used) for FSRPB_SIDECAR_LLM = fake | frank | auto.
+    `auto` is Frank when reachable, else the fake, and says which it used.
+    `frank` refuses to fall back (a caller that asked for a real model must not
+    be handed a scripted one)."""
+    import dataclasses
+    want = (want or "fake").strip().lower()
+    if want == "fake":
+        cfg = _lt.install_fake_llm(_SCOPE, operations_mod)
+        _fake_is_healthy()
+        return cfg, {"kind": "fake", "model": cfg.get("model", "fake-1"), "reason": "requested"}
+    try:
+        resolved = _lt.resolve_llm_for_turn(
+            "frank", model, os.environ.get("FSRPB_SIDECAR_FRANK_URL") or None)
+        ok, why, used_model = _frank_check(resolved, asked=bool(model))
+    except SystemExit as e:  # missing base url / key
+        resolved, ok, why, used_model = None, False, str(e), None
+    if ok:
+        resolved = dataclasses.replace(resolved, model=used_model)
+        return resolved.connector_config(), {"kind": "frank", "model": used_model, "reason": why}
+    if want == "frank":
+        sys.exit(f"[sidecar] FSRPB_SIDECAR_LLM=frank but Frank is not usable: {why}")
+    cfg = _lt.install_fake_llm(_SCOPE, operations_mod)
+    _fake_is_healthy()
+    return cfg, {"kind": "fake", "model": cfg.get("model", "fake-1"),
+                 "reason": f"Frank not usable, fell back: {why}"}
+
+
 def _init_hermetic() -> None:
-    global _SCOPE, _FAKE_CONFIG, _CASSETTE_READS
+    global _SCOPE, _FAKE_CONFIG, _CASSETTE_READS, _WORLD, _LLM_USED, _REAL_CONFIG
     _SCOPE = _lt.PatchScope()
-    _FAKE_CONFIG = _lt.install_fake_llm(_SCOPE, operations_mod)
+    _REAL_CONFIG, _LLM_USED = _choose_llm(
+        os.environ.get("FSRPB_SIDECAR_LLM", "fake"),
+        os.environ.get("FSRPB_SIDECAR_MODEL") or None)
+    _FAKE_CONFIG = _REAL_CONFIG
     _CASSETTE_READS = _load_cassette(os.environ.get("FSRPB_SIDECAR_CASSETTE", ""))
-    print("[sidecar] HERMETIC mode: fake LLM + cassette reads (box-free)", flush=True)
+    if _BUNDLE:
+        from scripts.world_server import WorldServer
+        _WORLD = WorldServer(_BUNDLE)  # in-process only: handle(), never the HTTPS listener
+    print(f"[sidecar] HERMETIC mode: LLM={_LLM_USED['kind']}:{_LLM_USED['model']} "
+          f"({_LLM_USED['reason']}); bundle={_BUNDLE or 'none (cassette only)'} (box-free)",
+          flush=True)
 
 
 def _hermetic_config(op: str, params: dict) -> dict:
     """Re-install the offline seams for this request's mounted module (its
-    persona fixture) and return the fake LLM config."""
+    persona fixture, and the bundle's records when one is set) and return the
+    LLM config chosen at startup (fake, or Frank)."""
     entity = params.get("entity") if isinstance(params.get("entity"), dict) else None
     module = (params.get("module")
               or (entity.get("module") if entity else None))
     # A 200-empty miss so read tools "find nothing" rather than error-flail.
     _lt.install_offline_seams(
         _SCOPE, module=module, extra_reads=_CASSETTE_READS or None,
-        session_id=params.get("session_id"), cassette_miss_status=200)
+        records=_BUNDLE, session_id=params.get("session_id"),
+        cassette_miss_status=200)
     try:
         operations_mod._PROFILE_CACHE.clear()
         operations_mod._PROFILE_NEG_TS.clear()
     except Exception:
         pass
-    from fsr_playbooks.harness.llm import resolve_llm
-    return resolve_llm("fake", "fake-1").connector_config()
+    return dict(_REAL_CONFIG)
 
 
 if HERMETIC:
@@ -360,7 +445,30 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/health"):
-            self._send(200, {"ok": True, "ops": sorted(OPERATIONS)})
+            self._send(200, {"ok": True, "ops": sorted(OPERATIONS),
+                             "llm": _LLM_USED, "bundle": _BUNDLE})
+        elif self.path.split("?", 1)[0] == "/world":
+            # The harness's record/picklist reads, answered from the SAME bundle
+            # the turn's tools read (one source of truth, no scaffold).
+            from urllib.parse import parse_qs, urlparse
+            url = (parse_qs(urlparse(self.path).query).get("url") or [""])[0]
+            if _WORLD is None or not url:
+                self._send(404, {"status": 404, "body": None})
+                return
+            if urlparse(url).path.rstrip("/") == "/api/integration/connectors":
+                # The widget resolves its connector (name, version, default
+                # config) here. Derived from the connector's own info.json, so
+                # there is no second copy of the identity to drift.
+                with open(os.path.join(CONNECTOR_DIR, "info.json"), encoding="utf-8") as fh:
+                    info = json.load(fh)
+                self._send(200, {"status": 200, "body": {"data": [{
+                    "name": info["name"], "version": info["version"],
+                    "configuration": [{"name": "local", "config_id": "cfg-local",
+                                       "default": True}]}]}})
+                return
+            status, body = _WORLD.handle("GET", url, None)
+            self._send(200, {"status": status, "body": body,
+                             "misses": _WORLD.misses})
         else:
             self._send(404, {"ok": False, "error": "not found"})
 
@@ -396,6 +504,10 @@ class Handler(BaseHTTPRequestHandler):
             # connector payload (e.g. contract_version reads as undefined).
             self._send(200, {"status": "Success", "data": result})
             print(f"[sidecar]   ← {op} ok", flush=True)
+            if _TRACE:
+                with open(_TRACE, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps({"operation": op, "params": params,
+                                         "result": result}, default=str) + "\n")
         except Exception as e:  # noqa: BLE001 -- never crash the sidecar
             import traceback
             tb = traceback.format_exc(limit=4)

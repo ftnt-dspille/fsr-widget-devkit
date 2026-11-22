@@ -41,6 +41,8 @@ function parseArgs(argv) {
     headed: false,
     screenshot: null,
     edit: false,
+    send: null, record: null, module: "alerts", context: null, turnTimeout: 300000,
+    transcript: null, viewport: null,
     actions: [], // {type:'click'|'clickText', value}
     queries: [], // {kind, ...}
   };
@@ -54,6 +56,13 @@ function parseArgs(argv) {
       case "--headed": o.headed = true; break;
       case "--screenshot": o.screenshot = next(); break;
       case "--edit": o.edit = true; break;
+      case "--send": o.send = next(); break;
+      case "--record": o.record = next(); break;
+      case "--module": o.module = next(); break;
+      case "--context": o.context = next(); break;
+      case "--turn-timeout": o.turnTimeout = Number(next()); break;
+      case "--transcript": o.transcript = next(); break;
+      case "--viewport": { const [vw, vh] = next().split("x").map(Number); o.viewport = { width: vw, height: vh }; break; }
       case "--click": o.actions.push({ type: "click", value: next() }); break;
       case "--click-text": o.actions.push({ type: "clickText", value: next() }); break;
       case "--box": o.queries.push({ kind: "box", sel: next() }); break;
@@ -90,6 +99,17 @@ const HELP = `widget-inspect — mount a widget in the running harness and measu
   --screenshot <path>        save a PNG
   --headed                   show the browser
 
+Chat mode (needs the harness started with FSR_LOCAL_CONNECTOR=1; \`make local-chat\`
+starts everything for you). Any of these mounts the widget through the local UI
+driver (real connector path, never the widget's mock) instead of the plain mount:
+  --send <text>              type the message, send it, wait for the turn to finish
+  --record <uuid>            mount against this record (viewpanel context)
+  --module <name>            module of --record (default alerts)
+  --context <ctx>            dashboard|viewpanel|drawer|playbook (default: from --record)
+  --turn-timeout <ms>        how long to wait for the turn (default 300000)
+  --viewport <WxH>           resize the page before the turn (e.g. 1200x1500, for a tall card)
+  --transcript <path>        write the widget's transcript (messages + events) as JSON
+
 All --click/--click-text run (in order) before any query. Output is JSON.`;
 
 async function main() {
@@ -98,15 +118,62 @@ async function main() {
     console.log(HELP);
     process.exit(opts.widget ? 0 : 2);
   }
-  const browser = await chromium.launch({ headless: !opts.headed });
-  const context = await browser.newContext({ baseURL: opts.base, ignoreHTTPSErrors: true });
-  const page = await context.newPage();
+  const chatMode = !!(opts.send || opts.record || opts.context);
+  // Chat mode launches its own browser inside the local driver.
+  const browser = chatMode ? null : await chromium.launch({ headless: !opts.headed });
+  const context = chatMode ? null : await browser.newContext({ baseURL: opts.base, ignoreHTTPSErrors: true });
+  let page = chatMode ? null : await context.newPage();
   const out = {};
+  let closeChat = null;
   try {
-    const w = await wh.mountWidget(page, opts.widget, opts.config ? { config: opts.config } : {});
-    out.mount = { ok: true, id: w.id, name: w.name };
+    const chat = !!(opts.send || opts.record || opts.context);
+    let w, session = null;
+    if (chat) {
+      // The harness's own local driver: forces the real connector track (asserts the
+      // widget is not in mock mode) and seeds the record + config before mount.
+      const { openWidgetDrawer } = require(path.join(HARNESS_ROOT, "lib", "localUiDriver.js"));
+      session = await openWidgetDrawer({
+        base: opts.base, widgetName: opts.widget, module: opts.module,
+        recordUuid: opts.record || undefined, context: opts.context || undefined,
+        config: opts.config,
+      });
+      closeChat = () => session.close();
+      page = session.page;
+      w = {
+        id: opts.widget, name: opts.widget, page,
+        renderError: () => wh.renderError(page),
+        box: (s) => wh.box(page, s), count: (s) => wh.count(page, s),
+        visible: (s) => wh.visible(page, s), text: (s) => wh.text(page, s),
+        style: (s, p) => wh.style(page, s, p), clippedBy: (c, a) => wh.clippedBy(page, c, a),
+        click: (s) => page.locator(s).first().click(),
+        clickText: (t) => wh.clickText(page, t),
+        settle: () => wh.settle(page), openEditModal: () => wh.openEditModal(page),
+      };
+      out.mount = { ok: true, id: w.id, name: w.name, chat: true };
+    } else {
+      w = await wh.mountWidget(page, opts.widget, opts.config ? { config: opts.config } : {});
+      out.mount = { ok: true, id: w.id, name: w.name };
+    }
     const err = await w.renderError();
     if (err) out.mount.renderError = err;
+    if (session && opts.viewport) await page.setViewportSize(opts.viewport);
+    if (session && opts.send) {
+      const t0 = Date.now();
+      const r = await session.sendChat(opts.send, { timeoutMs: opts.turnTimeout });
+      out.turn = { done: r.done, submitConfirmed: r.submitConfirmed, polls: r.polls.length,
+                   maxFrames: r.maxFrames, seconds: Math.round((Date.now() - t0) / 1000) };
+      // done = the connector reported the turn finished; give Angular a beat to paint
+      // the final card before anything is measured or screenshotted.
+      await page.waitForTimeout(1500);
+    }
+    if (opts.transcript) {
+      const msgs = await page.evaluate(() => {
+        const a = window.__agenticAssistant__;
+        return a ? { messages: a.messages, lastPayload: a.lastPayload } : null;
+      });
+      require("fs").writeFileSync(opts.transcript, JSON.stringify(msgs, null, 2));
+      out.transcript = opts.transcript;
+    }
 
     if (opts.edit) await w.openEditModal();
     for (const act of opts.actions) {
@@ -137,11 +204,13 @@ async function main() {
     out.mount = out.mount || { ok: false };
     out.error = e.message;
     console.log(JSON.stringify(out, null, 2));
-    await browser.close();
+    if (closeChat) await closeChat().catch(() => {});
+    if (browser) await browser.close();
     process.exit(2);
   }
   console.log(JSON.stringify(out, null, 2));
-  await browser.close();
+  if (closeChat) await closeChat().catch(() => {});
+  if (browser) await browser.close();
 }
 
 main();

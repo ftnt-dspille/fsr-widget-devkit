@@ -130,13 +130,19 @@ Tier ladder, cheapest first. All targets run from the repo root:
 2. `make test-e2e-spec SPEC="tests/e2e/a.spec.js tests/e2e/b.spec.js"` for scoped
    runs, or `make test-e2e-spec WIDGET=<name>` for one widget. DOM and template.
    Space- or comma-separated.
-3. `make loop`: the default iteration (above). Every push path (`widget-push`,
+3. `make local-chat BUNDLE=<name> [ASK="..."]`: the default FIRST check of anything the assistant does, before any
+   box run. No box: the real widget, the real connector in local Python, Frank (fake if it is down; it prints
+   which), a fixture bundle for FortiSOAR. One command starts and tears down everything, sends one message, and
+   saves `scratch/local-chat/<bundle>-<time>/chat.png` (Read it), `transcript.md`, `tool_calls.json`.
+   Bundles: connector `scripts/conversations/sweep/*.json` (ka_* are known-answer triage rows). It does not
+   prove the deployed install; `make loop` does.
+4. `make loop`: the default box iteration (above). Every push path (`widget-push`,
    connector `deploy`/`loop`/`ship-dev`) ends with the ~1 min live sanity pass and
    stamps the pushed commits; `make doctor BOX=<name> SANITY=1` re-checks without
    pushing. `SKIP_LIVE_SANITY=1` opts out (NOT verified). TESTING.md, Live sanity.
-4. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
+5. `make ship-verify WIDGET=<name> [BUMP=patch]`: lint, unit, mock e2e, deploy, live
    sweep. Releases only, and the user runs it.
-5. `make stable BOX=<stable alias>`: not a test tier. It installs the promoted mains on
+6. `make stable BOX=<stable alias>`: not a test tier. It installs the promoted mains on
    a stable box through the Import Wizard, then runs live sanity and stamps the heads
    it installed. `ARGS=--build-only` builds the package without touching the box.
 

@@ -100,3 +100,6 @@ docs/demo-deck/
 !.claude/agents/**
 .claude/settings.local.json
 .claude/worktrees/
+
+# make local-chat output (screenshots, transcripts, traces)
+/scratch/

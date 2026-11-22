@@ -6,6 +6,7 @@ description: Use when designing, running or grading an eval or test of the agent
 # Agentic eval and test method
 
 ## Budget and sample size
+- Cheapest look at one behaviour end to end (widget cards included): `make local-chat BUNDLE=<name> [ASK=...]` (root repo): real widget + real connector in local Python + Frank (fake if down) + a fixture bundle for the box, one turn, screenshot + transcript + tool calls in `scratch/local-chat/`. Read the png. Run it first; it needs no box. ka_* bundles are known-answer rows (graded by the connector sweep, not here).
 - Routine change: fast tiers (tool-sweep ~2-8s, t1 fake/frank ~11s, unit) plus a SMALL deterministic sample of
   the slow tiers (a few sessions or scenarios, 2 runs). Brief subagents with the time budget and sample size up
   front. Full analyst-sim / known-answer / 30-session runs are for sprint-level gates or when asked.
