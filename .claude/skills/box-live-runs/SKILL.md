@@ -55,6 +55,7 @@ gitignored `docs/plans/`.
 - A new connector operation needs a bumped INSTALL (`make ship BUMP=patch`), not a PyPI release;
   `dev_push.sh` auto-escalates. A plain copy leaves the op "does not exist".
 - Verify the write, not the card: read the record back from the box after an approved action.
+- Write checks run offline first: a sweep row on a `writable: true` fixture bundle (`world_after`, `writes_match_calls`) grades the saved record before any box does; keep a live write row only for what needs the platform (connector `TESTING.md`, "Write checks run offline first").
 
 ## Live-run hygiene
 - Headed live matrices steal focus (the WAF blocks headless). Do not run them unless the owner is
