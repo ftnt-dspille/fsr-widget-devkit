@@ -120,8 +120,7 @@ if (WIDGET_FILTER && WIDGET_FILTER !== "all") {
 // A bare `pnpm test` (SKIP_TOOLING_TESTS unset) also runs them.
 const TOOLING_SUITES = [
   "guardOtherReposInstall", "guardOtherReposInstall.connector", "liveSanityVerdict", "makeBoxRoles", "makeBoxSelection",
-  "makeDeployGuard", "makeE2eSpecArgs", "promoteGate", "promoteGate.hook", "promoteGate.ci", "promoteGate.tooling", "promoteGate.push", "lapBudget", "liveSanityScope", "makeArgs", "bashGuard", "promoteRunsMain", "agentTreeRunsMain", "hooksCentral", "agentTree", "testDocker", "stableSource", "worktreeWidgetsSrc", "localData", "localChatSidecar",
-  "deployScriptGuards", "e2ePort", "lintAngular", "lintEmptySet",
+>>>>>>> origin/main
   "shipSkipsToolingSuites",
   // These read gitignored, machine-local data (tests/live/captures,
   // introspection-reports). It is not committed, so their result depends on the
@@ -136,6 +135,7 @@ const PROJECTS = [
       displayName: "harness",
       rootDir: __dirname,
       testEnvironment: "node",
+      setupFiles: ["<rootDir>/tests/setupFromTree.js"],
       // Jest's default is 5s PER TEST, which is a tight budget for this project:
       // it transforms TS through ts-jest, and several suites boot a real server
       // or walk the widget roots on disk. Alone that is fine (server.test.ts is

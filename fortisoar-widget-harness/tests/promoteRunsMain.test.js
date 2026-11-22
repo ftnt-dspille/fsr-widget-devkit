@@ -12,6 +12,7 @@ const ENV = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example
   GIT_COMMITTER_EMAIL: "t@example.com", GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath",
   GIT_CONFIG_VALUE_0: "/dev/null" };
 delete ENV.PROMOTE_FROM_TREE;
+delete ENV.FROM_TREE;
 let T, repo;
 const g = (...a) => execFileSync("git", ["-C", repo, ...a], { env: ENV, encoding: "utf8" });
 const put = (body) => fs.writeFileSync(path.join(repo, "scripts", "promote.sh"), `echo ${body}\n`);
@@ -20,7 +21,8 @@ beforeEach(() => {
   T = fs.mkdtempSync(path.join(os.tmpdir(), "promote-main-"));
   repo = path.join(T, "r");
   fs.mkdirSync(path.join(repo, "scripts"), { recursive: true });
-  fs.copyFileSync(path.join(ROOT, "scripts", "promote_main.sh"), path.join(repo, "scripts", "promote_main.sh"));
+  for (const f of ["promote_main.sh", "run_from_main.sh"])
+    fs.copyFileSync(path.join(ROOT, "scripts", f), path.join(repo, "scripts", f));
   g("init", "-q", "-b", "main");
   put("FROM-MAIN"); g("add", "-A"); g("commit", "-q", "-m", "main");
   execFileSync("git", ["init", "-q", "--bare", "-b", "main", path.join(T, "remote.git")], { env: ENV });
@@ -44,6 +46,12 @@ test("PROMOTE_FROM_TREE=1 runs the working-tree copy (for developing promote.sh)
   expect(run({ PROMOTE_FROM_TREE: "1" }).stdout).toMatch(/FROM-WIP/);
 });
 
+test("the mechanism is run_from_main.sh, not a copy of it in promote_main.sh", () => {
+  const src = fs.readFileSync(path.join(ROOT, "scripts", "promote_main.sh"), "utf8");
+  expect(src).toMatch(/run_from_main\.sh" promote\.sh/);
+  expect(src).not.toMatch(/git -C "\$here" show "\$sha:scripts\/promote\.sh"/);
+});
+
 test("the make target goes through the wrapper", () => {
-  expect(fs.readFileSync(path.join(ROOT, "Makefile"), "utf8")).toMatch(/^promote:.*\n\t@bash scripts\/lap\.sh promote --budget \d+ -- bash scripts\/promote_main\.sh$/m);
+  expect(fs.readFileSync(path.join(ROOT, "Makefile"), "utf8")).toMatch(/^promote:.*\n\t@\$\(LAP\) promote --budget \d+ -- bash \$\(CURDIR\)\/scripts\/promote_main\.sh$/m);
 });
