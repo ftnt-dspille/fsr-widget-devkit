@@ -153,7 +153,7 @@ check_repo() {
         connector)
             sel="$(printf '%s\n' "$files" | (cd "$d" && bash scripts/changed_tests.sh --files) | paste -sd' ' -)"
             if [[ -n "$sel" ]]; then
-                lap "check tests" 120 $MAKE -C "$d" test PYTEST_ARGS="-m 'not shell' $sel"; rc=$?
+                lap "check tests" 120 $MAKE -C "$d" test PYTEST_ARGS="-m 'not shell' --disable-warnings $sel"; rc=$?
                 if (( rc == 5 )); then not_run "$name: every mapped test is shell-heavy and left to CI"
                 elif (( rc != 0 )); then fail "$name pytest: $sel"; fi
             else not_run "$name: no pytest file maps to this diff (CI runs the full suite)"; fi

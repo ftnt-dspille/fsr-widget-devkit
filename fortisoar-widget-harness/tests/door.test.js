@@ -75,7 +75,7 @@ describe("make check", () => {
     const r = door("check");
     expect(r.code).toBe(0);
     const l = log();
-    expect(l.some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' tests\/test_a\.py/.test(x.split(" | ")[0]))).toBe(true);
+    expect(l.some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' --disable-warnings tests\/test_a\.py/.test(x.split(" | ")[0]))).toBe(true);
     expect(l.some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(true);
     expect(l.some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
   });
