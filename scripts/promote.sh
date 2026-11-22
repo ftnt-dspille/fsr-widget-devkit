@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# make promote REPO=<path> BRANCH=<branch>
+# make promote REPO=<path|name> BRANCH=<branch>
+#
+# REPO is a path, or a name (framework, connector, root, agenticAssistant,
+# agenticAssistantMonitor) resolved by scripts/repo_paths.sh to the copy of the
+# tree the caller is in (an agent tree via AGENT_TREE, or a worktree of that repo),
+# else the shared checkout. Ambiguous (inside a worktree of another repo): refuses
+# and asks for a path.
 #
 # Merge a feature branch into LOCAL main only after live confirmation: a
 # VERIFIED, clean live-sanity stamp for the branch head sha (written by
@@ -34,6 +40,7 @@
 # listed checks count: a continue-on-error job reports "failure" as a check-run.
 #
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
+# CLASSIFY_ONLY=1 prints the shipped/tooling classification and exits (a dry run).
 # The reference-transaction hook (scripts/githooks) refuses any other update of
 # main under Claude Code; this script hands it a one-shot allow file.
 set -euo pipefail
@@ -41,7 +48,18 @@ set -euo pipefail
 die() { echo "promote: $*" >&2; exit 2; }
 
 REPO="${REPO:-}"; BRANCH="${BRANCH:-}"; MAIN="${MAIN_BRANCH:-main}"
-[ -n "$REPO" ] && [ -n "$BRANCH" ] || die "usage: make promote REPO=<path> BRANCH=<branch>"
+[ -n "$REPO" ] && [ -n "$BRANCH" ] || die "usage: make promote REPO=<path|name> BRANCH=<branch>"
+if [ ! -d "$REPO" ] && [[ "$REPO" != */* ]]; then
+  _rp="${FSR_TOOL_HOME:-}/scripts/repo_paths.sh"
+  if [ "${FROM_TREE:-}" != 1 ] && [ -n "${FSR_TOOL_HOME:-}" ]; then   # policy from root main, like this script
+    _rem="$(git -C "$FSR_TOOL_HOME" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"; _rem="${_rem:-origin}"
+    _rpt="$(mktemp "${TMPDIR:-/tmp}/repo_paths.XXXXXX")"; trap 'rm -f "$_rpt"' EXIT
+    if git -C "$FSR_TOOL_HOME" show "refs/remotes/$_rem/main:scripts/repo_paths.sh" > "$_rpt" 2>/dev/null; then _rp="$_rpt"; fi
+  fi
+  [ -f "$_rp" ] || die "no such repo: $REPO (and no scripts/repo_paths.sh to resolve it as a name)"
+  _resolved="$(bash "$_rp" resolve "$REPO")" || die "cannot resolve REPO=$REPO to one tree; pass the path: REPO=<path>"
+  echo "promote: REPO=$REPO resolved to $_resolved"; REPO="$_resolved"
+fi
 [ -d "$REPO" ] || die "no such repo: $REPO"
 command -v jq >/dev/null || die "jq is required"
 
@@ -121,9 +139,51 @@ if g merge-base --is-ancestor "$head" "$old"; then echo "promote: $BRANCH ($head
 # itself. Every path in the diff from the merge base counts, both sides of a
 # rename or copy, deletes included; one path off the list makes it shipped.
 policy_ref="$(g rev-parse -q --verify "refs/remotes/$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || echo none)" 2>/dev/null || echo "$old")"
+# "shipped" means "changes what is installed on a box". For a repo with a known
+# package-input table (below) a path counts as shipped only when it is under one of
+# those inputs; everything else (dev scripts, tests, Makefile, docs) is tooling and
+# its proof is CI. .github/ is always shipped: it is the policy itself. A repo with
+# no table keeps the older rule: every path must be on tooling-paths.
+# The table: what each repo's package/build puts on a box. (scripts/stable_guard.py
+# repo_specs scopes the stable clean check more broadly, adding build scripts, for
+# a different question: is anything uncommitted that the build reads.)
+package_inputs() {  # package_inputs <repo name> -> pathspec prefixes, one per line
+  case "$1" in
+    conn_main) printf '%s\n' connector-fsr-agentic-assistant ;;                # build.sh tars this dir; requirements.txt is inside it
+    fsr-playbook-framework) printf '%s\n' fsr_playbooks pyproject.toml ;;     # the installed package and its pins
+    agenticAssistant|agenticAssistantMonitor) printf '%s\n' . ;;              # a widget repo is the widget dir
+    *) return 1 ;;
+  esac
+}
+is_package_input() {  # is_package_input <path> <inputs...>
+  local p="$1" i; shift
+  case "$p" in .github/*) return 0 ;; esac
+  for i in "$@"; do
+    [ "$i" = . ] && return 0
+    [[ "$p" == "$i" || "$p" == "$i"/* ]] && return 0
+  done
+  return 1
+}
+pkg_inputs="$(package_inputs "$name" 2>/dev/null || true)"
 CLASS=shipped; class_why=""
 tooling_globs="$(g show "$policy_ref:.github/tooling-paths" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
-if [ -n "$tooling_globs" ]; then
+if [ -n "$pkg_inputs" ]; then
+  mb="$(g merge-base "$old" "$head")"
+  off=""; n=0
+  read -r -a _in <<< "$(printf '%s ' $pkg_inputs)"
+  while IFS=$'\t' read -r st p1 p2; do
+    [ -n "$st" ] || continue
+    for p in "$p1" ${p2:+"$p2"}; do
+      n=$((n+1))
+      if is_package_input "$p" "${_in[@]}"; then off="$off $p"; fi
+    done
+  done < <(g diff --name-status -M "$mb" "$head")
+  if [ "$n" -gt 0 ] && [ -z "$off" ]; then
+    CLASS=tooling; class_why="all $n path(s) are outside $name's package inputs (${_in[*]})"
+  else
+    class_why="package input path(s):${off:- (empty diff)}"
+  fi
+elif [ -n "$tooling_globs" ]; then
   mb="$(g merge-base "$old" "$head")"
   off=""; n=0
   while IFS=$'\t' read -r st p1 p2; do
@@ -143,6 +203,7 @@ else
   class_why="main has no .github/tooling-paths"
 fi
 echo "promote: classified $CLASS ($class_why)"
+[ "${CLASSIFY_ONLY:-}" = 1 ] && { echo "promote: CLASSIFY_ONLY=1, nothing merged"; exit 0; }
 
 # --- CI gate (first) ----------------------------------------------------------
 # CI comes BEFORE the stamp check: a required check that goes red on the branch

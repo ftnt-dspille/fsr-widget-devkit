@@ -21,6 +21,9 @@ commit inside that repo, not here.
   refused for agents.
 - If grep finds nothing in a file you know exists, use `/usr/bin/grep`: the
   interactive `grep` is a ugrep wrapper that skips big files.
+- Find each repo with `bash scripts/repo_paths.sh <conn|framework|root|agenticAssistant|agenticAssistantMonitor>`
+  (today: `~/PycharmProjects/ConnectorsV2/conn_main`, `~/PycharmProjects/fsr-playbook-framework`,
+  this checkout, `widgets-src/<name>`); `make promote REPO=<name>` takes those names too.
 
 ## The product and where work is tracked
 
