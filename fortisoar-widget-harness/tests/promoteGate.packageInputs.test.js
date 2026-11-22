@@ -51,6 +51,28 @@ test("a path in the package dir is shipped, naming it", () => {
   expect(r.out).toMatch(/classified shipped \(package input path\(s\): connector-fsr-agentic-assistant\/connector\.py\)/);
 });
 
+test("build.sh and the deploy scripts are shipped (they decide what lands on a box); dev scripts stay tooling", () => {
+  const reset = () => { ok(git(["checkout", "-q", "feat/x"])); ok(git(["reset", "-q", "--hard", "main"])); };
+  put("scripts/build.sh", "b\n"); commitAll("build");
+  expect(run().out).toMatch(/classified shipped \(package input path\(s\): scripts\/build\.sh\)/);
+  reset(); put("scripts/deploy.sh", "d\n"); commitAll("deploy");
+  expect(run().out).toMatch(/classified shipped \(package input path\(s\): scripts\/deploy\.sh\)/);
+  reset(); put("connector-fsr-agentic-assistant/requirements.txt", "r==2\n"); commitAll("req");
+  expect(run().out).toMatch(/classified shipped/);
+  reset(); put("scripts/live_autonomy.py", "l3\n"); commitAll("dev script");
+  expect(run().out).toMatch(/classified tooling/);
+});
+
+test("the inputs come from the shared .github/package-inputs file, the one stable_guard.py also reads", () => {
+  const f = path.join(ROOT, ".github", "package-inputs");
+  const rows = fs.readFileSync(f, "utf8").split("\n").map((l) => l.replace(/#.*/, "").trim().split(/\s+/)).filter((r) => r.length === 3);
+  expect(rows.filter((r) => r[0] === "conn_main" && r[1] === "ship").map((r) => r[2])).toEqual(
+    expect.arrayContaining(["connector-fsr-agentic-assistant", "scripts/build.sh", "scripts/deploy.sh"]));
+  expect(rows.some((r) => r[0] === "conn_main" && r[1] === "extra" && r[2] === "scripts")).toBe(true);
+  // the promote script carries no table of its own
+  expect(fs.readFileSync(path.join(ROOT, "scripts", "promote.sh"), "utf8")).not.toMatch(/connector-fsr-agentic-assistant/);
+});
+
 test("a rename out of the package dir is shipped", () => {
   ok(git(["mv", "connector-fsr-agentic-assistant/requirements.txt", "docs/req.txt"])); commitAll("move");
   expect(run().out).toMatch(/classified shipped/);

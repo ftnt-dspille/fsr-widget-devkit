@@ -1,0 +1,43 @@
+# The ONE definition of what each source repo puts on a box. Two readers:
+#   scripts/promote.sh        a diff touching only paths OUTSIDE the `ship` lines is
+#                             tooling (CI is the proof); any `ship` path (or anything
+#                             under .github/) is shipped and needs a box stamp.
+#   connector scripts/stable_guard.py   the tree must be clean on `ship` plus `extra`.
+#
+# <repo> <kind> <path>      one path per line; <repo> is the stamp name (the main
+#                           checkout's basename); `.` = the whole repo.
+#   ship   what the package, the build and the deploy scripts read: it decides what
+#          lands on a box. Dev scripts, tests, the Makefile and docs are NOT listed.
+#   extra  a wider set that must also be committed before a stable install, but that
+#          never lands on a box (so a change there is still tooling).
+# A repo with no `ship` line keeps the .github/tooling-paths rule in promote.sh.
+# Read from root main, so a branch cannot widen it for itself.
+
+conn_main  ship   connector-fsr-agentic-assistant
+conn_main  ship   scripts/build.sh
+conn_main  ship   scripts/deploy.sh
+conn_main  ship   scripts/deploy_chain.sh
+conn_main  ship   scripts/dev_push.sh
+conn_main  ship   scripts/dev_push_deps.sh
+conn_main  ship   scripts/ship_dev.sh
+conn_main  ship   scripts/ship_secrets.sh
+conn_main  ship   scripts/ensure_framework.sh
+conn_main  ship   scripts/tar_sync.sh
+conn_main  ship   scripts/prune_remote_py.sh
+conn_main  ship   scripts/install_to_fsr.py
+conn_main  ship   scripts/stable_install.py
+conn_main  ship   scripts/stable_guard.py
+conn_main  ship   scripts/build_agentic_assistant_pack.py
+conn_main  ship   scripts/export_agentic_assistant_pack.py
+conn_main  ship   scripts/pack_assets
+conn_main  extra  scripts
+
+fsr-playbook-framework  ship  fsr_playbooks
+fsr-playbook-framework  ship  packaging
+fsr-playbook-framework  ship  pyproject.toml
+
+agenticAssistant         ship  .
+agenticAssistantMonitor  ship  .
+
+fsr_all_widgets  extra  fortisoar-widget-harness
+fsr_all_widgets  extra  scripts

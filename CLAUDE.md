@@ -86,7 +86,12 @@ investigation into a playbook. The widget is the window; the connector is the en
   list, and it needs the live stamp as before. The list is read from main, never
   the branch, and it leaves out everything that deploys or verifies a deploy
   (ship, live-sanity, stable, push), the Makefile, and the policy files
-  themselves. Promote prints how it classified the change. Batch related tooling
+  themselves. Promote prints how it classified the change (`CLASSIFY_ONLY=1` is a
+  dry run). For the connector, framework and widget repos "shipped" is what
+  `.github/package-inputs` lists (package dir, build and deploy scripts,
+  requirements; dev scripts, tests, Makefile and docs are tooling). That file is the
+  ONE definition: `scripts/stable_guard.py` reads it too (its clean-tree set is the
+  `ship` lines plus the `extra` lines). Batch related tooling
   changes and promote them once; run timing comparisons in the background.
 - Bumps: `BUMP=patch` on the CLI. Never hand-edit `info.json` version or
   releaseNotes; a hand edit desyncs the controller name and lint then blocks boot.

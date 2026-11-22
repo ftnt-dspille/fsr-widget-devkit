@@ -139,21 +139,21 @@ if g merge-base --is-ancestor "$head" "$old"; then echo "promote: $BRANCH ($head
 # itself. Every path in the diff from the merge base counts, both sides of a
 # rename or copy, deletes included; one path off the list makes it shipped.
 policy_ref="$(g rev-parse -q --verify "refs/remotes/$(g rev-parse --abbrev-ref "$MAIN@{upstream}" 2>/dev/null || echo none)" 2>/dev/null || echo "$old")"
-# "shipped" means "changes what is installed on a box". For a repo with a known
-# package-input table (below) a path counts as shipped only when it is under one of
-# those inputs; everything else (dev scripts, tests, Makefile, docs) is tooling and
+# "shipped" means "changes what is installed on a box". For a repo with `ship`
+# lines in .github/package-inputs (root main's copy: the ONE definition, also read
+# by the connector's stable_guard.py) a path counts as shipped only when it is under
+# one of them; everything else (dev scripts, tests, Makefile, docs) is tooling and
 # its proof is CI. .github/ is always shipped: it is the policy itself. A repo with
-# no table keeps the older rule: every path must be on tooling-paths.
-# The table: what each repo's package/build puts on a box. (scripts/stable_guard.py
-# repo_specs scopes the stable clean check more broadly, adding build scripts, for
-# a different question: is anything uncommitted that the build reads.)
-package_inputs() {  # package_inputs <repo name> -> pathspec prefixes, one per line
-  case "$1" in
-    conn_main) printf '%s\n' connector-fsr-agentic-assistant ;;                # build.sh tars this dir; requirements.txt is inside it
-    fsr-playbook-framework) printf '%s\n' fsr_playbooks pyproject.toml ;;     # the installed package and its pins
-    agenticAssistant|agenticAssistantMonitor) printf '%s\n' . ;;              # a widget repo is the widget dir
-    *) return 1 ;;
-  esac
+# no `ship` line keeps the older rule: every path must be on tooling-paths.
+tool_file() {  # tool_file <repo-relative path> -> contents, from root main (or the tree under FROM_TREE=1)
+  local rel="$1" home="${FSR_TOOL_HOME:-}" rem
+  if [ -z "$home" ]; then home="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; fi
+  if [ "${FROM_TREE:-}" = 1 ] || [ -z "${FSR_TOOL_HOME:-}" ]; then cat "$home/$rel" 2>/dev/null; return; fi
+  rem="$(git -C "$home" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"; rem="${rem:-origin}"
+  git -C "$home" show "refs/remotes/$rem/main:$rel" 2>/dev/null
+}
+package_inputs() {  # package_inputs <repo name> -> `ship` paths, one per line
+  tool_file .github/package-inputs | sed 's/#.*//' | awk -v r="$1" '$1==r && $2=="ship" {print $3}'
 }
 is_package_input() {  # is_package_input <path> <inputs...>
   local p="$1" i; shift
@@ -164,7 +164,7 @@ is_package_input() {  # is_package_input <path> <inputs...>
   done
   return 1
 }
-pkg_inputs="$(package_inputs "$name" 2>/dev/null || true)"
+pkg_inputs="$(package_inputs "$name" || true)"
 CLASS=shipped; class_why=""
 tooling_globs="$(g show "$policy_ref:.github/tooling-paths" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
 if [ -n "$pkg_inputs" ]; then
