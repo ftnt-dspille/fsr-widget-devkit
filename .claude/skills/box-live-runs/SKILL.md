@@ -48,6 +48,7 @@ gitignored `docs/plans/`.
   sanity -> merge only after live proof -> (owner) publish. Dev-sync + live BEFORE any publish.
 
 ## The fast loop
+- Before any box run, try it box-free: `make local-chat BUNDLE=<name> [ASK=...]` (root repo): real widget + real connector in local Python + Frank (fake if down) + a fixture bundle for the box, one turn, screenshot + transcript + tool calls in `scratch/local-chat/`. Read the png. Run it first; it needs no box. It does not prove the install; the box run does.
 - `make loop BOX=<alias>`: local tests, Frank smoke, copy working trees, ~35s live smoke.
 - Single widget: `make widget-push WIDGET=<w> BOX=<alias>` (lint + unit + deploy, 1-2 min), then ONE
   targeted live check. `ship-verify` (mock e2e + live sweep, 10-15 min) is only for public releases.

@@ -42,6 +42,7 @@ outside users. A STABLE box never gets a deploy or a release: it takes code only
   re-versions any installer the box would silently skip (the bump is reported).
 
 ## Dev loop
+- Default first step, no box and no ship: `make local-chat BUNDLE=<name> [ASK=...]` (root repo): real widget + real connector in local Python + Frank (fake if down) + a fixture bundle for the box, one turn, screenshot + transcript + tool calls in `scratch/local-chat/`. Read the png. Run it first; it needs no box. Your working-tree connector runs as-is (reload by rerunning).
 - `make loop BOX=<alias>` is the default. `make dev-push BOX=<alias>` copies framework + connector trees and
   recycles workers once. `make push` is the idempotent front door (connector + framework + CHANGED widgets).
 - Deleted files used to linger on the box (rsync has no `--delete`); `scripts/prune_remote_py.sh` runs after

@@ -2461,6 +2461,38 @@ const proxy = createProxyMiddleware({
 // hermetic mode and surface as AngularJS "Possibly unhandled rejection" console
 // errors that red specs asserting a clean console. These are platform-global
 // (not widget-specific), so they live here rather than in widgetAssets/fixtures.
+// Local box (make local-chat): with FSR_LOCAL_BOX=1 the harness's reads of
+// /api/3/<module>[/<id>] come from the local sidecar's fixture bundle -- the SAME
+// bundle the connector's tools read -- instead of the synthesised scaffold, so the
+// widget mounts the real captured alert and picklists/related reads are the bundle's.
+// A path the bundle cannot answer falls through to the existing stubs. Registered
+// first inside the hermetic block so it wins over the picklists/record stubs.
+const LOCAL_BOX = /^(1|true|yes|on)$/i.test(process.env.FSR_LOCAL_BOX || "");
+const LOCAL_BOX_SKIP = new Set([
+  "actors", "system_settings", "widgets", "solutionpacks", "model_metadatas",
+  "modules", "appsettings", "people", "picklist_names", "files", "attachments",
+  "query", "export",
+]);
+if (HERMETIC && LOCAL_BOX) {
+  const worldUrl = (process.env.FSRPB_SIDECAR_URL || "http://127.0.0.1:4771/execute")
+    .replace(/\/execute\/?$/, "") + "/world";
+  app.get(/^\/api\/(?:3\/([^/?]+)|integration\/(connectors)\/?(?:\?.*)?$)/, async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const head = decodeURIComponent((req.params as unknown as string[])[0] || "");
+    if (LOCAL_BOX_SKIP.has(head)) return next();
+    try {
+      const r = await fetch(`${worldUrl}?url=${encodeURIComponent(req.originalUrl)}`);
+      const j = (await r.json()) as { status?: number; body?: unknown };
+      if (j && typeof j.status === "number" && j.status >= 200 && j.status < 300) {
+        res.status(j.status).json(j.body);
+        return;
+      }
+    } catch (e: unknown) {
+      console.warn(`[local-box] sidecar world unreachable: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    next();
+  });
+}
+
 if (HERMETIC) {
   // Current user -- a minimal but valid SOAR actor so usersService resolves
   // instead of throwing "Unable to retrieve user".

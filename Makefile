@@ -24,7 +24,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
+.PHONY: harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec test-e2e-widget turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-matrix-gate grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -44,7 +44,7 @@ deploy-guard:
 #    CLAUDECODE unless VIA_MAKE=1 (scripts/via-make-guard.js). Target-specific,
 #    so only these runs and their prerequisites carry it. Not guarded: loop,
 #    doctor, session-health and the other non-runner targets.
-test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-designer-stage-live test-widget-ui-live widget-inspect introspect introspect-soar: export VIA_MAKE := 1
+test-unit test-e2e-headed test-e2e-spec turn-hermetic test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local test-designer-stage-live test-widget-ui-live widget-inspect local-chat introspect introspect-soar: export VIA_MAKE := 1
 
 # 3. Box-only dev deploys are the agent's iteration (CLAUDE.md: agents own
 #    direct-to-box work; only the GitHub/PyPI release path -- release, push,
@@ -212,6 +212,15 @@ turn-hermetic: harness-build ## Seam C: real widget ↔ real connector, box-free
 widget-inspect: harness-build ## Mount a widget in the running harness + measure it as JSON (ARGS='--widget <name> ...')
 	@if [ -z "$(ARGS)" ]; then cd $(HARNESS) && node scripts/widget-inspect.js --help; exit 0; fi
 	cd $(HARNESS) && HARNESS_BASE=$(or $(BASE),http://localhost:$(DEV_PORT)) node scripts/widget-inspect.js $(ARGS)
+
+# Box-free chat turn, the default FIRST step before any box run: the real widget, the
+# real connector in local Python, Frank (fake if down), a fixture bundle for the box.
+# Starts and tears down everything, sends one message, saves a screenshot, the
+# transcript and the tool calls under scratch/local-chat/. Foreground ~1-3 min with Frank.
+#   make local-chat BUNDLE=ka_c2_beacon                 (ASK and the record come from the sweep spec)
+#   make local-chat BUNDLE=ka_c2_beacon ASK="why is this malicious?" LLM=fake MODEL=<id>
+local-chat: harness-build ## Box-free chat turn: real widget + real connector + Frank + fixture bundle -> screenshot, transcript, tool calls (BUNDLE=<name> [ASK=...] [LLM=auto|frank|fake])
+	@bash $(HARNESS)/scripts/local-chat.sh
 
 BUMP ?= patch
 
