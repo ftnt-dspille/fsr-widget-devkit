@@ -131,6 +131,61 @@ describe("make check", () => {
   });
 });
 
+describe("make check: suites and worktrees", () => {
+  test("the framework's tooling tests and fsr_playbooks tests run in separate pytest processes, never one", () => {
+    git(W.fw.dir, "switch", "-q", "-c", "feat/x");
+    write(W.fw.dir, "tooling/tests/test_t.py", "import loop\n");
+    write(W.fw.dir, "fsr_playbooks/llm/loop.py", "x = 2\n");   // both suites import `loop`
+    git(W.fw.dir, "add", "-A"); git(W.fw.dir, "commit", "-qm", "both suites");
+    const r = door("check", { DOOR_REPO: W.fw.dir });
+    expect(r.code).toBe(0);
+    const runs = log().filter((x) => /^python -m pytest /.test(x));
+    expect(runs).toHaveLength(2);
+    expect(runs.filter((x) => /tooling\/tests\/test_t\.py/.test(x))).toHaveLength(1);
+    expect(runs.filter((x) => /fsr_playbooks\/tests\/test_loop\.py/.test(x))).toHaveLength(1);
+    for (const x of runs) expect(/tooling\/tests/.test(x) && /fsr_playbooks\/tests/.test(x)).toBe(false);
+  });
+
+  // A root worktree of a checkout whose harness is set up (node_modules, local-chat python).
+  function rootWorktree({ shared = true, sameLock = true } = {}) {
+    const main = path.join(T, "fsr_all_widgets"), wt = path.join(T, "root_wt");
+    fs.mkdirSync(main, { recursive: true });
+    git(main, "init", "-q", "-b", "main");
+    write(main, "fortisoar-widget-harness/pnpm-lock.yaml", "lock: 1\n");
+    write(main, "README.md", "r\n");
+    git(main, "add", "-A"); git(main, "commit", "-qm", "base");
+    git(main, "worktree", "add", "-q", wt, "-b", "wt");
+    if (!sameLock) write(wt, "fortisoar-widget-harness/pnpm-lock.yaml", "lock: 2\n");
+    if (shared) {
+      fs.mkdirSync(path.join(main, "fortisoar-widget-harness/node_modules"), { recursive: true });
+      fs.mkdirSync(path.join(main, "fortisoar-widget-harness/.venv-localdev"), { recursive: true });
+    }
+    fs.symlinkSync(path.join(ROOT, "scripts"), path.join(wt, "scripts"));
+    return { main, wt };
+  }
+  const agentLoopBranch = () => branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+
+  test("local-chat from a root worktree reuses the shared checkout's node_modules and local-chat python", () => {
+    const { wt } = rootWorktree();
+    agentLoopBranch();
+    const r = door("check", { FSR_TOOL_HOME: wt });
+    expect(r.code).toBe(0);
+    expect(log().some((x) => /local-chat BUNDLE=/.test(x))).toBe(true);
+    expect(fs.lstatSync(path.join(wt, "fortisoar-widget-harness/node_modules")).isSymbolicLink()).toBe(true);
+    expect(fs.lstatSync(path.join(wt, "fortisoar-widget-harness/.venv-localdev")).isSymbolicLink()).toBe(true);
+  });
+
+  test.each([["the shared checkout has no node_modules", { shared: false }], ["the lockfile differs", { sameLock: false }]])(
+    "a worktree that cannot be set up reports local-chat NOT RUN with the reason, and does not fail (%s)", (_n, opts) => {
+      rootWorktree(opts);
+      agentLoopBranch();
+      const r = door("check", { FSR_TOOL_HOME: path.join(T, "root_wt") });
+      expect(r.code).toBe(0);
+      expect(r.out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: the harness is not set up/);
+      expect(log().some((x) => /local-chat/.test(x))).toBe(false);
+    });
+});
+
 describe("make ship", () => {
   test("a tooling-only branch is pushed and promoted with no box, no dev-push, no BOX needed", () => {
     branch(W.conn.dir, "feat/x", { "tests/test_a.py": "from a import A\n# more\n" });

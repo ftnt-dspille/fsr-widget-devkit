@@ -98,7 +98,8 @@ select_by_import() {  # select_by_import <dir> <test-glob-dirs...>: test files t
     while IFS= read -r f; do
         [[ -n "$f" ]] || continue
         case "$f" in
-            */test_*.py) [[ -f "$d/$f" ]] && sel[$f]=1 ;;
+            */test_*.py) # a test file counts only for the suite directory it lives in
+                  for tg in "$@"; do [[ "$f" == "$tg"/* && -f "$d/$f" ]] && sel[$f]=1; done ;;
             *.py) m="$(basename "$f" .py)"; [[ "$m" == __init__ ]] && continue
                   (( ${#tests[@]} )) || continue
                   while IFS= read -r t; do [[ -n "$t" ]] && sel[$t]=1; done < <(cd "$d" && grep -lE \
@@ -139,6 +140,25 @@ FAILED=(); NOT_RUN=()
 fail() { FAILED+=("$1"); echo "door: FAILED $1" >&2; }
 not_run() { NOT_RUN+=("$1"); echo "door: NOT RUN: $1" >&2; }
 
+prep_harness() {  # prints why local-chat cannot run here (rc 1), or nothing (rc 0). A root worktree has no node_modules or
+    # local-chat python of its own: reuse the shared checkout's, as agent_tree.sh does (node_modules only when the lockfile is identical).
+    local h="$HERE/fortisoar-widget-harness" c shared sh
+    c="$(gc "$HERE")" && [[ "$(basename "$c")" == .git ]] && shared="$(dirname "$c")" || shared=""
+    sh="${shared:+$shared/fortisoar-widget-harness}"
+    if [[ ! -e "$h/.venv-localdev" && -n "$sh" && "$sh" != "$h" && -d "$sh/.venv-localdev" ]]; then ln -sfn "$sh/.venv-localdev" "$h/.venv-localdev"; fi
+    if [[ ! -e "$h/node_modules" && -n "$sh" && "$sh" != "$h" && -d "$sh/node_modules" ]] && cmp -s "$sh/pnpm-lock.yaml" "$h/pnpm-lock.yaml"; then
+        ln -sfn "$sh/node_modules" "$h/node_modules"
+    fi
+    if [[ -n "$shared" && "$shared" != "$HERE" ]]; then   # the platform extracts the harness mounts the app shell from (ignored, so absent in a worktree)
+        local e
+        while IFS= read -r e; do
+            e="${e%/}"; [[ -n "$e" && "$e" != */.DS_Store && ! -e "$HERE/$e" ]] && { mkdir -p "$(dirname "$HERE/$e")"; ln -s "$shared/$e" "$HERE/$e"; }
+        done < <(git -C "$shared" ls-files --others --ignored --exclude-standard --directory -- fsr_src 2>/dev/null)
+    fi
+    [[ -e "$h/node_modules" ]] || { echo "the harness is not set up in $HERE (no node_modules, and the shared checkout's is missing or has a different pnpm-lock.yaml); run pnpm install in fortisoar-widget-harness there"; return 1; }
+    return 0
+}
+
 check_repo() {
     local d="$1" kind name br files n sel py rc
     kind="$(kind_of "$d")"; name="$(main_name "$d")"; br="$(branch_of "$d")"
@@ -160,13 +180,19 @@ check_repo() {
             printf '%s\n' "$files" | grep -q '^connector-fsr-agentic-assistant/' \
                 && { lap "check tool-sweep" 30 $MAKE -C "$d" tool-sweep >/dev/null || fail "$name tool-sweep"; } ;;
         framework)
-            sel="$(printf '%s\n' "$files" | select_by_import "$d" tooling/tests fsr_playbooks/tests | paste -sd' ' -)"
-            if [[ -z "$sel" ]]; then not_run "$name: no pytest file maps to this diff (CI runs the full suite)"
-            else
-                py="$(bash "$CONN/scripts/dev_env.sh" python)" || die "no dev python; run make setup in $CONN"
+            # The framework refuses a pytest process that mixes its suites (tooling/tests vs fsr_playbooks/tests):
+            # one process per suite, each reported on its own.
+            local suite any=0
+            py=""
+            for suite in tooling/tests fsr_playbooks/tests; do
+                sel="$(printf '%s\n' "$files" | select_by_import "$d" "$suite" | paste -sd' ' -)"
+                if [[ -z "$sel" ]]; then not_run "$name: no $suite file maps to this diff (CI runs the full suite)"; continue; fi
+                any=1
+                [[ -n "$py" ]] || py="$(bash "$CONN/scripts/dev_env.sh" python)" || die "no dev python; run make setup in $CONN"
                 # shellcheck disable=SC2086
-                ( cd "$d" && PYTHONPATH="$d" FSRPB_DEV=1 lap "check tests" 120 "$py" -m pytest -q -p no:randomly -m 'not live and not slow' $sel ) || fail "$name pytest: $sel"
-            fi ;;
+                ( cd "$d" && PYTHONPATH="$d" FSRPB_DEV=1 lap "check tests ($suite)" 120 "$py" -m pytest -q -p no:randomly -m 'not live and not slow' $sel ) || fail "$name pytest ($suite): $sel"
+            done
+            (( any )) || true ;;
         widget)
             local w ws; w="$(basename "$d")"; ws="$(dirname "$d")"
             [[ "$(basename "$ws")" == widgets-src ]] || die "$w: put a widget worktree at <dir>/widgets-src/$w (or use an agent tree), so the harness finds it"
@@ -180,6 +206,7 @@ check_repo() {
     if printf '%s\n' "$files" | touches_agent_loop "$kind"; then
         local b; b="$(printf '%s\n' "$files" | bundle_for)"
         say "the diff touches the agent loop: local-chat on $b (framework: $FW)"
+        if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; return; fi
         lap "check local-chat" 120 env CONN_REPO="$CONN" FSR_SRC="$FW" $MAKE -C "$HERE" local-chat BUNDLE="$b" || fail "$name local-chat $b"
     fi
 }
