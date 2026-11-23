@@ -40,6 +40,27 @@ STAMPS="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}"
 die() { echo "door: $*" >&2; exit 2; }
 say() { echo "door: $*"; }
 lap() { local label="$1" budget="$2"; shift 2; bash "$LAPSH" "$label" --budget "$budget" -- "$@"; }
+# local-chat starts a dev server, a connector and a model client; any of them can outlive the turn. Never pipe it
+# (a leftover child that inherits the pipe keeps `tee` waiting for an EOF that never comes): its output goes to a file,
+# shown by a tail we stop ourselves, it runs in its own process group, and that group is killed when the step ends or
+# when the hard bound (the model turn + DOOR_CHAT_GRACE seconds) passes. Prints to the door's stdout; rc = the step's.
+bounded_chat() {  # bounded_chat <outfile> <cmd...>
+    local out="$1" pid wd rc hard off=0 n; shift
+    hard=$(( ${DOOR_CHAT_TIMEOUT:-180} + ${DOOR_CHAT_GRACE:-90} ))
+    : > "$out"
+    perl -e 'setpgrp(0,0); exec @ARGV or exit 127' -- bash "$LAPSH" "check local-chat" --budget 120 -- bash -c '"$@" > "$0" 2>&1' "$out" "$@" > "$out.lap" 2>&1 < /dev/null & pid=$!
+    ( sleep "$hard"; kill -TERM -- "-$pid" 2>/dev/null; sleep 3; kill -KILL -- "-$pid" 2>/dev/null ) >/dev/null 2>&1 < /dev/null & wd=$!
+    while kill -0 "$pid" 2>/dev/null; do   # show the output as it grows (no pipe for a leftover child to hold)
+        n=$(wc -c < "$out"); (( n > off )) && { tail -c +$((off + 1)) "$out"; off=$n; }; sleep 0.5
+    done
+    wait "$pid"; rc=$?
+    kill -TERM -- "-$pid" 2>/dev/null; sleep 0.2; kill -KILL -- "-$pid" 2>/dev/null   # whatever the step left alive
+    kill "$wd" 2>/dev/null; pkill -P "$wd" 2>/dev/null
+    wait "$wd" 2>/dev/null
+    n=$(wc -c < "$out"); (( n > off )) && tail -c +$((off + 1)) "$out"
+    cat "$out.lap"; rm -f "$out.lap"
+    return "$rc"
+}
 gc() { git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null; }
 main_name() { local c; c="$(gc "$1")" || return 1; if [[ "$(basename "$c")" == .git ]]; then basename "$(dirname "$c")"; else basename "$c"; fi; }
 kind_of() {  # by what the tree holds, not by its name: the connector's main checkout is called fsr-playbook-builder, its worktrees anything
@@ -209,8 +230,7 @@ check_repo() {
         if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; return; fi
         local lc rc=0 lcdir; lc="$(mktemp "${TMPDIR:-/tmp}/door-lc.XXXXXX")"; lcdir="$(mktemp -d "${TMPDIR:-/tmp}/door-lcout.XXXXXX")"
         # TIMEOUT bounds the model turn (local-chat defaults to 600s); a gateway that stalls must not hold the door for 10 minutes.
-        lap "check local-chat" 120 env CONN_REPO="$CONN" FSR_SRC="$FW" TIMEOUT="${DOOR_CHAT_TIMEOUT:-180}" OUT="$lcdir" $MAKE -C "$HERE" local-chat BUNDLE="$b" 2>&1 | tee "$lc"
-        rc=${PIPESTATUS[0]}
+        rc=0; bounded_chat "$lc" env CONN_REPO="$CONN" FSR_SRC="$FW" TIMEOUT="${DOOR_CHAT_TIMEOUT:-180}" OUT="$lcdir" $MAKE -C "$HERE" local-chat BUNDLE="$b" || rc=$?
         if (( rc )); then fail "$name local-chat $b"; else judge_local_chat "$name" "$b" "$lc" "$lcdir"; fi
         rm -rf "$lc" "$lcdir"
     fi

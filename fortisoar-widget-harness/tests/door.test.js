@@ -60,6 +60,8 @@ if [[ "$*" == *local-chat* ]]; then   # the report local-chat-report.py prints; 
     chatty) echo "local-chat: tools called: none"; T=300; echo "local-chat: verdict card: none; cards: []" ;;
     nocard) echo "local-chat: tools called: get_record"; T=300; echo "local-chat: verdict card: none; cards: []" ;;
     noreport) ;;
+    leak) echo "local-chat: tools called: none"; T=0; echo "local-chat: verdict card: none; cards: []"
+          ( exec sleep 100 ) & ;;   # a sidecar that outlives the turn and keeps the inherited stdout open
   esac
   if [ -n "\${OUT:-}" ]; then mkdir -p "$OUT"; { echo "**Assistant:**"; echo; [ "\${T:-0}" -gt 0 ] && echo "some answer"; echo; } > "$OUT/transcript.md"; fi
   echo "TIMEOUT=\${TIMEOUT:-unset}" >> "$DOOR_LOG"
@@ -117,6 +119,15 @@ describe("make check", () => {
     });
     test("no report at all is NOT RUN", () => {
       expect(run("noreport").out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: no report was produced/);
+    });
+    test("a child that outlives local-chat and holds its stdout does not hang the door, and is killed", () => {
+      const t0 = Date.now();
+      const r = run("leak", { DOOR_CHAT_TIMEOUT: "5", DOOR_CHAT_GRACE: "5" });
+      expect(Date.now() - t0).toBeLessThan(30000);
+      expect(r.out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: the model gave no answer/);
+      expect(r.out).toMatch(/tools called: none/);
+      const alive = spawnSync("pgrep", ["-f", "sleep 100"], { encoding: "utf8" }).stdout.trim();
+      expect(alive).toBe("");
     });
     test("DOOR_CHAT_TIMEOUT overrides the bound", () => {
       run("good", { DOOR_CHAT_TIMEOUT: "77" });
