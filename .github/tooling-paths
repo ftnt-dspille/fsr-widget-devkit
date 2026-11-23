@@ -10,6 +10,13 @@ scripts/githooks/*
 scripts/hooks_central.sh
 scripts/install-git-hooks.sh
 scripts/agent_tree.sh
+scripts/door.sh
+scripts/drift_check.py
+scripts/devloop_*
+fortisoar-widget-harness/tests/door.test.js
+fortisoar-widget-harness/tests/driftCheck.test.js
+fortisoar-widget-harness/tests/devloopBench.test.js
+fortisoar-widget-harness/tests/promoteGate.dryRun.test.js
 fortisoar-widget-harness/tests/promoteGate.helpers.js
 fortisoar-widget-harness/tests/promoteGate.test.js
 fortisoar-widget-harness/tests/promoteGate.hook.test.js
