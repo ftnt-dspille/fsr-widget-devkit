@@ -207,8 +207,26 @@ check_repo() {
         local b; b="$(printf '%s\n' "$files" | bundle_for)"
         say "the diff touches the agent loop: local-chat on $b (framework: $FW)"
         if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; return; fi
-        lap "check local-chat" 120 env CONN_REPO="$CONN" FSR_SRC="$FW" $MAKE -C "$HERE" local-chat BUNDLE="$b" || fail "$name local-chat $b"
+        local lc rc=0 lcdir; lc="$(mktemp "${TMPDIR:-/tmp}/door-lc.XXXXXX")"; lcdir="$(mktemp -d "${TMPDIR:-/tmp}/door-lcout.XXXXXX")"
+        # TIMEOUT bounds the model turn (local-chat defaults to 600s); a gateway that stalls must not hold the door for 10 minutes.
+        lap "check local-chat" 120 env CONN_REPO="$CONN" FSR_SRC="$FW" TIMEOUT="${DOOR_CHAT_TIMEOUT:-180}" OUT="$lcdir" $MAKE -C "$HERE" local-chat BUNDLE="$b" 2>&1 | tee "$lc"
+        rc=${PIPESTATUS[0]}
+        if (( rc )); then fail "$name local-chat $b"; else judge_local_chat "$name" "$b" "$lc" "$lcdir"; fi
+        rm -rf "$lc" "$lcdir"
     fi
+}
+judge_local_chat() {  # judge_local_chat <repo> <bundle> <captured output> <out dir>: rc 0 is not a pass when the model did nothing
+    local name="$1" b="$2" out="$3" tools text card
+    tools="$(sed -n 's/^local-chat: tools called: //p' "$out" | tail -1)"
+    text="$(sed -n '/^\*\*Assistant:\*\*/,/^\*\*Card/p' "$4/transcript.md" 2>/dev/null | sed '1d;/^\*\*Card/d' | tr -d '[:space:]' | wc -c | tr -d ' ')"   # what the model said, from the transcript
+    card="$(sed -n 's/^local-chat: verdict card: \([^;]*\);.*/\1/p' "$out" | tail -1)"
+    if [[ -z "$tools" ]]; then not_run "$name: local-chat $b: no report was produced (the turn did not finish or the gateway was unavailable)"; return; fi
+    if [[ "$tools" == none* ]]; then
+        if [[ "${text:-0}" == 0 ]]; then not_run "$name: local-chat $b: the model gave no answer and called no tools (gateway unavailable or the turn timed out)"
+        else fail "$name local-chat $b: the model answered but called no tools"; fi
+        return
+    fi
+    if [[ "$b" == ka_* && "${card:-none}" == none ]]; then fail "$name local-chat $b: tools ran but no verdict card was produced"; fi
 }
 
 # --- ship -------------------------------------------------------------------------

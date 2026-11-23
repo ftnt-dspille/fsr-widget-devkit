@@ -53,6 +53,17 @@ beforeEach(() => {
   fs.writeFileSync(make, `#!/usr/bin/env bash
 echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-}" >> "$DOOR_LOG"
 if [ -n "\${DOOR_FAIL:-}" ] && [[ "$*" == *"$DOOR_FAIL"* ]]; then exit "\${DOOR_FAIL_RC:-1}"; fi
+if [[ "$*" == *local-chat* ]]; then   # the report local-chat-report.py prints; DOOR_CHAT picks what the model did
+  case "\${DOOR_CHAT:-good}" in
+    good) echo "local-chat: tools called: get_record, lookup"; T=400; echo "local-chat: verdict card: malicious; cards: ['verdict_card']" ;;
+    silent) echo "local-chat: tools called: none"; T=0; echo "local-chat: verdict card: none; cards: []" ;;
+    chatty) echo "local-chat: tools called: none"; T=300; echo "local-chat: verdict card: none; cards: []" ;;
+    nocard) echo "local-chat: tools called: get_record"; T=300; echo "local-chat: verdict card: none; cards: []" ;;
+    noreport) ;;
+  esac
+  if [ -n "\${OUT:-}" ]; then mkdir -p "$OUT"; { echo "**Assistant:**"; echo; [ "\${T:-0}" -gt 0 ] && echo "some answer"; echo; } > "$OUT/transcript.md"; fi
+  echo "TIMEOUT=\${TIMEOUT:-unset}" >> "$DOOR_LOG"
+fi
 exit 0
 `, { mode: 0o755 });
   fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | PYTHONPATH=$PYTHONPATH" >> "$DOOR_LOG"\nexit 0\n`, { mode: 0o755 });
@@ -78,6 +89,39 @@ describe("make check", () => {
     expect(l.some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' --disable-warnings tests\/test_a\.py/.test(x.split(" | ")[0]))).toBe(true);
     expect(l.some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(true);
     expect(l.some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+  });
+
+  describe("a local-chat that did nothing is never a pass", () => {
+    const run = (chat, env = {}) => { branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" }); return door("check", { DOOR_CHAT: chat, ...env }); };
+    test("a good turn passes and the turn is bounded by a timeout well under local-chat's 600s default", () => {
+      const r = run("good");
+      expect(r.code).toBe(0);
+      expect(r.out).not.toMatch(/NOT RUN: conn_main: local-chat/);
+      const t = log().find((x) => /^TIMEOUT=/.test(x));
+      expect(Number(t.split("=")[1])).toBeLessThanOrEqual(300);
+    });
+    test("no tools and no answer (timeout or dead gateway) is NOT RUN with the reason, not 'check passed'", () => {
+      const r = run("silent");
+      expect(r.out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: the model gave no answer/);
+      expect(r.out).toMatch(/NOT RUN/);
+    });
+    test("a model that answered but called no tools fails", () => {
+      const r = run("chatty");
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/FAILED conn_main local-chat ka_c2_beacon: the model answered but called no tools/);
+    });
+    test("tools ran but no verdict card on a triage bundle fails", () => {
+      const r = run("nocard");
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/no verdict card/);
+    });
+    test("no report at all is NOT RUN", () => {
+      expect(run("noreport").out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: no report was produced/);
+    });
+    test("DOOR_CHAT_TIMEOUT overrides the bound", () => {
+      run("good", { DOOR_CHAT_TIMEOUT: "77" });
+      expect(log()).toContain("TIMEOUT=77");
+    });
   });
 
   test("a diff outside the agent loop runs no local-chat, and a diff no test maps to is reported NOT RUN, not passed", () => {
