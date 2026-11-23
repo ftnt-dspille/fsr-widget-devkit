@@ -9,6 +9,10 @@
 
   drift_check.py [--root DIR] [--connector DIR] [--framework DIR] [--ledger FILE]
 
+3. CI state: the latest main CI of each repo in the solution pack (root, connector, framework,
+   the two widgets), via `scripts/door.sh ci all`; a red main is flagged loudly with the failing job
+   names. Skipped when this root has no scripts/door.sh.
+
 A line a reader meant as a retired or example name can carry `(retired)` or
 `(example)` after the token; it is skipped.
 """
@@ -141,6 +145,12 @@ def main(argv=None):
     warns = lap_drift(a.ledger) + ["WARN doc drift: " + w for w in doc_drift(a.root, a.connector, a.framework)]
     for w in warns:
         print(w)
+    ci = os.path.join(a.root, "scripts", "door.sh")
+    if os.path.exists(ci):
+        r = subprocess.run(["bash", ci, "ci", "all"], capture_output=True, text=True, env={**os.environ, "FSR_TOOL_HOME": a.root})
+        print(r.stdout.rstrip())
+        if r.returncode == 1:
+            print("WARN CI RED ON MAIN: see the !!! line(s) above; make ship refuses those repos unless the branch is green on the failing checks")
     if not warns:
         print("drift: no lap step over budget, no doc names a missing target, path or variable")
     return 0

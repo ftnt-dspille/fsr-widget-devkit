@@ -57,6 +57,13 @@ Then:
    the merge. Tooling-only diffs need no box: CI is the proof. In the connector repo the same two
    commands forward here.
 
+CI is never out of sight: `make doctor` and both doors print each repo's latest main CI (root,
+connector, framework, the two widgets) and flag a red main with its failing job. `make ship`
+refuses a repo whose main is red unless the branch is green on those same checks (it pushes the
+branch and waits for its CI: it may be the fix). A framework ship also runs the connector suite
+against the new framework head before promote (the connector's required leg clones framework
+main), and a red connector refuses the framework promote. Nothing to remember or set.
+
 That is the whole loop. Everything else (`push`, `dev-push`, `widget-push`, `loop`, `ship-dev`,
 `promote`, `stamp-tree`, `promote-tree`, `doctor SANITY=1 STAMP=`, box leases, `framework-path`)
 is internal: the doors call it, so do not type it. Drill-downs while iterating:

@@ -68,7 +68,7 @@ if [[ "$*" == *local-chat* ]]; then   # the report local-chat-report.py prints; 
 fi
 exit 0
 `, { mode: 0o755 });
-  fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | PYTHONPATH=$PYTHONPATH" >> "$DOOR_LOG"\nexit 0\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | PYTHONPATH=$PYTHONPATH | cwd=$PWD" >> "$DOOR_LOG"\nexit "\${PY_RC:-0}"\n`, { mode: 0o755 });
   const conn = repo("conn_main", {
     "connector-fsr-agentic-assistant/a.py": "A = 1\n", "scripts/dev_push_deps.sh": "#!/bin/sh\n", "README.md": "r\n",
     "tests/test_a.py": "from a import A\n",
@@ -358,5 +358,142 @@ describe("make ship", () => {
     expect(pro.length).toBe(2);
     expect(pro[0]).toMatch(/fsr-playbook-framework|framework/);
     expect(pro[1]).toMatch(/connector/);
+  });
+});
+
+// CI of main: a fake `gh` answers `repos/<owner>/<repo>/commits/<ref>/check-runs` from files named
+// <repo>__<ref> holding the post-jq rows (id, sha, name, status, conclusion). No file = GitHub unreadable.
+describe("CI of main is never out of sight", () => {
+  let GH;
+  const rows = (...r) => r.map(([id, name, st, co, sha = "aaaaaaaa11111111"]) => [id, sha, name, st, co || ""].join("\t")).join("\n") + "\n";
+  const ci = (repoName, ref, body) => fs.writeFileSync(path.join(GH, `${repoName}__${ref}`), body);
+  const onGithub = (r, name) => git(r.dir, "remote", "add", "github", `https://github.com/o/${name}.git`);
+  const run = (mode, args, env = {}) => {
+    const r = spawnSync("bash", [DOOR, mode, ...args], { cwd: T, encoding: "utf8", timeout: 60000,
+      env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"),
+             FSR_LAP_LEDGER: path.join(T, "laps.tsv"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir,
+             DOOR_RED_WAIT: "0", DOOR_RED_POLL: "0", PATH: `${path.join(T, "bin")}:${process.env.PATH}`, ...env } });
+    return { code: r.status, out: `${r.stdout}${r.stderr}` };
+  };
+  beforeEach(() => {
+    GH = path.join(T, "ghdata"); fs.mkdirSync(GH);
+    fs.mkdirSync(path.join(T, "bin"));
+    fs.writeFileSync(path.join(T, "bin", "gh"), `#!/usr/bin/env bash
+slug="\${2#repos/}"; ref="\${slug#*/commits/}"; ref="\${ref%%/*}"; repo="\${slug#*/}"; repo="\${repo%%/*}"
+f="${GH}/\${repo}__\${ref}"; [ -f "$f" ] || exit 1; cat "$f"
+`, { mode: 0o755 });
+    onGithub(W.conn, "conn_main"); onGithub(W.fw, "fsr-playbook-framework");
+  });
+
+  test("status names the repo, says green, and says unknown (never green) when GitHub cannot be read or there is no GitHub remote", () => {
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "success"]));
+    expect(run("ci", ["status", W.conn.dir]).out).toMatch(/ci main: conn_main \(o\/conn_main\) green at aaaaaaaa/);
+    fs.rmSync(path.join(GH, "conn_main__main"));
+    const r = run("ci", ["status", W.conn.dir]);
+    expect(r.code).toBe(3);
+    expect(r.out).toMatch(/unknown/);
+    expect(run("ci", ["status", T]).out).toMatch(/unknown/);
+  });
+
+  test("a red main is flagged loudly with the failing job name; the newest run of a name wins", () => {
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "failure"], [2, "lint", "completed", "success"]));
+    const r = run("ci", ["status", W.conn.dir]);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/RED at aaaaaaaa: failing test \(bundled framework\)/);
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "failure"], [3, "test (bundled framework)", "completed", "success"]));
+    expect(run("ci", ["status", W.conn.dir]).code).toBe(0);
+  });
+
+  test("only the repo's required checks make main red: an allowed-to-fail leg does not", () => {
+    write(W.conn.dir, ".github/required-checks", "test (bundled framework)\n");
+    git(W.conn.dir, "add", "-A"); git(W.conn.dir, "commit", "-qm", "req"); git(W.conn.dir, "push", "-q", "origin", "main");
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "success"], [2, "test (pinned framework)", "completed", "failure"]));
+    expect(run("ci", ["status", W.conn.dir]).code).toBe(0);
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "in_progress"]));
+    expect(run("ci", ["status", W.conn.dir]).out).toMatch(/pending/);
+  });
+
+  test("make doctor's drift check (drift_check.py) prints every repo's main CI line and flags a red one", () => {
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "failure"]));
+    const r = spawnSync("python3", [path.join(ROOT, "scripts/drift_check.py"), "--root", ROOT, "--ledger", path.join(T, "laps.tsv")],
+      { encoding: "utf8", env: { ...ENV, CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, PATH: `${path.join(T, "bin")}:${process.env.PATH}` } });
+    const out = r.stdout.split("\n").filter((l) => !/doc drift/.test(l)).join("\n");
+    expect(out).toMatch(/ci main: connector \(o\/conn_main\) RED at aaaaaaaa: failing test \(bundled framework\)/);
+    expect(out).toMatch(/WARN CI RED ON MAIN/);
+    expect(r.status).toBe(0);
+  });
+
+  describe("ship while main is red", () => {
+    const ship = () => { branch(W.conn.dir, "feat/x", { "tests/test_a.py": "# x\n" }); return run("ship", []); };
+    const promoted = () => log().some((x) => /promote REPO=/.test(x));
+    beforeEach(() => ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "failure"])));
+
+    test("both doors print the main CI line at the start", () => {
+      branch(W.conn.dir, "feat/x", { "tests/test_a.py": "# x\n" });
+      expect(run("check", []).out).toMatch(/door: ci main: conn_main .* RED/);
+    });
+
+    test("refused when the branch has no green CI on the failing check yet; main is untouched and the branch was pushed to read its CI", () => {
+      const r = ship();
+      expect(r.code).toBe(2);
+      expect(r.out).toMatch(/main is red on: test \(bundled framework\)/);
+      expect(r.out).toMatch(/not finished or has not started/);
+      expect(promoted()).toBe(false);
+      expect(remoteHas(W.conn.bare, "feat/x")).toBe(true);
+    });
+
+    test("refused when the branch is red on it too", () => {
+      branch(W.conn.dir, "feat/x", { "tests/test_a.py": "# x\n" });
+      ci(`conn_main`, git(W.conn.dir, "rev-parse", "HEAD"), rows([9, "test (bundled framework)", "completed", "failure"]));
+      const r = run("ship", []);
+      expect(r.code).toBe(2);
+      expect(r.out).toMatch(/red on the same checks too/);
+      expect(promoted()).toBe(false);
+    });
+
+    test("allowed when the branch is green on the failing check: it may be the fix", () => {
+      branch(W.conn.dir, "feat/x", { "tests/test_a.py": "# x\n" });
+      ci("conn_main", git(W.conn.dir, "rev-parse", "HEAD"), rows([9, "test (bundled framework)", "completed", "success"]));
+      const r = run("ship", []);
+      expect(r.code).toBe(0);
+      expect(r.out).toMatch(/green on the checks main fails/);
+      expect(promoted()).toBe(true);
+    });
+
+    test("a green main does not wait on anything", () => {
+      ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "success"]));
+      expect(ship().code).toBe(0);
+      expect(promoted()).toBe(true);
+    });
+  });
+
+  describe("a framework ship runs the connector suite against the new framework head first", () => {
+    const fwShip = (env = {}) => { branch(W.fw.dir, "feat/f", { "README.md": "# f\n" }); return run("ship", [], { DOOR_REPO: W.fw.dir, ...env }); };
+    test("a red connector suite refuses the framework promote", () => {
+      const r = fwShip({ PY_RC: "1" });
+      expect(r.code).toBe(2);
+      expect(r.out).toMatch(/cross-repo gate: the connector's suite is RED against this framework head/);
+      expect(log().some((x) => /promote REPO=/.test(x))).toBe(false);
+    });
+    test("green: the connector's main is tested with PYTHONPATH on the framework head, then promote goes ahead", () => {
+      const r = fwShip();
+      expect(r.code).toBe(0);
+      const py = log().find((x) => /^python -m pytest/.test(x));
+      expect(py).toContain(`PYTHONPATH=${W.fw.dir}:${W.fw.dir}/tooling`);
+      expect(py).not.toContain(`cwd=${W.conn.dir}\n`);   // a throwaway worktree of the connector's main, not the shared checkout
+      expect(log().some((x) => /promote REPO=/.test(x))).toBe(true);
+      expect(git(W.conn.dir, "worktree", "list").split("\n").length).toBe(1);   // and it is removed again
+    });
+    test("a connector change shipped in the same tree is the one tested (its branch, not main)", () => {
+      const tree = path.join(T, "tree");
+      fs.mkdirSync(path.join(tree, "root"), { recursive: true });
+      git(W.conn.dir, "worktree", "add", "-q", "-b", "feat/c", path.join(tree, "connector"), "main");
+      git(W.fw.dir, "worktree", "add", "-q", "-b", "feat/f", path.join(tree, "framework"), "main");
+      fs.writeFileSync(path.join(tree, "agent-tree.json"), "{}");
+      for (const [d, f] of [["connector", "tests/test_a.py"], ["framework", "README.md"]]) { write(path.join(tree, d), f, "# c\n"); git(path.join(tree, d), "add", "-A"); git(path.join(tree, d), "commit", "-qm", d); }
+      const r = run("ship", [], { AGENT_TREE: tree, DOOR_REPO: "" });
+      expect(r.code).toBe(0);
+      expect(log().find((x) => /^python -m pytest/.test(x))).toContain(`cwd=${path.join(tree, "connector")}`);
+    });
   });
 });

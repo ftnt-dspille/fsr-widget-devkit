@@ -27,15 +27,126 @@
 #   already has a VERIFIED clean stamp is not re-stamped). Then make promote.
 #   DRY_RUN=1 stops promote before the merge: CI and the stamp are still checked.
 #
-# Test hooks: DOOR_MAKE (the make binary), FSR_LIVE_SANITY_DIR (the stamp dir).
+# CI is never out of sight (`door.sh ci`, also run by make doctor): both doors print each repo's latest main CI line at the start.
+# ship also refuses to start on a repo whose main is red (one of its required checks failed on main's head) unless
+# the branch is green on those same checks (it may be the fix: the branch is pushed and its CI waited for). And a
+# framework ship runs the connector suite against the NEW framework head before promote, as the connector's required
+# CI leg (which clones framework main) will after it; a red connector refuses the framework promote.
+#
+# Test hooks: DOOR_MAKE, DOOR_RED_WAIT / DOOR_RED_POLL (seconds to wait for the branch's CI when main is red),
+# DOOR_BUNDLED_ARGS (pytest args of the cross-repo run) (the make binary), FSR_LIVE_SANITY_DIR (the stamp dir).
 set -uo pipefail
 
 mode="${1:-}"
-case "$mode" in check|ship) ;; *) sed -n '2,3p' "$0" >&2; exit 2 ;; esac
+case "$mode" in check|ship|ci) ;; *) sed -n '2,3p' "$0" >&2; exit 2 ;; esac
 HERE="${FSR_TOOL_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"   # the root checkout whose Makefile ran
 MAKE="${DOOR_MAKE:-make}"
 LAPSH="$HERE/scripts/lap.sh"
 STAMPS="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}"
+
+# --- CI of main (make doctor and both doors) ----------------------------------------
+# What GitHub CI says about a repo's main, so nobody works blind to a red main.
+#   door.sh ci status <repo dir> [label]   one line: green | RED (<failing job names>) | pending | unknown; rc 0 green, 1 red, 3 else
+#   door.sh ci red-names <repo dir>        the failing counted job names, one per line
+#   door.sh ci sha <repo dir> <sha> <name>...   rc 0 when every named check is success on that sha, 1 failed, 3 missing/unfinished
+#   door.sh ci all                         the solution pack: root, connector, framework, the two widgets; rc 1 when any is red
+# "Counts" = the names in the repo's .github/required-checks (on its main) when it has one, else every check-run on
+# the head, so a continue-on-error leg is not a red main. Per name the newest run wins. Without gh or a GitHub
+# remote the answer is "unknown", never "green".
+slug_of() {  # slug_of <dir>: owner/repo of its GitHub remote (the main upstream's if that is GitHub, else any)
+    local d="$1" r url up
+    up="$(git -C "$d" for-each-ref --format='%(upstream:remotename)' refs/heads/main 2>/dev/null)"
+    for r in $up $(git -C "$d" remote 2>/dev/null); do
+        url="$(git -C "$d" remote get-url "$r" 2>/dev/null)" || continue
+        case "$url" in *github.com[:/]*) printf '%s\n' "$url" | sed -E 's#.*github\.com[:/]##; s#\.git$##'; return 0 ;; esac
+    done
+    return 1
+}
+required_of() {  # required_of <dir>: names in .github/required-checks on its main
+    local d="$1" r ref
+    r="$(git -C "$d" for-each-ref --format='%(upstream:remotename)' refs/heads/main 2>/dev/null)"
+    for ref in "refs/remotes/${r:-origin}/main" main; do
+        if git -C "$d" cat-file -e "$ref:.github/required-checks" 2>/dev/null; then
+            git -C "$d" show "$ref:.github/required-checks" | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$'
+            return 0
+        fi
+    done
+    return 0
+}
+runs_of() {  # runs_of <slug> <ref>: id, sha, name, status, conclusion; newest run per name
+    gh api "repos/$1/commits/$2/check-runs?per_page=100" \
+        --jq '.check_runs[] | [.id, .head_sha, .name, .status, (.conclusion // "")] | @tsv' 2>/dev/null \
+        | sort -t$'\t' -k3,3 -k1,1nr | awk -F'\t' '!seen[$3]++'
+}
+# classify <required names, newline separated> < rows -> prints "<verdict>\t<sha8>\t<detail>"
+ci_classify() {
+    local req="$1"
+    REQ="$req" awk -F'\t' '
+        BEGIN { n = split(ENVIRON["REQ"], r, "\n"); for (i = 1; i <= n; i++) if (r[i] != "") want[r[i]] = 1; nreq = 0; for (k in want) nreq++ }
+        { sha = substr($2, 1, 8); name = $3; st = $4; co = $5
+          have[name] = 1
+          if (nreq && !(name in want)) next
+          if (st != "completed") { pend = pend (pend ? ", " : "") name; next }
+          if (co == "failure" || co == "timed_out" || co == "cancelled" || co == "action_required" || co == "startup_failure") red = red (red ? "\n" : "") name
+          else seen_ok++ }
+        END {
+            for (k in want) if (!(k in have)) miss = miss (miss ? ", " : "") k
+            if (red != "") { gsub(/\n/, "\001", red); print "RED\t" sha "\t" red }
+            else if (pend != "" || miss != "") print "PENDING\t" sha "\t" pend (pend && miss ? ", " : "") (miss ? miss " (no run yet)" : "")
+            else if (seen_ok > 0) print "GREEN\t" sha "\t"
+            else print "UNKNOWN\t" sha "\tno check-runs"
+        }'
+}
+main_verdict() {  # main_verdict <dir>: sets V (verdict) S (sha8) D (detail, names joined by \001) SLUG; rc 0 when it could ask
+    local d="$1" rows out
+    V=UNKNOWN S=""; D=""; SLUG=""
+    command -v gh >/dev/null 2>&1 || { D="gh is not installed"; return 1; }
+    SLUG="$(slug_of "$d")" || { D="no GitHub remote"; return 1; }
+    rows="$(runs_of "$SLUG" main)"
+    [[ -n "$rows" ]] || { D="no CI runs on main (or GitHub could not be read)"; return 1; }
+    out="$(printf '%s\n' "$rows" | ci_classify "$(required_of "$d")")"
+    V="${out%%$'\t'*}"; out="${out#*$'\t'}"; S="${out%%$'\t'*}"; D="${out#*$'\t'}"
+    return 0
+}
+rc_of() { case "$1" in GREEN) return 0 ;; RED) return 1 ;; *) return 3 ;; esac; }
+
+ci_cmd() {
+cmd="${1:-}"; shift || true
+case "$cmd" in
+    status)
+        d="${1:?usage: door.sh ci status <repo dir>}"; name="${2:-$(basename "$d")}"
+        main_verdict "$d"
+        case "$V" in
+            GREEN) echo "ci main: $name ($SLUG) green at $S" ;;
+            RED) echo "ci main: $name ($SLUG) RED at $S: failing $(printf '%s' "$D" | tr '\001' ';' | sed 's/;/, /g'). Main is red: fix it before piling on" ;;
+            PENDING) echo "ci main: $name ($SLUG) pending at $S: $D" ;;
+            *) echo "ci main: $name unknown: $D" ;;
+        esac
+        rc_of "$V" ;;
+    red-names)
+        main_verdict "${1:?usage: door.sh ci red-names <repo dir>}"
+        [[ "$V" == RED ]] && printf '%s\n' "$D" | tr '\001' '\n'
+        rc_of "$V" ;;
+    sha)
+        d="${1:?usage: door.sh ci sha <repo dir> <sha> <name>...}"; sha="${2:?}"; shift 2
+        slug="$(slug_of "$d")" || { echo "ci: no GitHub remote for $d" >&2; exit 3; }
+        rows="$(runs_of "$slug" "$sha")"
+        out="$(printf '%s\n' "$rows" | ci_classify "$(printf '%s\n' "$@")")"
+        v="${out%%$'\t'*}"; [[ -z "$rows" ]] && v=PENDING
+        rc_of "$v" ;;
+    all)
+        rc=0
+        for n in root conn framework agenticAssistant agenticAssistantMonitor; do
+            d="$(bash "$HERE/scripts/repo_paths.sh" "$n" 2>/dev/null)" && [[ -d "$d" ]] || { echo "ci main: $n unknown: repo not found"; continue; }
+            line="$(ci_cmd status "$d" "${n/conn/connector}")"; r=$?
+            if (( r == 1 )); then printf '\n!!! %s\n\n' "$line"; rc=1; else echo "$line"; fi
+        done
+        return "$rc" ;;
+    *) echo "usage: door.sh ci status <repo dir> | red-names <dir> | sha <dir> <sha> <name>... | all" >&2; return 2 ;;
+esac
+}
+
+[[ "$mode" == ci ]] && { ci_cmd "${@:2}"; exit $?; }
 
 die() { echo "door: $*" >&2; exit 2; }
 say() { echo "door: $*"; }
@@ -103,6 +214,7 @@ else
     git -C "$r" fetch -q "$(remote_of "$r")" main 2>/dev/null || true
     DIRS=("$r")
 fi
+for d in "${DIRS[@]}"; do ci_cmd status "$d" "$(main_name "$d")" | sed 's/^/door: /'; done
 # The pieces other repos' steps need.
 CONN=""; FW=""
 if [[ -n "$tree" ]]; then CONN="$tree/connector"; FW="$tree/framework"; fi
@@ -260,6 +372,41 @@ classify() {  # classify <dir> <branch> -> shipped|tooling (promote's own rule, 
     printf '%s\n' "$out" | sed -n 's/^promote: classified \([a-z]*\).*/\1/p' | head -1
 }
 
+main_red_gate() {  # main_red_gate <dir> <branch>: refuse to ship onto a red main unless this branch is green on the failing checks
+    local d="$1" br="$2" names=() waits poll deadline rc
+    mapfile -t names < <(ci_cmd red-names "$d") || true
+    (( ${#names[@]} )) || return 0
+    say "$(main_name "$d"): main is red on: $(printf '%s; ' "${names[@]}"). Shipping is allowed only if $br is green on the same checks (it may be the fix); pushing it to find out"
+    git -C "$d" push -q -u "$(remote_of "$d")" "$br" || die "$(main_name "$d"): could not push $br to read its CI"
+    waits="${DOOR_RED_WAIT:-900}"; poll="${DOOR_RED_POLL:-20}"; deadline=$((SECONDS + waits))
+    while :; do
+        ci_cmd sha "$d" "$(git -C "$d" rev-parse HEAD)" "${names[@]}"; rc=$?
+        (( rc == 3 && SECONDS < deadline )) || break
+        sleep "$poll"
+    done
+    case "$rc" in
+        0) say "$(main_name "$d"): $br is green on the checks main fails: shipping (this ship can be the fix)" ;;
+        1) die "$(main_name "$d"): main is red and $br is red on the same checks too. Fix the failing checks (gh run list -b main), then ship" ;;
+        *) die "$(main_name "$d"): main is red and $br's CI on those checks is not finished or has not started after ${waits}s. Wait for it (the branch is pushed), then run make ship again" ;;
+    esac
+}
+bundled_gate() {  # bundled_gate <framework dir>: the connector's required leg (framework main), run against this framework head
+    local fw="$1" conn="$CONN" tmp="" py rc=0 d together=0
+    for d in "${pushes[@]}"; do [[ "$(kind_of "$d")" == connector ]] && { conn="$d"; together=1; }; done   # shipping together: the connector's branch
+    if (( ! together )); then   # not shipping: the connector as main has it
+        git -C "$CONN" fetch -q "$(remote_of "$CONN")" main 2>/dev/null || true
+        tmp="$(mktemp -d "${TMPDIR:-/tmp}/door-bundled.XXXXXX")"; rm -rf "$tmp"
+        git -C "$CONN" worktree add -q --detach "$tmp" "refs/remotes/$(remote_of "$CONN")/main" || die "cross-repo gate: cannot check out the connector's main from $CONN"
+        conn="$tmp"
+    fi
+    py="$(bash "$CONN/scripts/dev_env.sh" python)" || die "cross-repo gate: no dev python for the connector; run make setup in $CONN"
+    say "cross-repo gate: connector suite ($(main_name "$conn"), as CI's 'bundled framework' leg) against framework $(git -C "$fw" rev-parse --short HEAD)"
+    # shellcheck disable=SC2086
+    ( cd "$conn" && FSRPB_DEV=1 FSRPB_FRAMEWORK_DIR="$fw" PYTHONPATH="$fw:$fw/tooling" lap "ship bundled" 600 "$py" -m pytest -q --no-header -n auto ${DOOR_BUNDLED_ARGS:--p no:randomly} ) || rc=$?
+    [[ -z "$tmp" ]] || git -C "$CONN" worktree remove --force "$tmp" >/dev/null 2>&1
+    (( rc == 0 )) || die "cross-repo gate: the connector's suite is RED against this framework head, so connector main would go red once it lands. Nothing was promoted. Fix the framework change (or ship the connector change that goes with it in the same tree)"
+}
+
 ship_all() {
     local d br kind name cls shipped=() pushes=() pids=() i rc=0 stampdirs=()
     declare -A CLS=()
@@ -275,6 +422,7 @@ ship_all() {
         pushes+=("$d"); [[ "$cls" == shipped ]] && shipped+=("$d")
     done
     (( ${#pushes[@]} )) || { say "nothing to ship"; exit 0; }
+    for d in "${pushes[@]}"; do main_red_gate "$d" "$(branch_of "$d")"; done
     if (( ${#shipped[@]} )); then
         [[ -n "${BOX:-}" ]] || die "$(for d in "${shipped[@]}"; do main_name "$d"; done | paste -sd, -) ship(s) to a box: pass BOX=<alias> (an experimental box; scripts/box.sh --list)"
         BOX="$BOX" bash "$CONN/scripts/box.sh" --need env,push >/dev/null || die "BOX=$BOX cannot take code (a stable box takes it only through make stable)"
@@ -327,6 +475,7 @@ ship_all() {
     rm -rf "$plog"
     (( rc == 0 )) || die "stopped before promote; fix the cause and run make ship again (it re-uses what already passed)"
     # 3. promote, one call per repo, dependency order; stops at the first refusal.
+    for d in "${pushes[@]}"; do [[ "$(kind_of "$d")" == framework ]] && bundled_gate "$d"; done
     for d in "${pushes[@]}"; do
         say "promote $(main_name "$d") ($(branch_of "$d"))${DRY_RUN:+ (dry run: CI and proof checked, nothing merged)}"
         env ${DRY_RUN:+PROMOTE_DRY_RUN=1} $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")" || die "promote stopped at $(main_name "$d"); the repos before it were promoted. Fix it and run make ship again"
