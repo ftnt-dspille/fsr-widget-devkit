@@ -1,11 +1,19 @@
 # Paths whose promote proof is CI alone (no box stamp). make promote reads this
 # file from MAIN, never from the branch being promoted. A path not listed here is
 # shipped and keeps the live stamp. Deliberately NOT listed: anything that
-# deploys or verifies a deploy (ship.sh, live-sanity, stable*, push, deploy
-# scripts), the Makefile, jest.config.js, and this file, required-checks and the
-# CI workflow themselves (changing the policy takes the box-stamp path).
+# deploys or verifies a deploy (ship.sh, live-sanity, push, deploy scripts), the
+# Makefile, jest.config.js, and this file, required-checks and the CI workflow
+# themselves (changing the policy takes the box-stamp path).
+# The stable path's own scripts (stable and stable_source, plus the stable source
+# test) ARE listed, by owner decision: they run against the stable box only,
+# which a stamp from an experimental box cannot prove, so CI is their proof. The
+# connector's stable guard then accepts a tooling-only head by walking back to
+# the newest stamped ancestor.
 scripts/promote.sh
 scripts/promote_main.sh
+scripts/stable.sh
+scripts/stable_source.sh
+fortisoar-widget-harness/tests/stableSource.test.js
 scripts/githooks/*
 scripts/hooks_central.sh
 scripts/install-git-hooks.sh
