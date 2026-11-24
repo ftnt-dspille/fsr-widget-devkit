@@ -32,6 +32,8 @@
 # the branch is green on those same checks (it may be the fix: the branch is pushed and its CI waited for). And a
 # framework ship runs the connector suite against the NEW framework head before promote, as the connector's required
 # CI leg (which clones framework main) will after it; a red connector refuses the framework promote.
+# That connector suite (full, ~5-8 min on the Mac host, ~2 min in Linux) runs in the container through scripts/devloop_docker_py.sh when an
+# engine answers (no engine: the host; DOOR_DOCKER=0 forces the host). Measured and left on the host: the framework suites, widget jest, widget e2e.
 #
 # Test hooks: DOOR_MAKE, DOOR_RED_WAIT / DOOR_RED_POLL (seconds to wait for the branch's CI when main is red),
 # DOOR_BUNDLED_ARGS (pytest args of the cross-repo run) (the make binary), FSR_LIVE_SANITY_DIR (the stamp dir).
@@ -292,6 +294,27 @@ prep_harness() {  # prints why local-chat cannot run here (rc 1), or nothing (rc
     return 0
 }
 
+# Root jest: the tooling suites (the ONE list is TOOLING_SUITES in jest.config.js) spawn git and make hundreds of
+# times, which takes minutes on the Mac host (process starts stall) and seconds in a Linux container, so they run
+# through `make test-docker` when a container engine answers (or colima can start). No engine, or DOOR_DOCKER=0:
+# the same files on the host, as before. Non-tooling files always run on the host.
+root_jest() {  # root_jest <dir> <name> <test file basename>...
+    local d="$1" name="$2"; shift 2
+    local f b tool=() host=() list
+    list="$(sed -n '/const TOOLING_SUITES = \[/,/^\];/p' "$d/fortisoar-widget-harness/jest.config.js" | grep -oE '"[A-Za-z0-9_.]+"' | tr -d '"')"
+    for f in "$@"; do
+        b="${f%.test.*}"
+        if grep -qxF -- "$b" <<<"$list"; then tool+=("$f"); else host+=("$f"); fi
+    done
+    if (( ${#tool[@]} )) && [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
+        lap "check tests (container)" 120 $MAKE -C "$d" test-docker TESTS="${tool[*]}"; local rc=$?
+        if (( rc == 2 )); then echo "door: no container engine; running the tooling suites on the host" >&2; host+=("${tool[@]}")
+        elif (( rc != 0 )); then fail "$name jest (container): ${tool[*]}"; fi
+    else host+=("${tool[@]}"); fi
+    (( ${#host[@]} )) && { lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="${host[*]}" || fail "$name jest: ${host[*]}"; }
+    return 0
+}
+
 check_repo() {
     local d="$1" kind name br files n sel py rc
     kind="$(kind_of "$d")"; name="$(main_name "$d")"; br="$(branch_of "$d")"
@@ -302,7 +325,7 @@ check_repo() {
         root)
             sel="$(printf '%s\n' "$files" | select_root_tests "$d" | paste -sd' ' -)"
             if [[ -z "$sel" ]]; then not_run "$name: no jest file maps to this diff (CI runs the full suite)"
-            else lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="$sel" || fail "$name jest: $sel"; fi ;;
+            else root_jest "$d" "$name" $sel; fi ;;
         connector)
             sel="$(printf '%s\n' "$files" | (cd "$d" && bash scripts/changed_tests.sh --files) | paste -sd' ' -)"
             if [[ -n "$sel" ]]; then
@@ -401,8 +424,18 @@ bundled_gate() {  # bundled_gate <framework dir>: the connector's required leg (
     fi
     py="$(bash "$CONN/scripts/dev_env.sh" python)" || die "cross-repo gate: no dev python for the connector; run make setup in $CONN"
     say "cross-repo gate: connector suite ($(main_name "$conn"), as CI's 'bundled framework' leg) against framework $(git -C "$fw" rev-parse --short HEAD)"
-    # shellcheck disable=SC2086
-    ( cd "$conn" && FSRPB_DEV=1 FSRPB_FRAMEWORK_DIR="$fw" PYTHONPATH="$fw:$fw/tooling" lap "ship bundled" 600 "$py" -m pytest -q --no-header -n auto ${DOOR_BUNDLED_ARGS:--p no:randomly} ) || rc=$?
+    # The full connector suite spawns processes in bulk, which stalls on the Mac host: it runs in the Linux container when
+    # an engine answers (devloop_docker_py.sh; exit 75 = no engine), else on the host. DOOR_DOCKER=0 forces the host.
+    local ran=0
+    if [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
+        # shellcheck disable=SC2086
+        DEVLOOP_FRAMEWORK_DIR="$fw" lap "ship bundled (container)" 600 bash "${DOOR_PY_DOCKER:-$HERE/scripts/devloop_docker_py.sh}" connector "$conn" ${DOOR_BUNDLED_ARGS:-}; rc=$?
+        if (( rc == 75 )); then echo "door: no container engine; running the connector suite on the host" >&2; rc=0; else ran=1; fi
+    fi
+    if (( ! ran )); then
+        # shellcheck disable=SC2086
+        ( cd "$conn" && FSRPB_DEV=1 FSRPB_FRAMEWORK_DIR="$fw" PYTHONPATH="$fw:$fw/tooling" lap "ship bundled" 600 "$py" -m pytest -q --no-header -n auto ${DOOR_BUNDLED_ARGS:--p no:randomly} ) || rc=$?
+    fi
     [[ -z "$tmp" ]] || git -C "$CONN" worktree remove --force "$tmp" >/dev/null 2>&1
     (( rc == 0 )) || die "cross-repo gate: the connector's suite is RED against this framework head, so connector main would go red once it lands. Nothing was promoted. Fix the framework change (or ship the connector change that goes with it in the same tree)"
 }

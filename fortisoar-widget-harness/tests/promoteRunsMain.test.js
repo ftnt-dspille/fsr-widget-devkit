@@ -55,3 +55,22 @@ test("the mechanism is run_from_main.sh, not a copy of it in promote_main.sh", (
 test("the make target goes through the wrapper", () => {
   expect(fs.readFileSync(path.join(ROOT, "Makefile"), "utf8")).toMatch(/^promote:.*\n\t@\$\(LAP\) promote --budget \d+ -- bash \$\(CURDIR\)\/scripts\/promote_main\.sh$/m);
 });
+
+// After the promote, promote_main.sh refreshes the central hooks from root main (it fetches the real remote and
+// rewrites core.hooksPath of every real repo). Fixture promotes in the tooling tests must not do that.
+describe("hooks refresh after the promote", () => {
+  const withRefresh = () => {
+    fs.writeFileSync(path.join(repo, "scripts", "hooks_central.sh"), `echo refreshed > "${T}/refreshed"\n`);
+    g("add", "-A"); g("commit", "-q", "-m", "hooks"); g("push", "-q", "origin", "main:main");
+  };
+  test("runs by default", () => {
+    g("checkout", "-q", "-f", "main"); withRefresh();
+    expect(run().status).toBe(0);
+    expect(fs.existsSync(path.join(T, "refreshed"))).toBe(true);
+  });
+  test("PROMOTE_SKIP_HOOKS_REFRESH=1 skips it", () => {
+    g("checkout", "-q", "-f", "main"); withRefresh();
+    expect(run({ PROMOTE_SKIP_HOOKS_REFRESH: "1" }).status).toBe(0);
+    expect(fs.existsSync(path.join(T, "refreshed"))).toBe(false);
+  });
+});
