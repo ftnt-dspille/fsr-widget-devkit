@@ -11,8 +11,30 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const DOOR = process.env.DOOR_UNDER_TEST || path.join(ROOT, "scripts", "door.sh");
 let T, ENV, LOG, W;
 
+// A box.sh stand-in with the real one's surface the door uses: --list, --role, --lease, --leases, --need. Leases are files
+// in $LEASE_DIR holding the holder; a lease is refused when another holder has it, as the real one does.
+// FREE_AFTER=<n> frees every lease on the n-th --lease call (a box another agent gave back while we waited).
+const BOX_STUB = [
+  "#!/usr/bin/env bash",
+  'L="${LEASE_DIR:-/nonexistent}"; mkdir -p "$L"; me="${FSR_LEASE_HOLDER:-}"',
+  'echo "box.sh $* | holder=$me BOX=${BOX:-}" >> "$DOOR_LOG.box"',
+  'take() { f="$L/$1"; if [ -s "$f" ] && [ "$(cat "$f")" != "$me" ]; then echo "box lease: BOX=$1 is held by $(cat "$f")" >&2; return 2; fi; echo "$me" > "$f"; }',
+  'case "$1" in',
+  '  --list) echo "159 92 soar-ga 81"; exit 0 ;;',
+  '  --role) if [ -n "${NO_EXP:-}" ]; then echo stable; else case "$2" in 92|soar-ga) echo experimental ;; *) echo stable ;; esac; fi; exit 0 ;;',
+  '  --lease) n=$(cat "$L/.tries" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$L/.tries"',
+  '           if [ -n "${FREE_AFTER:-}" ] && [ "$n" -ge "$FREE_AFTER" ]; then for f in "$L"/*; do [ -f "$f" ] && rm -f "$f"; done; fi',
+  '           take "$2"; exit $? ;;',
+  '  --leases) for f in "$L"/*; do [ -s "$f" ] && echo "$(basename "$f")  held by $(cat "$f") until 12:00:00 (gen 1)"; done; exit 0 ;;',
+  '  --need) [ "${BOX_RC:-0}" = 0 ] || { echo "box is stable" >&2; exit 2; }; [ -z "${BOX:-}" ] || take "$BOX" || exit 2; exit 0 ;;',
+  "esac",
+  "exit 0",
+  "",
+].join("\n");
+
 const git = (dir, ...a) => execFileSync("git", ["-C", dir, ...a], { env: ENV, encoding: "utf8" }).trim();
 const write = (dir, rel, body) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), body); };
+const boxlog = () => { try { return fs.readFileSync(`${LOG}.box`, "utf8").split("\n").filter(Boolean); } catch { return []; } };
 const log = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split("\n").filter(Boolean) : []);
 
 // A repo named like the real one (the door and promote key on the main checkout's name).
@@ -38,7 +60,7 @@ function door(mode, env = {}) {
   const r = spawnSync("bash", [DOOR, mode], {
     cwd: T, encoding: "utf8", timeout: 60000,
     env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"),
-           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, ...env },
+           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, ...env },
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -47,12 +69,15 @@ beforeEach(() => {
   T = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "door-")));
   fs.writeFileSync(path.join(T, "gitconfig"), "[user]\n\tname = t\n\temail = t@example.com\n");
   ENV = { ...process.env, GIT_CONFIG_GLOBAL: path.join(T, "gitconfig"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: "/dev/null" };
-  for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "CLAUDECODE", "AGENT_TREE", "DOOR_REPO", "BOX", "DRY_RUN"]) delete ENV[k];
+  for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "CLAUDECODE", "AGENT_TREE", "DOOR_REPO", "BOX", "DRY_RUN", "FSR_LEASE_HOLDER"]) delete ENV[k];
   LOG = path.join(T, "make.log");
   const make = path.join(T, "fakemake");
   fs.writeFileSync(make, `#!/usr/bin/env bash
-echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-}" >> "$DOOR_LOG"
+echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-} HOLDER=\${FSR_LEASE_HOLDER:-}" >> "$DOOR_LOG"
 if [ -n "\${DOOR_FAIL:-}" ] && [[ "$*" == *"$DOOR_FAIL"* ]]; then exit "\${DOOR_FAIL_RC:-1}"; fi
+# DOOR_FAIL_DRY / DOOR_FAIL_REAL: fail a promote of the matching repo only in its dry run / only when it really merges
+if [ -n "\${DOOR_FAIL_DRY:-}" ] && [ -n "\${PROMOTE_DRY_RUN:-}" ] && [[ "$*" == *"promote"*"$DOOR_FAIL_DRY"* ]]; then exit 1; fi
+if [ -n "\${DOOR_FAIL_REAL:-}" ] && [ -z "\${PROMOTE_DRY_RUN:-}" ] && [[ "$*" == *"promote"*"$DOOR_FAIL_REAL"* ]]; then exit 1; fi
 if [[ "$*" == *local-chat* ]]; then   # the report local-chat-report.py prints; DOOR_CHAT picks what the model did
   case "\${DOOR_CHAT:-good}" in
     good) echo "local-chat: tools called: get_record, lookup"; T=400; echo "local-chat: verdict card: malicious; cards: ['verdict_card']" ;;
@@ -79,7 +104,7 @@ exit 0
     // the connector's own selection is tested in the connector; here it only has to be called with the changed files on stdin
     "scripts/changed_tests.sh": "#!/usr/bin/env bash\ncat >/dev/null; echo tests/test_a.py\n",
     "scripts/dev_env.sh": `#!/usr/bin/env bash\necho "${path.join(T, "fakepy")}"\n`,
-    "scripts/box.sh": "#!/usr/bin/env bash\n[ \"${BOX_RC:-0}\" = 0 ] || { echo 'box is stable' >&2; exit 2; }\nexit 0\n",
+    "scripts/box.sh": BOX_STUB,
   });
   const fw = repo("fsr-playbook-framework", { "fsr_playbooks/llm/loop.py": "x = 1\n", "fsr_playbooks/tests/test_loop.py": "import loop\n", "README.md": "r\n" });
   W = { make, conn, fw };
@@ -292,11 +317,11 @@ describe("make ship", () => {
     expect(l.some((x) => x.startsWith(`make -C ${ROOT} promote REPO=${W.conn.dir} BRANCH=feat/x`) || /promote REPO=.* BRANCH=feat\/x/.test(x))).toBe(true);
   });
 
-  test("a shipped diff with no BOX is refused before anything is pushed", () => {
+  test("no BOX and no experimental box in the registry is refused before anything is pushed", () => {
     branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
-    const r = door("ship");
+    const r = door("ship", { NO_EXP: "1" });
     expect(r.code).toBe(2);
-    expect(r.out).toMatch(/pass BOX=<alias>/);
+    expect(r.out).toMatch(/no experimental box in the registry/);
     expect(remoteHas(W.conn.bare, "feat/x")).toBe(false);
     expect(log()).toEqual([]);
   });
@@ -423,10 +448,161 @@ describe("make ship", () => {
     write(path.join(tree, "framework"), "README.md", "# f\n"); git(path.join(tree, "framework"), "add", "-A"); git(path.join(tree, "framework"), "commit", "-qm", "f");
     const r = door("ship", { AGENT_TREE: tree, DOOR_REPO: "" });
     expect(r.code).toBe(0);
-    const pro = log().map((x) => x.split(" | ")[0]).filter((x) => /promote REPO=/.test(x));
+    const pro = log().filter((x) => /promote REPO=/.test(x) && !/PROMOTE_DRY_RUN=1/.test(x)).map((x) => x.split(" | ")[0]);
     expect(pro.length).toBe(2);
     expect(pro[0]).toMatch(/fsr-playbook-framework|framework/);
     expect(pro[1]).toMatch(/connector/);
+  });
+});
+
+// A tree with a framework branch and a connector branch, each one commit ahead (tooling paths: no box, CI is the proof).
+function jointTree() {
+  const tree = path.join(T, "tree");
+  fs.mkdirSync(path.join(tree, "root"), { recursive: true });
+  git(W.conn.dir, "worktree", "add", "-q", "-b", "feat/c", path.join(tree, "connector"), "main");
+  git(W.fw.dir, "worktree", "add", "-q", "-b", "feat/f", path.join(tree, "framework"), "main");
+  fs.writeFileSync(path.join(tree, "agent-tree.json"), "{}");
+  for (const [d, f] of [["connector", "tests/test_a.py"], ["framework", "README.md"]]) { write(path.join(tree, d), f, "# c\n"); git(path.join(tree, d), "add", "-A"); git(path.join(tree, d), "commit", "-qm", d); }
+  return tree;
+}
+const promotes = () => log().filter((x) => /promote REPO=/.test(x)).map((x) => ({ kind: /fsr-playbook-framework|framework/.test(x.split(" | ")[0]) ? "fw" : "conn", dry: /PROMOTE_DRY_RUN=1/.test(x) }));
+
+describe("make ship: framework and connector land together", () => {
+  test("both are checked (dry run: CI, proof, merge) before either is merged, then merged back to back, framework first", () => {
+    const r = door("ship", { AGENT_TREE: jointTree(), DOOR_REPO: "" });
+    expect(r.code).toBe(0);
+    expect(promotes()).toEqual([{ kind: "fw", dry: true }, { kind: "conn", dry: true }, { kind: "fw", dry: false }, { kind: "conn", dry: false }]);
+  });
+  test("a connector that is not ready stops the ship with NOTHING merged, framework included", () => {
+    const r = door("ship", { AGENT_TREE: jointTree(), DOOR_REPO: "", DOOR_FAIL_DRY: "connector" });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/NOTHING was merged/);
+    expect(promotes().some((p) => !p.dry)).toBe(false);
+  });
+  test("a framework that is not ready stops the ship before the connector is even tried", () => {
+    const r = door("ship", { AGENT_TREE: jointTree(), DOOR_REPO: "", DOOR_FAIL_DRY: "framework" });
+    expect(r.code).toBe(2);
+    expect(promotes()).toEqual([{ kind: "fw", dry: true }]);
+  });
+  test("when the second promote fails after the first merged, it is loud, names the recovery, and reverts or forces nothing", () => {
+    const tree = jointTree();
+    const r = door("ship", { AGENT_TREE: tree, DOOR_REPO: "", DOOR_FAIL_REAL: "connector" });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/HALF LANDED: fsr-playbook-framework main was promoted, but conn_main \(feat\/c\) was NOT/);
+    expect(r.out).toContain(`make promote REPO=${path.join(tree, "connector")} BRANCH=feat/c`);
+    expect(r.out).toMatch(/Do not force-push or reset main/);
+    expect(log().some((x) => /push -f|--force|reset|update-ref/.test(x))).toBe(false);
+  });
+  test("a framework-only ship has no joint pre-check (one repo: unchanged)", () => {
+    branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });
+    const r = door("ship", { DOOR_REPO: W.fw.dir });
+    expect(r.code).toBe(0);
+    expect(promotes()).toEqual([{ kind: "fw", dry: false }]);
+  });
+});
+
+describe("make ship: the cross-repo gate tests connector MAIN for a framework-only ship", () => {
+  test("the connector suite runs on a checkout of the connector's remote main, not on a branch the shared connector checkout has out", () => {
+    // the shared connector checkout sits on an unmerged branch with a commit main does not have
+    branch(W.conn.dir, "feat/wip", { "connector-fsr-agentic-assistant/a.py": "A = 99\n" });
+    git(W.conn.dir, "switch", "-q", "main"); git(W.conn.dir, "switch", "-q", "feat/wip");
+    const mainSha = git(W.conn.dir, "rev-parse", "refs/remotes/origin/main");
+    fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | head=$(git rev-parse HEAD) | cwd=$PWD" >> "$DOOR_LOG"\nexit "\${PY_RC:-0}"\n`, { mode: 0o755 });
+    branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });
+    const r = door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0" });
+    expect(r.code).toBe(0);
+    const py = log().find((x) => /^python -m pytest/.test(x));
+    expect(py).toContain(`head=${mainSha}`);
+  });
+  test("a connector main that the framework change would break refuses the ship; nothing is promoted", () => {
+    branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });
+    const r = door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0", PY_RC: "1" });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/connector's suite is RED against this framework head, so connector main would go red/);
+    expect(promotes()).toEqual([]);
+  });
+});
+
+describe("make ship: BOX unset picks a free experimental box", () => {
+  const ship = (env = {}) => { branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" }); return door("ship", { DOOR_BOX_POLL: "0.1", ...env }); };
+  const lease = (box, holder) => write(path.join(T, "leases"), box, `${holder}\n`);
+  const devPush = () => log().map((x) => x.split(" | ")[0]).find((x) => /dev-push BOX=/.test(x));
+  test("takes a free experimental box, never a stable one (stable 159 is listed first and free)", () => {
+    const r = ship();
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/took the lease on experimental box 92/);
+    expect(devPush()).toMatch(/BOX=92/);
+    expect(boxlog().some((x) => /--lease (159|81)/.test(x))).toBe(false);
+    expect(log().some((x) => /box-release BOX=92/.test(x))).toBe(true);
+  });
+  test("skips a box another agent holds", () => {
+    lease("92", "tree:other");
+    const r = ship();
+    expect(r.code).toBe(0);
+    expect(devPush()).toMatch(/BOX=soar-ga/);
+    expect(fs.readFileSync(path.join(T, "leases", "92"), "utf8").trim()).toBe("tree:other");
+  });
+  test("prefers the box that last ran this tree's code (the newest stamp on the branch names it)", () => {
+    branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+    const sha = git(W.conn.dir, "rev-parse", "HEAD");
+    write(path.join(T, "stamps"), `conn_main/${sha}.json`, JSON.stringify({ sha, verdict: "VERIFIED", dirty: true, box: "soar-ga" }));
+    const r = door("ship", { DOOR_BOX_POLL: "0.1" });
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/took the lease on experimental box soar-ga \(last ran this code: soar-ga\)/);
+    expect(devPush()).toMatch(/BOX=soar-ga/);
+  });
+  test("all leased: waits, prints who holds what, and goes ahead when one frees", () => {
+    lease("92", "tree:a"); lease("soar-ga", "tree:b");
+    const r = ship({ FREE_AFTER: "5", DOOR_BOX_WAIT: "30" });
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/every experimental box is leased; waiting/);
+    expect(r.out).toMatch(/92 {2}held by tree:a/);
+    expect(r.out).toMatch(/soar-ga {2}held by tree:b/);
+    expect(devPush()).toMatch(/BOX=(92|soar-ga)/);
+  });
+  test("all leased past the bound: refused naming the holders, and nothing is pushed", () => {
+    lease("92", "tree:a"); lease("soar-ga", "tree:b");
+    const r = ship({ DOOR_BOX_WAIT: "1" });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/stayed leased for 1s/);
+    expect(r.out).toMatch(/92 {2}held by tree:a/);
+    expect(remoteHas(W.conn.bare, "feat/x")).toBe(false);
+    expect(log()).toEqual([]);
+  });
+  test("BOX= still pins: no search, and a held pinned box is refused, not swapped", () => {
+    lease("92", "tree:other");
+    const r = ship({ BOX: "92" });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/cannot take code/);
+    expect(boxlog().some((x) => /--list|--lease/.test(x))).toBe(false);
+  });
+  test("a tooling-only diff picks no box at all", () => {
+    branch(W.conn.dir, "feat/x", { "tests/test_a.py": "from a import A\n# more\n" });
+    expect(door("ship").code).toBe(0);
+    expect(boxlog()).toEqual([]);
+  });
+});
+
+describe("make ship: one lease holder identity for every step", () => {
+  const holders = () => [...log().filter((x) => /^make /.test(x)).map((x) => (x.match(/HOLDER=(.*)$/) || [])[1]), ...boxlog().map((x) => (x.match(/holder=(\S*)/) || [])[1])];
+  test("from a plain shell, the door's lease calls, dev-push and the release all carry the same holder", () => {
+    branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+    expect(door("ship", { USER: "dev" }).code).toBe(0);
+    const h = holders();
+    expect(h.length).toBeGreaterThan(3);
+    expect(new Set(h)).toEqual(new Set(["manual:dev"]));
+  });
+  test("in an agent tree the holder is tree:<name> for the door and for the dev-push it runs from the tree", () => {
+    const tree = jointTree(); write(path.join(tree, "connector"), "connector-fsr-agentic-assistant/a.py", "A = 3\n");
+    git(path.join(tree, "connector"), "add", "-A"); git(path.join(tree, "connector"), "commit", "-qm", "code");
+    const r = door("ship", { AGENT_TREE: tree, DOOR_REPO: "", BOX: "92" });
+    expect(r.code).toBe(0);
+    expect(new Set(holders())).toEqual(new Set(["tree:tree"]));
+  });
+  test("an exported FSR_LEASE_HOLDER wins", () => {
+    branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+    expect(door("ship", { BOX: "92", FSR_LEASE_HOLDER: "tree:mine" }).code).toBe(0);
+    expect(new Set(holders())).toEqual(new Set(["tree:mine"]));
   });
 });
 

@@ -220,6 +220,13 @@ else
     DIRS=("$r")
 fi
 for d in "${DIRS[@]}"; do ci_cmd status "$d" "$(main_name "$d")" | sed 's/^/door: /'; done
+# ONE box-lease holder for every step of this ship (the door's own lease calls, dev-push, widget-push, the stamp, the
+# release at the end). box.sh derives a holder from $FSR_LEASE_HOLDER, else from the cwd, so a ship started in a plain
+# shell took the lease as manual:<user> and its own dev-push (run from the tree it pushes) refused it as tree:<name>.
+if [[ -z "${FSR_LEASE_HOLDER:-}" ]]; then
+    if [[ -n "$tree" ]]; then FSR_LEASE_HOLDER="tree:$(basename "$tree")"; else FSR_LEASE_HOLDER="manual:${USER:-unknown}"; fi
+fi
+export FSR_LEASE_HOLDER
 # The pieces other repos' steps need.
 CONN=""; FW=""
 if [[ -n "$tree" ]]; then CONN="$tree/connector"; FW="$tree/framework"; fi
@@ -443,6 +450,43 @@ bundled_gate() {  # bundled_gate <framework dir>: the connector's required leg (
     (( rc == 0 )) || die "cross-repo gate: the connector's suite is RED against this framework head, so connector main would go red once it lands. Nothing was promoted. Fix the framework change (or ship the connector change that goes with it in the same tree)"
 }
 
+box_pick() {  # box_pick: no BOX= given. Take the lease on a free experimental box (never a stable one); sets BOX. Waits, bounded, when all are leased.
+    local bsh="$CONN/scripts/box.sh" a all f b sha d waits poll deadline last=-999 out="" cand=() order=() pref=""
+    all="$(bash "$bsh" --list 2>/dev/null)" || die "cannot list the boxes ($bsh --list); pass BOX=<alias>"
+    for a in $all; do [[ "$(bash "$bsh" --role "$a" 2>/dev/null)" == experimental ]] && cand+=("$a"); done
+    (( ${#cand[@]} )) || die "no experimental box in the registry (roles: scripts/box.sh --role <alias>); a ship that puts code on a box needs one. A stable box takes code only through make stable"
+    # Prefer the box that last ran this tree's code: the newest stamp on a commit of a shipped branch names it.
+    for d in "${shipped[@]}"; do
+        while IFS= read -r sha; do
+            f="$STAMPS/$(main_name "$d")/$sha.json"; [[ -f "$f" ]] || continue
+            b="$(jq -r '.box // ""' "$f" 2>/dev/null)"
+            for a in "${cand[@]}"; do [[ "$a" == "$b" ]] && { pref="$a"; break 3; }; done
+        done < <(git -C "$d" rev-list -n 40 HEAD 2>/dev/null)
+    done
+    [[ -z "$pref" ]] || order+=("$pref")
+    for a in "${cand[@]}"; do [[ "$a" == "$pref" ]] || order+=("$a"); done
+    held() { local l c; while IFS= read -r l; do for c in "${cand[@]}"; do [[ "$l" == "$c "* ]] && echo "$l"; done; done < <(bash "$bsh" --leases 2>/dev/null); }   # who holds which candidate
+    waits="${DOOR_BOX_WAIT:-1800}"; poll="${DOOR_BOX_POLL:-20}"; deadline=$((SECONDS + waits))
+    while :; do
+        for a in "${order[@]}"; do
+            if out="$(bash "$bsh" --lease "$a" 2>&1)"; then
+                BOX="$a"; say "no BOX= given: took the lease on experimental box $a${pref:+ (last ran this code: $pref)} as $FSR_LEASE_HOLDER"; return 0
+            fi
+        done
+        if (( SECONDS >= deadline )); then
+            die "every experimental box (${cand[*]}) stayed leased for ${waits}s. Who holds what:
+$(held | sed 's/^/  /')
+Wait for one (make box-leases), or pin a box with BOX=<alias>. Nothing was pushed"
+        fi
+        if (( SECONDS - last >= 60 )); then
+            say "every experimental box is leased; waiting for one (up to ${waits}s, checking every ${poll}s). Who holds what:"
+            held | sed 's/^/door:   /'
+            last=$SECONDS
+        fi
+        sleep "$poll"
+    done
+}
+
 bump_only() {  # bump_only <dir>: BUMP=<level> on a branch with nothing ahead of main -> one version-only commit
     local d="$1" name info notes new
     name="$(main_name "$d")"
@@ -498,7 +542,10 @@ ship_all() {
     (( ${#pushes[@]} )) || { say "nothing to ship"; exit 0; }
     for d in "${pushes[@]}"; do main_red_gate "$d" "$(branch_of "$d")"; done
     if (( ${#shipped[@]} )); then
-        [[ -n "${BOX:-}" ]] || die "$(for d in "${shipped[@]}"; do main_name "$d"; done | paste -sd, -) ship(s) to a box: pass BOX=<alias> (an experimental box; scripts/box.sh --list)"
+        if [[ -z "${BOX:-}" ]]; then
+            box_pick   # sets BOX and holds its lease: free it when ship ends, whatever happened
+            trap '$MAKE -s -C "$HERE" box-release BOX="$BOX" >/dev/null 2>&1 || true' EXIT
+        fi
         BOX="$BOX" bash "$CONN/scripts/box.sh" --need env,push >/dev/null || die "BOX=$BOX cannot take code (a stable box takes it only through make stable)"
         trap '$MAKE -s -C "$HERE" box-release BOX="$BOX" >/dev/null 2>&1 || true' EXIT   # the pushes took the box lease: free it when ship ends, whatever happened
     fi
@@ -550,9 +597,39 @@ ship_all() {
     (( rc == 0 )) || die "stopped before promote; fix the cause and run make ship again (it re-uses what already passed)"
     # 3. promote, one call per repo, dependency order; stops at the first refusal.
     for d in "${pushes[@]}"; do [[ "$(kind_of "$d")" == framework ]] && bundled_gate "$d"; done
+    # A framework and a connector branch in ONE ship land together: promoting framework first leaves connector main
+    # broken against framework main until the connector lands (a new framework contract that only the connector branch
+    # adapts to). So check BOTH first (promote's own dry run: classification, CI on the head, the box stamp), merge
+    # neither until both pass, then merge back to back.
+    local have_fw=0 have_conn=0 merged=() recover m
+    for d in "${pushes[@]}"; do case "$(kind_of "$d")" in framework) have_fw=1 ;; connector) have_conn=1 ;; esac; done
+    if (( have_fw && have_conn )) && [[ -z "${DRY_RUN:-}" ]]; then
+        say "framework and connector land together: checking both (CI on both heads, proof, merge) before merging either"
+        for d in "${pushes[@]}"; do
+            case "$(kind_of "$d")" in framework|connector) ;; *) continue ;; esac
+            say "pre-check $(main_name "$d") ($(branch_of "$d"))"
+            env PROMOTE_DRY_RUN=1 $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")" \
+                || die "$(main_name "$d") ($(branch_of "$d")) is not ready to merge, so NOTHING was merged (framework and connector land together). Fix it and run make ship again"
+        done
+    fi
     for d in "${pushes[@]}"; do
         say "promote $(main_name "$d") ($(branch_of "$d"))${DRY_RUN:+ (dry run: CI and proof checked, nothing merged)}"
-        env ${DRY_RUN:+PROMOTE_DRY_RUN=1} $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")" || die "promote stopped at $(main_name "$d"); the repos before it were promoted. Fix it and run make ship again"
+        if ! env ${DRY_RUN:+PROMOTE_DRY_RUN=1} $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")"; then
+            if (( ${#merged[@]} )); then
+                recover="make promote REPO=$d BRANCH=$(branch_of "$d")"
+                {
+                    echo
+                    echo "door: !!! HALF LANDED: $(for m in "${merged[@]}"; do main_name "$m"; done | paste -sd' ' -) main was promoted, but $(main_name "$d") ($(branch_of "$d")) was NOT."
+                    echo "door: !!! Until it lands, the merged main(s) may not work with the unmerged one. Main was not reverted and nothing was force-pushed."
+                    echo "door: !!! Recovery: fix what the promote above refused (a rejected push, a hook, the network), then run:  $recover"
+                    echo "door: !!! (it retries, and finds the branch's CI and stamp already in place). Do not force-push or reset main."
+                    echo
+                } >&2
+                exit 2
+            fi
+            die "promote stopped at $(main_name "$d"); nothing was merged before it. Fix it and run make ship again"
+        fi
+        merged+=("$d")
     done
     say "ship done: $(for d in "${pushes[@]}"; do main_name "$d"; done | paste -sd' ' -)"
 }
