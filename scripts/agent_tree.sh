@@ -166,6 +166,18 @@ EOF
         mkdir -p "$tree/root/fortisoar-widget-harness"
         ln -sfn "$ROOT_SRC/fortisoar-widget-harness/.venv-localdev" "$tree/root/fortisoar-widget-harness/.venv-localdev"
     fi
+    # The framework and connector commit hooks run <repo>/.venv/bin/python: link each repo's shared
+    # venv into its tree (PYTHONPATH above makes it import the tree's framework). A ".venv/" ignore
+    # does not match a symlink, so add a bare ".venv" to the repo's local exclude.
+    local r src ex
+    for r in framework connector; do
+        src="$(src_of "$r")"
+        [[ -d "$tree/$r" && -d "$src/.venv" ]] || continue
+        [[ -e "$tree/$r/.venv" ]] || ln -s "$src/.venv" "$tree/$r/.venv"
+        ex="$(git -C "$tree/$r" rev-parse --path-format=absolute --git-common-dir)/info/exclude"
+        mkdir -p "$(dirname "$ex")"
+        grep -qx '.venv' "$ex" 2>/dev/null || echo '.venv' >> "$ex"
+    done
     if [[ "${AT_NO_BUILD:-}" != 1 ]]; then
         # node_modules per tree: reuse the shared one only when the lockfile is identical.
         local h="$tree/root/fortisoar-widget-harness" sh="$ROOT_SRC/fortisoar-widget-harness"

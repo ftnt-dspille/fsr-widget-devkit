@@ -123,7 +123,9 @@ case "$1 $2" in "pr list") echo 0;; "pr create") :;; esac
   expect(r.code).not.toBe(0);
   expect(r.out).toMatch(/opening a pull request for feat\/x/);
   const log = fs.readFileSync(path.join(S.tmp, "gh.log"), "utf8");
-  expect(log).toMatch(/^pr create -R o\/r --base main --head feat\/x --fill$/m);
+  // Never --fill: it diffs against a local main, which an agent tree does not have.
+  expect(log).toMatch(/^pr create -R o\/r --base main --head feat\/x --title \S/m);
+  expect(log).not.toMatch(/--fill/);
   expect(log.match(/^pr create/gm)).toHaveLength(1);
 });
 

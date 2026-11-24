@@ -69,6 +69,22 @@ test("create links the shared local-chat venv into the tree, and remove takes on
   expect(fs.existsSync(path.join(venv, "bin", "python"))).toBe(true);   // the shared venv is untouched
 });
 
+test("create links the framework and connector venvs (their commit hooks need .venv/bin/python), ignored by git", () => {
+  const w = world();
+  for (const s of [w.fw, w.conn]) {
+    fs.mkdirSync(path.join(s.dir, ".venv", "bin"), { recursive: true }); fs.writeFileSync(path.join(s.dir, ".venv", "bin", "python"), "");
+  }
+  expect(at(w.env, "create", "tw").status).toBe(0);
+  for (const r of ["framework", "connector"]) {
+    const d = path.join(T, "trees", "tw", r);
+    expect(fs.lstatSync(path.join(d, ".venv")).isSymbolicLink()).toBe(true);
+    expect(fs.existsSync(path.join(d, ".venv", "bin", "python"))).toBe(true);
+    expect(g(d, "status", "--porcelain")).not.toMatch(/\.venv/);   // the link is not an untracked file
+  }
+  expect(at(w.env, "remove", "tw").status).toBe(0);
+  expect(fs.existsSync(path.join(w.fw.dir, ".venv", "bin", "python"))).toBe(true);
+});
+
 test("a failed fetch is refused by repo name and nothing is built", () => {
   const w = world();
   g(w.conn.dir, "remote", "set-url", "origin", path.join(T, "gone.git"));

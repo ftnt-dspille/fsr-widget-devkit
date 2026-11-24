@@ -275,7 +275,9 @@ ci_gate() {
         prd=1
         if [ "$(gh pr list -R "$slug" --head "$BRANCH" --state open --json number --jq length 2>/dev/null)" = 0 ]; then
           echo "promote: no CI run on ${head:0:9}; opening a pull request for $BRANCH so CI runs"
-          gh pr create -R "$slug" --base "$MAIN" --head "$BRANCH" --fill >/dev/null || echo "promote: could not open a pull request for $BRANCH" >&2
+          # Title and body from the head commit: --fill diffs against a LOCAL main, which an
+          # agent tree does not have ("ambiguous argument main...<branch>").
+          gh pr create -R "$slug" --base "$MAIN" --head "$BRANCH" --title "$(g log -1 --format=%s "$head")" --body "$(g log -1 --format=%b "$head")" >/dev/null || echo "promote: could not open a pull request for $BRANCH" >&2
         fi
       fi
     fi
