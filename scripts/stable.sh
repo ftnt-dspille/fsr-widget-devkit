@@ -42,8 +42,12 @@ echo ">> guard: pushed, VERIFIED on an experimental box"
     --monorepo "$SRC_ROOT" --framework "$SRC_FW" --conn "$SRC_CONN" || exit 1
 
 echo ">> build and import through the Import Wizard"
+# The install record outlives the run: it goes in the connector checkout, not the
+# temporary tree. (Set before the call: prefix assignments apply left to right, so
+# CONN_REPO="$SRC_CONN" below would point it at the tree that is removed on exit.)
+RECORD_DIR="${DIST_STABLE:-$CONN_REPO/dist/stable}"
 MONOREPO="$SRC_ROOT" WIDGETS_SRC="$SRC_ROOT/widgets-src" FRAMEWORK="$SRC_FW" CONN_REPO="$SRC_CONN" \
-    DIST_STABLE="${DIST_STABLE:-$CONN_REPO/dist/stable}" \
+    DIST_STABLE="$RECORD_DIR" \
     BOX="$BOX" BOX_ENV="$BOX_ENV" \
     "$PY" "$SRC_CONN/scripts/stable_install.py" ${ARGS:-} || exit $?
 

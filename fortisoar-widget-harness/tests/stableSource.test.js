@@ -165,3 +165,17 @@ test("a monorepo worktree takes the widgets from the main checkout", () => {
   expect(r.status).toBe(0);
   expect(r.stdout.trim().split("\n").pop()).toBe(w.a.remote);
 });
+
+// Live: the install record (dist/stable/installed-<box>.json) was written into the
+// temporary promoted tree, removed on exit, so every re-run saw "no record" and
+// refused a version the last run had installed. The record goes in CONN_REPO.
+test("stable.sh writes the install record into the connector checkout, not the temporary tree", () => {
+  const src = fs.readFileSync(path.join(ROOT, "scripts", "stable.sh"), "utf8");
+  const start = src.indexOf('echo ">> build and import');
+  const end = src.indexOf("|| exit $?", start);
+  expect(start).toBeGreaterThan(-1);
+  const block = src.slice(start, end).replace(/"\$PY" "\$SRC_CONN\/scripts\/stable_install\.py" \$\{ARGS:-\}/,
+    'bash -c \'echo "DIST=$DIST_STABLE"\'');
+  const r = sh(`set -u; unset DIST_STABLE; CONN_REPO=/shared/conn; SRC_CONN=/tmp/src/conn; SRC_ROOT=/tmp/src/root; SRC_FW=/tmp/src/fw; BOX=b; BOX_ENV=e\n${block}`, T);
+  expect(r.stdout).toMatch(/^DIST=\/shared\/conn\/dist\/stable$/m);
+});
