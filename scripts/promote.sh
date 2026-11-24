@@ -87,6 +87,13 @@ push_commit() {  # push_commit <remote> <sha> <dst ref> [git push flags...]
   if ! g worktree add -q --detach "$pw/t" "$sha" >/dev/null 2>&1; then
     rm -rf "$pw"; echo "promote: could not make a worktree at ${sha:0:9} to push from" >&2; return 1
   fi
+  # A repo's pre-push may run its own .venv/bin/python (the framework's does),
+  # which a fresh worktree lacks: link the checkout's, else the main clone's.
+  local venv="$REPO/.venv" common
+  if [ ! -d "$venv" ]; then
+    common="$(cd "$REPO" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"; venv="$(dirname "$common")/.venv"
+  fi
+  [ -d "$venv" ] && ln -s "$venv" "$pw/t/.venv"
   git -C "$pw/t" push "$@" "$remote" "$sha:$dst"; rc=$?
   g worktree remove --force "$pw/t" >/dev/null 2>&1 || true; g worktree prune >/dev/null 2>&1 || true
   rm -rf "$pw"

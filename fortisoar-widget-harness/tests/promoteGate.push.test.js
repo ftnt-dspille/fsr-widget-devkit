@@ -46,3 +46,17 @@ test("the pre-push that runs on promote's main push is the pushed commit's, not 
   // The push worktree is gone again.
   expect(git(["worktree", "list"]).out.trim().split("\n")).toHaveLength(1);
 });
+
+test("the push worktree can run the repo's .venv/bin/python (a pre-push that needs it, from an agent worktree without one)", () => {
+  // The main clone has a .venv; the promoting checkout is a linked worktree without one.
+  fs.mkdirSync(path.join(S.repo, ".venv", "bin"), { recursive: true });
+  fs.writeFileSync(path.join(S.repo, ".venv", "bin", "python"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  ok(git(["checkout", "-q", "-f", "feat/x"]));
+  fs.writeFileSync(path.join(S.repo, "hooks", "pre-push"), "#!/bin/sh\n.venv/bin/python || exit 127\n", { mode: 0o755 });
+  ok(git(["add", "hooks"])); ok(git(["commit", "-q", "-m", "venv hook"]));
+  ok(git(["checkout", "-q", "-f", "someone/else"]));
+  stamp(sha("feat/x"), {});
+  const r = promote({});
+  expect(r.out).toMatch(/-> main$/m);
+  ok(r);
+});
