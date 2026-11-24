@@ -407,7 +407,7 @@ describe("CI of main is never out of sight", () => {
     const r = spawnSync("bash", [DOOR, mode, ...args], { cwd: T, encoding: "utf8", timeout: 60000,
       env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"),
              FSR_LAP_LEDGER: path.join(T, "laps.tsv"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir,
-             DOOR_RED_WAIT: "0", DOOR_RED_POLL: "0", PATH: `${path.join(T, "bin")}:${process.env.PATH}`, ...env } });
+             DOOR_RED_WAIT: "0", DOOR_RED_POLL: "0", DOOR_DOCKER: "0", PATH: `${path.join(T, "bin")}:${process.env.PATH}`, ...env } });
     return { code: r.status, out: `${r.stdout}${r.stderr}` };
   };
   beforeEach(() => {
@@ -518,6 +518,48 @@ f="${GH}/\${repo}__\${ref}"; [ -f "$f" ] || exit 1; cat "$f"
       expect(py).not.toContain(`cwd=${W.conn.dir}\n`);   // a throwaway worktree of the connector's main, not the shared checkout
       expect(log().some((x) => /promote REPO=/.test(x))).toBe(true);
       expect(git(W.conn.dir, "worktree", "list").split("\n").length).toBe(1);   // and it is removed again
+    });
+    describe("the connector suite runs in the Linux container when an engine answers", () => {
+      let PYD;
+      beforeEach(() => {
+        PYD = path.join(T, "fakepydock");
+        fs.writeFileSync(PYD, `#!/usr/bin/env bash\necho "pydocker $* | FW=$DEVLOOP_FRAMEWORK_DIR" >> "$DOOR_LOG"\nexit "\${PYD_RC:-0}"\n`, { mode: 0o755 });
+      });
+      const viaBox = (env = {}) => fwShip({ DOOR_DOCKER: "1", DOOR_PY_DOCKER: PYD, ...env });
+      test("the gate goes to the container with the framework head and never starts the host pytest", () => {
+        const r = viaBox();
+        expect(r.code).toBe(0);
+        const l = log();
+        const c = l.find((x) => /^pydocker connector /.test(x));
+        expect(c).toBeDefined();
+        expect(c).toContain(`FW=${W.fw.dir}`);
+        expect(l.some((x) => /^python -m pytest/.test(x))).toBe(false);
+        expect(l.some((x) => /promote REPO=/.test(x))).toBe(true);
+      });
+      test("a red container run refuses the framework promote, same as a red host run", () => {
+        const r = viaBox({ PYD_RC: "1" });
+        expect(r.code).toBe(2);
+        expect(r.out).toMatch(/cross-repo gate: the connector's suite is RED against this framework head/);
+        expect(log().some((x) => /^python -m pytest/.test(x))).toBe(false);
+        expect(log().some((x) => /promote REPO=/.test(x))).toBe(false);
+      });
+      test("no container engine (exit 75): the same suite runs on the host instead", () => {
+        const r = viaBox({ PYD_RC: "75" });
+        expect(r.code).toBe(0);
+        expect(r.out).toMatch(/no container engine; running the connector suite on the host/);
+        expect(log().some((x) => /^python -m pytest/.test(x))).toBe(true);
+      });
+      test("a pytest exit of 2 (interrupted) is a failure, not 'no engine'", () => {
+        const r = viaBox({ PYD_RC: "2" });
+        expect(r.code).toBe(2);
+        expect(log().some((x) => /^python -m pytest/.test(x))).toBe(false);
+      });
+      test("DOOR_DOCKER=0 forces the host", () => {
+        const r = viaBox({ DOOR_DOCKER: "0" });
+        expect(r.code).toBe(0);
+        expect(log().some((x) => /^pydocker/.test(x))).toBe(false);
+        expect(log().some((x) => /^python -m pytest/.test(x))).toBe(true);
+      });
     });
     test("a connector change shipped in the same tree is the one tested (its branch, not main)", () => {
       const tree = path.join(T, "tree");
