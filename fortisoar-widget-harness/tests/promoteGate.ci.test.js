@@ -112,3 +112,28 @@ test("CI green but no stamp: still refused for the stamp, after CI was checked",
   expect(r.out).toMatch(/CI green/);
   expect(r.out).toMatch(/no stamp/);
 });
+
+test("no CI run at all: a pull request is opened for the branch (CI that runs only on PRs), once", () => {
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh
+echo "$@" >> "${S.tmp}/gh.log"
+case "$1 $2" in "pr list") echo 0;; "pr create") :;; esac
+`, { mode: 0o755 });
+  stamp(sha("feat/x"), {});
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "0", PROMOTE_CI_POLL: "0" });
+  expect(r.code).not.toBe(0);
+  expect(r.out).toMatch(/opening a pull request for feat\/x/);
+  const log = fs.readFileSync(path.join(S.tmp, "gh.log"), "utf8");
+  expect(log).toMatch(/^pr create -R o\/r --base main --head feat\/x --fill$/m);
+  expect(log.match(/^pr create/gm)).toHaveLength(1);
+});
+
+test("no CI run but the branch already has an open pull request: none is opened", () => {
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh
+echo "$@" >> "${S.tmp}/gh.log"
+case "$1 $2" in "pr list") echo 1;; esac
+`, { mode: 0o755 });
+  stamp(sha("feat/x"), {});
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "0", PROMOTE_CI_POLL: "0" });
+  expect(r.code).not.toBe(0);
+  expect(fs.readFileSync(path.join(S.tmp, "gh.log"), "utf8")).not.toMatch(/^pr create/m);
+});

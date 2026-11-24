@@ -234,7 +234,7 @@ ci_gate() {
   # check-runs until every required check has completed (PROMOTE_CI_WAIT
   # seconds, default 900; PROMOTE_CI_POLL between polls, default 15). A head
   # GitHub has not seen is pushed as its branch first, so CI starts.
-  local wait_s="${PROMOTE_CI_WAIT:-900}" poll="${PROMOTE_CI_POLL:-15}" pushed=0 deadline said=""
+  local wait_s="${PROMOTE_CI_WAIT:-900}" poll="${PROMOTE_CI_POLL:-15}" pushed=0 deadline said="" prd=""
   deadline=$((SECONDS + wait_s))
   local wait_t0=$SECONDS
   while :; do
@@ -261,6 +261,15 @@ ci_gate() {
       [ -n "$missing" ] || break
       if [ "$pushed" = 0 ] && ! printf '%s' "$runs" | grep -q .; then
         push_commit "$remote" "$head" "refs/heads/$BRANCH" -q 2>/dev/null || true; pushed=1
+      fi
+      # No run at all: the repo's CI may run only on pull requests (the
+      # framework's does). Open one for the branch, once, unless it has one.
+      if [ -z "$prd" ] && ! printf '%s' "$runs" | grep -q .; then
+        prd=1
+        if [ "$(gh pr list -R "$slug" --head "$BRANCH" --state open --json number --jq length 2>/dev/null)" = 0 ]; then
+          echo "promote: no CI run on ${head:0:9}; opening a pull request for $BRANCH so CI runs"
+          gh pr create -R "$slug" --base "$MAIN" --head "$BRANCH" --fill >/dev/null || echo "promote: could not open a pull request for $BRANCH" >&2
+        fi
       fi
     fi
     [ "$SECONDS" -lt "$deadline" ] || die "refusing: required CI not finished on $head after ${wait_s}s:$missing (gh run watch -R $slug, then re-run make promote)"
