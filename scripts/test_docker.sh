@@ -40,7 +40,7 @@ lock="$(shasum "$SRC/fortisoar-widget-harness/pnpm-lock.yaml" | cut -c1-12)"
 | docker run --rm -i --platform "$PLATFORM" -e TESTS="$TESTS" -v "fsr-nm-$lock:/nm" "$IMAGE" bash -c '
     set -e
     mkdir -p /w && tar -xf - -C /w && cd /w
-    git init -q -b main && git add -A && git commit -qm "test-docker source" && git update-ref refs/remotes/origin/main HEAD
+    git init -q && git add -A && git commit -qm "test-docker source"
     cd fortisoar-widget-harness && ln -s /nm node_modules
     pnpm install --frozen-lockfile --silent >/dev/null
     pnpm -s build >/dev/null
