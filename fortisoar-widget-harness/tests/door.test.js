@@ -71,6 +71,10 @@ exit 0
   fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | PYTHONPATH=$PYTHONPATH | cwd=$PWD" >> "$DOOR_LOG"\nexit "\${PY_RC:-0}"\n`, { mode: 0o755 });
   const conn = repo("conn_main", {
     "connector-fsr-agentic-assistant/a.py": "A = 1\n", "scripts/dev_push_deps.sh": "#!/bin/sh\n", "README.md": "r\n",
+    "connector-fsr-agentic-assistant/info.json": '{\n  "name": "connector-x",\n  "version": "0.6.23",\n  "category": "utilities"\n}\n',
+    "connector-fsr-agentic-assistant/release_notes.md": "# Release notes\n\n## 0.6.23 (2026-01-01)\n\n- older\n",
+    // stands in for the connector's scripts/preflight_version.py (the door reuses its apply_bump)
+    "scripts/preflight_version.py": "def apply_bump(v, bump):\n    a, b, c = [int(x) for x in v.split('.')]\n    return {'major': f'{a+1}.0.0', 'minor': f'{a}.{b+1}.0', 'patch': f'{a}.{b}.{c+1}'}[bump]\n",
     "tests/test_a.py": "from a import A\n",
     // the connector's own selection is tested in the connector; here it only has to be called with the changed files on stdin
     "scripts/changed_tests.sh": "#!/usr/bin/env bash\ncat >/dev/null; echo tests/test_a.py\n",
@@ -368,6 +372,36 @@ describe("make ship", () => {
     const r = door("ship");
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/nothing to ship|nothing ahead|nothing in the tree/);
+    expect(log()).toEqual([]);
+  });
+
+  test("BUMP on a branch with nothing ahead of main makes exactly one version-only commit and ships it", () => {
+    git(W.conn.dir, "switch", "-q", "-c", "release/x");
+    const before = git(W.conn.dir, "rev-parse", "HEAD");
+    const r = door("ship", { BOX: "92", BUMP: "patch" });
+    expect(r.code).toBe(0);
+    expect(git(W.conn.dir, "rev-list", "--count", `${before}..HEAD`)).toBe("1");
+    expect(git(W.conn.dir, "show", "-s", "--format=%s", "HEAD")).toBe("Bump to 0.6.24");
+    expect(git(W.conn.dir, "diff", "--name-only", `${before}..HEAD`).split("\n").sort()).toEqual(
+      ["connector-fsr-agentic-assistant/info.json", "connector-fsr-agentic-assistant/release_notes.md"]);
+    expect(git(W.conn.dir, "show", "HEAD:connector-fsr-agentic-assistant/info.json")).toBe(
+      '{\n  "name": "connector-x",\n  "version": "0.6.24",\n  "category": "utilities"\n}');
+    expect(git(W.conn.dir, "show", "HEAD:connector-fsr-agentic-assistant/release_notes.md")).toMatch(/## 0\.6\.24\n[\s\S]*## 0\.6\.23/);
+    expect(remoteHas(W.conn.bare, "release/x")).toBe(true);
+    const l = log();
+    expect(l.some((x) => /dev-push/.test(x))).toBe(true);
+    expect(l.some((x) => /promote REPO=.* BRANCH=release\/x/.test(x))).toBe(true);
+  });
+
+  test("without BUMP (or with BUMP=none) the same empty branch still ships nothing and commits nothing", () => {
+    git(W.conn.dir, "switch", "-q", "-c", "release/x");
+    const before = git(W.conn.dir, "rev-parse", "HEAD");
+    for (const env of [{}, { BUMP: "none" }]) {
+      const r = door("ship", { BOX: "92", ...env });
+      expect(r.code).toBe(0);
+      expect(r.out).toMatch(/nothing ahead of main/);
+      expect(git(W.conn.dir, "rev-parse", "HEAD")).toBe(before);
+    }
     expect(log()).toEqual([]);
   });
 

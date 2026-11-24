@@ -26,6 +26,9 @@
 #   refused, the code goes to the box and the head is stamped (a head that
 #   already has a VERIFIED clean stamp is not re-stamped). Then make promote.
 #   DRY_RUN=1 stops promote before the merge: CI and the stamp are still checked.
+#   BUMP=patch|minor|major on a connector branch with NOTHING ahead of main makes one version-only commit
+#   (info.json version + release_notes entry, same rewrite as deploy.sh) and ships that, so a stable box can
+#   take code that kept its version. Without BUMP such a branch still ships nothing.
 #
 # CI is never out of sight (`door.sh ci`, also run by make doctor): both doors print each repo's latest main CI line at the start.
 # ship also refuses to start on a repo whose main is red (one of its required checks failed on main's head) unless
@@ -440,6 +443,43 @@ bundled_gate() {  # bundled_gate <framework dir>: the connector's required leg (
     (( rc == 0 )) || die "cross-repo gate: the connector's suite is RED against this framework head, so connector main would go red once it lands. Nothing was promoted. Fix the framework change (or ship the connector change that goes with it in the same tree)"
 }
 
+bump_only() {  # bump_only <dir>: BUMP=<level> on a branch with nothing ahead of main -> one version-only commit
+    local d="$1" name info notes new
+    name="$(main_name "$d")"
+    case "$BUMP" in patch|minor|major) ;; *) die "$name: BUMP must be patch, minor or major (got '$BUMP')" ;; esac
+    info="$d/connector-fsr-agentic-assistant/info.json"; notes="$d/connector-fsr-agentic-assistant/release_notes.md"
+    [[ -f "$info" ]] || die "$name: no $info to bump"
+    # The same arithmetic (preflight_version.apply_bump) and targeted version-line rewrite as scripts/deploy.sh (info.json stays
+    # byte-identical but for the version), and the release-notes entry deploy.sh would stub, so version and notes cannot drift.
+    new="$(python3 - "$info" "$notes" "$BUMP" "$d/scripts" <<'PY'
+import json, re, sys
+info, notes, bump, scripts = sys.argv[1:5]
+sys.path.insert(0, scripts)
+from preflight_version import apply_bump
+cur = json.load(open(info))["version"]
+new = apply_bump(cur, bump)
+src = open(info).read()
+out, n = re.subn(r'("version"\s*:\s*")%s(")' % re.escape(cur), r'\g<1>%s\g<2>' % new, src, count=1)
+if n != 1:
+    sys.exit("could not rewrite version %r in %s" % (cur, info))
+open(info, "w").write(out)
+try:
+    body = open(notes).read()
+except OSError:
+    body = "# Release notes\n"
+if not re.search(r"^## %s( |$)" % re.escape(new), body, re.M):
+    head, _, rest = body.partition("\n")
+    entry = "\n## %s\n\n- Version-only bump: the code merged since %s is unchanged, so a box that already has %s can take it.\n" % (new, cur, cur)
+    open(notes, "w").write(head + "\n" + entry + rest)
+print(new)
+PY
+    )" || die "$name: could not bump the version"
+    [[ -n "$new" ]] || die "$name: the bump produced no version"
+    git -C "$d" add -- "$info" "$notes" || die "$name: could not stage the bump"
+    git -C "$d" commit -q -m "Bump to $new" || die "$name: could not commit the bump"
+    say "$name: nothing ahead of main, BUMP=$BUMP: committed a version-only bump to $new"
+}
+
 ship_all() {
     local d br kind name cls shipped=() pushes=() pids=() i rc=0 stampdirs=()
     declare -A CLS=()
@@ -448,6 +488,7 @@ ship_all() {
         [[ -n "$br" ]] || die "$name is on a detached HEAD: make a branch (git switch -c <branch>) and commit"
         [[ "$br" != main ]] || die "$name is on main: main moves only through ship; make a branch and commit"
         dirty_of "$d" && die "$name has uncommitted changes to tracked files: commit them (ship proves a commit, not a working tree)"
+        if (( $(ahead_of "$d") == 0 )) && [[ -n "${BUMP:-}" && "${BUMP:-}" != none && "$kind" == connector ]]; then bump_only "$d"; fi
         (( $(ahead_of "$d") > 0 )) || { say "$name: $br has nothing ahead of main"; continue; }
         cls="$(classify "$d" "$br")" || die "$name: could not classify the diff"
         [[ -n "$cls" ]] || die "$name: promote did not say how it classifies the diff"
