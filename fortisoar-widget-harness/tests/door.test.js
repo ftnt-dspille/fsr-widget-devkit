@@ -20,8 +20,8 @@ const BOX_STUB = [
   'echo "box.sh $* | holder=$me BOX=${BOX:-}" >> "$DOOR_LOG.box"',
   'take() { f="$L/$1"; if [ -s "$f" ] && [ "$(cat "$f")" != "$me" ]; then echo "box lease: BOX=$1 is held by $(cat "$f")" >&2; return 2; fi; echo "$me" > "$f"; }',
   'case "$1" in',
-  '  --list) echo "159 92 soar-ga 81"; exit 0 ;;',
-  '  --role) if [ -n "${NO_EXP:-}" ]; then echo stable; else case "$2" in 92|soar-ga) echo experimental ;; *) echo stable ;; esac; fi; exit 0 ;;',
+  '  --list) echo "159 mssp 92 soar-ga 81"; exit 0 ;;',
+  '  --role) if [ -n "${NO_EXP:-}" ]; then echo stable; else case "$2" in 92|soar-ga|mssp) echo experimental ;; *) echo stable ;; esac; fi; exit 0 ;;',
   '  --lease) n=$(cat "$L/.tries" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$L/.tries"',
   '           if [ -n "${FREE_AFTER:-}" ] && [ "$n" -ge "$FREE_AFTER" ]; then for f in "$L"/*; do [ -f "$f" ] && rm -f "$f"; done; fi',
   '           take "$2"; exit $? ;;',
@@ -56,10 +56,16 @@ const branch = (dir, name, files, msg = "change") => {
 };
 const remoteHas = (bare, br) => { try { execFileSync("git", ["-C", bare, "rev-parse", "--verify", "-q", `refs/heads/${br}`], { env: ENV }); return true; } catch { return false; } };
 
+// The ship pool: 92 and soar-ga carry ship_pool = true; "mssp" is experimental but not in the pool.
+function REG() {
+  const f = path.join(T, "instances.toml");
+  if (!fs.existsSync(f)) fs.writeFileSync(f, '[instances.92]\nrole = "experimental"\nship_pool = true\n[instances.soar-ga]\nrole = "experimental"\nship_pool = true\n[instances.mssp]\nrole = "experimental"\n');
+  return f;
+}
 function door(mode, env = {}) {
   const r = spawnSync("bash", [DOOR, mode], {
     cwd: T, encoding: "utf8", timeout: 60000,
-    env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"),
+    env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"), PYFSR_INSTANCES: REG(),
            FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, ...env },
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
@@ -321,7 +327,7 @@ describe("make ship", () => {
     branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
     const r = door("ship", { NO_EXP: "1" });
     expect(r.code).toBe(2);
-    expect(r.out).toMatch(/no experimental box in the registry/);
+    expect(r.out).toMatch(/no experimental box in the ship pool/);
     expect(remoteHas(W.conn.bare, "feat/x")).toBe(false);
     expect(log()).toEqual([]);
   });
@@ -551,6 +557,12 @@ describe("make ship: BOX unset picks a free experimental box", () => {
     expect(r.out).toMatch(/took the lease on experimental box soar-ga \(last ran this code: soar-ga\)/);
     expect(devPush()).toMatch(/BOX=soar-ga/);
   });
+  test("an experimental box outside the ship pool is never picked, even with the pool leased", () => {
+    lease("92", "tree:a"); lease("soar-ga", "tree:b");
+    const r = ship({ DOOR_BOX_WAIT: "1" });
+    expect(boxlog().some((x) => /--lease mssp/.test(x))).toBe(false);
+    expect(r.out).not.toMatch(/took the lease on experimental box mssp/);
+  });
   test("all leased: waits, prints who holds what, and goes ahead when one frees", () => {
     lease("92", "tree:a"); lease("soar-ga", "tree:b");
     const r = ship({ FREE_AFTER: "5", DOOR_BOX_WAIT: "30" });
@@ -615,7 +627,7 @@ describe("CI of main is never out of sight", () => {
   const onGithub = (r, name) => git(r.dir, "remote", "add", "github", `https://github.com/o/${name}.git`);
   const run = (mode, args, env = {}) => {
     const r = spawnSync("bash", [DOOR, mode, ...args], { cwd: T, encoding: "utf8", timeout: 60000,
-      env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"),
+      env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"), PYFSR_INSTANCES: REG(),
              FSR_LAP_LEDGER: path.join(T, "laps.tsv"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir,
              DOOR_RED_WAIT: "0", DOOR_RED_POLL: "0", DOOR_DOCKER: "0", PATH: `${path.join(T, "bin")}:${process.env.PATH}`, ...env } });
     return { code: r.status, out: `${r.stdout}${r.stderr}` };

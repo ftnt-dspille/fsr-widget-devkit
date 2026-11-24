@@ -453,8 +453,17 @@ bundled_gate() {  # bundled_gate <framework dir>: the connector's required leg (
 box_pick() {  # box_pick: no BOX= given. Take the lease on a free experimental box (never a stable one); sets BOX. Waits, bounded, when all are leased.
     local bsh="$CONN/scripts/box.sh" a all f b sha d waits poll deadline last=-999 out="" cand=() order=() pref=""
     all="$(bash "$bsh" --list 2>/dev/null)" || die "cannot list the boxes ($bsh --list); pass BOX=<alias>"
-    for a in $all; do [[ "$(bash "$bsh" --role "$a" 2>/dev/null)" == experimental ]] && cand+=("$a"); done
-    (( ${#cand[@]} )) || die "no experimental box in the registry (roles: scripts/box.sh --role <alias>); a ship that puts code on a box needs one. A stable box takes code only through make stable"
+    # Only boxes the registry puts in the ship pool (ship_pool = true): other experimental boxes
+    # (MSSP, multi-tenant labs) take code only with an explicit BOX=<alias>.
+    local pool
+    pool=" $(python3 -c 'import sys, tomllib
+try:
+    i = tomllib.load(open(sys.argv[1], "rb")).get("instances", {})
+except Exception:
+    i = {}
+print(" ".join(k for k, v in i.items() if isinstance(v, dict) and v.get("ship_pool") is True))' "${PYFSR_INSTANCES:-$HOME/.pyfsr/instances.toml}" 2>/dev/null) "
+    for a in $all; do [[ "$pool" == *" $a "* && "$(bash "$bsh" --role "$a" 2>/dev/null)" == experimental ]] && cand+=("$a"); done
+    (( ${#cand[@]} )) || die "no experimental box in the ship pool (registry: ship_pool = true on an experimental box; roles: scripts/box.sh --role <alias>); a ship that puts code on a box needs one, or pass BOX=<alias>. A stable box takes code only through make stable"
     # Prefer the box that last ran this tree's code: the newest stamp on a commit of a shipped branch names it.
     for d in "${shipped[@]}"; do
         while IFS= read -r sha; do
