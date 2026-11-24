@@ -71,7 +71,7 @@ is internal: the doors call it, so do not type it. Drill-downs while iterating:
 `make local-chat BUNDLE=<name> [ASK=...]` (box-free: real widget, real connector, Frank or fake, a
 fixture bundle; read the saved png), `make widget-inspect ARGS='--widget <n> ...'` for DOM facts.
 `make test-docker TESTS="<pattern>"` runs the shell-heavy tooling suites in seconds in a Linux
-container (a local check, not proof). A widget worktree goes at `<dir>/widgets-src/<name>` (the
+container (a local check, not proof); `make check` already sends the root tooling suites there when an engine answers (`DOOR_DOCKER=0` forces the host). A widget worktree goes at `<dir>/widgets-src/<name>` (the
 harness finds widgets through its real path; the door links the harness beside it). `make bench
 BOX=<alias>` times the loop on a throwaway branch (never promoted) against the 11-22 baseline;
 `make laps` shows step timings.

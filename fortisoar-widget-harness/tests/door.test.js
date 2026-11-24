@@ -239,6 +239,41 @@ describe("make check: suites and worktrees", () => {
       expect(r.out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: the harness is not set up/);
       expect(log().some((x) => /local-chat/.test(x))).toBe(false);
     });
+  describe("root jest selection", () => {
+    const rootRepo = () => repo("root_main", {
+      "fortisoar-widget-harness/jest.config.js": 'const TOOLING_SUITES = [\n  "promoteGate", "door",\n  // a comment\n  "cardKeyParity",\n];\n',
+      "fortisoar-widget-harness/tests/promoteGate.test.js": "// mentions promote.sh\n",
+      "fortisoar-widget-harness/tests/other.test.js": "// mentions promote.sh\n",
+      "scripts/promote.sh": "#!/bin/sh\n",
+    });
+    const run = (env = {}) => { const r = rootRepo(); branch(r.dir, "feat/x", { "scripts/promote.sh": "#!/bin/sh\n# x\n" }); return door("check", { DOOR_REPO: r.dir, ...env }); };
+
+    test("a tooling suite goes to the container, a non-tooling file stays on the host", () => {
+      const r = run();
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /make -C \S+ test-docker TESTS=promoteGate\.test\.js /.test(x))).toBe(true);
+      expect(log().some((x) => /test-unit FULL=1 TESTS=other\.test\.js /.test(x))).toBe(true);
+      expect(log().some((x) => /test-unit .*promoteGate/.test(x))).toBe(false);
+    });
+
+    test("no container engine (exit 2): the tooling suite runs on the host instead; DOOR_DOCKER=0 skips the container", () => {
+      const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /test-unit FULL=1 TESTS=other\.test\.js promoteGate\.test\.js /.test(x) || /test-unit .*promoteGate\.test\.js/.test(x))).toBe(true);
+    });
+
+    test("a failing container run fails the door and names the files", () => {
+      const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "1" });
+      expect(r.code).not.toBe(0);
+      expect(r.out).toMatch(/FAILED .*jest \(container\): promoteGate\.test\.js/);
+    });
+
+    test("DOOR_DOCKER=0 runs everything on the host", () => {
+      const r = run({ DOOR_DOCKER: "0" });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /test-docker/.test(x))).toBe(false);
+    });
+  });
 });
 
 describe("make ship", () => {

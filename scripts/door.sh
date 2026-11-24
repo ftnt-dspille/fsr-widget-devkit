@@ -292,6 +292,27 @@ prep_harness() {  # prints why local-chat cannot run here (rc 1), or nothing (rc
     return 0
 }
 
+# Root jest: the tooling suites (the ONE list is TOOLING_SUITES in jest.config.js) spawn git and make hundreds of
+# times, which takes minutes on the Mac host (process starts stall) and seconds in a Linux container, so they run
+# through `make test-docker` when a container engine answers (or colima can start). No engine, or DOOR_DOCKER=0:
+# the same files on the host, as before. Non-tooling files always run on the host.
+root_jest() {  # root_jest <dir> <name> <test file basename>...
+    local d="$1" name="$2"; shift 2
+    local f b tool=() host=() list
+    list="$(sed -n '/const TOOLING_SUITES = \[/,/^\];/p' "$d/fortisoar-widget-harness/jest.config.js" | grep -oE '"[A-Za-z0-9_.]+"' | tr -d '"')"
+    for f in "$@"; do
+        b="${f%.test.*}"
+        if grep -qxF -- "$b" <<<"$list"; then tool+=("$f"); else host+=("$f"); fi
+    done
+    if (( ${#tool[@]} )) && [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
+        lap "check tests (container)" 120 $MAKE -C "$d" test-docker TESTS="${tool[*]}"; local rc=$?
+        if (( rc == 2 )); then echo "door: no container engine; running the tooling suites on the host" >&2; host+=("${tool[@]}")
+        elif (( rc != 0 )); then fail "$name jest (container): ${tool[*]}"; fi
+    else host+=("${tool[@]}"); fi
+    (( ${#host[@]} )) && { lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="${host[*]}" || fail "$name jest: ${host[*]}"; }
+    return 0
+}
+
 check_repo() {
     local d="$1" kind name br files n sel py rc
     kind="$(kind_of "$d")"; name="$(main_name "$d")"; br="$(branch_of "$d")"
@@ -302,7 +323,7 @@ check_repo() {
         root)
             sel="$(printf '%s\n' "$files" | select_root_tests "$d" | paste -sd' ' -)"
             if [[ -z "$sel" ]]; then not_run "$name: no jest file maps to this diff (CI runs the full suite)"
-            else lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="$sel" || fail "$name jest: $sel"; fi ;;
+            else root_jest "$d" "$name" $sel; fi ;;
         connector)
             sel="$(printf '%s\n' "$files" | (cd "$d" && bash scripts/changed_tests.sh --files) | paste -sd' ' -)"
             if [[ -n "$sel" ]]; then

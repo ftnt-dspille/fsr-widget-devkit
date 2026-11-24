@@ -13,6 +13,9 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [ "${PROMOTE_FROM_TREE:-}" = 1 ] && export FROM_TREE=1
 bash "$here/scripts/run_from_main.sh" promote.sh
+# PROMOTE_SKIP_HOOKS_REFRESH=1 (the tooling tests set it): no refresh. It fetches the real remote (seconds) and
+# rewrites core.hooksPath of every real repo on the machine (tens of seconds), which a fixture promote must not do.
+[ "${PROMOTE_SKIP_HOOKS_REFRESH:-}" = 1 ] && exit 0
 remote="$(git -C "$here" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"
 remote="${remote:-origin}"
 # Every repo's hooks are root main's (scripts/hooks_central.sh): refresh them now,
