@@ -67,4 +67,7 @@ esac
 
 echo ">> live sanity on BOX=$BOX (stamps the heads this install carries)"
 STAMP_REPOS="$SRC_ROOT:$SRC_FW:$SRC_CONN:$SRC_ROOT/widgets-src/agenticAssistant:$SRC_ROOT/widgets-src/agenticAssistantMonitor"
-BOX="$BOX" CONN_REPO="$SRC_CONN" WIDGETS_SRC="$SRC_ROOT/widgets-src" LIVE_SANITY_STAMP_REPOS="$STAMP_REPOS" bash "$SRC_ROOT/scripts/live-sanity.sh"
+# FSR_TOOL_HOME is the invoking checkout, which may be a worktree with no compiled harness
+# (live-sanity runs its harness from there: "tsc: command not found"). The promoted tree's
+# harness was installed and compiled by stable_source_prepare, so point the sanity at it.
+FSR_TOOL_HOME="$SRC_ROOT" BOX="$BOX" CONN_REPO="$SRC_CONN" WIDGETS_SRC="$SRC_ROOT/widgets-src" LIVE_SANITY_STAMP_REPOS="$STAMP_REPOS" bash "$SRC_ROOT/scripts/live-sanity.sh"

@@ -179,3 +179,12 @@ test("stable.sh writes the install record into the connector checkout, not the t
   const r = sh(`set -u; unset DIST_STABLE; CONN_REPO=/shared/conn; SRC_CONN=/tmp/src/conn; SRC_ROOT=/tmp/src/root; SRC_FW=/tmp/src/fw; BOX=b; BOX_ENV=e\n${block}`, T);
   expect(r.stdout).toMatch(/^DIST=\/shared\/conn\/dist\/stable$/m);
 });
+
+// Live: the post-install sanity ran the harness of the INVOKING checkout (live-sanity
+// takes ROOT from FSR_TOOL_HOME), a worktree with no node_modules: "tsc: command not
+// found". It must run the promoted tree's harness, which stable_source_prepare compiled.
+test("stable.sh runs the live sanity from the promoted tree, not the invoking checkout", () => {
+  const src = fs.readFileSync(path.join(ROOT, "scripts", "stable.sh"), "utf8");
+  const call = src.split("\n").find((l) => /live-sanity\.sh"/.test(l) && !/^\s*#/.test(l));
+  expect(call).toMatch(/FSR_TOOL_HOME="\$SRC_ROOT"/);
+});
