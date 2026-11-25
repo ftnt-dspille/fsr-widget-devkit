@@ -31,11 +31,11 @@ INTROSPECT_PORT := 14403
 # enforcement for an agent (TESTING.md, "Guardrails"); the permission deny rules in
 # .claude/settings.json are advisory. Each block below is the ONE copy of its check.
 #
-# 1. Deploys and releases are the user's to run. A protected target depends on
-#    deploy-guard, which runs before any prerequisite (harness-build included).
-#    A human overrides with CONFIRM_DEPLOY=1.
+# 1. Publishing a release (a GitHub tag, which fires the release and PyPI workflows) is the user's.
+#    Every box deploy (push, widget-push, loop, stable) is the agent's. The release target depends on
+#    deploy-guard, which runs before any prerequisite (harness-build included). A human overrides with CONFIRM_DEPLOY=1.
 define require_human
-if [ -n "$$CLAUDECODE" ] && [ "$$CONFIRM_DEPLOY" != 1 ]; then echo "$(1): deploys/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2; exit 2; fi
+if [ -n "$$CLAUDECODE" ] && [ "$$CONFIRM_DEPLOY" != 1 ]; then echo "$(1): publishing a release is the user's to run; a human can override with CONFIRM_DEPLOY=1" >&2; exit 2; fi
 endef
 deploy-guard:
 	@$(call require_human,$(strip $(MAKECMDGOALS)))
@@ -342,7 +342,7 @@ release-check: ## BATCH GATE before make stable: the full connector suite (conta
 stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Refuses unless the box is stable, every repo is clean, on remote main and VERIFIED on an experimental box. ARGS=--build-only | --force
 	@BOX='$(BOX)' ARGS='$(ARGS)' $(RFM) stable.sh
 
-push: deploy-guard harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
+push: harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_push_box)
 	@BOX="$(RESOLVED_BOX)" WIDGETS="$(WIDGETS)" CONNECTOR="$(CONNECTOR)" \
 	    DRY_RUN="$(DRY_RUN)" DEV_PORT="$(DEV_PORT)" CONN_REPO="$(CONN_REPO)" $(RFM) push.sh

@@ -1,7 +1,8 @@
 "use strict";
 // The deploy-script half of the effect-level guards (TESTING.md, "Guardrails"):
-// ship.sh, release.sh, scripts/push.sh, install.sh, soar-add-theme.sh and the
-// widget.js push/ship subcommands refuse under CLAUDECODE before doing anything.
+// ship.sh, release.sh and the widget.js push/ship subcommands refuse under CLAUDECODE before doing
+// anything. Box deploys that publish nothing (scripts/push.sh, the theme install.sh and soar-add-theme.sh)
+// are the agent's: only publishing a release is the user's.
 //
 // These are run for real, so every probe passes arguments that are harmless even
 // if a guard were removed: a bogus flag, a widget folder that does not exist, a
@@ -12,7 +13,7 @@ const { spawnSync } = require("child_process");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const HARNESS = path.join(REPO, "fortisoar-widget-harness");
-const GUARD_MSG = /deploys\/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1/;
+const GUARD_MSG = /the user's to run; a human can override with CONFIRM_DEPLOY=1/;
 
 function run(cmd, args, { env = {}, cwd = REPO } = {}) {
   const base = { ...process.env };
@@ -25,9 +26,6 @@ function run(cmd, args, { env = {}, cwd = REPO } = {}) {
 const REFUSED = [
   ["ship.sh", "bash", [path.join(HARNESS, "scripts/ship.sh"), "--bogus-flag"], {}],
   ["release.sh", "bash", [path.join(HARNESS, "scripts/release.sh"), "noSuchWidget"], {}],
-  ["scripts/push.sh", "bash", [path.join(REPO, "scripts/push.sh")], { ENV: "/nonexistent/.env", DRY_RUN: "1" }],
-  ["install.sh", "bash", [path.join(REPO, "scripts/install.sh")], {}],
-  ["soar-add-theme.sh", "bash", [path.join(REPO, "scripts/soar-add-theme.sh")], {}],
   ["widget.js push", "node", [path.join(HARNESS, "scripts/widget.js"), "push", "noSuchWidget"], {}],
   ["widget.js ship", "node", [path.join(HARNESS, "scripts/widget.js"), "ship", "noSuchWidget"], {}],
 ];
@@ -37,6 +35,22 @@ describe.each(REFUSED)("%s refuses under CLAUDECODE before doing anything", (_la
     const r = run(cmd, args, { env: { CLAUDECODE: "1", ...env } });
     expect(r.code).toBe(2);
     expect(r.out).toMatch(GUARD_MSG);
+  });
+});
+
+// Box deploys that publish nothing run under CLAUDECODE: each probe stops on its own harmless error
+// (missing env file, not root), never on the guard.
+const AGENT_ALLOWED = [
+  ["scripts/push.sh", "bash", [path.join(REPO, "scripts/push.sh")], { ENV: "/nonexistent/.env", DRY_RUN: "1" }],
+  ["install.sh", "bash", [path.join(REPO, "scripts/install.sh")], {}],
+  ["soar-add-theme.sh", "bash", [path.join(REPO, "scripts/soar-add-theme.sh")], {}],
+];
+
+describe.each(AGENT_ALLOWED)("%s is not refused under CLAUDECODE (a box deploy, not a release)", (_label, cmd, args, env) => {
+  test("no guard refusal", () => {
+    const r = run(cmd, args, { env: { CLAUDECODE: "1", ...env } });
+    expect(r.out).not.toMatch(GUARD_MSG);
+    expect(r.code).not.toBe(2);
   });
 });
 

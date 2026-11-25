@@ -86,11 +86,12 @@ BOX=<alias>` times the loop on a throwaway branch (never promoted) against the 1
 
 ## Rules
 
-- **The user owns GitHub releases** (tags, release objects, the PyPI publish they trigger). Never
-  cut one, never `make release-ship` / `make deploy FW=...`, never force-push, never push an
-  unpromoted `main`. Agents own pushing code to GitHub (`make ship`) and to experimental boxes.
+- **The only thing off limits is publishing a release**: GitHub tags and release objects, and the PyPI
+  publish they trigger (`make release`, `make release-ship`, `make deploy FW=...`). Never force-push or push
+  an unpromoted `main`. Everything else on the lab boxes is the agent's to run without asking: `make ship`,
+  box deploys, installs, `make stable`, staged faults, approving action cards in a test.
 - **A stable-role box (the customer demo) takes code only through `make stable BOX=<alias>`**
-  (Import Wizard over REST, when the owner asks). Every ssh path refuses it, with no override; do not
+  (Import Wizard over REST). Every ssh path refuses it, with no override; do not
   look for one. `make stable` refuses unless each repo is clean, on remote main, and VERIFIED on an
   experimental box.
 - Main moves only through promote (inside `make ship`); a hook refuses any other update of main.

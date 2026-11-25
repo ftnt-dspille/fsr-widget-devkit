@@ -28,7 +28,7 @@ connector's `scripts/box.sh --list`; per-box facts live in the auto-memory dir a
   Wizard over REST: one solution pack with the connector, the promoted framework wheel bundled, both
   widgets and the dashboard). `make ship` and every ssh path refuse it, with no override. Run
   `ARGS=--build-only` first to check the package. `make stable` refuses unless each source repo is clean,
-  on remote main, and VERIFIED on an experimental box. Only when the owner asks.
+  on remote main, and VERIFIED on an experimental box.
 - A dev-patched box reports the wheel's version while running other code: `make doctor BOX=<alias>`
   shows the state before you trust a live result.
 - A box address can front more than one appliance behind NAT (ssh port vs API port). Before debugging

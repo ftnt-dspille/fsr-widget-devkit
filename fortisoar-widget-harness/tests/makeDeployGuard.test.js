@@ -15,7 +15,9 @@ const SPAWN_TIMEOUT_MS = Number(process.env.MAKE_SPAWN_TIMEOUT_MS) || 60000;
 const REPO = path.resolve(__dirname, "..", "..");
 // The GitHub/PyPI release path -- the user's to run. Box-only dev deploys
 // (widget-push, loop) are agent-allowed and are asserted separately below.
-const PROTECTED = ["release", "push", "ship-verify"];
+const PROTECTED = ["release", "ship-verify"];
+// Box deploys that publish nothing: the agent's (owner: only publishing a release is off limits).
+const AGENT_DEPLOYS = ["push"];
 // Every target that drives a jest or Playwright run. Keep in step with the
 // "Effect-level guards" block at the top of the Makefile.
 const RUNNERS = [
@@ -24,7 +26,7 @@ const RUNNERS = [
   "test-designer-stage-live", "widget-inspect", "introspect", "introspect-soar",
 ];
 const GUARD_LINE = /^if \[ -n "\$CLAUDECODE" \] && \[ "\$CONFIRM_DEPLOY" != 1 \]/;
-const GUARD_MSG = /deploys\/releases are the user's to run; a human can override with CONFIRM_DEPLOY=1/;
+const GUARD_MSG = /publishing a release is the user's to run; a human can override with CONFIRM_DEPLOY=1/;
 
 function make(args, env = {}) {
   const base = { ...process.env };
@@ -47,11 +49,19 @@ describe.each(PROTECTED)("make %s", (target) => {
   });
 });
 
+describe.each(AGENT_DEPLOYS)("make %s (a box deploy)", (target) => {
+  test("does not run deploy-guard under CLAUDECODE", () => {
+    const r = make(["-n", target, "WIDGET=x"], { CLAUDECODE: "1" });
+    expect(r.code).toBe(0);
+    expect(r.out.split("\n").some((l) => GUARD_LINE.test(l))).toBe(false);
+  });
+});
+
 describe("deploy-guard (run for real: it has no other recipe)", () => {
   test("refuses under CLAUDECODE without CONFIRM_DEPLOY, exit 2, one-line reason", () => {
     const r = make(["deploy-guard"], { CLAUDECODE: "1" });
     expect(r.code).toBe(2);
-    expect(r.out).toMatch(/deploy-guard: deploys\/releases are the user's to run/);
+    expect(r.out).toMatch(/deploy-guard: publishing a release is the user's to run/);
     expect(r.out.trim().split("\n").filter((l) => GUARD_MSG.test(l))).toHaveLength(1);
   });
 
@@ -107,7 +117,7 @@ describe("runner marks and unguarded targets", () => {
       { cwd: REPO, env: { ...process.env, CLAUDECODE: "1", VIA_LOOP: "", VIA_WIDGET_PUSH: "",
                           CONFIRM_DEPLOY: "" }, encoding: "utf8", timeout: Math.max(20000, SPAWN_TIMEOUT_MS / 3) });
     expect(r.status).toBe(2);
-    expect(`${r.stdout || ""}${r.stderr || ""}`).toMatch(GUARD_MSG);
+    expect(`${r.stdout || ""}${r.stderr || ""}`).toMatch(/the user's to run; a human can override with CONFIRM_DEPLOY=1/);
   });
 
   test("test targets are not deploy-guarded under CLAUDECODE", () => {
