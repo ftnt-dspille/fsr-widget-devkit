@@ -311,25 +311,38 @@ prep_harness() {  # prints why local-chat cannot run here (rc 1), or nothing (rc
     return 0
 }
 
-# Root jest: the tooling suites (the ONE list is TOOLING_SUITES in jest.config.js) spawn git and make hundreds of
-# times, which takes minutes on the Mac host (process starts stall) and seconds in a Linux container, so they run
-# through `make test-docker` when a container engine answers (or colima can start). No engine, or DOOR_DOCKER=0:
-# the same files on the host, as before. Non-tooling files always run on the host.
+# Root jest: every harness jest file runs through `make test-docker` (a Linux container) when an engine answers (or
+# colima can start): process starts stall on the Mac host (endpoint protection), so these suites take minutes there
+# and seconds in the container. No engine, or DOOR_DOCKER=0: the same files on the host, as before. Only the files in
+# HOST_ONLY_JEST stay on the host: they read the widget checkouts (widgets-src/<name>), which the container does not
+# carry (they fail there with ENOENT on the widget's source).
+HOST_ONLY_JEST=" cardDomCoverage verdictVocabulary "
 root_jest() {  # root_jest <dir> <name> <test file basename>...
     local d="$1" name="$2"; shift 2
-    local f b tool=() host=() list
-    list="$(sed -n '/const TOOLING_SUITES = \[/,/^\];/p' "$d/fortisoar-widget-harness/jest.config.js" | grep -oE '"[A-Za-z0-9_.]+"' | tr -d '"')"
+    local f b tool=() host=()
     for f in "$@"; do
         b="${f%.test.*}"
-        if grep -qxF -- "$b" <<<"$list"; then tool+=("$f"); else host+=("$f"); fi
+        if [[ "$HOST_ONLY_JEST" == *" $b "* ]]; then host+=("$f"); else tool+=("$f"); fi
     done
     if (( ${#tool[@]} )) && [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
         lap "check tests (container)" 120 $MAKE -C "$d" test-docker TESTS="${tool[*]}"; local rc=$?
-        if (( rc == 2 )); then echo "door: no container engine; running the tooling suites on the host" >&2; host+=("${tool[@]}")
+        if (( rc == 2 )); then echo "door: no container engine; running the jest files on the host" >&2; host+=("${tool[@]}")
         elif (( rc != 0 )); then fail "$name jest (container): ${tool[*]}"; fi
     else host+=("${tool[@]}"); fi
     (( ${#host[@]} )) && { lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="${host[*]}" || fail "$name jest: ${host[*]}"; }
     return 0
+}
+
+# Scoped pytest, like root jest: in the Linux container when an engine answers (devloop_docker_py.sh; the same stalled
+# process starts that cost jest minutes cost pytest minutes), else the caller's host command. Returns 75 for "no
+# engine, or DOOR_DOCKER=0: run it on the host", otherwise pytest's rc. In the container the shell-heavy tests run too.
+py_container() {  # py_container <label> <connector|framework> <dir> <pytest args...>
+    local label="$1" kind="$2" d="$3"; shift 3
+    [[ "${DOOR_DOCKER:-1}" != 0 ]] || return 75
+    local rc=0
+    DEVLOOP_FRAMEWORK_DIR="$FW" lap "$label (container)" 300 bash "${DOOR_PY_DOCKER:-$HERE/scripts/devloop_docker_py.sh}" "$kind" "$d" "$@" || rc=$?
+    (( rc != 75 )) || echo "door: no container engine; running $label on the host" >&2
+    return "$rc"
 }
 
 check_repo() {
@@ -346,8 +359,13 @@ check_repo() {
         connector)
             sel="$(printf '%s\n' "$files" | (cd "$d" && bash scripts/changed_tests.sh --files) | paste -sd' ' -)"
             if [[ -n "$sel" ]]; then
-                lap "check tests" 120 $MAKE -C "$d" test PYTEST_ARGS="-m 'not shell' --disable-warnings $sel"; rc=$?
-                if (( rc == 5 )); then not_run "$name: every mapped test is shell-heavy and left to CI"
+                # shellcheck disable=SC2086
+                py_container "check tests" connector "$d" --disable-warnings $sel; rc=$?
+                if (( rc == 75 )); then
+                    lap "check tests" 120 $MAKE -C "$d" test PYTEST_ARGS="-m 'not shell' --disable-warnings $sel"; rc=$?
+                    if (( rc == 5 )); then not_run "$name: every mapped test is shell-heavy and left to CI (host)"; rc=0; fi
+                fi
+                if (( rc == 5 )); then not_run "$name: pytest collected nothing from: $sel"
                 elif (( rc != 0 )); then fail "$name pytest: $sel"; fi
             else not_run "$name: no pytest file maps to this diff (CI runs the full suite)"; fi
             printf '%s\n' "$files" | grep -q '^connector-fsr-agentic-assistant/' \
@@ -361,6 +379,10 @@ check_repo() {
                 sel="$(printf '%s\n' "$files" | select_by_import "$d" "$suite" | paste -sd' ' -)"
                 if [[ -z "$sel" ]]; then not_run "$name: no $suite file maps to this diff (CI runs the full suite)"; continue; fi
                 any=1
+                # shellcheck disable=SC2086
+                py_container "check tests ($suite)" framework "$d" -m 'not live and not slow' $sel; rc=$?
+                if (( rc == 0 )); then continue
+                elif (( rc != 75 )); then fail "$name pytest ($suite): $sel"; continue; fi
                 [[ -n "$py" ]] || py="$(bash "$CONN/scripts/dev_env.sh" python)" || die "no dev python; run make setup in $CONN"
                 # shellcheck disable=SC2086
                 ( cd "$d" && PYTHONPATH="$d" FSRPB_DEV=1 lap "check tests ($suite)" 120 "$py" -m pytest -q -p no:randomly -m 'not live and not slow' $sel ) || fail "$name pytest ($suite): $sel"

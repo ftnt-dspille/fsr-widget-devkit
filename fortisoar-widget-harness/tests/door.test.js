@@ -66,7 +66,7 @@ function door(mode, env = {}) {
   const r = spawnSync("bash", [DOOR, mode], {
     cwd: T, encoding: "utf8", timeout: 60000,
     env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"), PYFSR_INSTANCES: REG(),
-           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, ...env },
+           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, DOOR_PY_DOCKER: path.join(T, "fakepydock"), ...env },
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -99,6 +99,8 @@ if [[ "$*" == *local-chat* ]]; then   # the report local-chat-report.py prints; 
 fi
 exit 0
 `, { mode: 0o755 });
+  // The container runner every door run sees by default: it records the call and answers 75 (no engine), so the host path runs.
+  fs.writeFileSync(path.join(T, "fakepydock"), `#!/usr/bin/env bash\necho "pydocker $* | FW=$DEVLOOP_FRAMEWORK_DIR" >> "$DOOR_LOG"\nexit "\${PYD_RC:-75}"\n`, { mode: 0o755 });
   fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | PYTHONPATH=$PYTHONPATH | cwd=$PWD" >> "$DOOR_LOG"\nexit "\${PY_RC:-0}"\n`, { mode: 0o755 });
   const conn = repo("conn_main", {
     "connector-fsr-agentic-assistant/a.py": "A = 1\n", "scripts/dev_push_deps.sh": "#!/bin/sh\n", "README.md": "r\n",
@@ -126,6 +128,57 @@ describe("make check", () => {
     expect(l.some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' --disable-warnings tests\/test_a\.py/.test(x.split(" | ")[0]))).toBe(true);
     expect(l.some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(true);
     expect(l.some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+  });
+
+  describe("scoped pytest runs in the Linux container when an engine answers", () => {
+    const connBranch = () => branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+    const pyHost = () => log().filter((x) => /^python -m pytest/.test(x));
+    test("connector: the mapped tests go to the container with the framework checkout, WITHOUT the shell-test exclusion, and not to the host", () => {
+      connBranch();
+      const r = door("check", { PYD_RC: "0" });
+      expect(r.code).toBe(0);
+      const c = log().find((x) => /^pydocker connector /.test(x));
+      expect(c).toContain(`connector ${W.conn.dir} --disable-warnings tests/test_a.py`);
+      expect(c).not.toContain("not shell");
+      expect(c).toContain(`FW=${W.fw.dir}`);
+      expect(log().some((x) => /^make -C \S+ test PYTEST_ARGS/.test(x))).toBe(false);
+    });
+    test("connector: a red container run fails the door; no engine (75) and DOOR_DOCKER=0 run the host command with the old exclusion", () => {
+      connBranch();
+      expect(door("check", { PYD_RC: "1" }).out).toMatch(/check FAILED: conn_main pytest: tests\/test_a\.py/);
+      for (const env of [{ PYD_RC: "75" }, { PYD_RC: "0", DOOR_DOCKER: "0" }]) {
+        fs.writeFileSync(LOG, "");
+        expect(door("check", env).code).toBe(0);
+        expect(log().some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' --disable-warnings tests\/test_a\.py/.test(x))).toBe(true);
+      }
+    });
+    test("connector: nothing collected (5) in the container is NOT RUN, not a pass", () => {
+      connBranch();
+      const r = door("check", { PYD_RC: "5" });
+      expect(r.code).toBe(0);
+      expect(r.out).toMatch(/NOT RUN: conn_main: pytest collected nothing/);
+    });
+    test("framework: one container call per suite with the marker filter, never the host pytest; no engine falls back to the host", () => {
+      git(W.fw.dir, "switch", "-q", "-c", "feat/x");
+      write(W.fw.dir, "tooling/tests/test_t.py", "import loop\n"); write(W.fw.dir, "fsr_playbooks/llm/loop.py", "x = 2\n");
+      git(W.fw.dir, "add", "-A"); git(W.fw.dir, "commit", "-qm", "both suites");
+      const r = door("check", { DOOR_REPO: W.fw.dir, PYD_RC: "0" });
+      expect(r.code).toBe(0);
+      const c = log().filter((x) => /^pydocker framework /.test(x));
+      expect(c).toHaveLength(2);
+      expect(c.filter((x) => /-m not live and not slow .*tooling\/tests\/test_t\.py/.test(x))).toHaveLength(1);
+      expect(c.filter((x) => /-m not live and not slow .*fsr_playbooks\/tests\/test_loop\.py/.test(x))).toHaveLength(1);
+      expect(pyHost()).toHaveLength(0);
+      fs.writeFileSync(LOG, "");
+      expect(door("check", { DOOR_REPO: W.fw.dir, PYD_RC: "75" }).code).toBe(0);
+      expect(pyHost()).toHaveLength(2);
+    });
+    test("framework: a red container run fails the door", () => {
+      branch(W.fw.dir, "feat/x", { "fsr_playbooks/llm/loop.py": "x = 2\n" });
+      const r = door("check", { DOOR_REPO: W.fw.dir, PYD_RC: "1" });
+      expect(r.code).not.toBe(0);
+      expect(r.out).toMatch(/FAILED: .*pytest \(fsr_playbooks\/tests\)/);
+    });
   });
 
   describe("a local-chat that did nothing is never a pass", () => {
@@ -283,24 +336,30 @@ describe("make check: suites and worktrees", () => {
     });
     const run = (env = {}) => { const r = rootRepo(); branch(r.dir, "feat/x", { "scripts/promote.sh": "#!/bin/sh\n# x\n" }); return door("check", { DOOR_REPO: r.dir, ...env }); };
 
-    test("a tooling suite goes to the container, a non-tooling file stays on the host", () => {
+    test("every jest file goes to the container, tooling or not; only the files that read widget checkouts stay on the host", () => {
       const r = run();
       expect(r.code).toBe(0);
-      expect(log().some((x) => /make -C \S+ test-docker TESTS=promoteGate\.test\.js /.test(x))).toBe(true);
-      expect(log().some((x) => /test-unit FULL=1 TESTS=other\.test\.js /.test(x))).toBe(true);
-      expect(log().some((x) => /test-unit .*promoteGate/.test(x))).toBe(false);
+      expect(log().some((x) => /make -C \S+ test-docker TESTS=other\.test\.js promoteGate\.test\.js /.test(x))).toBe(true);
+      expect(log().some((x) => /test-unit/.test(x))).toBe(false);
+    });
+
+    test("a jest file that reads the widget checkouts (not in the container) stays on the host", () => {
+      const r = rootRepo(); branch(r.dir, "feat/x", { "scripts/promote.sh": "#!/bin/sh\n# x\n", "fortisoar-widget-harness/tests/cardDomCoverage.test.js": "// x\n" });
+      expect(door("check", { DOOR_REPO: r.dir }).code).toBe(0);
+      expect(log().some((x) => /test-docker TESTS=\S*cardDomCoverage/.test(x))).toBe(false);
+      expect(log().some((x) => /test-unit FULL=1 TESTS=cardDomCoverage\.test\.js /.test(x))).toBe(true);
     });
 
     test("no container engine (exit 2): the tooling suite runs on the host instead; DOOR_DOCKER=0 skips the container", () => {
       const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
       expect(r.code).toBe(0);
-      expect(log().some((x) => /test-unit FULL=1 TESTS=other\.test\.js promoteGate\.test\.js /.test(x) || /test-unit .*promoteGate\.test\.js/.test(x))).toBe(true);
+      expect(log().some((x) => /test-unit FULL=1 TESTS=other\.test\.js promoteGate\.test\.js /.test(x))).toBe(true);
     });
 
     test("a failing container run fails the door and names the files", () => {
       const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "1" });
       expect(r.code).not.toBe(0);
-      expect(r.out).toMatch(/FAILED .*jest \(container\): promoteGate\.test\.js/);
+      expect(r.out).toMatch(/FAILED .*jest \(container\): other\.test\.js promoteGate\.test\.js/);
     });
 
     test("DOOR_DOCKER=0 runs everything on the host", () => {

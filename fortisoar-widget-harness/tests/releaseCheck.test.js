@@ -32,7 +32,7 @@ beforeEach(() => {
   ENV = { ...process.env, GIT_CONFIG_GLOBAL: path.join(T, "gitconfig"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: "/dev/null",
           FSR_RELEASE_CHECK_DIR: REC, RC_CI_WAIT: "0", RC_CI_POLL: "0", CALLS: path.join(T, "calls.log") };
   for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "FSR_TOOL_HOME"]) delete ENV[k];
-  fs.writeFileSync(path.join(T, "pydock"), '#!/usr/bin/env bash\necho "container $* | FW=$DEVLOOP_FRAMEWORK_DIR" >> "$CALLS"\nexit "${PYD_RC:-0}"\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(T, "pydock"), '#!/usr/bin/env bash\necho "container $* | FW=$DEVLOOP_FRAMEWORK_DIR" >> "$CALLS"\n[ "$1" = framework ] && exit "${PYDFW_RC:-0}"\nexit "${PYD_RC:-0}"\n', { mode: 0o755 });
   fs.writeFileSync(path.join(T, "fakepy"), '#!/usr/bin/env bash\necho "python $* | cwd=$PWD" >> "$CALLS"\nexit "${PY_RC:-0}"\n', { mode: 0o755 });
   fs.writeFileSync(path.join(T, "fakedoor"), '#!/usr/bin/env bash\necho "door $* " >> "$CALLS"\ncase "$4" in "${CI_RED:-none}") echo "RED ($4)"; exit 1;; "${CI_PENDING:-none}") echo pending; exit 3;; esac\necho "green"; exit 0\n', { mode: 0o755 });
   trees = { root: tree("root"), fw: tree("fw", { "fsr_playbooks/tests/t.py": "", "tooling/tests/t.py": "" }), conn: tree("conn"), aa: tree("aa"), mon: tree("mon") };
@@ -48,7 +48,12 @@ describe("release-check run", () => {
     expect(r.code).toBe(0);
     const l = log();
     expect(l.find((x) => /^container connector /.test(x))).toContain(`connector ${trees.conn} | FW=${trees.fw}`);
-    expect(l.filter((x) => /^python -m pytest/.test(x)).length).toBe(2);
+    // the framework suites run in the container too, one process per suite, with the marker filter
+    const fwRuns = l.filter((x) => /^container framework /.test(x));
+    expect(fwRuns.length).toBe(2);
+    expect(fwRuns[0]).toContain(`framework ${trees.fw} -m not live and not slow fsr_playbooks/tests`);
+    expect(fwRuns[1]).toContain("tooling/tests");
+    expect(l.filter((x) => /^python -m pytest/.test(x)).length).toBe(0);
     expect(l.filter((x) => /^door ci status/.test(x)).length).toBe(5);
     expect(fs.readdirSync(REC).length).toBe(1);
     expect(run(["verify", ...heads()]).code).toBe(0);
@@ -59,9 +64,18 @@ describe("release-check run", () => {
     expect(r.out).toMatch(/full connector suite is red/);
     expect(fs.existsSync(REC)).toBe(false);
   });
-  test("a red framework suite fails and records nothing", () => {
-    expect(run(["run"], { PY_RC: "1" }).code).not.toBe(0);
+  test("a red framework suite fails and records nothing (container, and host when no engine)", () => {
+    const r = run(["run"], { PYDFW_RC: "1" });
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/framework fsr_playbooks\/tests is red/);
+    expect(log().some((x) => /^python -m pytest/.test(x))).toBe(false);
+    expect(run(["run"], { PYDFW_RC: "75", PY_RC: "1" }).code).not.toBe(0);
     expect(fs.existsSync(REC)).toBe(false);
+  });
+  test("no container engine for the framework suites (exit 75): both run on the host instead", () => {
+    const r = run(["run"], { PYDFW_RC: "75" });
+    expect(r.code).toBe(0);
+    expect(log().filter((x) => /^python -m pytest/.test(x)).length).toBe(2);
   });
   test("red CI on any main fails; a CI run that never finishes fails after the wait", () => {
     expect(run(["run"], { CI_RED: "conn" }).out).toMatch(/CI on conn main is not green/);

@@ -58,11 +58,15 @@ run() {
     fi
     (( rc == 0 )) || { echo "release-check: FAILED: the full connector suite is red on the mains" >&2; return 1; }
     echo ">> release-check 2/3: the framework suites"
-    py="${RC_PY:-$(bash "$conn/scripts/dev_env.sh" python)}" || { echo "release-check: no dev python" >&2; return 1; }
-    local suite
+    local suite py=""
     for suite in fsr_playbooks/tests tooling/tests; do
         [[ -d "$fw/$suite" ]] || continue
-        ( cd "$fw" && PYTHONPATH="$fw" FSRPB_DEV=1 "$py" -m pytest -q --no-header -p no:randomly -m 'not live and not slow' "$suite" ); rc=$?
+        # In the Linux container when an engine answers (exit 75 = none: the host), one process per suite either way.
+        bash "$pd" framework "$fw" -m 'not live and not slow' "$suite"; rc=$?
+        if (( rc == 75 )); then
+            [[ -n "$py" ]] || py="${RC_PY:-$(bash "$conn/scripts/dev_env.sh" python)}" || { echo "release-check: no dev python" >&2; return 1; }
+            ( cd "$fw" && PYTHONPATH="$fw" FSRPB_DEV=1 "$py" -m pytest -q --no-header -p no:randomly -m 'not live and not slow' "$suite" ); rc=$?
+        fi
         (( rc == 0 )) || { echo "release-check: FAILED: framework $suite is red on main" >&2; return 1; }
     done
     echo ">> release-check 3/3: green CI on every main"
