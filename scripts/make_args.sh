@@ -7,10 +7,13 @@
 #   known = every $(NAME) / ${NAME} / $NAME / process.env.NAME in Makefile,
 #           scripts/*, fortisoar-widget-harness/{scripts,lib}/, plus
 #           MAKE_ARGS_EXTRA (space-separated) for names read elsewhere.
+#   plus the retired box knobs (RETIRED below): the Makefile hands them to box.sh,
+#   which warns a human or refuses an agent, so make must not reject them first.
 # MAKE_ARGS_OFF=1 skips the check.
 set -uo pipefail
 [[ "${MAKE_ARGS_OFF:-}" == 1 ]] && exit 0
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RETIRED="ENV FSR_ENV SHIP_ENV SWEEP_ENV MATRIX_ENV LIVE_ENV SSH_HOST"   # keep in step with _DEP_KNOBS in the Makefile
 names=()
 for a in "$@"; do
     [[ "$a" == *=* ]] || continue
@@ -24,7 +27,8 @@ known="$( { cat "$root/Makefile"; cat "$root"/scripts/* 2>/dev/null
                  -not -path '*/node_modules/*' -exec cat {} + 2>/dev/null
           } | grep -aoE '\$[({]?[A-Z_][A-Z0-9_]*|process\.env\.[A-Z_][A-Z0-9_]*|environ(\.get)?\(?\[?"[A-Z_][A-Z0-9_]*' \
             | grep -oE '[A-Z_][A-Z0-9_]*$' | sort -u)
-${MAKE_ARGS_EXTRA:-}"
+${MAKE_ARGS_EXTRA:-}
+$(tr " " "\n" <<< "$RETIRED")"
 bad=0
 for n in "${names[@]}"; do
     grep -qxF "$n" <<< "$known" && continue
