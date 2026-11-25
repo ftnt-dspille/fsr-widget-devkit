@@ -79,7 +79,7 @@ beforeEach(() => {
   LOG = path.join(T, "make.log");
   const make = path.join(T, "fakemake");
   fs.writeFileSync(make, `#!/usr/bin/env bash
-echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-} HOLDER=\${FSR_LEASE_HOLDER:-}" >> "$DOOR_LOG"
+echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-} DEFER=\${PROMOTE_CI_DEFER:-} RERUN=\${PROMOTE_CI_RERUN:-} HOLDER=\${FSR_LEASE_HOLDER:-}" >> "$DOOR_LOG"
 if [ -n "\${DOOR_FAIL:-}" ] && [[ "$*" == *"$DOOR_FAIL"* ]]; then exit "\${DOOR_FAIL_RC:-1}"; fi
 # DOOR_FAIL_DRY / DOOR_FAIL_REAL: fail a promote of the matching repo only in its dry run / only when it really merges
 if [ -n "\${DOOR_FAIL_DRY:-}" ] && [ -n "\${PROMOTE_DRY_RUN:-}" ] && [[ "$*" == *"promote"*"$DOOR_FAIL_DRY"* ]]; then exit 1; fi
@@ -498,6 +498,32 @@ describe("make ship: framework and connector land together", () => {
     expect(r.out).toContain(`make promote REPO=${path.join(tree, "connector")} BRANCH=feat/c`);
     expect(r.out).toMatch(/Do not force-push or reset main/);
     expect(log().some((x) => /push -f|--force|reset|update-ref/.test(x))).toBe(false);
+  });
+  test("the connector's bundled-framework leg is deferred in the connector pre-check and re-run once in the real promote, after the framework merged", () => {
+    const tree = jointTree();
+    const NAME = "test (bundled framework)";
+    fs.mkdirSync(path.join(tree, "connector", ".github"), { recursive: true });
+    fs.writeFileSync(path.join(tree, "connector", ".github", "required-checks"), `# required\nlint\n${NAME}\n`);
+    git(path.join(tree, "connector"), "add", "-A"); git(path.join(tree, "connector"), "commit", "-qm", "checks");
+    const r = door("ship", { AGENT_TREE: tree, DOOR_REPO: "" });
+    expect(r.code).toBe(0);
+    const rows = log().filter((x) => /promote REPO=/.test(x)).map((x) => ({ kind: /fsr-playbook-framework|framework/.test(x.split(" | ")[0]) ? "fw" : "conn", dry: /PROMOTE_DRY_RUN=1/.test(x), defer: (x.match(/DEFER=(.*?) RERUN=/) || [])[1], rerun: (x.match(/RERUN=(.*?) HOLDER=/) || [])[1] }));
+    expect(rows).toEqual([
+      { kind: "fw", dry: true, defer: "", rerun: "" },
+      { kind: "conn", dry: true, defer: NAME, rerun: "" },
+      { kind: "fw", dry: false, defer: "", rerun: "" },
+      { kind: "conn", dry: false, defer: "", rerun: NAME },
+    ]);
+  });
+  test("a framework-only ship while the connector checkout is on a branch is refused, and the message names the joint path", () => {
+    branch(W.fw.dir, "feat/f", { "fsr_playbooks/a.py": "A = 2\n" });
+    branch(W.conn.dir, "feat/wip", { "connector-fsr-agentic-assistant/a.py": "A = 99\n" });
+    const r = door("ship", { DOOR_REPO: W.fw.dir, BOX: "92" });
+    spawnSync("sleep", ["2"]);   // the door dies with its background branch push still running; let it finish before cleanup
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/framework ships through a connector at its main/);
+    expect(r.out).toMatch(/ship them together from ONE agent tree/);
+    expect(r.out).toMatch(/re-runs the connector's bundled-framework CI leg/);
   });
   test("a framework-only ship has no joint pre-check (one repo: unchanged)", () => {
     branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });

@@ -139,3 +139,71 @@ case "$1 $2" in "pr list") echo 1;; esac
   expect(r.code).not.toBe(0);
   expect(fs.readFileSync(path.join(S.tmp, "gh.log"), "utf8")).not.toMatch(/^pr create/m);
 });
+
+// A joint framework+connector ship: the connector's bundled-framework leg clones framework main, so it is red until
+// the framework lands. PROMOTE_CI_DEFER tolerates that in a dry run only; PROMOTE_CI_RERUN re-runs it once for real.
+describe("deferred and re-run required checks", () => {
+  const NAME = "test (bundled framework)";
+  const URL = "https://github.com/o/r/actions/runs/777/job/1";
+  // Check-run rows are name, status, conclusion, details_url, id. The first api answer is the red run (id 10); once
+  // `gh run rerun` was called the answer is the new run (id 11) with the conclusion given as `after`.
+  function ghRerun(after) {
+    const flag = path.join(S.tmp, "reran");
+    fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh
+echo "$@" >> "${S.tmp}/gh.log"
+case "$1 $2" in
+  "run rerun") touch "${flag}"; exit 0;;
+esac
+if [ -f "${flag}" ]; then printf '${NAME}\\tcompleted\\t${after}\\t${URL}\\t11\\n'; else printf '${NAME}\\tcompleted\\tfailure\\t${URL}\\t10\\n'; fi
+`, { mode: 0o755 });
+    stamp(sha("feat/x"), {});
+  }
+  const env = (extra) => ({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "60", PROMOTE_CI_POLL: "0", ...extra });
+  const reruns = () => (fs.existsSync(path.join(S.tmp, "gh.log")) ? fs.readFileSync(path.join(S.tmp, "gh.log"), "utf8").match(/^run rerun .*$/gm) || [] : []);
+
+  test("dry run: a failed deferred check is tolerated and reported, nothing is re-run", () => {
+    ghRerun("success");
+    const r = promote(env({ PROMOTE_DRY_RUN: "1", PROMOTE_CI_DEFER: NAME }));
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/deferred: 'test \(bundled framework\)'\(failure\).*re-run after the framework lands/);
+    expect(r.out).toMatch(/DRY RUN/);
+    expect(reruns()).toEqual([]);
+  });
+  test("dry run: a failed check that is NOT deferred still refuses", () => {
+    ghRerun("success");
+    const r = promote(env({ PROMOTE_DRY_RUN: "1", PROMOTE_CI_DEFER: "something else" }));
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/required CI failed/);
+  });
+  test("a real run never tolerates a deferred failure; main unchanged", () => {
+    ghRerun("success");
+    const before = sha("main");
+    const r = promote(env({ PROMOTE_CI_DEFER: NAME }));
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/required CI failed/);
+    expect(sha("main")).toBe(before);
+  });
+  test("a red check listed for re-run is re-run once with the run id from details_url, then green: merged", () => {
+    ghRerun("success");
+    const r = promote(env({ PROMOTE_CI_RERUN: NAME }));
+    expect(r.out).toMatch(/re-running it once/);
+    expect(r.code).toBe(0);
+    expect(reruns()).toEqual(["run rerun 777 -R o/r --failed"]);
+    expect(sha("main")).toBe(sha("feat/x"));
+  });
+  test("a re-run that is still red refuses, after exactly one re-run", () => {
+    ghRerun("failure");
+    const before = sha("main");
+    const r = promote(env({ PROMOTE_CI_RERUN: NAME }));
+    expect(r.code).not.toBe(0);
+    expect(r.out).toMatch(/required CI failed/);
+    expect(reruns()).toHaveLength(1);
+    expect(sha("main")).toBe(before);
+  });
+  test("a check not listed for re-run is never re-run", () => {
+    ghRerun("success");
+    const r = promote(env({ PROMOTE_CI_RERUN: "other" }));
+    expect(r.code).not.toBe(0);
+    expect(reruns()).toEqual([]);
+  });
+});

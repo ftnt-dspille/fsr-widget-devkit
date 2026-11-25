@@ -41,6 +41,11 @@
 #
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
 # CLASSIFY_ONLY=1 prints the shipped/tooling classification and exits.
+# PROMOTE_CI_DEFER / PROMOTE_CI_RERUN (comma or newline list of required-check names), for a framework+connector
+# ship whose connector leg clones framework main and so is red until the framework lands: in a DRY RUN a listed check
+# that FAILED is tolerated and reported (never tolerated in a real run); in a real run a listed check that failed is
+# re-run ONCE (gh run rerun --failed, run id from the check-run's details_url) and polled within the wait window,
+# and a second failure refuses as usual.
 # PROMOTE_DRY_RUN=1 runs every check (classification, CI, stamp) and stops before the merge.
 # The reference-transaction hook (scripts/githooks) refuses any other update of
 # main under Claude Code; this script hands it a one-shot allow file.
@@ -242,11 +247,14 @@ ci_gate() {
   # seconds, default 900; PROMOTE_CI_POLL between polls, default 15). A head
   # GitHub has not seen is pushed as its branch first, so CI starts.
   local wait_s="${PROMOTE_CI_WAIT:-900}" poll="${PROMOTE_CI_POLL:-15}" pushed=0 deadline said="" prd=""
+  local defer="" rerun="" deferred="" reran="" url_d rid old_id=""
+  defer="$(printf '%s' "${PROMOTE_CI_DEFER:-}" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
+  rerun="$(printf '%s' "${PROMOTE_CI_RERUN:-}" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' || true)"
   deadline=$((SECONDS + wait_s))
   local wait_t0=$SECONDS
   while :; do
     missing=""; bad=""
-    if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' 2>&1)"; then
+    if ! runs="$(gh api "repos/$slug/commits/$head/check-runs?per_page=100" --jq '.check_runs[] | [.name, .status, (.conclusion // ""), (.details_url // ""), (.id | tostring)] | @tsv' 2>&1)"; then
       if printf '%s' "$runs" | grep -qiE 'No commit found|HTTP 422|HTTP 404'; then
         if [ "$pushed" = 0 ]; then
           echo "promote: $head is not on GitHub yet; pushing $BRANCH so CI runs on it"
@@ -258,11 +266,33 @@ ci_gate() {
         die "refusing: could not read CI for $head: $runs"
       fi
     else
+      deferred=""
       while IFS= read -r name; do
-        st="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $2"\t"$3}' | tail -1)"
+        # a re-run check: only a run newer than the failed one counts (the old failure may still be listed)
+        if [ -n "$reran" ] && [ "$reran" = "$name" ]; then
+          st="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" -v o="$old_id" '$1==n && ($5+0 > o+0 || $2 != "completed") {print $2"\t"$3}' | tail -1)"
+        else
+          st="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $2"\t"$3}' | tail -1)"
+        fi
         if [ -z "$st" ]; then missing="$missing '$name'"; continue; fi
         co="${st#*	}"; st="${st%%	*}"
-        if [ "$st" != completed ]; then missing="$missing '$name'($st)"; elif [ "$co" != success ]; then bad="$bad '$name'($co)"; fi
+        if [ "$st" != completed ]; then missing="$missing '$name'($st)"
+        elif [ "$co" != success ]; then
+          if [ "${PROMOTE_DRY_RUN:-}" = 1 ] && printf '%s\n' "$defer" | grep -qxF -- "$name"; then
+            deferred="$deferred '$name'($co)"
+          elif [ -z "$reran" ] && [ "${PROMOTE_DRY_RUN:-}" != 1 ] && printf '%s\n' "$rerun" | grep -qxF -- "$name"; then
+            url_d="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $4}' | tail -1)"
+            rid="$(printf '%s' "$url_d" | sed -nE 's#.*/actions/runs/([0-9]+)(/.*)?$#\1#p')"
+            [ -n "$rid" ] || die "refusing: required CI failed on $head: '$name'($co) and its run id is not in details_url ($url_d), so it cannot be re-run"
+            old_id="$(printf '%s\n' "$runs" | awk -F'\t' -v n="$name" '$1==n {print $5}' | sort -n | tail -1)"
+            echo "promote: '$name' failed on ${head:0:9} (it clones framework main); re-running it once now that the framework landed (run $rid)"
+            gh run rerun "$rid" -R "$slug" --failed >/dev/null 2>&1 || die "refusing: required CI failed on $head: '$name'($co) and the re-run could not be started (gh run rerun $rid -R $slug --failed)"
+            reran="$name"
+            missing="$missing '$name'(re-run started)"
+          else
+            bad="$bad '$name'($co)"
+          fi
+        fi
       done <<< "$req"
       [ -z "$bad" ] || die "refusing: required CI failed on $head:$bad"
       [ -n "$missing" ] || break
@@ -294,7 +324,8 @@ ci_gate() {
     printf '%s\tpromote ci-wait\t%s\t0\t%s\t%s\t-\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$ws" "$wb" "$(basename "$REPO")" >> "$led" 2>/dev/null || true
     echo "promote: waited ${ws}s for CI"
   fi
-  echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))"
+  [ -z "$deferred" ] || echo "promote: deferred:$deferred failed on ${head:0:9}; re-run after the framework lands (the door does this once, after the framework merge)"
+  echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))${deferred:+ except deferred$deferred}"
 }
 if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
 

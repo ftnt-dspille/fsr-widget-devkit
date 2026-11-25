@@ -580,7 +580,7 @@ ship_all() {
         if (( any_conn || any_fw )); then
             if (( ! any_conn )) && [[ -z "$tree" ]]; then   # framework alone: the connector must be a clean main, never someone's WIP
                 [[ -z "$(git -C "$CONN" status --porcelain --untracked-files=no)" && "$(git -C "$CONN" rev-parse HEAD)" == "$(git -C "$CONN" rev-parse "refs/remotes/$(remote_of "$CONN")/main")" ]] \
-                    || die "framework ships through a connector at its main; $CONN is not (use an agent tree: make agent-tree)"
+                    || die "framework ships through a connector at its main; $CONN is not. If the connector change goes with this framework change, ship them together from ONE agent tree (make agent-tree REPOS=\"framework=new:<b> connector=new:<b>\", then make ship from its root): the door pre-checks both, merges framework first, then re-runs the connector's bundled-framework CI leg once the framework has landed. Otherwise use an agent tree (make agent-tree)"
             fi
             say "code to $BOX: connector + framework (dev-push stamps what it pushed)"
             lap "ship stamp" 420 env FSR_SRC="$FW" $MAKE -C "$CONN" dev-push BOX="$BOX" || { rc=1; say "dev-push failed"; }
@@ -610,20 +610,35 @@ ship_all() {
     # broken against framework main until the connector lands (a new framework contract that only the connector branch
     # adapts to). So check BOTH first (promote's own dry run: classification, CI on the head, the box stamp), merge
     # neither until both pass, then merge back to back.
-    local have_fw=0 have_conn=0 merged=() recover m
+    local have_fw=0 have_conn=0 merged=() recover m bundled="" rerun="" xenv=()
     for d in "${pushes[@]}"; do case "$(kind_of "$d")" in framework) have_fw=1 ;; connector) have_conn=1 ;; esac; done
+    if (( have_fw && have_conn )); then
+        # The leg's name comes from the connector's .github/required-checks (a line naming the bundled framework), else the default.
+        for d in "${pushes[@]}"; do
+            [[ "$(kind_of "$d")" == connector ]] || continue
+            bundled="$(git -C "$d" show "HEAD:.github/required-checks" 2>/dev/null | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' | grep -i 'bundled framework' | head -1 || true)"
+        done
+        bundled="${bundled:-test (bundled framework)}"
+    fi
     if (( have_fw && have_conn )) && [[ -z "${DRY_RUN:-}" ]]; then
         say "framework and connector land together: checking both (CI on both heads, proof, merge) before merging either"
         for d in "${pushes[@]}"; do
             case "$(kind_of "$d")" in framework|connector) ;; *) continue ;; esac
             say "pre-check $(main_name "$d") ($(branch_of "$d"))"
-            env PROMOTE_DRY_RUN=1 $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")" \
+            # The connector's bundled-framework CI leg clones framework MAIN, so it is red until the framework lands:
+            # its failure is deferred here (dry run only) and the leg is re-run once after the framework merged.
+            xenv=(); [[ "$(kind_of "$d")" == connector ]] && xenv=(PROMOTE_CI_DEFER="$bundled")
+            env PROMOTE_DRY_RUN=1 "${xenv[@]}" $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")" \
                 || die "$(main_name "$d") ($(branch_of "$d")) is not ready to merge, so NOTHING was merged (framework and connector land together). Fix it and run make ship again"
         done
     fi
     for d in "${pushes[@]}"; do
         say "promote $(main_name "$d") ($(branch_of "$d"))${DRY_RUN:+ (dry run: CI and proof checked, nothing merged)}"
-        if ! env ${DRY_RUN:+PROMOTE_DRY_RUN=1} $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")"; then
+        # the connector of a joint ship: its bundled-framework leg ran against framework main before the framework landed
+        rerun=""; [[ -z "${DRY_RUN:-}" && "$(kind_of "$d")" == connector && ${#merged[@]} -gt 0 && -n "$bundled" ]] && rerun="$bundled"
+        xenv=(); [[ -n "${DRY_RUN:-}" && "$(kind_of "$d")" == connector && -n "$bundled" ]] && xenv+=(PROMOTE_CI_DEFER="$bundled")
+        [[ -z "$rerun" ]] || xenv+=(PROMOTE_CI_RERUN="$rerun")
+        if ! env ${DRY_RUN:+PROMOTE_DRY_RUN=1} "${xenv[@]}" $MAKE -C "$HERE" promote REPO="$d" BRANCH="$(branch_of "$d")"; then
             if (( ${#merged[@]} )); then
                 recover="make promote REPO=$d BRANCH=$(branch_of "$d")"
                 {
