@@ -50,7 +50,7 @@ reqs="$(cat "$repo"/connector-*/requirements.txt | grep -v '^fsr-playbooks==' ; 
 key="conn-v2-$(printf '%s' "$reqs" | shasum | cut -c1-12)"
 
 # Tree(s) in: repo at /w/repo, framework (when given) at /w/fw.
-pack() { ( cd "$1" && git ls-files -z -co --exclude-standard | COPYFILE_DISABLE=1 tar --null -T - -cf - ); }
+pack() { bash "$(dirname "${BASH_SOURCE[0]}")/pack_tree.sh" "$1"; }
 stage="$(mktemp -d "${TMPDIR:-/tmp}/devloop-py.XXXXXX")"; trap 'rm -rf "$stage"' EXIT
 pack "$repo" > "$stage/repo.tar"
 if [[ -n "$fw" ]]; then pack "$fw" > "$stage/fw.tar"; else : > "$stage/fw.tar"; fi

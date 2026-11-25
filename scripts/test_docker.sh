@@ -36,7 +36,7 @@ docker build -q --platform "$PLATFORM" -t "$IMAGE" -f "$ROOT/dev/test.Dockerfile
 lock="$(shasum "$SRC/fortisoar-widget-harness/pnpm-lock.yaml" | cut -c1-12)"
 
 # The working tree as git sees it: tracked and untracked files, not ignored ones.
-( cd "$SRC" && git ls-files -z -co --exclude-standard | COPYFILE_DISABLE=1 tar --null -T - -cf - ) \
+bash "$(dirname "${BASH_SOURCE[0]}")/pack_tree.sh" "$SRC" \
 | docker run --rm -i --platform "$PLATFORM" -e TESTS="$TESTS" -v "fsr-nm-$lock:/nm" "$IMAGE" bash -c '
     set -e
     mkdir -p /w && tar -xf - -C /w && cd /w
