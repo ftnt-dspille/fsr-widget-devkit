@@ -53,7 +53,7 @@ if [[ "$suite" == connector ]]; then
 else
   reqs="$(cat "$repo/pyproject.toml")"
 fi
-key="$suite-v2-$(printf '%s' "$reqs" | shasum | cut -c1-12)"
+key="$suite-v3-$(printf '%s' "$reqs" | shasum | cut -c1-12)"
 
 # Tree(s) in: repo at /w/repo, framework (when given) at /w/fw.
 pack() { bash "$(dirname "${BASH_SOURCE[0]}")/pack_tree.sh" "$1"; }
@@ -73,8 +73,10 @@ docker run --rm -i --platform "$PLATFORM" -e HAS_FW="${fw:+1}" -e SUITE="$suite"
       if [ "$SUITE" = connector ]; then
         cat /w/repo/connector-*/requirements.txt | grep -v "^fsr-playbooks==" > /tmp/req.txt
       else
-        # the dependency list only: pyproject [tool.uv.sources] points at a sibling checkout the container does not have
+        # the dependency list only: pyproject [tool.uv.sources] points at a sibling checkout the container does not have.
+        # Plus what the framework CI installs on top (the LLM SDKs, httpx, requests-mock: tests import them).
         python3 -c "import tomllib; print(chr(10).join(tomllib.load(open(\"/w/repo/pyproject.toml\", \"rb\"))[\"project\"][\"dependencies\"]))" > /tmp/req.txt
+        printf "%s\n" openai anthropic httpx requests-mock anyio >> /tmp/req.txt
       fi
       uv pip install -q --python /venv/bin/python -r /tmp/req.txt \
         "pytest>=7" "pytest-randomly>=3" "pytest-timeout>=2" "pytest-xdist>=3" "python-dotenv>=1" "ruff==0.15.20"
@@ -83,6 +85,7 @@ docker run --rm -i --platform "$PLATFORM" -e HAS_FW="${fw:+1}" -e SUITE="$suite"
     PY=/venv/bin/python; export PATH=/venv/bin:$PATH
     cd /w/repo
     export FSRPB_DEV=1
-    if [ "$SUITE" = framework ]; then export PYTHONPATH=/w/repo; fi
+    # framework: as its CI, the package installed editable (its version resolves from the tree) and tooling/ on the path (probes)
+    if [ "$SUITE" = framework ]; then uv pip install -q --python $PY --no-deps -e /w/repo/packaging/fsr_playbooks >/dev/null; export PYTHONPATH=/w/repo:/w/repo/tooling; fi
     if [ -n "$HAS_FW" ]; then export FSRPB_FRAMEWORK_DIR=/w/fw PYTHONPATH=/w/fw:/w/fw/tooling; fi
     exec $PY -m pytest -q --no-header -n auto -p no:randomly "$@"' _ "$@" < "$stage/in.tar"
