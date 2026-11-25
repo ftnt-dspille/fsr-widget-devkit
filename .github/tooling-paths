@@ -21,6 +21,10 @@ scripts/agent_tree.sh
 scripts/door.sh
 scripts/drift_check.py
 scripts/devloop_*
+scripts/pack_tree.sh
+scripts/test_docker.sh
+fortisoar-widget-harness/tests/packTree.test.js
+fortisoar-widget-harness/tests/testDocker.test.js
 fortisoar-widget-harness/tests/door.test.js
 fortisoar-widget-harness/tests/driftCheck.test.js
 fortisoar-widget-harness/tests/devloopBench.test.js
