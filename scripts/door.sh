@@ -30,6 +30,13 @@
 #   (info.json version + release_notes entry, same rewrite as deploy.sh) and ships that, so a stable box can
 #   take code that kept its version. Without BUMP such a branch still ships nothing.
 #
+# Gating (owner decision: no full suite and no full CI wait for one small change; they run at the batch point):
+#   make ship          the tests the diff touches (check's own selection, minus local-chat), the box stamp for what ships, then promote
+#                      WITHOUT the cross-repo full connector suite, the connector's full pre-push suite or the wait for GitHub CI
+#                      (PROMOTE_SKIP_CI=1, PREPUSH_PER_CHANGE=1). CI still runs on main after the push and the doors flag a red main.
+#   FULL=1 make ship   the old gate for this one ship: the full suites and the required-CI wait.
+#   make release-check the full connector suite, the framework suites and green CI on every main; make stable refuses without it.
+#
 # CI is never out of sight (`door.sh ci`, also run by make doctor): both doors print each repo's latest main CI line at the start.
 # ship also refuses to start on a repo whose main is red (one of its required checks failed on main's head) unless
 # the branch is green on those same checks (it may be the fix: the branch is pushed and its CI waited for). And a
@@ -370,6 +377,7 @@ check_repo() {
         *) not_run "$name: no check is defined for this repo" ;;
     esac
     if printf '%s\n' "$files" | touches_agent_loop "$kind"; then
+        [[ -n "${DOOR_NO_CHAT:-}" ]] && return   # a per-change ship: the box stamp is its live proof; local-chat stays in make check
         local b; b="$(printf '%s\n' "$files" | bundle_for)"
         say "the diff touches the agent loop: local-chat on $b (framework: $FW)"
         if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; return; fi
@@ -605,7 +613,16 @@ ship_all() {
     rm -rf "$plog"
     (( rc == 0 )) || die "stopped before promote; fix the cause and run make ship again (it re-uses what already passed)"
     # 3. promote, one call per repo, dependency order; stops at the first refusal.
-    for d in "${pushes[@]}"; do [[ "$(kind_of "$d")" == framework ]] && bundled_gate "$d"; done
+    if [[ -n "${FULL:-}" ]]; then
+        for d in "${pushes[@]}"; do [[ "$(kind_of "$d")" == framework ]] && bundled_gate "$d"; done
+    else
+        # A per-change ship: the tests the diff touches (check's selection), not the full suites; those run at release-check.
+        export PROMOTE_SKIP_CI=1 PREPUSH_PER_CHANGE=1
+        FAILED=(); NOT_RUN=()
+        for d in "${pushes[@]}"; do DOOR_NO_CHAT=1 check_repo "$d"; done
+        (( ${#FAILED[@]} )) && die "the tests this diff touches are RED (${FAILED[*]}); nothing was promoted"
+        say "per-change ship: scoped tests passed; the full suites, the cross-repo gate and the CI wait run at make release-check (FULL=1 make ship runs them now)"
+    fi
     # A framework and a connector branch in ONE ship land together: promoting framework first leaves connector main
     # broken against framework main until the connector lands (a new framework contract that only the connector branch
     # adapts to). So check BOTH first (promote's own dry run: classification, CI on the head, the box stamp), merge

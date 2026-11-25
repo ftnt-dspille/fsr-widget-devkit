@@ -54,15 +54,23 @@ Then:
    (package dir, build and deploy scripts) puts the code on `BOX` and stamps the head (BOX is then
    required; a stable box is refused; a head already stamped is not redone). Then it runs
    `make promote` per repo in dependency order, and frees the box lease. `DRY_RUN=1` stops before
-   the merge. Tooling-only diffs need no box: CI is the proof. In the connector repo the same two
-   commands forward here.
+   the merge. In the connector repo the same two commands forward here.
+
+**Gating is per change, then per batch.** One small change never runs the full suite or waits for
+full CI: `make ship` runs only the tests the diff touches (check's selection, no local-chat), the
+box stamp for what ships, and promotes without the wait for GitHub CI, the cross-repo full
+connector suite or the connector pre-push's full suite. CI still runs on main after the push and
+the doors flag a red main. `FULL=1 make ship` is the old full gate for one ship. The full proof is
+at the batch point: `make release-check` runs the full connector suite in the container, the
+framework suites and waits for green CI on every main, and records those heads; `make stable`
+refuses unless it passed on the exact mains it installs (`ARGS=--build-only` needs no record).
 
 CI is never out of sight: `make doctor` and both doors print each repo's latest main CI (root,
 connector, framework, the two widgets) and flag a red main with its failing job. `make ship`
 refuses a repo whose main is red unless the branch is green on those same checks (it pushes the
-branch and waits for its CI: it may be the fix). A framework ship also runs the connector suite
-against the new framework head before promote (the connector's required leg clones framework
-main), and a red connector refuses the framework promote. Nothing to remember or set.
+branch and waits for its CI: it may be the fix). Under `FULL=1` a framework ship also runs the
+connector suite against the new framework head before promote (the connector's required leg clones
+framework main); a per-change ship leaves that to `make release-check`.
 
 That is the whole loop. Everything else (`push`, `dev-push`, `widget-push`, `loop`, `ship-dev`,
 `promote`, `stamp-tree`, `promote-tree`, `doctor SANITY=1 STAMP=`, box leases, `framework-path`)

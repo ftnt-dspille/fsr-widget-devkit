@@ -24,7 +24,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: check ship bench harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable
+.PHONY: check ship bench harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable release-check
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -64,7 +64,7 @@ loop: export VIA_LOOP := 1
 check: ## FRONT DOOR 1: tests for what you changed, no box (+ local-chat when the agent loop changed). Repo = the one you are in; DOOR_REPO=<path|name> picks another
 	@$(RFM) door.sh check
 
-ship: ## FRONT DOOR 2: push the branch, stamp on BOX=<alias> only when the diff ships (package inputs), then promote. DRY_RUN=1 stops before the merge
+ship: ## FRONT DOOR 2: push the branch, run the tests the diff touches (FULL=1 adds the full suites and the CI wait), stamp on BOX=<alias> only when the diff ships (package inputs), then promote. DRY_RUN=1 stops before the merge
 	@$(RFM) door.sh ship
 
 bench: ## Run the timed dev-loop benchmark on a throwaway connector branch through the two doors (BOX=<alias>), record phases in the lap ledger, compare with the baseline. Never promotes
@@ -336,6 +336,9 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 # ssh target above (push, widget-push, loop, doctor SANITY, ship-verify) refuses a
 # stable box; scripts/stable.sh refuses unless each repo is clean, on remote main and
 # VERIFIED on an experimental box (scripts/stable_guard.py).
+release-check: ## BATCH GATE before make stable: the full connector suite (container), the framework suites and green CI on every main; records the heads, which make stable requires
+	@$(RFM) release_check.sh run
+
 stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Refuses unless the box is stable, every repo is clean, on remote main and VERIFIED on an experimental box. ARGS=--build-only | --force
 	@BOX='$(BOX)' ARGS='$(ARGS)' $(RFM) stable.sh
 

@@ -74,12 +74,12 @@ function door(mode, env = {}) {
 beforeEach(() => {
   T = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "door-")));
   fs.writeFileSync(path.join(T, "gitconfig"), "[user]\n\tname = t\n\temail = t@example.com\n");
-  ENV = { ...process.env, GIT_CONFIG_GLOBAL: path.join(T, "gitconfig"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: "/dev/null" };
+  ENV = { ...process.env, FULL: "", GIT_CONFIG_GLOBAL: path.join(T, "gitconfig"), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: "/dev/null" };
   for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "CLAUDECODE", "AGENT_TREE", "DOOR_REPO", "BOX", "DRY_RUN", "FSR_LEASE_HOLDER"]) delete ENV[k];
   LOG = path.join(T, "make.log");
   const make = path.join(T, "fakemake");
   fs.writeFileSync(make, `#!/usr/bin/env bash
-echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-} DEFER=\${PROMOTE_CI_DEFER:-} RERUN=\${PROMOTE_CI_RERUN:-} HOLDER=\${FSR_LEASE_HOLDER:-}" >> "$DOOR_LOG"
+echo "make $* | FSR_SRC=\${FSR_SRC:-} PROMOTE_DRY_RUN=\${PROMOTE_DRY_RUN:-} CONN_REPO=\${CONN_REPO:-} SKIPCI=\${PROMOTE_SKIP_CI:-} PER=\${PREPUSH_PER_CHANGE:-} DEFER=\${PROMOTE_CI_DEFER:-} RERUN=\${PROMOTE_CI_RERUN:-} HOLDER=\${FSR_LEASE_HOLDER:-}" >> "$DOOR_LOG"
 if [ -n "\${DOOR_FAIL:-}" ] && [[ "$*" == *"$DOOR_FAIL"* ]]; then exit "\${DOOR_FAIL_RC:-1}"; fi
 # DOOR_FAIL_DRY / DOOR_FAIL_REAL: fail a promote of the matching repo only in its dry run / only when it really merges
 if [ -n "\${DOOR_FAIL_DRY:-}" ] && [ -n "\${PROMOTE_DRY_RUN:-}" ] && [[ "$*" == *"promote"*"$DOOR_FAIL_DRY"* ]]; then exit 1; fi
@@ -541,14 +541,14 @@ describe("make ship: the cross-repo gate tests connector MAIN for a framework-on
     const mainSha = git(W.conn.dir, "rev-parse", "refs/remotes/origin/main");
     fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | head=$(git rev-parse HEAD) | cwd=$PWD" >> "$DOOR_LOG"\nexit "\${PY_RC:-0}"\n`, { mode: 0o755 });
     branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });
-    const r = door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0" });
+    const r = door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0", FULL: "1" });
     expect(r.code).toBe(0);
     const py = log().find((x) => /^python -m pytest/.test(x));
     expect(py).toContain(`head=${mainSha}`);
   });
   test("a connector main that the framework change would break refuses the ship; nothing is promoted", () => {
     branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });
-    const r = door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0", PY_RC: "1" });
+    const r = door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0", PY_RC: "1", FULL: "1" });
     expect(r.code).toBe(2);
     expect(r.out).toMatch(/connector's suite is RED against this framework head, so connector main would go red/);
     expect(promotes()).toEqual([]);
@@ -751,7 +751,7 @@ f="${GH}/\${repo}__\${ref}"; [ -f "$f" ] || exit 1; cat "$f"
   });
 
   describe("a framework ship runs the connector suite against the new framework head first", () => {
-    const fwShip = (env = {}) => { branch(W.fw.dir, "feat/f", { "README.md": "# f\n" }); return run("ship", [], { DOOR_REPO: W.fw.dir, ...env }); };
+    const fwShip = (env = {}) => { branch(W.fw.dir, "feat/f", { "README.md": "# f\n" }); return run("ship", [], { DOOR_REPO: W.fw.dir, FULL: "1", ...env }); };
     test("a red connector suite refuses the framework promote", () => {
       const r = fwShip({ PY_RC: "1" });
       expect(r.code).toBe(2);
@@ -816,9 +816,41 @@ f="${GH}/\${repo}__\${ref}"; [ -f "$f" ] || exit 1; cat "$f"
       git(W.fw.dir, "worktree", "add", "-q", "-b", "feat/f", path.join(tree, "framework"), "main");
       fs.writeFileSync(path.join(tree, "agent-tree.json"), "{}");
       for (const [d, f] of [["connector", "tests/test_a.py"], ["framework", "README.md"]]) { write(path.join(tree, d), f, "# c\n"); git(path.join(tree, d), "add", "-A"); git(path.join(tree, d), "commit", "-qm", d); }
-      const r = run("ship", [], { AGENT_TREE: tree, DOOR_REPO: "" });
+      const r = run("ship", [], { AGENT_TREE: tree, DOOR_REPO: "", FULL: "1" });
       expect(r.code).toBe(0);
       expect(log().find((x) => /^python -m pytest/.test(x))).toContain(`cwd=${path.join(tree, "connector")}`);
     });
+  });
+});
+
+describe("make ship is per-change: scoped tests, no full suite, no CI wait; FULL=1 is the old gate", () => {
+  const shipConn = (env = {}) => { branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" }); return door("ship", { BOX: "92", DOOR_DOCKER: "0", ...env }); };
+  const promotes = () => log().filter((x) => /^make .*promote REPO=/.test(x));
+  test("runs the tests the diff touches and promotes with the CI wait and the full pre-push suite switched off", () => {
+    const r = shipConn();
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/per-change ship: scoped tests passed/);
+    expect(log().some((x) => /^make .* test PYTEST_ARGS=.*tests\/test_a\.py/.test(x))).toBe(true);
+    expect(log().some((x) => /^pydocker|^python -m pytest -q --no-header -n auto/.test(x))).toBe(false);
+    expect(promotes().length).toBe(1);
+    expect(promotes()[0]).toMatch(/SKIPCI=1 PER=1 DEFER=/);
+  });
+  test("FULL=1 keeps the old gate: nothing is switched off", () => {
+    const r = shipConn({ FULL: "1" });
+    expect(r.code).toBe(0);
+    expect(promotes()[0]).toMatch(/SKIPCI= PER= DEFER=/);
+    expect(r.out).not.toMatch(/per-change ship/);
+  });
+  test("a red scoped test refuses the ship before promote", () => {
+    const r = shipConn({ DOOR_FAIL: "PYTEST_ARGS" });
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/the tests this diff touches are RED/);
+    expect(promotes()).toEqual([]);
+  });
+  test("a framework ship does not run the connector suite (release-check does); FULL=1 does", () => {
+    branch(W.fw.dir, "feat/f", { "README.md": "# f\n" });
+    fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | cwd=$PWD" >> "$DOOR_LOG"\nexit 0\n`, { mode: 0o755 });
+    expect(door("ship", { DOOR_REPO: W.fw.dir, DOOR_DOCKER: "0" }).code).toBe(0);
+    expect(log().some((x) => /^python -m pytest -q --no-header -n auto/.test(x))).toBe(false);
   });
 });

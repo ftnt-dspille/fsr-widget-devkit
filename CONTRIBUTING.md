@@ -52,6 +52,12 @@ instead of re-running.
 
 ## 4. Start, package, and ship via the scripts - never by hand
 
+- **Gating is per change, then per batch.** `make ship` runs the tests your diff touches plus the
+  box stamp for what ships, and promotes without waiting for full GitHub CI or running the full
+  suites (`FULL=1 make ship` restores that for one ship). The full connector suite, the framework
+  suites and green CI on every main run once, at `make release-check`; `make stable` refuses
+  unless it passed on the exact mains it installs.
+
 - **Dev server:** `make dev` (or `cd fortisoar-widget-harness && npm run dev`).
 - **Package + push to the lab box:** `cd fortisoar-widget-harness &&
   scripts/ship.sh <widgetId> --bump patch`. `ship.sh` guarantees a fresh server

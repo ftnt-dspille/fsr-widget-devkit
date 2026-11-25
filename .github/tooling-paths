@@ -47,3 +47,5 @@ ONBOARDING.md
 CONTRIBUTING.md
 KNOWLEDGEBASE.md
 docs/*.md
+scripts/release_check.sh
+fortisoar-widget-harness/tests/releaseCheck.test.js

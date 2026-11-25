@@ -207,3 +207,26 @@ if [ -f "${flag}" ]; then printf '${NAME}\\tcompleted\\t${after}\\t${URL}\\t11\\
     expect(reruns()).toEqual([]);
   });
 });
+
+test("PROMOTE_SKIP_CI=1 (a per-change ship) merges on the stamp without asking GitHub for CI; without it a pending check refuses", () => {
+  const before = sha("main");
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho "$@" >> "${S.tmp}/gh.log"\nprintf 'test (bundled framework)\\tin_progress\\t\\n'\n`, { mode: 0o755 });
+  stamp(sha("feat/x"), {});
+  const env = { NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_CI_WAIT: "0", PROMOTE_CI_POLL: "0" };
+  const refused = promote(env);
+  expect(refused.code).not.toBe(0);
+  expect(sha("main")).toBe(before);
+  const r = promote({ ...env, PROMOTE_SKIP_CI: "1" });
+  expect(r.out).toMatch(/required-CI wait skipped/);
+  expect(r.code).toBe(0);
+  expect(sha("main")).toBe(sha("feat/x"));
+});
+
+test("PROMOTE_SKIP_CI=1 does not bypass the box stamp: no stamp is still refused", () => {
+  const before = sha("main");
+  fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\nprintf 'test (bundled framework)\\tin_progress\\t\\n'\n`, { mode: 0o755 });
+  const r = promote({ NO_PUSH: "1", PATH: `${bin}:${process.env.PATH}`, PROMOTE_SKIP_CI: "1" });
+  expect(r.code).not.toBe(0);
+  expect(r.out).toMatch(/no stamp/);
+  expect(sha("main")).toBe(before);
+});

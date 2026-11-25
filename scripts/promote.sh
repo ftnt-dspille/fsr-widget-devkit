@@ -39,6 +39,8 @@
 # (never main, never --force) so CI starts; re-run promote when it is done. Only
 # listed checks count: a continue-on-error job reports "failure" as a check-run.
 #
+# PROMOTE_SKIP_CI=1 (the door's per-change ship) skips the CI gate above: the proof is the door's scoped tests and the box
+# stamp, and the full suites plus green CI are checked at the batch point (make release-check, which make stable requires).
 # ALLOW_UNVERIFIED=1 skips the stamp check; human only, refused under Claude Code.
 # CLASSIFY_ONLY=1 prints the shipped/tooling classification and exits.
 # PROMOTE_CI_DEFER / PROMOTE_CI_RERUN (comma or newline list of required-check names), for a framework+connector
@@ -327,7 +329,8 @@ ci_gate() {
   [ -z "$deferred" ] || echo "promote: deferred:$deferred failed on ${head:0:9}; re-run after the framework lands (the door does this once, after the framework merge)"
   echo "promote: CI green on $head ($(printf '%s' "$req" | paste -sd, -))${deferred:+ except deferred$deferred}"
 }
-if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; else ci_gate; fi
+if [ "${ALLOW_UNVERIFIED:-}" = 1 ] && [ "$CLASS" != tooling ]; then echo "promote: WARNING CI gate skipped (ALLOW_UNVERIFIED=1, human)" >&2; elif [ "${PROMOTE_SKIP_CI:-}" = 1 ]; then echo "promote: required-CI wait skipped (per-change ship, set by the door; FULL=1 make ship waits). CI still runs on main after the push; make release-check waits for it on every main"
+else ci_gate; fi
 
 # --- proof --------------------------------------------------------------------
 sdir="${FSR_LIVE_SANITY_DIR:-$HOME/.cache/fsr-live-sanity}/$name"

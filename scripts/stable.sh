@@ -10,6 +10,7 @@
 #   2. source (scripts/stable_source.sh): detached trees of all five repos at each
 #      remote's main, removed on exit. The shared checkouts are never built from:
 #      other sessions keep them on their own branches, with their own WIP.
+#   2b. release-check record (scripts/release_check.sh verify): `make release-check` passed on exactly these mains
 #   3. guard (scripts/stable_guard.py --promoted-source): the box is stable; each
 #      tree's HEAD = the remote's main, and carries a VERIFIED, clean live-sanity
 #      stamp taken on an EXPERIMENTAL box
@@ -36,6 +37,15 @@ PY="$(bash "$CONN_REPO/scripts/dev_env.sh" python)" || exit 2
 unset WIDGETS_SRC   # make exports the shared checkout's; the build uses the promoted trees only
 source "$ROOT/scripts/stable_source.sh"
 stable_source_prepare "$ROOT" "$FSR_FRAMEWORK_REPO" "$CONN_REPO" || exit 1
+
+# The batch gate: per-change ships ran only scoped tests and did not wait for CI. The full connector suite, the framework suites
+# and green CI on these exact mains are proven by `make release-check`; a build-only run touches no box and needs no record.
+case " ${ARGS:-} " in
+  *" --build-only "*) ;;
+  *) echo ">> release-check: the full suites and CI on exactly these mains"
+     bash "$ROOT/scripts/release_check.sh" verify "$SRC_ROOT" "$SRC_FW" "$SRC_CONN" \
+         "$SRC_ROOT/widgets-src/agenticAssistant" "$SRC_ROOT/widgets-src/agenticAssistantMonitor" || exit 1 ;;
+esac
 
 echo ">> guard: pushed, VERIFIED on an experimental box"
 "$PY" "$SRC_CONN/scripts/stable_guard.py" --box "$BOX" --promoted-source \
