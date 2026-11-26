@@ -28,7 +28,7 @@ trap 'bash "$TREE_SH" remove "$name" >/dev/null 2>&1 || true' EXIT
 tree_root="$(bash "$TREE_SH" env "$name" | sed -n "s/^export FSR_ALL_WIDGETS='\(.*\)'$/\1/p")"
 [[ -d "$tree_root" ]] || { echo "stable bump: no tree root for $name" >&2; exit 1; }
 echo ">> stable bump: make ship BUMP=$level (the door bumps, proves on an experimental box, promotes)"
-# BOX is the stable box here: the ship must not see it (the door picks an experimental box, or PROVE_BOX pins one)
+# BOX is the stable box here: the ship must not see it, neither in the env nor in MAKEFLAGS (make stable BOX=81 puts it there) (the door picks an experimental box, or PROVE_BOX pins one)
 ( eval "$(bash "$TREE_SH" env "$name")"
   cd "$tree_root"
-  exec env -u BOX -u ARGS BUMP="$level" $MAKE ship BUMP="$level" ${PROVE_BOX:+BOX="$PROVE_BOX"} )
+  exec env -u BOX -u BOX_ENV -u ARGS -u MAKEFLAGS -u MAKEOVERRIDES -u MFLAGS BUMP="$level" $MAKE ship BUMP="$level" ${PROVE_BOX:+BOX="$PROVE_BOX"} )

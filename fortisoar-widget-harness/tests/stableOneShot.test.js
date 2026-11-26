@@ -31,12 +31,12 @@ echo "tree $*" >> "$LOG"
 exit 0
 `),
     STABLE_BUMP_MAKE: exe("make.sh", `#!/usr/bin/env bash
-echo "make $* | BOX=\${BOX-unset} BUMP=\${BUMP-unset}" >> "$LOG"
+echo "make $* | BOX=\${BOX-unset} BUMP=\${BUMP-unset} MAKEFLAGS=\${MAKEFLAGS-unset}" >> "$LOG"
 exit \${MAKE_RC:-0}
 `),
   });
   test("creates ONE tree with a branch per listed repo, runs ONE make ship BUMP=patch without the stable BOX, removes the tree", () => {
-    const r = sh("stable_bump.sh", ["patch", "connector", "agenticAssistant", "agenticAssistantMonitor"], { ...fakes(), BOX: "81", ARGS: "--force" });
+    const r = sh("stable_bump.sh", ["patch", "connector", "agenticAssistant", "agenticAssistantMonitor"], { ...fakes(), BOX: "81", ARGS: "--force", MAKEFLAGS: " -- BOX=81 BUMP=patch", MAKEOVERRIDES: "BOX=81" });
     expect(r.code).toBe(0);
     const l = log();
     const create = l.filter((x) => /^tree create /.test(x));
@@ -45,7 +45,7 @@ exit \${MAKE_RC:-0}
     const ships = l.filter((x) => /^make ship/.test(x));
     expect(ships).toHaveLength(1);
     expect(ships[0]).toContain("BUMP=patch");
-    expect(ships[0]).toMatch(/\| BOX=unset BUMP=patch/);
+    expect(ships[0]).toMatch(/\| BOX=unset BUMP=patch MAKEFLAGS=unset/);   // make stable BOX=81 rides in MAKEFLAGS too
     expect(l.filter((x) => /^tree remove /.test(x))).toHaveLength(1);
   });
   test("PROVE_BOX pins the experimental box for the ship", () => {
