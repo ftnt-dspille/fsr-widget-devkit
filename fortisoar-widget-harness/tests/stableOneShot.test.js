@@ -12,8 +12,13 @@ const MAKEFILE = fs.readFileSync(path.join(__dirname, "..", "..", "Makefile"), "
 let T, LOG;
 const log = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split("\n").filter(Boolean) : []);
 const exe = (name, body) => { const f = path.join(T, name); fs.writeFileSync(f, body, { mode: 0o755 }); return f; };
+// The scripts read these from the caller; an agent tree or a ship exports them (FSR_SRC from agent-tree.env),
+// so the test starts from a clean slate and sets only what it means to.
+const LEAKY = ["FSR_SRC", "BOX", "BOX_ENV", "PROVE_BOX", "BUMP", "ARGS", "MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "FSR_LEASE_HOLDER"];
 const sh = (script, args, env = {}) => {
-  const r = spawnSync("bash", [path.join(SCRIPTS, script), ...args], { encoding: "utf8", timeout: 60000, env: { ...process.env, LOG, ...env } });
+  const base = { ...process.env };
+  for (const k of LEAKY) delete base[k];
+  const r = spawnSync("bash", [path.join(SCRIPTS, script), ...args], { encoding: "utf8", timeout: 60000, env: { ...base, LOG, ...env } });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 };
 
