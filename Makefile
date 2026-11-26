@@ -61,7 +61,7 @@ loop: export VIA_LOOP := 1
 # --- The two front doors (scripts/door.sh) -------------------------------------
 # Agents type these two. Every target below them is an internal they compose.
 # Works from the shared checkout, an agent tree (every changed repo) or a worktree.
-check: ## FRONT DOOR 1: tests for what you changed, no box (+ local-chat when the agent loop changed). Repo = the one you are in; DOOR_REPO=<path|name> picks another
+check: ## FRONT DOOR 1: tests for what you changed, no box (FULL=1 adds widget e2e and local-chat: the batch gate). Repo = the one you are in; DOOR_REPO=<path|name> picks another
 	@$(RFM) door.sh check
 
 ship: ## FRONT DOOR 2: push the branch, run the tests the diff touches (FULL=1 adds the full suites and the CI wait), stamp on BOX=<alias> only when the diff ships (package inputs), then promote. DRY_RUN=1 stops before the merge

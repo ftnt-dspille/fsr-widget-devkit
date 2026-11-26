@@ -124,12 +124,43 @@ afterEach(() => fs.rmSync(T, { recursive: true, force: true }));
 describe("make check", () => {
   test("runs the connector's mapped tests (shell-heavy left to CI), the tool sweep, and local-chat when the agent loop changed", () => {
     branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
-    const r = door("check");
+    const r = door("check", { FULL: "1" });
     expect(r.code).toBe(0);
     const l = log();
     expect(l.some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' --disable-warnings tests\/test_a\.py/.test(x.split(" | ")[0]))).toBe(true);
     expect(l.some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(true);
     expect(l.some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+  });
+
+  describe("the per-change loop leaves the slow parts (widget e2e, local-chat) to the batch gate (FULL=1)", () => {
+    const widget = () => {
+      const w = repo("widgets-src/mywidget", { "widget/info.json": "{}\n", "widget/view.html": "<p>a</p>\n", "widget/a.js": "a\n" });
+      branch(w.dir, "feat/w", { "widget/view.html": "<p>b</p>\n" });
+      return w;
+    };
+    test("a widget markup change runs its unit tests but no e2e, and says e2e is deferred", () => {
+      const w = widget();
+      const r = door("check", { DOOR_REPO: w.dir });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
+      expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
+      expect(r.out).toMatch(/e2e is part of the batch gate/);
+    });
+    test("FULL=1 runs the widget e2e too", () => {
+      const w = widget();
+      const r = door("check", { DOOR_REPO: w.dir, FULL: "1" });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
+      expect(log().some((x) => /test-e2e-spec WIDGET=mywidget/.test(x))).toBe(true);
+    });
+    test("an agent-loop diff runs no local-chat per change, and names it as deferred; FULL=1 runs it", () => {
+      branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+      const r = door("check");
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /local-chat/.test(x))).toBe(false);
+      expect(log().some((x) => /^make -C \S+ test PYTEST_ARGS=/.test(x))).toBe(true);
+      expect(r.out).toMatch(/local-chat is part of the batch gate/);
+    });
   });
 
   describe("scoped pytest runs in the Linux container when an engine answers", () => {
@@ -184,7 +215,7 @@ describe("make check", () => {
   });
 
   describe("a local-chat that did nothing is never a pass", () => {
-    const run = (chat, env = {}) => { branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" }); return door("check", { DOOR_CHAT: chat, ...env }); };
+    const run = (chat, env = {}) => { branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" }); return door("check", { DOOR_CHAT: chat, FULL: "1", ...env }); };
     test("a good turn passes and the turn is bounded by a timeout well under local-chat's 600s default", () => {
       const r = run("good");
       expect(r.code).toBe(0);
@@ -245,7 +276,7 @@ describe("make check", () => {
 
   test("a framework diff in the agent loop runs local-chat; a sweep spec in the diff picks its bundle", () => {
     branch(W.fw.dir, "feat/x", { "fsr_playbooks/llm/loop.py": "x = 2\n" });
-    const r = door("check", { DOOR_REPO: W.fw.dir });
+    const r = door("check", { DOOR_REPO: W.fw.dir, FULL: "1" });
     expect(r.code).toBe(0);
     expect(log().some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
     expect(log().some((x) => /^python -m pytest .*fsr_playbooks\/tests\/test_loop\.py/.test(x))).toBe(true);
@@ -253,7 +284,7 @@ describe("make check", () => {
     write(W.conn.dir, "scripts/conversations/sweep/my_row.json", "{}\n"); write(W.conn.dir, "connector-fsr-agentic-assistant/a.py", "A = 3\n");
     git(W.conn.dir, "add", "-A"); git(W.conn.dir, "commit", "-qm", "row");
     fs.writeFileSync(LOG, "");
-    door("check");
+    door("check", { FULL: "1" });
     expect(log().some((x) => /local-chat BUNDLE=my_row/.test(x))).toBe(true);
   });
 
@@ -335,7 +366,7 @@ describe("make check: suites and worktrees", () => {
   test("local-chat from a root worktree reuses the shared checkout's node_modules and local-chat python", () => {
     const { wt } = rootWorktree();
     agentLoopBranch();
-    const r = door("check", { FSR_TOOL_HOME: wt });
+    const r = door("check", { FSR_TOOL_HOME: wt, FULL: "1" });
     expect(r.code).toBe(0);
     expect(log().some((x) => /local-chat BUNDLE=/.test(x))).toBe(true);
     expect(fs.lstatSync(path.join(wt, "fortisoar-widget-harness/node_modules")).isSymbolicLink()).toBe(true);
@@ -346,7 +377,7 @@ describe("make check: suites and worktrees", () => {
     "a worktree that cannot be set up reports local-chat NOT RUN with the reason, and does not fail (%s)", (_n, opts) => {
       rootWorktree(opts);
       agentLoopBranch();
-      const r = door("check", { FSR_TOOL_HOME: path.join(T, "root_wt") });
+      const r = door("check", { FSR_TOOL_HOME: path.join(T, "root_wt"), FULL: "1" });
       expect(r.code).toBe(0);
       expect(r.out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: the harness is not set up/);
       expect(log().some((x) => /local-chat/.test(x))).toBe(false);

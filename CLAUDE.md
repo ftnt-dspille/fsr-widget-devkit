@@ -45,9 +45,11 @@ Then:
 
 1. **`make check`**: the tests for what you changed, no box. Root: the jest files the diff touches
    or names. Connector and framework: the pytest files it touches or imports. Widget: its unit
-   tests (and e2e when markup or CSS changed). When the diff touches the agent loop (framework
-   `fsr_playbooks/llm` or `mcp_server`, or the connector package) it also runs `make local-chat` on
-   a bundle (a sweep spec in the diff, else a default). It covers uncommitted and untracked files.
+   tests. That per-change loop is unit + scoped tests + types. The slow parts run only in the batch
+   gate, `FULL=1 make check`: widget e2e (when markup, CSS or a spec changed) and, when the diff
+   touches the agent loop (framework `fsr_playbooks/llm` or `mcp_server`, or the connector package),
+   `make local-chat` on a bundle (a sweep spec in the diff, else a default). Per change they are
+   named as deferred in the output. It covers uncommitted and untracked files.
    A part with no mapped test prints `NOT RUN`: that is not a pass, so add the test.
 2. **`make ship [BOX=<alias>]`**: commit first (ship proves a commit). It pushes the branch (CI
    starts), classifies the diff with `.github/package-inputs`, and only when something ships

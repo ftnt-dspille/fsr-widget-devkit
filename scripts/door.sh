@@ -14,9 +14,11 @@
 #   connector  the pytest files the diff touches or imports, minus the shell-heavy
 #              ones CI owns, plus the tool sweep
 #   framework  the pytest files the diff touches or imports
-#   widget     its jest unit tests (and its e2e when markup or CSS changed)
-#   then `make local-chat` on a bundle when the diff touches the agent loop
-#   (framework fsr_playbooks/llm or mcp_server, or the connector package).
+#   widget     its jest unit tests
+#   The per-change loop stops there (unit + scoped tests + types). The slow, browser- or model-bound parts run only in
+#   the batch gate, FULL=1 make check: the widget e2e (when markup, CSS or a spec changed) and `make local-chat` on a
+#   bundle when the diff touches the agent loop (framework fsr_playbooks/llm or mcp_server, or the connector package).
+#   Without FULL=1 they are named as deferred in the output, never silently dropped.
 # A repo whose diff maps to no test says so; a skip is not a pass.
 #
 # ship, per changed repo, framework -> connector -> widgets -> root:
@@ -451,12 +453,14 @@ check_repo() {
             [[ -e "$(dirname "$ws")/fortisoar-widget-harness" ]] || ln -s "$HERE/fortisoar-widget-harness" "$(dirname "$ws")/fortisoar-widget-harness"
             lap "check tests" 180 $MAKE -C "$HERE" test-unit WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name unit"
             if printf '%s\n' "$files" | grep -qE '\.(html|css|less|scss)$|\.spec\.js$'; then
-                lap "check e2e" 240 $MAKE -C "$HERE" test-e2e-spec WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e"
+                if [[ -n "${FULL:-}" && -z "${DOOR_NO_CHAT:-}" ]]; then lap "check e2e" 240 $MAKE -C "$HERE" test-e2e-spec WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e"
+                else say "$name: markup/CSS/spec changed: e2e is part of the batch gate (FULL=1 make check), not the per-change loop"; fi
             fi ;;
         *) not_run "$name: no check is defined for this repo" ;;
     esac
     if printf '%s\n' "$files" | touches_agent_loop "$kind"; then
-        [[ -n "${DOOR_NO_CHAT:-}" ]] && return   # a per-change ship: the box stamp is its live proof; local-chat stays in make check
+        [[ -n "${DOOR_NO_CHAT:-}" ]] && return   # a per-change ship: the box stamp is its live proof
+        if [[ -z "${FULL:-}" ]]; then say "$name: the diff touches the agent loop: local-chat is part of the batch gate (FULL=1 make check), not the per-change loop"; return; fi
         local b; b="$(printf '%s\n' "$files" | bundle_for)"
         say "the diff touches the agent loop: local-chat on $b (framework: $FW)"
         if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; return; fi
