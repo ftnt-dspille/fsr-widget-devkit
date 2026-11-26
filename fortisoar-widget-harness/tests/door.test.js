@@ -146,12 +146,29 @@ describe("make check", () => {
       expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
       expect(r.out).toMatch(/e2e is part of the batch gate/);
     });
-    test("FULL=1 runs the widget e2e too", () => {
+    test("FULL=1 runs the widget e2e in the Playwright container; no engine (rc 2) falls back to the host with a loud note; DOOR_DOCKER=0 is the host", () => {
       const w = widget();
-      const r = door("check", { DOOR_REPO: w.dir, FULL: "1" });
+      let r = door("check", { DOOR_REPO: w.dir, FULL: "1" });
       expect(r.code).toBe(0);
       expect(log().some((x) => /test-docker WIDGET=mywidget/.test(x))).toBe(true);
+      expect(log().some((x) => /^make -C \S+ test-e2e-docker WIDGET=mywidget WIDGETS_SRC=\S+/.test(x))).toBe(true);
+      expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
+      fs.writeFileSync(LOG, "");
+      r = door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_FAIL: "test-e2e-docker", DOOR_FAIL_RC: "2" });
+      expect(r.code).toBe(0);
+      expect(r.out).toMatch(/no container engine .* running the widget e2e on the HOST/);
       expect(log().some((x) => /test-e2e-spec WIDGET=mywidget/.test(x))).toBe(true);
+      fs.writeFileSync(LOG, "");
+      door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_DOCKER: "0" });
+      expect(log().some((x) => /test-e2e-docker/.test(x))).toBe(false);
+      expect(log().some((x) => /test-e2e-spec WIDGET=mywidget/.test(x))).toBe(true);
+    });
+    test("a red e2e container run fails the door and does not retry on the host", () => {
+      const w = widget();
+      const r = door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_FAIL: "test-e2e-docker" });
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/FAILED.*e2e \(container\)/);
+      expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
     });
     test("widget unit tests go to the container by default; no engine (rc 2) falls back to the host with a loud note; DOOR_DOCKER=0 is the host", () => {
       const w = widget();

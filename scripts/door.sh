@@ -410,6 +410,19 @@ widget_unit() {  # widget_unit <repo name> <widget> <widgets-src dir>
     lap "check tests" 180 $MAKE -C "$HERE" test-unit WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name unit"
 }
 
+# Widget e2e (batch gate only): the Playwright container by default (servers and browser inside it, so nothing can be
+# orphaned on the host); no engine, or DOOR_DOCKER=0: the host run, said loudly.
+widget_e2e() {  # widget_e2e <repo name> <widget> <widgets-src dir>
+    local name="$1" w="$2" ws="$3" rc=0
+    if [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
+        lap "check e2e (container)" 240 $MAKE -C "$HERE" test-e2e-docker WIDGET="$w" WIDGETS_SRC="$ws"; rc=$?
+        (( rc == 0 )) && return 0
+        if (( rc != 2 )); then fail "$name e2e (container)"; return 0; fi
+        say "$name: no container engine (colima start): running the widget e2e on the HOST, several times slower and it can leak servers"
+    fi
+    lap "check e2e" 240 $MAKE -C "$HERE" test-e2e-spec WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e"
+}
+
 check_repo() {
     local d="$1" kind name br files n sel py rc
     kind="$(kind_of "$d")"; name="$(main_name "$d")"; br="$(branch_of "$d")"
@@ -466,7 +479,7 @@ check_repo() {
             [[ -e "$(dirname "$ws")/fortisoar-widget-harness" ]] || ln -s "$HERE/fortisoar-widget-harness" "$(dirname "$ws")/fortisoar-widget-harness"
             widget_unit "$name" "$w" "$ws"
             if printf '%s\n' "$files" | grep -qE '\.(html|css|less|scss)$|\.spec\.js$'; then
-                if [[ -n "${FULL:-}" && -z "${DOOR_NO_CHAT:-}" ]]; then lap "check e2e" 240 $MAKE -C "$HERE" test-e2e-spec WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e"
+                if [[ -n "${FULL:-}" && -z "${DOOR_NO_CHAT:-}" ]]; then widget_e2e "$name" "$w" "$ws"
                 else say "$name: markup/CSS/spec changed: e2e is part of the batch gate (FULL=1 make check), not the per-change loop"; fi
             fi ;;
         *) not_run "$name: no check is defined for this repo" ;;
