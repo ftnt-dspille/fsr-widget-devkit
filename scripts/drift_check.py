@@ -147,10 +147,19 @@ def main(argv=None):
         print(w)
     ci = os.path.join(a.root, "scripts", "door.sh")
     if os.path.exists(ci):
-        r = subprocess.run(["bash", ci, "ci", "all"], capture_output=True, text=True, env={**os.environ, "FSR_TOOL_HOME": a.root})
+        env = {**os.environ, "FSR_TOOL_HOME": a.root}
+        if a.connector:
+            env["CONN_REPO"] = a.connector   # the repos doctor was asked about, not the door's own default guess
+        if a.framework:
+            env["FSR_FRAMEWORK_REPO"] = a.framework
+        r = subprocess.run(["bash", ci, "ci", "all"], capture_output=True, text=True, env=env)
         print(r.stdout.rstrip())
         if r.returncode == 1:
             print("WARN CI RED ON MAIN: see the !!! line(s) above; make ship refuses those repos unless the branch is green on the failing checks")
+        elif r.returncode != 0:
+            # unreadable (no gh, no GitHub remote, API error) or the check itself crashed: never a silent pass
+            print("WARN CI OF MAIN UNREADABLE: see the !!! line(s) above" if r.stdout.strip() else
+                  "WARN CI OF MAIN UNREADABLE: the CI check produced no output (rc %d): %s" % (r.returncode, r.stderr.strip()[:300]))
     if not warns:
         print("drift: no lap step over budget, no doc names a missing target, path or variable")
     return 0

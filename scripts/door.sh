@@ -86,9 +86,18 @@ required_of() {  # required_of <dir>: names in .github/required-checks on its ma
     done
     return 0
 }
-runs_of() {  # runs_of <slug> <ref>: id, sha, name, status, conclusion; newest run per name
+runs_of() {  # runs_of <slug> <ref> [push-main]: id, sha, name, status, conclusion; newest run per name
+    # A commit's check-runs include runs of other triggers on the same sha (a tag-triggered release run reads as the
+    # commit's "CI"). With "push-main" only check-runs of a workflow run that was a push to the main branch count: their
+    # check suites are the ones the actions/runs API lists for branch=main, event=push (a tag run has head_branch=<tag>).
+    local suites=""
+    if [[ "${3:-}" == push-main ]]; then
+        suites="$(gh api "repos/$1/actions/runs?branch=main&event=push&per_page=100" --jq '.workflow_runs[].check_suite_id' 2>/dev/null)" || return 0
+        [[ -n "$suites" ]] || return 0
+    fi
     gh api "repos/$1/commits/$2/check-runs?per_page=100" \
-        --jq '.check_runs[] | [.id, .head_sha, .name, .status, (.conclusion // "")] | @tsv' 2>/dev/null \
+        --jq '.check_runs[] | [.id, .head_sha, .name, .status, (.conclusion // ""), (.check_suite.id // "")] | @tsv' 2>/dev/null \
+        | SUITES="$suites" awk -F'\t' 'BEGIN { n = split(ENVIRON["SUITES"], a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") ok[a[i]] = 1; filt = (n > 0 && ENVIRON["SUITES"] != "") } !filt || ($6 in ok)' \
         | sort -t$'\t' -k3,3 -k1,1nr | awk -F'\t' '!seen[$3]++'
 }
 # classify <required names, newline separated> < rows -> prints "<verdict>\t<sha8>\t<detail>"
@@ -115,8 +124,8 @@ main_verdict() {  # main_verdict <dir>: sets V (verdict) S (sha8) D (detail, nam
     V=UNKNOWN S=""; D=""; SLUG=""
     command -v gh >/dev/null 2>&1 || { D="gh is not installed"; return 1; }
     SLUG="$(slug_of "$d")" || { D="no GitHub remote"; return 1; }
-    rows="$(runs_of "$SLUG" main)"
-    [[ -n "$rows" ]] || { D="no CI runs on main (or GitHub could not be read)"; return 1; }
+    rows="$(runs_of "$SLUG" main push-main)"
+    [[ -n "$rows" ]] || { D="no push-to-main CI run found (or GitHub could not be read); a tag-triggered release run does not count"; return 1; }
     out="$(printf '%s\n' "$rows" | ci_classify "$(required_of "$d")")"
     V="${out%%$'\t'*}"; out="${out#*$'\t'}"; S="${out%%$'\t'*}"; D="${out#*$'\t'}"
     return 0
@@ -148,11 +157,19 @@ case "$cmd" in
         v="${out%%$'\t'*}"; [[ -z "$rows" ]] && v=PENDING
         rc_of "$v" ;;
     all)
+        # Every repo prints exactly one line, whatever happened: red AND unreadable are flagged (!!!), never silent.
+        # rc 1 when any is red, else 3 when any is unknown, else 0.
         rc=0
         for n in root conn framework agenticAssistant agenticAssistantMonitor; do
-            d="$(bash "$HERE/scripts/repo_paths.sh" "$n" 2>/dev/null)" && [[ -d "$d" ]] || { echo "ci main: $n unknown: repo not found"; continue; }
-            line="$(ci_cmd status "$d" "${n/conn/connector}")"; r=$?
-            if (( r == 1 )); then printf '\n!!! %s\n\n' "$line"; rc=1; else echo "$line"; fi
+            lbl="${n/conn/connector}"
+            d="$(bash "$HERE/scripts/repo_paths.sh" "$n" 2>/dev/null)" && [[ -d "$d" ]] || { printf '\n!!! ci main: %s unknown: repo not found\n\n' "$lbl"; (( rc == 1 )) || rc=3; continue; }
+            line="$(ci_cmd status "$d" "$lbl" 2>&1)"; r=$?
+            [[ -n "$line" ]] || { line="ci main: $lbl unknown: the CI check printed nothing (rc $r)"; r=3; }
+            case "$r" in
+                0) echo "$line" ;;
+                1) printf '\n!!! %s\n\n' "$line"; rc=1 ;;
+                *) printf '\n!!! %s\n\n' "$line"; (( rc == 1 )) || rc=3 ;;
+            esac
         done
         return "$rc" ;;
     *) echo "usage: door.sh ci status <repo dir> | red-names <dir> | sha <dir> <sha> <name>... | all" >&2; return 2 ;;
@@ -163,6 +180,18 @@ esac
 
 die() { echo "door: $*" >&2; exit 2; }
 say() { echo "door: $*"; }
+# A box that cannot take code: say which box and its real role, and why (box.sh's own words: a lease held by someone,
+# a stable role, a missing profile). The old message blamed "a stable box" even for an experimental box someone else held.
+need_push_box() {  # need_push_box: BOX must take code (role, profile, lease) or die naming it
+    local err role
+    err="$(BOX="$BOX" bash "$CONN/scripts/box.sh" --need env,push 2>&1 >/dev/null)" && return 0
+    role="$(bash "$CONN/scripts/box.sh" --role "$BOX" 2>/dev/null)"; role="${role:-unknown role}"
+    err="$(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | tail -3 | tr '\n' ' ')"
+    if [[ "$role" == stable ]]; then
+        die "BOX=$BOX is a stable box and cannot take code (it takes code only through make stable): ${err}"
+    fi
+    die "BOX=$BOX ($role box) cannot take code right now: ${err:-box.sh refused it}"
+}
 lap() { local label="$1" budget="$2"; shift 2; bash "$LAPSH" "$label" --budget "$budget" -- "$@"; }
 # local-chat starts a dev server, a connector and a model client; any of them can outlive the turn. Never pipe it
 # (a leftover child that inherits the pipe keeps `tee` waiting for an EOF that never comes): its output goes to a file,
@@ -317,7 +346,7 @@ prep_harness() {  # prints why local-chat cannot run here (rc 1), or nothing (rc
 
 # Root jest: every harness jest file runs through `make test-docker` (a Linux container) when an engine answers (or
 # colima can start): process starts stall on the Mac host (endpoint protection), so these suites take minutes there
-# and seconds in the container. No engine, or DOOR_DOCKER=0: the same files on the host, as before. Only the files in
+# and seconds in the container. No engine: NOT RUN (never a silent host run). DOOR_DOCKER=0: the same files on the host. Only the files in
 # HOST_ONLY_JEST stay on the host: they read the widget checkouts (widgets-src/<name>), which the container does not
 # carry (they fail there with ENOENT on the widget's source).
 HOST_ONLY_JEST=" cardDomCoverage verdictVocabulary "
@@ -330,7 +359,9 @@ root_jest() {  # root_jest <dir> <name> <test file basename>...
     done
     if (( ${#tool[@]} )) && [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
         lap "check tests (container)" 120 $MAKE -C "$d" test-docker TESTS="${tool[*]}"; local rc=$?
-        if (( rc == 2 )); then echo "door: no container engine; running the jest files on the host" >&2; host+=("${tool[@]}")
+        # No engine (rc 2) is NOT RUN, never a host run: the tooling suites take 10s of minutes on the Mac host (a ship
+        # once spent 42 min there). DOOR_DOCKER=0 is the explicit way to ask for the host.
+        if (( rc == 2 )); then not_run "$name jest: no container engine (docker/colima is stopped; start it with: colima start, or DOOR_DOCKER=0 to run on the host knowingly): ${tool[*]}"
         elif (( rc != 0 )); then fail "$name jest (container): ${tool[*]}"; fi
     else host+=("${tool[@]}"); fi
     (( ${#host[@]} )) && { lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="${host[*]}" || fail "$name jest: ${host[*]}"; }
@@ -574,7 +605,7 @@ bump_widget() {  # bump_widget <dir>: BUMP=<level> on a widget branch with nothi
         box_pick   # sets BOX and holds its lease: free it when ship ends, whatever happened
         trap '$MAKE -s -C "$HERE" box-release BOX="$BOX" >/dev/null 2>&1 || true' EXIT
     fi
-    BOX="$BOX" bash "$CONN/scripts/box.sh" --need env,push >/dev/null || die "BOX=$BOX cannot take code (a stable box takes it only through make stable)"
+    need_push_box
     # widget-push bumps info.json and the controller names the way the widget CLI does, commits "Bump to <v>" in the clean widget repo,
     # deploys it and live-proves it on BOX: the same step a widget change takes, so the head is stamped when ship reaches promote.
     say "$w: nothing ahead of main, BUMP=$BUMP: bumping through widget-push on $BOX"
@@ -604,7 +635,7 @@ ship_all() {
             box_pick   # sets BOX and holds its lease: free it when ship ends, whatever happened
             trap '$MAKE -s -C "$HERE" box-release BOX="$BOX" >/dev/null 2>&1 || true' EXIT
         fi
-        BOX="$BOX" bash "$CONN/scripts/box.sh" --need env,push >/dev/null || die "BOX=$BOX cannot take code (a stable box takes it only through make stable)"
+        need_push_box
         trap '$MAKE -s -C "$HERE" box-release BOX="$BOX" >/dev/null 2>&1 || true' EXIT   # the pushes took the box lease: free it when ship ends, whatever happened
     fi
     # 1. push the branches (CI starts); the box work below runs meanwhile.
