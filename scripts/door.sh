@@ -14,7 +14,7 @@
 #   connector  the pytest files the diff touches or imports, minus the shell-heavy
 #              ones CI owns, plus the tool sweep
 #   framework  the pytest files the diff touches or imports
-#   widget     its jest unit tests
+#   widget     its jest unit tests, in the Linux container (host with a loud note when no engine answers)
 #   The per-change loop stops there (unit + scoped tests + types). The slow, browser- or model-bound parts run only in
 #   the batch gate, FULL=1 make check: the widget e2e (when markup, CSS or a spec changed) and `make local-chat` on a
 #   bundle when the diff touches the agent loop (framework fsr_playbooks/llm or mcp_server, or the connector package).
@@ -397,6 +397,19 @@ py_container() {  # py_container <label> <connector|framework> <dir> <pytest arg
     return "$rc"
 }
 
+# Widget jest: the container by default (same reason as root jest: process starts stall on the Mac host), the harness
+# and the widget's own checkout streamed in. No engine, or DOOR_DOCKER=0: the host, said loudly because it is the slow path.
+widget_unit() {  # widget_unit <repo name> <widget> <widgets-src dir>
+    local name="$1" w="$2" ws="$3" rc=0
+    if [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
+        lap "check tests (container)" 120 $MAKE -C "$HERE" test-docker WIDGET="$w" WIDGETS_SRC="$ws"; rc=$?
+        (( rc == 0 )) && return 0
+        if (( rc != 2 )); then fail "$name unit (container)"; return 0; fi
+        say "$name: no container engine (docker/colima is stopped; colima start): running the widget unit tests on the HOST, which is several times slower"
+    fi
+    lap "check tests" 180 $MAKE -C "$HERE" test-unit WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name unit"
+}
+
 check_repo() {
     local d="$1" kind name br files n sel py rc
     kind="$(kind_of "$d")"; name="$(main_name "$d")"; br="$(branch_of "$d")"
@@ -451,7 +464,7 @@ check_repo() {
             local w ws; w="$(basename "$d")"; ws="$(dirname "$d")"
             [[ "$(basename "$ws")" == widgets-src ]] || die "$w: put a widget worktree at <dir>/widgets-src/$w (or use an agent tree), so the harness finds it"
             [[ -e "$(dirname "$ws")/fortisoar-widget-harness" ]] || ln -s "$HERE/fortisoar-widget-harness" "$(dirname "$ws")/fortisoar-widget-harness"
-            lap "check tests" 180 $MAKE -C "$HERE" test-unit WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name unit"
+            widget_unit "$name" "$w" "$ws"
             if printf '%s\n' "$files" | grep -qE '\.(html|css|less|scss)$|\.spec\.js$'; then
                 if [[ -n "${FULL:-}" && -z "${DOOR_NO_CHAT:-}" ]]; then lap "check e2e" 240 $MAKE -C "$HERE" test-e2e-spec WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e"
                 else say "$name: markup/CSS/spec changed: e2e is part of the batch gate (FULL=1 make check), not the per-change loop"; fi

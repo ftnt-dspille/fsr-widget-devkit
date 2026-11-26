@@ -142,7 +142,7 @@ describe("make check", () => {
       const w = widget();
       const r = door("check", { DOOR_REPO: w.dir });
       expect(r.code).toBe(0);
-      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
+      expect(log().some((x) => /test-docker WIDGET=mywidget/.test(x))).toBe(true);
       expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
       expect(r.out).toMatch(/e2e is part of the batch gate/);
     });
@@ -150,8 +150,31 @@ describe("make check", () => {
       const w = widget();
       const r = door("check", { DOOR_REPO: w.dir, FULL: "1" });
       expect(r.code).toBe(0);
-      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
+      expect(log().some((x) => /test-docker WIDGET=mywidget/.test(x))).toBe(true);
       expect(log().some((x) => /test-e2e-spec WIDGET=mywidget/.test(x))).toBe(true);
+    });
+    test("widget unit tests go to the container by default; no engine (rc 2) falls back to the host with a loud note; DOOR_DOCKER=0 is the host", () => {
+      const w = widget();
+      let r = door("check", { DOOR_REPO: w.dir });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /^make -C \S+ test-docker WIDGET=mywidget WIDGETS_SRC=\S+/.test(x))).toBe(true);
+      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(false);
+      fs.writeFileSync(LOG, "");
+      r = door("check", { DOOR_REPO: w.dir, DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
+      expect(r.code).toBe(0);
+      expect(r.out).toMatch(/no container engine .* running the widget unit tests on the HOST/);
+      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
+      fs.writeFileSync(LOG, "");
+      door("check", { DOOR_REPO: w.dir, DOOR_DOCKER: "0" });
+      expect(log().some((x) => /test-docker/.test(x))).toBe(false);
+      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
+    });
+    test("a red container run fails the door (not a host retry)", () => {
+      const w = widget();
+      const r = door("check", { DOOR_REPO: w.dir, DOOR_FAIL: "test-docker" });
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/FAILED.*unit \(container\)/);
+      expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(false);
     });
     test("an agent-loop diff runs no local-chat per change, and names it as deferred; FULL=1 runs it", () => {
       branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });

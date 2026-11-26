@@ -71,8 +71,8 @@ bench: ## Run the timed dev-loop benchmark on a throwaway connector branch throu
 	$(require_push_box)
 	@bash scripts/devloop_bench.sh
 
-test-docker: ## Harness jest suites in a Linux container (starts Colima if needed): seconds instead of minutes for the shell-heavy tooling suites. TESTS=<pattern>. A local check only; promote still needs CI
-	@TESTS="$(TESTS)" bash scripts/test_docker.sh
+test-docker: ## Harness jest suites in a Linux container (starts Colima if needed): seconds instead of minutes for the shell-heavy tooling suites. TESTS=<pattern>; WIDGET=<name> adds that widget's unit tests (the widget door check's runner). A local check only; promote still needs CI
+	@TESTS="$(TESTS)" TEST_DOCKER_WIDGET="$(WIDGET)" TEST_DOCKER_WIDGETS_SRC="$(WIDGETS_SRC)" bash scripts/test_docker.sh
 
 status-tree: ## One table for an agent tree: each repo's branch, head, commits ahead of main, dirty, stamp (NAME=<tree>)
 	@test -n "$(NAME)" || { echo "usage: make status-tree NAME=<tree>"; exit 2; }

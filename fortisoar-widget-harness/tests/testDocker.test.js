@@ -68,3 +68,27 @@ test("DOCKER_START=none with no engine fails loud, never starts colima", () => {
   expect(r.stderr).toMatch(/no docker engine answering/);
   expect(fs.existsSync(path.join(T, "calls"))).toBe(false);
 });
+
+test("a widget run streams the widget's own repo in as a second archive and tells the container which widget", () => {
+  const src = srcTree();
+  const ws = path.join(T, "ws"), w = path.join(ws, "mywidget");
+  fs.mkdirSync(path.join(w, "tests"), { recursive: true });
+  fs.writeFileSync(path.join(w, "tests", "w.test.js"), "test('w', () => {});\n");
+  fs.writeFileSync(path.join(w, "ignored.log"), "x\n"); fs.writeFileSync(path.join(w, ".gitignore"), "ignored.log\n");
+  spawnSync("git", ["-C", w, "init", "-q"]);
+  fs.writeFileSync(path.join(T, "started"), "");
+  const r = run({ TEST_DOCKER_SRC: src, TEST_DOCKER_WIDGET: "mywidget", TEST_DOCKER_WIDGETS_SRC: ws });
+  expect(r.status).toBe(0);
+  expect(fs.readFileSync(path.join(T, "calls"), "utf8")).toMatch(/-e WIDGET=mywidget /);
+  const list = spawnSync("python3", ["-c", "import sys,tarfile;print('\\n'.join(tarfile.open(sys.argv[1],ignore_zeros=True).getnames()))", path.join(T, "stdin.tar")], { encoding: "utf8" }).stdout;
+  expect(list).toMatch(/^fortisoar-widget-harness\/tests\/a\.test\.js$/m);   // the root tree is still there
+  expect(list).toMatch(/^mywidget\/tests\/w\.test\.js$/m);                   // the widget's repo rides along
+  expect(list).not.toMatch(/ignored\.log/);
+});
+
+test("a widget that is not checked out fails loud", () => {
+  fs.writeFileSync(path.join(T, "started"), "");
+  const r = run({ TEST_DOCKER_WIDGET: "nope", TEST_DOCKER_WIDGETS_SRC: path.join(T, "ws") });
+  expect(r.status).not.toBe(0);
+  expect(r.stderr).toMatch(/no widget checkout/);
+});
