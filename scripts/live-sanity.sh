@@ -55,7 +55,8 @@ export WIDGETS="${WIDGETS:-}"
 # while main and the box were at 1.4.7). Resolution, first match wins:
 #   1. a stamped widget repo: its parent dir (an agent tree's root/widgets-src)
 #   2. a stamped root repo that carries widget repos: its widgets-src
-#   3. a stamp with neither (connector, framework): the widgets at their remote main
+#   3. a stamp with neither (connector, framework) inside an agent tree: that tree's widgets-src (a bump in the
+#      same tree is on its branch, not yet on main); outside a tree, the widgets at their remote main
 #   4. no stamp: an explicit WIDGETS_SRC, else this checkout's widgets-src when it
 #      has widget repos (the caller's own work), else the main checkout's at main
 _has_widgets() { compgen -G "$1/[!_]*/widget/info.json" >/dev/null; }
@@ -94,6 +95,12 @@ if [[ -n "${LIVE_SANITY_STAMP_REPOS:-}" ]]; then
             [[ -n "$_d" && -d "$_d/fortisoar-widget-harness" ]] && _has_widgets "$_d/widgets-src" || continue
             _picked="$(cd "$_d/widgets-src" && pwd)"; _why="the stamped root repo's widgets-src"; break
         done
+    fi
+    if [[ -z "$_picked" && -n "${AGENT_TREE:-}" && "$ROOT" == "$AGENT_TREE"/* ]] && _has_widgets "$ROOT/widgets-src"; then
+        # A connector or framework stamp inside an agent tree: the tree's widget repos are what this ship carries, and a
+        # widget bump in the same tree is on its branch, not yet on the remote main (live: the box held the bumped 1.4.9
+        # while the main checkout said 1.4.8, and widget_versions failed). The shared checkouts never take this branch.
+        _picked="$(cd "$ROOT/widgets-src" && pwd)"; _why="the agent tree's widgets-src (its branches carry what is being shipped)"
     fi
     if [[ -z "$_picked" ]]; then
         _cand="$ROOT/widgets-src"; _has_widgets "$_cand" || _cand="$(bx_main_checkout "$ROOT")/widgets-src"

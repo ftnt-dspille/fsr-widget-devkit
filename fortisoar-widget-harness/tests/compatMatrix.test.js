@@ -1,8 +1,9 @@
 "use strict";
 // Guard for ONBOARDING.md's "Compatibility matrix". The table drifted until it
 // was wrong on EVERY row (tracker #8) because nothing read it back. This asserts
-// the columns this repo can actually see: each widget's `info.json` version, and
-// the contract version baked into agenticAssistant's controller.
+// the columns this repo can actually see: the version column is the literal
+// `info.json` (derived, never a hand-stamped copy), and the contract version is
+// the one baked into agenticAssistant's controller.
 //
 // The connector / fsr-playbooks columns live in a different checkout, so they
 // are deliberately NOT checked here -- a test that resolves a path outside this
@@ -61,16 +62,11 @@ describe("ONBOARDING.md compatibility matrix", () => {
     expect(present).toEqual([]);
   });
 
-  test("each row's version matches that widget's info.json", () => {
-    const drift = [];
-    for (const r of rows) {
-      const info = infoJson(r.dir);
-      if (!info) continue; // not cloned in this checkout
-      if (r.version !== info.version) {
-        drift.push(`${r.dir}: table says ${r.version}, info.json says ${info.version}`);
-      }
-    }
-    expect(drift).toEqual([]);
+  test("each row's version cell says info.json: a widget's own info.json is the only copy of its version", () => {
+    // A hand-stamped number was a second source of truth: every widget bump (make stable BUMP=, widget-push BUMP=)
+    // left it stale and turned widget CI red until a root commit fixed the row.
+    const stamped = rows.filter((r) => r.version !== "info.json").map((r) => `${r.dir}: table says ${r.version}`);
+    expect(stamped).toEqual([]);
   });
 
   test("the contract column matches WIDGET_CONTRACT_VERSION in the controller", () => {

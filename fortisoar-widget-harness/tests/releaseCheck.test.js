@@ -143,6 +143,57 @@ describe("release-check keys on what ships (package-inputs), not on the head", (
   });
 });
 
+describe("carry recognises a widget version bump by what changed, not by its message", () => {
+  const INPUTS = ["conn_main ship connector-fsr-agentic-assistant", "agenticAssistant ship .", "agenticAssistantMonitor ship .", "fsr_all_widgets extra scripts", ""].join("\n");
+  const commit = (d, files, msg) => {
+    for (const [f, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(d, f)), { recursive: true }); fs.writeFileSync(path.join(d, f), body); }
+    git(d, "add", "-A"); git(d, "commit", "-qm", msg);
+  };
+  // what the widget CLI's bump rewrites: info.json, both controllers (their names carry 1.4.8 as 148) and the tests naming them
+  const widget = (v) => {
+    const c = v.replace(/\./g, "");
+    return { "widget/info.json": `{\n  "name": "w",\n  "version": "${v}",\n  "x": 1\n}\n`,
+      "widget/view.controller.js": `.controller('w${c}DevCtrl', w${c}DevCtrl);\nfunction w${c}DevCtrl() { return 1; }\n`,
+      "widget/edit.controller.js": `.controller('editW${c}DevCtrl', editW${c}DevCtrl);\n`,
+      "tests/view.test.js": `const NAME = "w${c}DevCtrl";\n` };
+  };
+  let old;
+  beforeEach(() => {
+    commit(trees.root, { ".github/package-inputs": INPUTS }, "inputs");
+    commit(trees.aa, widget("1.4.7"), "w");
+    commit(trees.mon, widget("1.1.5"), "w");
+    expect(run(["run"]).code).toBe(0);
+    old = heads().map((d) => d + "-old");
+    for (const [i, d] of heads().entries()) execFileSync("git", ["clone", "-q", d, old[i]], { env: ENV });
+  });
+  test("a widget bump (info.json, both controllers, the tests naming them) carries, whatever its commit message", () => {
+    commit(trees.aa, widget("1.4.8"), "bump the assistant widget");
+    commit(trees.mon, widget("1.1.6"), "Bump to 1.1.6");
+    expect(run(["verify", ...heads()]).code).toBe(1);
+    const r = run(["carry", ...old, ...heads()]);
+    expect(r.out).toMatch(/carried over the version-only bumps/);
+    expect(r.code).toBe(0);
+    expect(run(["verify", ...heads()]).code).toBe(0);
+  });
+  test("a code change dressed as a bump (right message, a controller line that names no version) is refused", () => {
+    const w = widget("1.4.8"); w["widget/view.controller.js"] += "fetchEverything();\n";
+    commit(trees.aa, w, "Bump to 1.4.8");
+    const r = run(["carry", ...old, ...heads()]);
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/does not name the version/);
+    expect(run(["verify", ...heads()]).code).toBe(1);
+  });
+  test("a widget file outside the version files is refused even with a bump message", () => {
+    const w = widget("1.4.8"); w["widget/view.html"] = "<b>new</b>\n";
+    commit(trees.aa, w, "Bump to 1.4.8");
+    expect(run(["carry", ...old, ...heads()]).out).toMatch(/more than a version bump/);
+  });
+  test("a root repo that moved at all is not carried", () => {
+    commit(trees.root, { "scripts/x.sh": "x\n" }, "Bump to 9.9.9");
+    expect(run(["carry", ...old, ...heads()]).code).toBe(1);
+  });
+});
+
 describe("wiring", () => {
   const gather = () => STABLE.slice(STABLE.indexOf("gather() {"), STABLE.indexOf("blocked() {"));
   test("make stable verifies the record before it guards or installs, except for --build-only", () => {

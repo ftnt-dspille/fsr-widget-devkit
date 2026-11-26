@@ -101,8 +101,28 @@ exit 0
 });
 
 describe("stable.sh wiring", () => {
-  test("the Makefile hands BUMP to make stable", () => {
-    expect(MAKEFILE).toMatch(/BUMP='\$\(BUMP\)' \$\(RFM\) stable\.sh/);
+  // `make -n` prints the recipe: what make stable hands the script. The widget recipes default BUMP to patch (`BUMP ?= patch`);
+  // that default must never reach make stable (a bare `make stable BOX=81` started a bump ship in a live run).
+  const stableRecipe = (extraArgs, env = {}) => {
+    const e = { ...process.env, ...env }; for (const k of LEAKY) if (!(k in env)) delete e[k]; delete e.MAKELEVEL;
+    const r = spawnSync("make", ["-n", "-C", path.join(SCRIPTS, ".."), "stable", "BOX=81", ...extraArgs], { encoding: "utf8", env: e });
+    return `${r.stdout}${r.stderr}`;
+  };
+  test("make stable gets BUMP only when the caller gave it (command line or environment), never the widget default", () => {
+    expect(stableRecipe([])).toMatch(/BUMP='' /);
+    expect(stableRecipe(["BUMP=patch"])).toMatch(/BUMP='patch' /);
+    expect(stableRecipe([], { BUMP: "minor" })).toMatch(/BUMP='minor' /);
+  });
+  test("the preflight and the install read the install record from the SAME place: the connector checkout, never the temp tree", () => {
+    // prefix assignments expand left to right: a DIST_STABLE default written after CONN_REPO="$SRC_CONN" resolved into the
+    // temp tree, which has no record, so a resumable install read as same-version conflicts.
+    const block = STABLE.slice(STABLE.indexOf("RECORD_DIR="), STABLE.indexOf("five() {"));
+    const probe = (extra) => spawnSync("bash", ["-c", `${extra}
+CONN_REPO=/shared/conn SRC_ROOT=/tmp/t/root SRC_FW=/tmp/t/fw SRC_CONN=/tmp/t/conn BOX=81 BOX_ENV=/e
+${block}
+INSTALL_ENV env | grep '^DIST_STABLE='`], { encoding: "utf8", env: { PATH: process.env.PATH } }).stdout.trim();
+    expect(probe("")).toBe("DIST_STABLE=/shared/conn/dist/stable");
+    expect(probe("export DIST_STABLE=/custom/dist")).toBe("DIST_STABLE=/custom/dist");
   });
   test("ONE pass gathers release-check, the preflight and the guard before anything is built, and refuses with the complete list", () => {
     const g = STABLE.slice(STABLE.indexOf("gather() {"), STABLE.indexOf("blocked() {"));

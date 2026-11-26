@@ -45,8 +45,13 @@ stable_source_prepare "$ROOT" "$FSR_FRAMEWORK_REPO" "$CONN_REPO" || exit 1
 
 BUILD_ONLY=0; case " ${ARGS:-} " in *" --build-only "*) BUILD_ONLY=1 ;; esac
 RC_SH="$ROOT/scripts/release_check.sh"
+# The install record (installed-<box>.json) outlives the run, so it lives in the CONNECTOR CHECKOUT (or DIST_STABLE),
+# never in the temporary promoted tree. Fixed ONCE here: prefix assignments expand left to right, so a
+# DIST_STABLE="...$CONN_REPO..." written after CONN_REPO="$SRC_CONN" pointed the preflight at the temp tree, which has
+# no record: a resumable install then read as three same-version conflicts.
+RECORD_DIR="${DIST_STABLE:-$CONN_REPO/dist/stable}"
 INSTALL_ENV() { MONOREPO="$SRC_ROOT" WIDGETS_SRC="$SRC_ROOT/widgets-src" FRAMEWORK="$SRC_FW" CONN_REPO="$SRC_CONN" \
-    DIST_STABLE="${DIST_STABLE:-$CONN_REPO/dist/stable}" BOX="$BOX" BOX_ENV="$BOX_ENV" "$@"; }
+    DIST_STABLE="$RECORD_DIR" BOX="$BOX" BOX_ENV="$BOX_ENV" "$@"; }
 five() { printf '%s\n' "$SRC_ROOT" "$SRC_FW" "$SRC_CONN" "$SRC_ROOT/widgets-src/agenticAssistant" "$SRC_ROOT/widgets-src/agenticAssistantMonitor"; }
 repo_of() {  # the repo a conflicting artifact is bumped in
     case "$1" in connector-*) echo connector ;; *) echo "$1" ;; esac
@@ -138,10 +143,7 @@ fi
 rm -rf "$T"
 
 echo ">> build and import through the Import Wizard"
-# The install record outlives the run: it goes in the connector checkout, not the
-# temporary tree. (Set before the call: prefix assignments apply left to right, so
-# CONN_REPO="$SRC_CONN" below would point it at the tree that is removed on exit.)
-RECORD_DIR="${DIST_STABLE:-$CONN_REPO/dist/stable}"
+# RECORD_DIR (above) is the install record's home: the preflight and this install read the same file.
 MONOREPO="$SRC_ROOT" WIDGETS_SRC="$SRC_ROOT/widgets-src" FRAMEWORK="$SRC_FW" CONN_REPO="$SRC_CONN" \
     DIST_STABLE="$RECORD_DIR" \
     BOX="$BOX" BOX_ENV="$BOX_ENV" \

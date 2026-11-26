@@ -102,22 +102,25 @@ versioned independently. Pin these together when you cut a release.
 
 | Widget | Version | Connector | Contract | Notes |
 |--------|---------|-----------|----------|-------|
-| `agenticAssistant` ("Agentic Assistant") | 1.4.8 | `connector-fsr-agentic-assistant` 0.6.22 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
-| `agenticAssistantMonitor` | 1.1.6 | `connector-fsr-agentic-assistant` 0.6.22 | 2.8.0 | the assistant's monitoring surface |
-| `c3charts` (`c3Charts`) | 1.3.9 | none (registry-driven) | n/a | chart builder |
+| `agenticAssistant` ("Agentic Assistant") | info.json | `connector-fsr-agentic-assistant` 0.6.22 | 2.8.0 | SOC copilot: investigate -> hunt -> triage -> build |
+| `agenticAssistantMonitor` | info.json | `connector-fsr-agentic-assistant` 0.6.22 | 2.8.0 | the assistant's monitoring surface |
+| `c3charts` (`c3Charts`) | info.json | none (registry-driven) | n/a | chart builder |
 
 The connector pins the framework: `connector-fsr-agentic-assistant/requirements.txt`
 is the **single source of truth** for `fsr-playbooks` (currently `0.6.16`) -- the
 package is `fsr_playbooks`, not the long-dead `fsr_core`. Platform target is
 FortiSOAR **8.0**.
 
-> Keep this table current when bumping any widget/connector/contract. The widget
-> talks to the connector over the contract version baked into its config; a
-> mismatch shows up as unrendered transcript events or rejected pushes.
+> The widget **Version** column says `info.json` on purpose: each widget's own
+> `info.json` is the one source of truth, so a version bump never touches this file (a
+> number here was a second copy that went stale on every bump and turned widget CI red).
+> Keep the connector and contract columns current when bumping the connector or the
+> contract: the widget talks to the connector over the contract version baked into its
+> config; a mismatch shows up as unrendered transcript events or rejected pushes.
 >
-> The **widget columns are enforced** -- `tests/compatMatrix.test.js` reads each
-> widget's `info.json` and `agenticAssistant`'s `WIDGET_CONTRACT_VERSION`
-> and fails if this table disagrees. The connector/framework columns can't be
+> The **widget columns are enforced** -- `tests/compatMatrix.test.js` fails if a
+> Version cell holds a number instead of `info.json`, and checks the contract column
+> against `agenticAssistant`'s `WIDGET_CONTRACT_VERSION`. The connector/framework columns can't be
 > checked from this repo (different checkout), so they are hand-stamped; verify
 > them against `info.json` + `requirements.txt` in the connector repo, never
 > against prose. This table was wrong on **every** row until 2026-08-02 precisely

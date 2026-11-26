@@ -13,7 +13,8 @@
 #   release_check.sh run                 build detached trees of every main, run 1-3, record
 #   release_check.sh verify <root> <framework> <connector> <widget aa> <widget mon>   rc 0 only for a recorded set of heads
 #   release_check.sh carry <5 trees before> <5 trees after>   record the "after" mains when the "before" mains are recorded
-#                                      and every commit between them is a version-only "Bump to x.y.z" (make stable BUMP=patch)
+#                                      and what changed between them is version-only: the version files, and every changed line
+#                                      names the old or new version (the connector or widget bump of make stable BUMP=patch)
 #
 # Test hooks: RC_SRC_ROOT RC_SRC_FW RC_SRC_CONN RC_SRC_AA RC_SRC_MON (use these trees, do not build any),
 # RC_PY_DOCKER (container runner), RC_PY (python for the framework suites), RC_DOOR (the door script), RC_CI_WAIT / RC_CI_POLL.
@@ -116,25 +117,57 @@ run() {
     echo ">> release-check: PASSED and recorded ($k); make stable may install exactly these mains"
 }
 
+version_of() {  # version_of <dir> <rev> <info.json path>: the "version" in that file at that rev ('' when none)
+    git -C "$1" show "$2:$3" 2>/dev/null | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+}
+
+has_version_token() {  # has_version_token <line> <version>...: the line names one of the versions, dotted (1.4.8) or run together (148, a controller name)
+    local line="$1" v dotted compact; shift
+    for v in "$@"; do
+        [[ -n "$v" ]] || continue
+        dotted="${v//./\\.}"; compact="${v//./}"
+        [[ "$line" =~ (^|[^0-9.])${dotted}([^0-9]|$) ]] && return 0
+        [[ "$line" =~ (^|[^0-9])${compact}([^0-9]|$) ]] && return 0
+    done
+    return 1
+}
+
+version_only_diff() {  # version_only_diff <dir> <old rev> <info.json path> <file>...: every changed line of each file names the old or the new version
+    local d="$1" oh="$2" info="$3" f line ov nv; shift 3
+    ov="$(version_of "$d" "$oh" "$info")"; nv="$(version_of "$d" HEAD "$info")"
+    [[ -n "$ov" && -n "$nv" && "$ov" != "$nv" ]] || { echo "release-check: carry refused: $info has no version change ($ov -> $nv)" >&2; return 1; }
+    for f in "$@"; do
+        while IFS= read -r line; do
+            [[ -n "${line:1}" ]] || continue
+            has_version_token "${line:1}" "$ov" "$nv" || { echo "release-check: carry refused: $f changed a line that does not name the version ($ov -> $nv): ${line:0:100}" >&2; return 1; }
+        done < <(git -C "$d" diff -U0 --no-color "$oh" HEAD -- "$f" | sed '1,/^+++ /d' | grep -E '^[+-]')
+    done
+}
+
 carry() {  # carry <5 old trees> <5 new trees>: the new mains differ from recorded ones only by version-only bump commits
     (( $# == 10 )) || { echo "usage: $0 carry <5 trees before> <5 trees after>" >&2; return 2; }
-    local old=("${@:1:5}") new=("${@:6:5}") i f allowed bad oh
+    local old=("${@:1:5}") new=("${@:6:5}") i f allowed info oh files
     verify "${old[@]}" >/dev/null 2>&1 || { echo "release-check: carry refused: the mains before the bump were not recorded either" >&2; return 1; }
     for i in 0 1 2 3 4; do
         oh="$(git -C "${old[$i]}" rev-parse HEAD)"
         [[ "$oh" == "$(git -C "${new[$i]}" rev-parse HEAD)" ]] && continue
         git -C "${new[$i]}" cat-file -e "$oh^{commit}" 2>/dev/null \
             || { echo "release-check: carry refused: ${RC_NAMES[$i]} before-head is not in the after tree" >&2; return 1; }
-        bad="$(git -C "${new[$i]}" log --format=%s "$oh..HEAD" | grep -vc '^Bump to [0-9][0-9.]*$' || true)"
-        [[ "$bad" == 0 ]] || { echo "release-check: carry refused: ${RC_NAMES[$i]} moved by more than version bumps" >&2; return 1; }
+        # Keyed on WHAT CHANGED, not on commit messages: only the version files may differ (the connector's info.json and release
+        # notes; a widget's info.json, its two controllers whose names carry the version, and the tests that name those controllers),
+        # and every changed line must name the old or the new version.
         case "$i" in
-            2) allowed='^connector-fsr-agentic-assistant/(info\.json|release_notes\.md)$' ;;
-            3|4) allowed='^widget/(info\.json|edit\.controller\.js|view\.controller\.js)$' ;;
-            *) allowed='^$' ;;
+            2) allowed='^connector-fsr-agentic-assistant/(info\.json|release_notes\.md)$'; info=connector-fsr-agentic-assistant/info.json ;;
+            3|4) allowed='^(widget/(info\.json|edit\.controller\.js|view\.controller\.js)|tests/[^/]+\.test\.js)$'; info=widget/info.json ;;
+            *) allowed='^$'; info="" ;;
         esac
+        files=()
         while IFS= read -r f; do
             [[ "$f" =~ $allowed ]] || { echo "release-check: carry refused: ${RC_NAMES[$i]} changed $f, which is more than a version bump" >&2; return 1; }
+            files+=("$f")
         done < <(git -C "${new[$i]}" diff --name-only "$oh" HEAD)
+        (( ${#files[@]} )) || continue
+        version_only_diff "${new[$i]}" "$oh" "$info" "${files[@]}" || return 1
     done
     mkdir -p "$DIR" || return 1
     local k; k="$(heads_key "${new[@]}")"

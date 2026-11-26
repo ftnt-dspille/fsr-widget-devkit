@@ -179,7 +179,8 @@ test("stable.sh writes the install record into the connector checkout, not the t
   expect(start).toBeGreaterThan(-1);
   const block = src.slice(start, end).replace(/"\$PY" "\$SRC_CONN\/scripts\/stable_install\.py" \$\{ARGS:-\}/,
     'bash -c \'echo "DIST=$DIST_STABLE"\'');
-  const r = sh(`set -u; unset DIST_STABLE; CONN_REPO=/shared/conn; SRC_CONN=/tmp/src/conn; SRC_ROOT=/tmp/src/root; SRC_FW=/tmp/src/fw; BOX=b; BOX_ENV=e\n${block}`, T);
+  const recordDir = src.match(/^RECORD_DIR=.*$/m)[0];   // fixed once, up front: the preflight reads the same place
+  const r = sh(`set -u; unset DIST_STABLE; CONN_REPO=/shared/conn; SRC_CONN=/tmp/src/conn; SRC_ROOT=/tmp/src/root; SRC_FW=/tmp/src/fw; BOX=b; BOX_ENV=e\n${recordDir}\n${block}`, T);
   expect(r.stdout).toMatch(/^DIST=\/shared\/conn\/dist\/stable$/m);
 });
 

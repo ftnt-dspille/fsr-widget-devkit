@@ -211,11 +211,3 @@ if [ "$BUMP_COMMIT" = 1 ]; then
 elif [ -n "$BUMP" ]; then
   warn "$WREPO had other uncommitted changes; the bump is NOT committed"
 fi
-
-# Sync the ONBOARDING.md compat matrix from the (possibly bumped) info.json.
-# The compat-matrix test runs BEFORE the bump in ship-verify, so without this
-# the table drifts on every ship. tracker #85.
-if [ -n "$BUMP" ] && [ -f "$REPO_DIR/scripts/sync-compat-matrix.js" ]; then
-  say "syncing ONBOARDING.md compat matrix"
-  ( cd "$REPO_DIR" && node scripts/sync-compat-matrix.js ) || warn "sync-compat-matrix.js failed (non-fatal)"
-fi

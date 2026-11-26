@@ -233,6 +233,7 @@ local-chat: harness-build ## Box-free chat turn: real widget + real connector + 
 	@bash $(HARNESS)/scripts/local-chat.sh
 
 BUMP ?= patch
+# (make stable takes BUMP only when the caller gave it: this default is for the widget recipes, never a bump on its own)
 
 # --- Box selection: ONE knob, ONE registry ------------------------------------
 # BOX=<alias> picks the box: an alias in the pyfsr registry (~/.pyfsr/instances.toml)
@@ -340,7 +341,7 @@ release-check: ## BATCH GATE before make stable: the full connector suite (conta
 	@$(RFM) release_check.sh run
 
 stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Prints EVERY blocker with its one command; BUMP=patch bumps conflicting repos through make ship and re-proves stale stamps itself. ARGS=--build-only | --force
-	@BOX='$(BOX)' ARGS='$(ARGS)' BUMP='$(BUMP)' $(RFM) stable.sh
+	@BOX='$(BOX)' ARGS='$(ARGS)' BUMP='$(if $(filter command line environment override,$(origin BUMP)),$(BUMP),)' $(RFM) stable.sh
 
 push: harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_push_box)

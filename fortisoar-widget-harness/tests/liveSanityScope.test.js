@@ -129,3 +129,25 @@ test("a shared widget repo with no remote main is left out of the main-widgets c
   expect(r.stdout).toMatch(/"version":"1\.0\.0"/);
   expect(r.stderr).toMatch(/oddballWidget has no origin\/main/);
 });
+
+describe("a connector stamp inside an agent tree compares the box with the tree's widgets, not the remote main", () => {
+  // The stable bump ships a widget bump and the connector in ONE tree: the box holds the bumped widget while the remote
+  // main still has the old version until promote, so widget_versions expected the pre-bump version and failed.
+  const treeRoot = () => {
+    const root = path.join(tmp, "tree", "root"); fs.mkdirSync(path.join(root, "fortisoar-widget-harness"), { recursive: true });
+    const w = path.join(root, "widgets-src", "agenticAssistant", "widget"); fs.mkdirSync(w, { recursive: true });
+    fs.writeFileSync(path.join(w, "info.json"), '{"version":"1.4.9"}');   // the bumped branch
+    return root;
+  };
+  test("AGENT_TREE set and the invoking root inside it: the tree's widgets-src (bumped) is the source", () => {
+    const root = treeRoot(); const sh = sharedOnOtherBranch();
+    const r = run({ FSR_TOOL_HOME: root, AGENT_TREE: path.join(tmp, "tree"), LIVE_SANITY_STAMP_REPOS: conn, WIDGETS_SRC: "", FAKE_MAIN: sh.main });
+    expect(r.stdout).toMatch(/"version":"1\.4\.9"/);
+    expect(r.stdout).toMatch(/WSRC=\[[^\]]*\/tree\/root\/widgets-src\]/);
+  });
+  test("outside an agent tree the stamp still reads the widgets at their remote main", () => {
+    const root = treeRoot(); const sh = sharedOnOtherBranch();
+    const r = run({ FSR_TOOL_HOME: root, AGENT_TREE: "", LIVE_SANITY_STAMP_REPOS: conn, WIDGETS_SRC: "", FAKE_MAIN: sh.main });
+    expect(r.stdout).not.toMatch(/1\.4\.9/);
+  });
+});
