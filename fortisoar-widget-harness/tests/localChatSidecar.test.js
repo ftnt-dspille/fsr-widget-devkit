@@ -80,4 +80,23 @@ d("local-chat sidecar", () => {
       expect(s.log).toMatch(/Frank is not usable/);
     } finally { s.stop(); }
   });
+
+  const dead = { FSRPB_SIDECAR_FRANK_URL: "http://127.0.0.1:9/v1", FRANK_API_KEY: "sk-test-not-real", ANTHROPIC_API_KEY: "sk-ant-test-not-real" };
+  test("anthropic: asked for explicitly, it is Haiku (no call is made at boot)", async () => {
+    const s = await boot({ ...dead, FSRPB_SIDECAR_LLM: "anthropic" });
+    try {
+      expect(s.health.llm.kind).toBe("anthropic");
+      expect(s.health.llm.model).toBe("claude-haiku-4-5");
+    } finally { s.stop(); }
+  });
+
+  test("auto with Frank down: paid Haiku only when the containerised run opted in, else the fake", async () => {
+    let s = await boot({ ...dead, FSRPB_SIDECAR_LLM: "auto", FSRPB_SIDECAR_ANTHROPIC_FALLBACK: "1" });
+    try {
+      expect(s.health.llm.kind).toBe("anthropic");
+      expect(s.health.llm.reason).toMatch(/Frank not usable .*paid Haiku/);
+    } finally { s.stop(); }
+    s = await boot({ ...dead, FSRPB_SIDECAR_LLM: "auto" });
+    try { expect(s.health.llm.kind).toBe("fake"); } finally { s.stop(); }
+  });
 });

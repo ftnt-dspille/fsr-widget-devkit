@@ -120,7 +120,7 @@ if (WIDGET_FILTER && WIDGET_FILTER !== "all") {
 // A bare `pnpm test` (SKIP_TOOLING_TESTS unset) also runs them.
 const TOOLING_SUITES = [
   "guardOtherReposInstall", "guardOtherReposInstall.connector", "liveSanityVerdict", "makeBoxRoles", "makeBoxSelection",
-  "makeDeployGuard", "makeE2eSpecArgs", "promoteGate", "promoteGate.hook", "promoteGate.ci", "promoteGate.tooling", "promoteGate.push", "promoteGate.packageInputs", "lapBudget", "door", "driftCheck", "devloopBench", "promoteGate.dryRun", "liveSanityScope", "makeArgs", "bashGuard", "promoteRunsMain", "agentTreeRunsMain", "toolingRunsMain", "hooksCentral", "agentTree", "testDocker", "e2eDocker", "stableSource", "worktreeWidgetsSrc", "localData", "localChatSidecar",
+  "makeDeployGuard", "makeE2eSpecArgs", "promoteGate", "promoteGate.hook", "promoteGate.ci", "promoteGate.tooling", "promoteGate.push", "promoteGate.packageInputs", "lapBudget", "door", "driftCheck", "devloopBench", "promoteGate.dryRun", "liveSanityScope", "makeArgs", "bashGuard", "promoteRunsMain", "agentTreeRunsMain", "toolingRunsMain", "hooksCentral", "agentTree", "testDocker", "e2eDocker", "localChatDocker", "stableSource", "worktreeWidgetsSrc", "localData", "localChatSidecar",
   "deployScriptGuards", "e2ePort", "lintAngular", "lintEmptySet",
   "shipSkipsToolingSuites",
   // These read gitignored, machine-local data (tests/live/captures,

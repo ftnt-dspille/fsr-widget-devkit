@@ -66,7 +66,7 @@ function door(mode, env = {}) {
   const r = spawnSync("bash", [DOOR, mode], {
     cwd: T, encoding: "utf8", timeout: 60000,
     env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"), PYFSR_INSTANCES: REG(),
-           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, DOOR_PY_DOCKER: path.join(T, "fakepydock"), DOOR_TYPES_PY: path.join(T, "fakepy"), ...env },
+           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, DOOR_ENGINE: "up", DOOR_PY_DOCKER: path.join(T, "fakepydock"), DOOR_TYPES_PY: path.join(T, "fakepy"), ...env },
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -129,7 +129,7 @@ describe("make check", () => {
     const l = log();
     expect(l.some((x) => /^make -C \S+ test PYTEST_ARGS=-m 'not shell' --disable-warnings tests\/test_a\.py/.test(x.split(" | ")[0]))).toBe(true);
     expect(l.some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(true);
-    expect(l.some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+    expect(l.some((x) => /local-chat(-docker)? BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
   });
 
   describe("the per-change loop leaves the slow parts (widget e2e, local-chat) to the batch gate (FULL=1)", () => {
@@ -154,7 +154,7 @@ describe("make check", () => {
       expect(log().some((x) => /^make -C \S+ test-e2e-docker WIDGET=mywidget WIDGETS_SRC=\S+/.test(x))).toBe(true);
       expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
       fs.writeFileSync(LOG, "");
-      r = door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_FAIL: "test-e2e-docker", DOOR_FAIL_RC: "2" });
+      r = door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_ENGINE: "down" });
       expect(r.code).toBe(0);
       expect(r.out).toMatch(/no container engine .* running the widget e2e on the HOST/);
       expect(log().some((x) => /test-e2e-spec WIDGET=mywidget/.test(x))).toBe(true);
@@ -165,7 +165,7 @@ describe("make check", () => {
     });
     test("a red e2e container run fails the door and does not retry on the host", () => {
       const w = widget();
-      const r = door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_FAIL: "test-e2e-docker" });
+      const r = door("check", { DOOR_REPO: w.dir, FULL: "1", DOOR_FAIL: "test-e2e-docker", DOOR_FAIL_RC: "2" });
       expect(r.code).toBe(1);
       expect(r.out).toMatch(/FAILED.*e2e \(container\)/);
       expect(log().some((x) => /test-e2e-spec/.test(x))).toBe(false);
@@ -177,7 +177,7 @@ describe("make check", () => {
       expect(log().some((x) => /^make -C \S+ test-docker WIDGET=mywidget WIDGETS_SRC=\S+/.test(x))).toBe(true);
       expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(false);
       fs.writeFileSync(LOG, "");
-      r = door("check", { DOOR_REPO: w.dir, DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
+      r = door("check", { DOOR_REPO: w.dir, DOOR_ENGINE: "down" });
       expect(r.code).toBe(0);
       expect(r.out).toMatch(/no container engine .* running the widget unit tests on the HOST/);
       expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(true);
@@ -188,10 +188,32 @@ describe("make check", () => {
     });
     test("a red container run fails the door (not a host retry)", () => {
       const w = widget();
-      const r = door("check", { DOOR_REPO: w.dir, DOOR_FAIL: "test-docker" });
+      const r = door("check", { DOOR_REPO: w.dir, DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
       expect(r.code).toBe(1);
       expect(r.out).toMatch(/FAILED.*unit \(container\)/);
       expect(log().some((x) => /test-unit WIDGET=mywidget/.test(x))).toBe(false);
+    });
+    test("local-chat runs in the container by default, even where the host has no harness; no engine (rc 2) falls back to the host with a loud note; DOOR_DOCKER=0 is the host", () => {
+      branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+      let r = door("check", { FULL: "1" });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /^make -C \S+ local-chat-docker BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+      expect(log().some((x) => /^make -C \S+ local-chat BUNDLE=/.test(x))).toBe(false);
+      fs.writeFileSync(LOG, "");
+      r = door("check", { FULL: "1", DOOR_ENGINE: "down" });
+      expect(r.out).toMatch(/no container engine .* running local-chat on the HOST/);
+      expect(log().some((x) => /^make -C \S+ local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+      fs.writeFileSync(LOG, "");
+      door("check", { FULL: "1", DOOR_DOCKER: "0" });
+      expect(log().some((x) => /local-chat-docker/.test(x))).toBe(false);
+      expect(log().some((x) => /^make -C \S+ local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+    });
+    test("a red container local-chat fails the door and is not retried on the host", () => {
+      branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+      const r = door("check", { FULL: "1", DOOR_FAIL: "local-chat-docker", DOOR_FAIL_RC: "2" });
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/FAILED.*local-chat ka_c2_beacon/);
+      expect(log().some((x) => /^make -C \S+ local-chat BUNDLE=/.test(x))).toBe(false);
     });
     test("an agent-loop diff runs no local-chat per change, and names it as deferred; FULL=1 runs it", () => {
       branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
@@ -318,14 +340,14 @@ describe("make check", () => {
     branch(W.fw.dir, "feat/x", { "fsr_playbooks/llm/loop.py": "x = 2\n" });
     const r = door("check", { DOOR_REPO: W.fw.dir, FULL: "1" });
     expect(r.code).toBe(0);
-    expect(log().some((x) => /local-chat BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
+    expect(log().some((x) => /local-chat(-docker)? BUNDLE=ka_c2_beacon/.test(x))).toBe(true);
     expect(log().some((x) => /^python -m pytest .*fsr_playbooks\/tests\/test_loop\.py/.test(x))).toBe(true);
     git(W.conn.dir, "switch", "-q", "-c", "feat/y");
     write(W.conn.dir, "scripts/conversations/sweep/my_row.json", "{}\n"); write(W.conn.dir, "connector-fsr-agentic-assistant/a.py", "A = 3\n");
     git(W.conn.dir, "add", "-A"); git(W.conn.dir, "commit", "-qm", "row");
     fs.writeFileSync(LOG, "");
     door("check", { FULL: "1" });
-    expect(log().some((x) => /local-chat BUNDLE=my_row/.test(x))).toBe(true);
+    expect(log().some((x) => /local-chat(-docker)? BUNDLE=my_row/.test(x))).toBe(true);
   });
 
   test("a connector checked out under another name (its real main checkout is fsr-playbook-builder) is still the connector", () => {
@@ -406,7 +428,7 @@ describe("make check: suites and worktrees", () => {
   test("local-chat from a root worktree reuses the shared checkout's node_modules and local-chat python", () => {
     const { wt } = rootWorktree();
     agentLoopBranch();
-    const r = door("check", { FSR_TOOL_HOME: wt, FULL: "1" });
+    const r = door("check", { FSR_TOOL_HOME: wt, FULL: "1", DOOR_DOCKER: "0" });
     expect(r.code).toBe(0);
     expect(log().some((x) => /local-chat BUNDLE=/.test(x))).toBe(true);
     expect(fs.lstatSync(path.join(wt, "fortisoar-widget-harness/node_modules")).isSymbolicLink()).toBe(true);
@@ -417,7 +439,7 @@ describe("make check: suites and worktrees", () => {
     "a worktree that cannot be set up reports local-chat NOT RUN with the reason, and does not fail (%s)", (_n, opts) => {
       rootWorktree(opts);
       agentLoopBranch();
-      const r = door("check", { FSR_TOOL_HOME: path.join(T, "root_wt"), FULL: "1" });
+      const r = door("check", { FSR_TOOL_HOME: path.join(T, "root_wt"), FULL: "1", DOOR_DOCKER: "0" });
       expect(r.code).toBe(0);
       expect(r.out).toMatch(/NOT RUN: conn_main: local-chat ka_c2_beacon: the harness is not set up/);
       expect(log().some((x) => /local-chat/.test(x))).toBe(false);
@@ -446,13 +468,13 @@ describe("make check: suites and worktrees", () => {
     });
 
     test("no container engine (exit 2): NOT RUN with the reason, never a host run; DOOR_DOCKER=0 is the explicit host run", () => {
-      const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
+      const r = run({ DOOR_ENGINE: "down" });
       expect(r.out).toMatch(/NOT RUN: \S+ jest: no container engine .*other\.test\.js promoteGate\.test\.js/);
       expect(log().some((x) => /test-unit/.test(x))).toBe(false);
     });
 
     test("a failing container run fails the door and names the files", () => {
-      const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "1" });
+      const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" })   /* make exits 2 on ANY recipe failure: red is not "no engine" */;
       expect(r.code).not.toBe(0);
       expect(r.out).toMatch(/FAILED .*jest \(container\): other\.test\.js promoteGate\.test\.js/);
     });

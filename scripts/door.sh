@@ -195,6 +195,21 @@ need_push_box() {  # need_push_box: BOX must take code (role, profile, lease) or
     die "BOX=$BOX ($role box) cannot take code right now: ${err:-box.sh refused it}"
 }
 lap() { local label="$1" budget="$2"; shift 2; bash "$LAPSH" "$label" --budget "$budget" -- "$@"; }
+# Is a container engine answering (starting Colima when it is not)? Asked BEFORE a container step, because make turns every
+# recipe failure into exit 2: a red container run and "no engine" cannot be told apart from the exit code, and a red run
+# must never be reported as "no engine". DOOR_ENGINE=up|down overrides the probe (tests); DOCKER_START=none never starts Colima.
+ENGINE=""
+engine_ready() {
+    case "${DOOR_ENGINE:-}" in up) return 0 ;; down) return 1 ;; esac
+    [[ -n "$ENGINE" ]] && return "$ENGINE"
+    ENGINE=1
+    if docker info >/dev/null 2>&1; then ENGINE=0
+    elif [[ "${DOCKER_START:-colima}" == colima ]] && command -v colima >/dev/null 2>&1; then
+        echo "door: no docker engine answering; starting colima" >&2
+        if colima start >/dev/null 2>&1; then for _ in $(seq 60); do docker info >/dev/null 2>&1 && { ENGINE=0; break; }; sleep 2; done; fi
+    fi
+    return "$ENGINE"
+}
 # local-chat starts a dev server, a connector and a model client; any of them can outlive the turn. Never pipe it
 # (a leftover child that inherits the pipe keeps `tee` waiting for an EOF that never comes): its output goes to a file,
 # shown by a tail we stop ourselves, it runs in its own process group, and that group is killed when the step ends or
@@ -375,11 +390,10 @@ root_jest() {  # root_jest <dir> <name> <test file basename>...
         if [[ "$HOST_ONLY_JEST" == *" $b "* ]]; then host+=("$f"); else tool+=("$f"); fi
     done
     if (( ${#tool[@]} )) && [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
-        lap "check tests (container)" 120 $MAKE -C "$d" test-docker TESTS="${tool[*]}"; local rc=$?
-        # No engine (rc 2) is NOT RUN, never a host run: the tooling suites take 10s of minutes on the Mac host (a ship
+        # No engine is NOT RUN, never a host run: the tooling suites take 10s of minutes on the Mac host (a ship
         # once spent 42 min there). DOOR_DOCKER=0 is the explicit way to ask for the host.
-        if (( rc == 2 )); then not_run "$name jest: no container engine (docker/colima is stopped; start it with: colima start, or DOOR_DOCKER=0 to run on the host knowingly): ${tool[*]}"
-        elif (( rc != 0 )); then fail "$name jest (container): ${tool[*]}"; fi
+        if ! engine_ready; then not_run "$name jest: no container engine (docker/colima is stopped; start it with: colima start, or DOOR_DOCKER=0 to run on the host knowingly): ${tool[*]}"
+        else lap "check tests (container)" 120 $MAKE -C "$d" test-docker TESTS="${tool[*]}" || fail "$name jest (container): ${tool[*]}"; fi
     else host+=("${tool[@]}"); fi
     (( ${#host[@]} )) && { lap "check tests" 120 $MAKE -C "$d" test-unit FULL=1 TESTS="${host[*]}" || fail "$name jest: ${host[*]}"; }
     return 0
@@ -400,11 +414,12 @@ py_container() {  # py_container <label> <connector|framework> <dir> <pytest arg
 # Widget jest: the container by default (same reason as root jest: process starts stall on the Mac host), the harness
 # and the widget's own checkout streamed in. No engine, or DOOR_DOCKER=0: the host, said loudly because it is the slow path.
 widget_unit() {  # widget_unit <repo name> <widget> <widgets-src dir>
-    local name="$1" w="$2" ws="$3" rc=0
+    local name="$1" w="$2" ws="$3"
     if [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
-        lap "check tests (container)" 120 $MAKE -C "$HERE" test-docker WIDGET="$w" WIDGETS_SRC="$ws"; rc=$?
-        (( rc == 0 )) && return 0
-        if (( rc != 2 )); then fail "$name unit (container)"; return 0; fi
+        if engine_ready; then
+            lap "check tests (container)" 120 $MAKE -C "$HERE" test-docker WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name unit (container)"
+            return 0
+        fi
         say "$name: no container engine (docker/colima is stopped; colima start): running the widget unit tests on the HOST, which is several times slower"
     fi
     lap "check tests" 180 $MAKE -C "$HERE" test-unit WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name unit"
@@ -413,11 +428,12 @@ widget_unit() {  # widget_unit <repo name> <widget> <widgets-src dir>
 # Widget e2e (batch gate only): the Playwright container by default (servers and browser inside it, so nothing can be
 # orphaned on the host); no engine, or DOOR_DOCKER=0: the host run, said loudly.
 widget_e2e() {  # widget_e2e <repo name> <widget> <widgets-src dir>
-    local name="$1" w="$2" ws="$3" rc=0
+    local name="$1" w="$2" ws="$3"
     if [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
-        lap "check e2e (container)" 240 $MAKE -C "$HERE" test-e2e-docker WIDGET="$w" WIDGETS_SRC="$ws"; rc=$?
-        (( rc == 0 )) && return 0
-        if (( rc != 2 )); then fail "$name e2e (container)"; return 0; fi
+        if engine_ready; then
+            lap "check e2e (container)" 240 $MAKE -C "$HERE" test-e2e-docker WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e (container)"
+            return 0
+        fi
         say "$name: no container engine (colima start): running the widget e2e on the HOST, several times slower and it can leak servers"
     fi
     lap "check e2e" 240 $MAKE -C "$HERE" test-e2e-spec WIDGET="$w" WIDGETS_SRC="$ws" || fail "$name e2e"
@@ -489,10 +505,20 @@ check_repo() {
         if [[ -z "${FULL:-}" ]]; then say "$name: the diff touches the agent loop: local-chat is part of the batch gate (FULL=1 make check), not the per-change loop"; return; fi
         local b; b="$(printf '%s\n' "$files" | bundle_for)"
         say "the diff touches the agent loop: local-chat on $b (framework: $FW)"
-        if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; return; fi
         local lc rc=0 lcdir; lc="$(mktemp "${TMPDIR:-/tmp}/door-lc.XXXXXX")"; lcdir="$(mktemp -d "${TMPDIR:-/tmp}/door-lcout.XXXXXX")"
         # TIMEOUT bounds the model turn (local-chat defaults to 600s); a gateway that stalls must not hold the door for 10 minutes.
-        rc=0; bounded_chat "$lc" env CONN_REPO="$CONN" FSR_SRC="$FW" TIMEOUT="${DOOR_CHAT_TIMEOUT:-180}" OUT="$lcdir" $MAKE -C "$HERE" local-chat BUNDLE="$b" || rc=$?
+        # The container first (widget, connector and browser inside one; only the model is a network call): it needs no host
+        # node_modules or python. No engine (rc 2) or DOOR_DOCKER=0: the host run, said loudly.
+        local ran=0
+        if [[ "${DOOR_DOCKER:-1}" != 0 ]]; then
+            if engine_ready; then
+                ran=1; rc=0; bounded_chat "$lc" env CONN_REPO="$CONN" FSR_SRC="$FW" TIMEOUT="${DOOR_CHAT_TIMEOUT:-180}" OUT="$lcdir" $MAKE -C "$HERE" local-chat-docker BUNDLE="$b" || rc=$?
+            else say "$name: no container engine (colima start): running local-chat on the HOST"; fi
+        fi
+        if (( ! ran )); then
+            if ! why="$(prep_harness)"; then not_run "$name: local-chat $b: $why"; rm -rf "$lc" "$lcdir"; return; fi
+            rc=0; bounded_chat "$lc" env CONN_REPO="$CONN" FSR_SRC="$FW" TIMEOUT="${DOOR_CHAT_TIMEOUT:-180}" OUT="$lcdir" $MAKE -C "$HERE" local-chat BUNDLE="$b" || rc=$?
+        fi
         if (( rc )); then fail "$name local-chat $b"; else judge_local_chat "$name" "$b" "$lc" "$lcdir"; fi
         rm -rf "$lc" "$lcdir"
     fi

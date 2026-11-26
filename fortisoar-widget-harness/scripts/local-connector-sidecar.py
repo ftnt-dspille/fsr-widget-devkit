@@ -388,6 +388,15 @@ def _choose_llm(want: str, model: str | None) -> tuple[dict, dict]:
         return resolved.connector_config(), {"kind": "frank", "model": used_model, "reason": why}
     if want == "frank":
         sys.exit(f"[sidecar] FSRPB_SIDECAR_LLM=frank but Frank is not usable: {why}")
+    # Paid Haiku: asked for outright, or (auto) the fallback of the containerised local-chat, which sets
+    # FSRPB_SIDECAR_ANTHROPIC_FALLBACK and hands the key in from the keychain. On the host `auto` still falls to the fake.
+    if want == "anthropic" or (want == "auto" and os.environ.get("FSRPB_SIDECAR_ANTHROPIC_FALLBACK") == "1"):
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            resolved = _lt.resolve_llm_for_turn("anthropic", model or os.environ.get("FSRPB_SIDECAR_HAIKU") or "claude-haiku-4-5")
+            return resolved.connector_config(), {"kind": "anthropic", "model": resolved.model,
+                                                 "reason": f"Frank not usable ({why}); paid Haiku" if want == "auto" else "requested"}
+        if want == "anthropic":
+            sys.exit("[sidecar] FSRPB_SIDECAR_LLM=anthropic but ANTHROPIC_API_KEY is not set")
     cfg = _lt.install_fake_llm(_SCOPE, operations_mod)
     _fake_is_healthy()
     return cfg, {"kind": "fake", "model": cfg.get("model", "fake-1"),

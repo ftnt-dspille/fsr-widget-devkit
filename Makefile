@@ -24,7 +24,7 @@ DEV_PORT        := 14400
 TEST_PORT       := 14401
 INTROSPECT_PORT := 14403
 
-.PHONY: test-e2e-docker check ship bench harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable release-check
+.PHONY: local-chat-docker test-e2e-docker check ship bench harness-build loop doctor session-health help setup install widgets assets new-widget dev start stop test test-full test-unit test-e2e-headed test-e2e-spec turn-hermetic local-chat test-mcp-surface-live test-live-sweep test-matrix-live test-matrix-local grade-export test-designer-stage-live test-designer-apply-live test-widget-ui-live introspect introspect-gate introspect-soar ship-verify release clean widget-inspect deploy-guard promote stable release-check
 
 # --- Effect-level guards -----------------------------------------------------
 # Claude Code sets CLAUDECODE=1 in every shell it spawns. These are the real
@@ -190,6 +190,9 @@ test-e2e-spec: harness-build ## Run e2e for one/more specs (SPEC="a.spec.js b.sp
 
 test-e2e-docker: ## The same e2e specs in a Linux container (official Playwright image; dev servers and browser inside, nothing to orphan on the host). SPEC=<files> or WIDGET=<name>; WIDGETS_SRC for a worktree. Exit 2 = no engine
 	@SPEC="$(SPEC)" WIDGET="$(WIDGET)" TEST_DOCKER_WIDGETS_SRC="$(WIDGETS_SRC)" bash scripts/e2e_docker.sh
+
+local-chat-docker: ## local-chat with the widget, the connector and the browser in one Linux container; only the model is a network call (Frank first, else Haiku from the keychain). Exit 2 = no engine
+	@bash scripts/local_chat_docker.sh
 
 # Seam C (stability plan Phase 0.4): the box-free real-widget ↔ real-connector
 # turn. Boots the local-connector sidecar in HERMETIC mode (real operations.py +
