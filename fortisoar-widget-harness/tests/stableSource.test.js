@@ -147,7 +147,10 @@ test("stable.sh hands the promoted widgets to the build and the live check", () 
   const uses = src.split("\n").filter((l) => /stable_install\.py|live-sanity\.sh/.test(l) && !/^\s*#/.test(l));
   expect(uses.length).toBeGreaterThanOrEqual(2);
   const calls = src.split(/\n(?=\S)/).filter((b) => /stable_install\.py"|live-sanity\.sh"/.test(b));
-  for (const b of calls) expect(b).toMatch(/WIDGETS_SRC="\$SRC_ROOT\/widgets-src"/);
+  // A call either sets it inline or goes through INSTALL_ENV, which must set it.
+  const wrapper = (src.match(/^INSTALL_ENV\(\)[^\n]*(?:\\\n[^\n]*)*/m) || [""])[0];
+  expect(wrapper).toMatch(/WIDGETS_SRC="\$SRC_ROOT\/widgets-src"/);
+  for (const b of calls) expect(b).toMatch(/WIDGETS_SRC="\$SRC_ROOT\/widgets-src"|\bINSTALL_ENV\b/);
   expect(src).toMatch(/unset WIDGETS_SRC/);
 });
 
