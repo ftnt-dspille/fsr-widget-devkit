@@ -49,7 +49,11 @@ Then:
    gate, `FULL=1 make check`: widget e2e (when markup, CSS or a spec changed) and, when the diff
    touches the agent loop (framework `fsr_playbooks/llm` or `mcp_server`, or the connector package),
    `make local-chat` on a bundle (a sweep spec in the diff, else a default). Per change they are
-   named as deferred in the output. It covers uncommitted and untracked files.
+   named as deferred in the output.
+   Every step runs in a Linux container by default (jest, pytest, tool sweep, type gate, and at
+   batch the Playwright e2e and local-chat, whose model is a network call: Frank first, else Haiku
+   from the keychain); the host is the explicit fallback (`DOOR_DOCKER=0`, or no engine, said
+   loudly). Only the box (deploy, stamp, `make stable`) stays on the host, at ship time. It covers uncommitted and untracked files.
    A part with no mapped test prints `NOT RUN`: that is not a pass, so add the test.
 2. **`make ship [BOX=<alias>]`**: commit first (ship proves a commit). It pushes the branch (CI
    starts), classifies the diff with `.github/package-inputs`, and only when something ships

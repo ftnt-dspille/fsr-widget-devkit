@@ -100,7 +100,7 @@ fi
 exit 0
 `, { mode: 0o755 });
   // The container runner every door run sees by default: it records the call and answers 75 (no engine), so the host path runs.
-  fs.writeFileSync(path.join(T, "fakepydock"), `#!/usr/bin/env bash\necho "pydocker $* | FW=$DEVLOOP_FRAMEWORK_DIR" >> "$DOOR_LOG"\nexit "\${PYD_RC:-75}"\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(T, "fakepydock"), `#!/usr/bin/env bash\necho "pydocker $* | FW=$DEVLOOP_FRAMEWORK_DIR RUN=$DEVLOOP_RUN" >> "$DOOR_LOG"\nrc="\${PYD_RC:-75}"; [ -n "$DEVLOOP_RUN" ] && [ "$rc" = 5 ] && rc=0\nexit "$rc"\n`, { mode: 0o755 });
   fs.writeFileSync(path.join(T, "fakepy"), `#!/usr/bin/env bash\necho "python $* | PYTHONPATH=$PYTHONPATH | cwd=$PWD" >> "$DOOR_LOG"\nexit "\${PY_RC:-0}"\n`, { mode: 0o755 });
   const conn = repo("conn_main", {
     "connector-fsr-agentic-assistant/a.py": "A = 1\n", "scripts/dev_push_deps.sh": "#!/bin/sh\n", "README.md": "r\n",
@@ -225,6 +225,52 @@ describe("make check", () => {
     });
   });
 
+  describe("the whole per-change gate runs in the container by default; the host is the explicit fallback", () => {
+    test("connector: the tool sweep goes to the container (no host make tool-sweep); no engine (75) falls back to the host make", () => {
+      branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+      let r = door("check", { PYD_RC: "0" });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /^pydocker connector .*RUN=tool-sweep$/.test(x))).toBe(true);
+      expect(log().some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(false);
+      fs.writeFileSync(LOG, "");
+      r = door("check");   // fakepydock answers 75: no engine
+      expect(log().some((x) => /^make -C \S+ tool-sweep/.test(x))).toBe(true);
+    });
+    test("connector: a red container tool sweep fails the door", () => {
+      branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+      const r = door("check", { PYD_RC: "1" });
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/FAILED.*tool-sweep/);
+    });
+    test("framework: the type gate (mypy + ratchet) goes to the container; red fails; no engine (75) runs ci_suite on the host", () => {
+      branch(W.fw.dir, "feat/x", { "fsr_playbooks/llm/loop.py": "x = 2\n" });
+      let r = door("check", { DOOR_REPO: W.fw.dir, PYD_RC: "0" });
+      expect(r.code).toBe(0);
+      expect(log().some((x) => /^pydocker framework .*RUN=types$/.test(x))).toBe(true);
+      expect(log().some((x) => /^ci_suite types/.test(x))).toBe(false);
+      fs.writeFileSync(LOG, "");
+      r = door("check", { DOOR_REPO: W.fw.dir, PYD_RC: "1" });
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/FAILED.*mypy \+ ratchet/);
+      fs.writeFileSync(LOG, "");
+      r = door("check", { DOOR_REPO: W.fw.dir });
+      expect(log().some((x) => /^ci_suite types/.test(x))).toBe(true);
+    });
+    test("FULL=1 on a connector agent-loop diff and a widget markup diff leaves nothing on the host: no host pytest, jest, e2e, sweep or local-chat", () => {
+      branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
+      let r = door("check", { FULL: "1", PYD_RC: "0" });
+      expect(r.code).toBe(0);
+      const w = repo("widgets-src/mywidget", { "widget/info.json": "{}\n", "widget/view.html": "<p>a</p>\n" });
+      branch(w.dir, "feat/w", { "widget/view.html": "<p>b</p>\n" });
+      r = door("check", { FULL: "1", DOOR_REPO: w.dir });
+      expect(r.code).toBe(0);
+      const host = log().filter((x) => /^python -m pytest|^make -C \S+ (test PYTEST_ARGS|tool-sweep|test-unit|test-e2e-spec|local-chat BUNDLE)/.test(x));
+      expect(host).toEqual([]);
+      expect(log().some((x) => /local-chat-docker/.test(x))).toBe(true);
+      expect(log().some((x) => /test-e2e-docker/.test(x))).toBe(true);
+    });
+  });
+
   describe("scoped pytest runs in the Linux container when an engine answers", () => {
     const connBranch = () => branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
     const pyHost = () => log().filter((x) => /^python -m pytest/.test(x));
@@ -259,7 +305,7 @@ describe("make check", () => {
       git(W.fw.dir, "add", "-A"); git(W.fw.dir, "commit", "-qm", "both suites");
       const r = door("check", { DOOR_REPO: W.fw.dir, PYD_RC: "0" });
       expect(r.code).toBe(0);
-      const c = log().filter((x) => /^pydocker framework /.test(x));
+      const c = log().filter((x) => /^pydocker framework /.test(x) && /RUN=$/.test(x));
       expect(c).toHaveLength(2);
       expect(c.filter((x) => /-m not live and not slow .*tooling\/tests\/test_t\.py/.test(x))).toHaveLength(1);
       expect(c.filter((x) => /-m not live and not slow .*fsr_playbooks\/tests\/test_loop\.py/.test(x))).toHaveLength(1);

@@ -15,6 +15,7 @@
 # Mechanics mirror scripts/test_docker.sh: the working tree streams in as tar (tracked and
 # untracked, not ignored: uncommitted work is tested), no host mount. The Python env lives in a
 # docker volume named by the hash of the dependency inputs, so a warm run installs nothing.
+#   DEVLOOP_RUN=types|tool-sweep   run that gate instead of pytest (types: framework; tool-sweep: connector)
 # Test hooks: DEVLOOP_PY_IMAGE, DEVLOOP_PY_PLATFORM, DOCKER_START (as test_docker.sh).
 set -euo pipefail
 suite="${1:-}"; repo="${2:-}"; shift 2 || true
@@ -62,7 +63,7 @@ pack "$repo" > "$stage/repo.tar"
 if [[ -n "$fw" ]]; then pack "$fw" > "$stage/fw.tar"; else : > "$stage/fw.tar"; fi
 tar -cf "$stage/in.tar" -C "$stage" repo.tar fw.tar
 
-docker run --rm -i --platform "$PLATFORM" -e HAS_FW="${fw:+1}" -e SUITE="$suite" -v "fsr-pyenv-$key:/venv" "$IMAGE" bash -c '
+docker run --rm -i --platform "$PLATFORM" -e HAS_FW="${fw:+1}" -e SUITE="$suite" -e RUN="${DEVLOOP_RUN:-}" -v "fsr-pyenv-$key:/venv" "$IMAGE" bash -c '
     set -e
     mkdir -p /in /w/repo /w/fw && tar -xf - -C /in
     tar -xf /in/repo.tar -C /w/repo
@@ -88,4 +89,13 @@ docker run --rm -i --platform "$PLATFORM" -e HAS_FW="${fw:+1}" -e SUITE="$suite"
     # framework: as its CI, the package installed editable (its version resolves from the tree) and tooling/ on the path (probes)
     if [ "$SUITE" = framework ]; then uv pip install -q --python $PY --no-deps -e /w/repo/packaging/fsr_playbooks >/dev/null; export PYTHONPATH=/w/repo:/w/repo/tooling; fi
     if [ -n "$HAS_FW" ]; then export FSRPB_FRAMEWORK_DIR=/w/fw PYTHONPATH=/w/fw:/w/fw/tooling; fi
+    # DEVLOOP_RUN: the other gates of the per-change loop, same venv. types = the framework type gate (mypy==2.1.0, the
+    # version CI and the ratchet baseline use, plus the ratchet); tool-sweep = the connector contract sweep.
+    case "$RUN" in
+      types) uv pip install -q --python $PY mypy==2.1.0 pyyaml ruamel.yaml jinja2 "mcp>=1.0" >/dev/null
+             PY=$PY exec bash scripts/ci_suite.sh types ;;
+      tool-sweep) exec $PY scripts/tool_sweep.py ;;
+      "") ;;
+      *) echo "devloop_docker_py: unknown DEVLOOP_RUN=$RUN" >&2; exit 64 ;;
+    esac
     exec $PY -m pytest -q --no-header -n auto -p no:randomly "$@"' _ "$@" < "$stage/in.tar"

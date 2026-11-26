@@ -19,6 +19,11 @@
 #   the batch gate, FULL=1 make check: the widget e2e (when markup, CSS or a spec changed) and `make local-chat` on a
 #   bundle when the diff touches the agent loop (framework fsr_playbooks/llm or mcp_server, or the connector package).
 #   Without FULL=1 they are named as deferred in the output, never silently dropped.
+# Where it runs: IN LINUX CONTAINERS, by default, for every step (root and widget jest, connector and framework pytest, the
+# connector tool sweep, the framework type gate, and in the batch gate the widget e2e and local-chat). The host is the explicit
+# fallback: DOOR_DOCKER=0, or no engine answering (Colima is started when it can be), each said loudly; root jest with no engine
+# is NOT RUN, never a silent host run. The one exception is the box: deploy, stamp and stable stay on the host (ssh/REST to a
+# real appliance cannot run in a container) and run only at `make ship` / `make stable`, never in the per-change loop.
 # A repo whose diff maps to no test says so; a skip is not a pass.
 #
 # ship, per changed repo, framework -> connector -> widgets -> root:
@@ -462,8 +467,11 @@ check_repo() {
                 if (( rc == 5 )); then not_run "$name: pytest collected nothing from: $sel"
                 elif (( rc != 0 )); then fail "$name pytest: $sel"; fi
             else not_run "$name: no pytest file maps to this diff (CI runs the full suite)"; fi
-            printf '%s\n' "$files" | grep -q '^connector-fsr-agentic-assistant/' \
-                && { lap "check tool-sweep" 30 $MAKE -C "$d" tool-sweep >/dev/null || fail "$name tool-sweep"; } ;;
+            if printf '%s\n' "$files" | grep -q '^connector-fsr-agentic-assistant/'; then
+                DEVLOOP_RUN=tool-sweep py_container "check tool-sweep" connector "$d" >/dev/null; rc=$?
+                if (( rc == 75 )); then lap "check tool-sweep" 30 $MAKE -C "$d" tool-sweep >/dev/null || fail "$name tool-sweep"
+                elif (( rc != 0 )); then fail "$name tool-sweep"; fi
+            fi ;;
         framework)
             # The framework refuses a pytest process that mixes its suites (tooling/tests vs fsr_playbooks/tests):
             # one process per suite, each reported on its own.
@@ -486,7 +494,10 @@ check_repo() {
             # framework python changed. Never a silent pass: no interpreter for it is NOT RUN.
             if printf '%s\n' "$files" | grep -qE '^fsr_playbooks/.*\.py$'; then
                 local tpy
-                if ! tpy="$(mypy_python)"; then not_run "$name: mypy + ratchet (scripts/ci_suite.sh types): $tpy"
+                DEVLOOP_RUN=types py_container "check types (mypy ratchet)" framework "$d"; rc=$?
+                if (( rc == 0 )); then :
+                elif (( rc != 75 )); then fail "$name mypy + ratchet (scripts/ci_suite.sh types)"
+                elif ! tpy="$(mypy_python)"; then not_run "$name: mypy + ratchet (scripts/ci_suite.sh types): $tpy"
                 else ( cd "$d" && PY="$tpy" lap "check types (mypy ratchet)" 120 bash scripts/ci_suite.sh types ) || fail "$name mypy + ratchet (scripts/ci_suite.sh types)"; fi
             fi ;;
         widget)
