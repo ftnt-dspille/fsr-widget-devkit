@@ -19,6 +19,7 @@ scripts/hooks_central.sh
 scripts/install-git-hooks.sh
 scripts/agent_tree.sh
 scripts/door.sh
+scripts/lap.sh
 scripts/drift_check.py
 scripts/devloop_*
 scripts/pack_tree.sh
