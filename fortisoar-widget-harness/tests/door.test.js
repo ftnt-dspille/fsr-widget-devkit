@@ -66,7 +66,7 @@ function door(mode, env = {}) {
   const r = spawnSync("bash", [DOOR, mode], {
     cwd: T, encoding: "utf8", timeout: 60000,
     env: { ...ENV, FROM_TREE: "1", FSR_TOOL_HOME: ROOT, DOOR_MAKE: W.make, DOOR_LOG: LOG, FSR_LIVE_SANITY_DIR: path.join(T, "stamps"), PYFSR_INSTANCES: REG(),
-           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, DOOR_PY_DOCKER: path.join(T, "fakepydock"), ...env },
+           FSR_LAP_LEDGER: path.join(T, "laps.tsv"), LEASE_DIR: path.join(T, "leases"), CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, DOOR_REPO: W.conn.dir, DOOR_PY_DOCKER: path.join(T, "fakepydock"), DOOR_TYPES_PY: path.join(T, "fakepy"), ...env },
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -114,7 +114,9 @@ exit 0
     "scripts/dev_env.sh": `#!/usr/bin/env bash\necho "${path.join(T, "fakepy")}"\n`,
     "scripts/box.sh": BOX_STUB,
   });
-  const fw = repo("fsr-playbook-framework", { "fsr_playbooks/llm/loop.py": "x = 1\n", "fsr_playbooks/tests/test_loop.py": "import loop\n", "README.md": "r\n" });
+  const fw = repo("fsr-playbook-framework", { "fsr_playbooks/llm/loop.py": "x = 1\n", "fsr_playbooks/tests/test_loop.py": "import loop\n", "README.md": "r\n",
+    // stands in for the framework CI definition (scripts/ci_suite.sh types = mypy + the ratchet); logs PY and exits TYPES_RC
+    "scripts/ci_suite.sh": '#!/usr/bin/env bash\necho "ci_suite $* | PY=$PY" >> "$DOOR_LOG"\nexit "${TYPES_RC:-0}"\n' });
   W = { make, conn, fw };
 });
 afterEach(() => fs.rmSync(T, { recursive: true, force: true }));
@@ -275,6 +277,28 @@ describe("make check", () => {
 });
 
 describe("make check: suites and worktrees", () => {
+
+  describe("framework type gate (mypy + ratchet)", () => {
+    const typeRuns = () => log().filter((x) => /^ci_suite types/.test(x));
+    test("a diff that touches framework python runs scripts/ci_suite.sh types with the gate interpreter", () => {
+      branch(W.fw.dir, "feat/x", { "fsr_playbooks/llm/loop.py": "x = 2\n" });
+      const r = door("check", { DOOR_REPO: W.fw.dir });
+      expect(r.code).toBe(0);
+      expect(typeRuns()).toHaveLength(1);
+      expect(typeRuns()[0]).toMatch(/PY=\S*fakepy$/);
+    });
+    test("a red type gate fails the door (a new type error must not pass make check)", () => {
+      branch(W.fw.dir, "feat/x", { "fsr_playbooks/llm/loop.py": "x = 2\n" });
+      const r = door("check", { DOOR_REPO: W.fw.dir, TYPES_RC: "1" });
+      expect(r.code).toBe(1);
+      expect(r.out).toMatch(/check FAILED: .*mypy \+ ratchet/);
+    });
+    test("a framework diff with no python (a workflow file) does not run the type gate", () => {
+      branch(W.fw.dir, "feat/x", { ".github/workflows/ci.yml": "name: CI\n" });
+      door("check", { DOOR_REPO: W.fw.dir });
+      expect(typeRuns()).toHaveLength(0);
+    });
+  });
   test("the framework's tooling tests and fsr_playbooks tests run in separate pytest processes, never one", () => {
     git(W.fw.dir, "switch", "-q", "-c", "feat/x");
     write(W.fw.dir, "tooling/tests/test_t.py", "import loop\n");

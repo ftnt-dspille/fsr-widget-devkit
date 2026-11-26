@@ -321,6 +321,21 @@ touches_agent_loop() {  # touches_agent_loop <kind>: stdin changed files
         *) return 1 ;;
     esac
 }
+# mypy_python: prints a python that has mypy==2.1.0 (the version CI and the ratchet baseline use) plus the framework's
+# deps, building a cached venv with uv on first use (CI installs the same set). Rc 1 and the reason on stdout when it cannot.
+mypy_python() {
+    local v py
+    [[ -z "${DOOR_TYPES_PY:-}" ]] || { echo "$DOOR_TYPES_PY"; return 0; }   # tests (and a pre-built env) name the interpreter
+    v="${DOOR_MYPY_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/fsr-door/mypy-2.1.0-venv}"; py="$v/bin/python"
+    if [[ ! -x "$py" ]] || ! "$py" -c 'import mypy.version as m,sys; sys.exit(m.__version__ != "2.1.0")' 2>/dev/null; then
+        command -v uv >/dev/null 2>&1 || { echo "uv is not installed, so mypy==2.1.0 cannot be set up; install uv"; return 1; }
+        say "setting up the mypy venv at $v (first use only)" >&2
+        { uv venv -q --python 3.12 "$v" 2>/dev/null || uv venv -q "$v"; } \
+            && uv pip install -q --python "$py" pyyaml ruamel.yaml jinja2 openai anthropic 'mcp>=1.0' httpx pytest requests-mock anyio python-dotenv mypy==2.1.0 >&2 \
+            || { rm -rf "$v"; echo "could not install mypy==2.1.0 and the framework deps into $v (offline?)"; return 1; }
+    fi
+    echo "$py"
+}
 FAILED=(); NOT_RUN=()
 fail() { FAILED+=("$1"); echo "door: FAILED $1" >&2; }
 not_run() { NOT_RUN+=("$1"); echo "door: NOT RUN: $1" >&2; }
@@ -422,7 +437,14 @@ check_repo() {
                 # shellcheck disable=SC2086
                 ( cd "$d" && PYTHONPATH="$d" FSRPB_DEV=1 lap "check tests ($suite)" 120 "$py" -m pytest -q -p no:randomly -m 'not live and not slow' $sel ) || fail "$name pytest ($suite): $sel"
             done
-            (( any )) || true ;;
+            (( any )) || true
+            # The type gate CI runs (mypy + the ratchet on llm/ + mcp_server/): whole-module, so it runs whole, but only when
+            # framework python changed. Never a silent pass: no interpreter for it is NOT RUN.
+            if printf '%s\n' "$files" | grep -qE '^fsr_playbooks/.*\.py$'; then
+                local tpy
+                if ! tpy="$(mypy_python)"; then not_run "$name: mypy + ratchet (scripts/ci_suite.sh types): $tpy"
+                else ( cd "$d" && PY="$tpy" lap "check types (mypy ratchet)" 120 bash scripts/ci_suite.sh types ) || fail "$name mypy + ratchet (scripts/ci_suite.sh types)"; fi
+            fi ;;
         widget)
             local w ws; w="$(basename "$d")"; ws="$(dirname "$d")"
             [[ "$(basename "$ws")" == widgets-src ]] || die "$w: put a widget worktree at <dir>/widgets-src/$w (or use an agent tree), so the harness finds it"
