@@ -21,8 +21,23 @@ out="$(mktemp "${TMPDIR:-/tmp}/lap.XXXXXX")"; err="$out.err"
 LAP_EXCLUDE_FILE="$(mktemp "${TMPDIR:-/tmp}/lap-x.XXXXXX")"; export LAP_EXCLUDE_FILE
 # Separate files: two tees into one file do not keep the streams' order, and
 # the reason (usually the last stderr line) could fall outside the tail.
-"$@" > >(tee -a "$out") 2> >(tee -a "$err" >&2); rc=$?
-wait 2>/dev/null
+# The step writes straight to those files and this shell streams them to the
+# caller while the step runs. No process-substitution tees: a step that leaves a
+# child behind (ssh control master, a server) used to keep the tees, and so the
+# caller's pipe (`make ... | tail`), open for hours. Now the only holders of the
+# caller's stdout/stderr are this shell, which exits when the step does.
+: > "$out"; : > "$err"
+"$@" <&0 > "$out" 2> "$err" & pid=$!
+oo=0; eo=0
+stream() {  # print what the step wrote since the last call
+    local n
+    n=$(wc -c < "$out"); (( n > oo )) && { tail -c +$((oo + 1)) "$out" | head -c $((n - oo)); oo=$n; }
+    n=$(wc -c < "$err"); (( n > eo )) && { tail -c +$((eo + 1)) "$err" | head -c $((n - eo)) >&2; eo=$n; }
+    return 0
+}
+while kill -0 "$pid" 2>/dev/null; do stream; sleep 0.2; done
+wait "$pid"; rc=$?
+stream
 secs=$((SECONDS - t0))
 excl=$(awk '{s+=$1} END{print s+0}' "$LAP_EXCLUDE_FILE" 2>/dev/null); rm -f "$LAP_EXCLUDE_FILE"
 (( excl > 0 && excl <= secs )) && secs=$((secs - excl))

@@ -77,3 +77,25 @@ test("make laps counts a target called wrong separately from a failing gate", ()
   const s = spawnSync("bash", [path.join(ROOT, "scripts/laps.sh")], { encoding: "utf8", env: { ...process.env, FSR_LAP_LEDGER: ledger } });
   expect(s.stdout).toMatch(/called wrong \(usage \/ unknown variable\), per step: promote 1/);
 });
+
+// A step that leaves a child behind (ssh control master, a server) must not keep the caller's pipe open: lap used to
+// feed its output through two process-substitution tees that the leftover child kept alive, so `lap.sh ... | cat` hung.
+test("a step that leaves a sleeping background child does not keep `lap.sh | cat` from returning", () => {
+  const t0 = Date.now();
+  const r = spawnSync("bash", ["-c", 'bash "$0" leftover -- bash -c "echo out-line; echo err-line >&2; sleep 30 & exit 4" 2>&1 | cat', path.join(ROOT, "scripts/lap.sh")],
+    { cwd: tmp, encoding: "utf8", timeout: 20000, env: { ...process.env, FSR_LAP_LEDGER: ledger } });
+  expect(Date.now() - t0).toBeLessThan(15000);
+  expect(r.signal).toBeNull();
+  expect(r.stdout).toMatch(/out-line/);
+  expect(r.stdout).toMatch(/err-line/);
+  expect(r.stdout).toMatch(/\[\ds\] leftover FAILED/);
+  expect(rows()[0][3]).toBe("4");
+  spawnSync("pkill", ["-f", "^sleep 30$"]);
+});
+
+test("stdout and stderr of a long step reach the caller while it runs, and the exit status is kept", () => {
+  const r = lap("two", "--", "bash", "-c", "echo a; echo b >&2; sleep 0.5; echo c; exit 2");
+  expect(r.status).toBe(2);
+  expect(r.stdout).toMatch(/a\nc\n/);
+  expect(r.stderr).toMatch(/b/);
+});
