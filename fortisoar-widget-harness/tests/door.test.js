@@ -350,10 +350,10 @@ describe("make check: suites and worktrees", () => {
       expect(log().some((x) => /test-unit FULL=1 TESTS=cardDomCoverage\.test\.js /.test(x))).toBe(true);
     });
 
-    test("no container engine (exit 2): the tooling suite runs on the host instead; DOOR_DOCKER=0 skips the container", () => {
+    test("no container engine (exit 2): NOT RUN with the reason, never a host run; DOOR_DOCKER=0 is the explicit host run", () => {
       const r = run({ DOOR_FAIL: "test-docker", DOOR_FAIL_RC: "2" });
-      expect(r.code).toBe(0);
-      expect(log().some((x) => /test-unit FULL=1 TESTS=other\.test\.js promoteGate\.test\.js /.test(x))).toBe(true);
+      expect(r.out).toMatch(/NOT RUN: \S+ jest: no container engine .*other\.test\.js promoteGate\.test\.js/);
+      expect(log().some((x) => /test-unit/.test(x))).toBe(false);
     });
 
     test("a failing container run fails the door and names the files", () => {
@@ -395,7 +395,7 @@ describe("make ship", () => {
     branch(W.conn.dir, "feat/x", { "connector-fsr-agentic-assistant/a.py": "A = 2\n" });
     const r = door("ship", { BOX: "demo", BOX_RC: "2" });
     expect(r.code).toBe(2);
-    expect(r.out).toMatch(/cannot take code/);
+    expect(r.out).toMatch(/BOX=demo is a stable box and cannot take code/);
     expect(remoteHas(W.conn.bare, "feat/x")).toBe(false);
   });
 
@@ -689,7 +689,8 @@ describe("make ship: BOX unset picks a free experimental box", () => {
     lease("92", "tree:other");
     const r = ship({ BOX: "92" });
     expect(r.code).toBe(2);
-    expect(r.out).toMatch(/cannot take code/);
+    expect(r.out).toMatch(/BOX=92 \(experimental box\) cannot take code right now: .*held by tree:other/);
+    expect(r.out).not.toMatch(/stable box/);
     expect(boxlog().some((x) => /--list|--lease/.test(x))).toBe(false);
   });
   test("a tooling-only diff picks no box at all", () => {
@@ -726,7 +727,8 @@ describe("make ship: one lease holder identity for every step", () => {
 // <repo>__<ref> holding the post-jq rows (id, sha, name, status, conclusion). No file = GitHub unreadable.
 describe("CI of main is never out of sight", () => {
   let GH;
-  const rows = (...r) => r.map(([id, name, st, co, sha = "aaaaaaaa11111111"]) => [id, sha, name, st, co || ""].join("\t")).join("\n") + "\n";
+  // 6th column = the check suite of the run; suite 100 is a push-to-main run, anything else is another trigger (a tag release)
+  const rows = (...r) => r.map(([id, name, st, co, sha = "aaaaaaaa11111111", suite = 100]) => [id, sha, name, st, co || "", suite].join("\t")).join("\n") + "\n";
   const ci = (repoName, ref, body) => fs.writeFileSync(path.join(GH, `${repoName}__${ref}`), body);
   const onGithub = (r, name) => git(r.dir, "remote", "add", "github", `https://github.com/o/${name}.git`);
   const run = (mode, args, env = {}) => {
@@ -740,7 +742,11 @@ describe("CI of main is never out of sight", () => {
     GH = path.join(T, "ghdata"); fs.mkdirSync(GH);
     fs.mkdirSync(path.join(T, "bin"));
     fs.writeFileSync(path.join(T, "bin", "gh"), `#!/usr/bin/env bash
-slug="\${2#repos/}"; ref="\${slug#*/commits/}"; ref="\${ref%%/*}"; repo="\${slug#*/}"; repo="\${repo%%/*}"
+slug="\${2#repos/}"; repo="\${slug#*/}"; repo="\${repo%%/*}"
+case "$slug" in
+  */actions/runs*) f="${GH}/\${repo}__runs"; if [ -f "$f" ]; then cat "$f"; else echo 100; fi; exit 0 ;;
+esac
+ref="\${slug#*/commits/}"; ref="\${ref%%/*}"
 f="${GH}/\${repo}__\${ref}"; [ -f "$f" ] || exit 1; cat "$f"
 `, { mode: 0o755 });
     onGithub(W.conn, "conn_main"); onGithub(W.fw, "fsr-playbook-framework");
@@ -772,6 +778,51 @@ f="${GH}/\${repo}__\${ref}"; [ -f "$f" ] || exit 1; cat "$f"
     expect(run("ci", ["status", W.conn.dir]).code).toBe(0);
     ci("conn_main", "main", rows([1, "test (bundled framework)", "in_progress"]));
     expect(run("ci", ["status", W.conn.dir]).out).toMatch(/pending/);
+  });
+
+  test("a release run triggered by a tag on the same commit is not main's CI: only push-to-main runs count", () => {
+    write(W.conn.dir, ".github/required-checks", "unit\n");
+    git(W.conn.dir, "add", "-A"); git(W.conn.dir, "commit", "-qm", "req"); git(W.conn.dir, "push", "-q", "origin", "main");
+    ci("conn_main", "main", rows([1, "unit", "completed", "success", "aaaaaaaa11111111", 200], [2, "release", "completed", "success", "aaaaaaaa11111111", 200]));
+    const r = run("ci", ["status", W.conn.dir]);
+    expect(r.out).not.toMatch(/green/);
+    expect(r.code).toBe(3);
+    expect(r.out).toMatch(/unknown: no push-to-main CI run/);
+    ci("conn_main", "main", rows([1, "unit", "completed", "success", "aaaaaaaa11111111", 200], [3, "unit", "completed", "failure", "aaaaaaaa11111111", 100]));
+    expect(run("ci", ["status", W.conn.dir]).code).toBe(1);   // the push-to-main run is the one that counts, and it is red
+  });
+
+  test("ci all prints one line per repo: a red repo and an unreadable one are both flagged, none is dropped", () => {
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "failure"]));
+    // framework unreadable (no data file), root and the widgets have no GitHub remote
+    const r = run("ci", ["all"]);
+    expect(r.code).toBe(1);
+    const lines = r.out.split("\n").filter((l) => /ci main:/.test(l));
+    expect(lines.length).toBe(5);
+    for (const n of ["root", "connector", "framework", "agenticAssistant", "agenticAssistantMonitor"]) expect(lines.some((l) => l.includes(`ci main: ${n}`))).toBe(true);
+    expect(lines.filter((l) => /^!!! /.test(l)).length).toBe(5);
+    expect(r.out).toMatch(/!!! ci main: connector \(o\/conn_main\) RED/);
+    expect(r.out).toMatch(/!!! ci main: framework .*unknown/);
+  });
+
+  test("ci all with only unreadable repos exits 3 and flags them", () => {
+    const r = run("ci", ["all"]);
+    expect(r.code).toBe(3);
+    expect(r.out).toMatch(/!!! ci main: connector .*unknown/);
+  });
+
+  test("drift_check asks about the connector and framework it was given, not the door's default guess", () => {
+    ci("conn_main", "main", rows([1, "test (bundled framework)", "completed", "failure"]));
+    const r = spawnSync("python3", [path.join(ROOT, "scripts/drift_check.py"), "--root", ROOT, "--ledger", path.join(T, "laps.tsv"), "--connector", W.conn.dir, "--framework", W.fw.dir],
+      { encoding: "utf8", env: { ...ENV, CONN_REPO: path.join(T, "nowhere"), FSR_FRAMEWORK_REPO: path.join(T, "nowhere2"), PATH: `${path.join(T, "bin")}:${process.env.PATH}` } });
+    expect(r.stdout).toMatch(/ci main: connector \(o\/conn_main\) RED/);
+    expect(r.stdout).toMatch(/WARN CI RED ON MAIN/);
+  });
+
+  test("drift_check warns when main's CI cannot be read at all", () => {
+    const r = spawnSync("python3", [path.join(ROOT, "scripts/drift_check.py"), "--root", ROOT, "--ledger", path.join(T, "laps.tsv")],
+      { encoding: "utf8", env: { ...ENV, CONN_REPO: W.conn.dir, FSR_FRAMEWORK_REPO: W.fw.dir, PATH: `${path.join(T, "bin")}:${process.env.PATH}` } });
+    expect(r.stdout).toMatch(/WARN CI OF MAIN UNREADABLE/);
   });
 
   test("make doctor's drift check (drift_check.py) prints every repo's main CI line and flags a red one", () => {
