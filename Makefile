@@ -339,8 +339,8 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 release-check: ## BATCH GATE before make stable: the full connector suite (container), the framework suites and green CI on every main; records the heads, which make stable requires
 	@$(RFM) release_check.sh run
 
-stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Refuses unless the box is stable, every repo is clean, on remote main and VERIFIED on an experimental box. ARGS=--build-only | --force
-	@BOX='$(BOX)' ARGS='$(ARGS)' $(RFM) stable.sh
+stable: ## THE stable-box path (BOX=<alias>, required): build the promoted mains and install them through the Import Wizard (REST: no ssh, no PyPI). Prints EVERY blocker with its one command; BUMP=patch bumps conflicting repos through make ship and re-proves stale stamps itself. ARGS=--build-only | --force
+	@BOX='$(BOX)' ARGS='$(ARGS)' BUMP='$(BUMP)' $(RFM) stable.sh
 
 push: harness-build ## IDEMPOTENT deploy of working trees to a box: connector+framework + CHANGED widgets. BOX=<alias> WIDGETS=auto|all|list CONNECTOR=1|0 DRY_RUN=1 (no gates; that is loop/ship-verify)
 	$(require_push_box)

@@ -483,6 +483,25 @@ describe("make ship", () => {
     expect(l.some((x) => /promote REPO=.* BRANCH=release\/x/.test(x))).toBe(true);
   });
 
+  test("BUMP on a widget branch with nothing ahead of main runs the widget's own bump (widget-push BUMP=) on the box, once", () => {
+    const wd = repo("agenticAssistant", { "widget/info.json": '{"name":"agenticAssistant","version":"1.4.7"}\n', "README.md": "r\n" });
+    git(wd.dir, "switch", "-q", "-c", "bump/x");
+    const r = door("ship", { DOOR_REPO: wd.dir, BOX: "92", BUMP: "patch" });
+    expect(r.out).toMatch(/BUMP=patch: bumping through widget-push on 92/);
+    const pushes = log().filter((x) => /widget-push/.test(x));
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]).toMatch(/WIDGET=agenticAssistant/);
+    expect(pushes[0]).toMatch(/BUMP=patch/);
+    expect(pushes[0]).toMatch(/BOX=92/);
+  });
+
+  test("a widget branch with nothing ahead and no BUMP bumps nothing", () => {
+    const wd = repo("agenticAssistant", { "widget/info.json": '{"name":"agenticAssistant","version":"1.4.7"}\n' });
+    git(wd.dir, "switch", "-q", "-c", "bump/x");
+    door("ship", { DOOR_REPO: wd.dir, BOX: "92" });
+    expect(log().filter((x) => /widget-push/.test(x))).toHaveLength(0);
+  });
+
   test("without BUMP (or with BUMP=none) the same empty branch still ships nothing and commits nothing", () => {
     git(W.conn.dir, "switch", "-q", "-c", "release/x");
     const before = git(W.conn.dir, "rev-parse", "HEAD");

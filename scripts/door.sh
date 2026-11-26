@@ -28,7 +28,8 @@
 #   DRY_RUN=1 stops promote before the merge: CI and the stamp are still checked.
 #   BUMP=patch|minor|major on a connector branch with NOTHING ahead of main makes one version-only commit
 #   (info.json version + release_notes entry, same rewrite as deploy.sh) and ships that, so a stable box can
-#   take code that kept its version. Without BUMP such a branch still ships nothing.
+#   take code that kept its version. Without BUMP such a branch still ships nothing. On a widget branch the same BUMP
+#   runs the widget's own bump (make widget-push BUMP=..., which commits "Bump to <v>", deploys and stamps it) and ships that.
 #
 # Gating (owner decision: no full suite and no full CI wait for one small change; they run at the batch point):
 #   make ship          the tests the diff touches (check's own selection, minus local-chat), the box stamp for what ships, then promote
@@ -216,7 +217,10 @@ if [[ -n "$tree" ]]; then
     for d in "$tree/framework" "$tree/connector" "$tree/root/widgets-src/agenticAssistant" "$tree/root/widgets-src/agenticAssistantMonitor" "$tree/root"; do
         [[ -e "$d/.git" ]] || continue
         git -C "$d" fetch -q "$(remote_of "$d")" main 2>/dev/null || true
-        if (( $(ahead_of "$d") > 0 )) || dirty_of "$d" || [[ -n "$(untracked "$d")" ]]; then DIRS+=("$d"); fi
+        if (( $(ahead_of "$d") > 0 )) || dirty_of "$d" || [[ -n "$(untracked "$d")" ]]; then DIRS+=("$d")
+        elif [[ -n "${BUMP:-}" && "${BUMP:-}" != none && "$mode" == ship && -n "$(branch_of "$d")" ]] \
+             && case "$(kind_of "$d")" in connector|widget) true ;; *) false ;; esac; then DIRS+=("$d")   # a branch made to carry a version-only bump
+        fi
     done
     (( ${#DIRS[@]} )) || { say "nothing in the tree is ahead of main or changed"; exit 0; }
 else
@@ -563,6 +567,20 @@ PY
     say "$name: nothing ahead of main, BUMP=$BUMP: committed a version-only bump to $new"
 }
 
+bump_widget() {  # bump_widget <dir>: BUMP=<level> on a widget branch with nothing ahead of main -> the widget's own bump, deployed and stamped
+    local d="$1" w; w="$(basename "$d")"
+    case "$BUMP" in patch|minor|major) ;; *) die "$w: BUMP must be patch, minor or major (got '$BUMP')" ;; esac
+    if [[ -z "${BOX:-}" ]]; then
+        box_pick   # sets BOX and holds its lease: free it when ship ends, whatever happened
+        trap '$MAKE -s -C "$HERE" box-release BOX="$BOX" >/dev/null 2>&1 || true' EXIT
+    fi
+    BOX="$BOX" bash "$CONN/scripts/box.sh" --need env,push >/dev/null || die "BOX=$BOX cannot take code (a stable box takes it only through make stable)"
+    # widget-push bumps info.json and the controller names the way the widget CLI does, commits "Bump to <v>" in the clean widget repo,
+    # deploys it and live-proves it on BOX: the same step a widget change takes, so the head is stamped when ship reaches promote.
+    say "$w: nothing ahead of main, BUMP=$BUMP: bumping through widget-push on $BOX"
+    lap "ship bump" 420 $MAKE -C "$HERE" widget-push WIDGET="$w" WIDGETS_SRC="$(dirname "$d")" BOX="$BOX" BUMP="$BUMP" || die "$w: the version bump failed"
+}
+
 ship_all() {
     local d br kind name cls shipped=() pushes=() pids=() i rc=0 stampdirs=()
     declare -A CLS=()
@@ -572,6 +590,7 @@ ship_all() {
         [[ "$br" != main ]] || die "$name is on main: main moves only through ship; make a branch and commit"
         dirty_of "$d" && die "$name has uncommitted changes to tracked files: commit them (ship proves a commit, not a working tree)"
         if (( $(ahead_of "$d") == 0 )) && [[ -n "${BUMP:-}" && "${BUMP:-}" != none && "$kind" == connector ]]; then bump_only "$d"; fi
+        if (( $(ahead_of "$d") == 0 )) && [[ -n "${BUMP:-}" && "${BUMP:-}" != none && "$kind" == widget ]]; then bump_widget "$d"; fi
         (( $(ahead_of "$d") > 0 )) || { say "$name: $br has nothing ahead of main"; continue; }
         cls="$(classify "$d" "$br")" || die "$name: could not classify the diff"
         [[ -n "$cls" ]] || die "$name: promote did not say how it classifies the diff"

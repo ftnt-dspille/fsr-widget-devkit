@@ -92,22 +92,70 @@ describe("release-check verify (what make stable asks)", () => {
     fs.writeFileSync(path.join(trees.conn, "b.txt"), "b\n"); git(trees.conn, "add", "-A"); git(trees.conn, "commit", "-qm", "moved");
     const r = run(["verify", ...heads()]);
     expect(r.code).toBe(1);
-    expect(r.out).toMatch(/NOT passed on these exact mains/);
+    expect(r.out).toMatch(/NOT passed on what these mains ship/);
+  });
+});
+
+describe("release-check keys on what ships (package-inputs), not on the head", () => {
+  const INPUTS = [
+    "conn_main ship connector-fsr-agentic-assistant", "conn_main extra scripts",
+    "fsr-playbook-framework ship fsr_playbooks",
+    "agenticAssistant ship .", "agenticAssistantMonitor ship .",
+    "fsr_all_widgets extra scripts", ""].join("\n");
+  const commit = (d, file, body, msg = "m") => {
+    fs.mkdirSync(path.dirname(path.join(d, file)), { recursive: true });
+    fs.writeFileSync(path.join(d, file), body); git(d, "add", "-A"); git(d, "commit", "-qm", msg);
+  };
+  beforeEach(() => {
+    commit(trees.root, ".github/package-inputs", INPUTS);
+    commit(trees.conn, "connector-fsr-agentic-assistant/info.json", '{"version":"1.0.0"}\n');
+    commit(trees.fw, "fsr_playbooks/x.py", "x = 1\n");
+    expect(run(["run"]).code).toBe(0);
+    expect(run(["verify", ...heads()]).code).toBe(0);
+  });
+  test("a tooling-only or fixture-only move on any main keeps the record valid", () => {
+    commit(trees.conn, "scripts/changed_tests.sh", "# rule\n");
+    commit(trees.conn, "tests/fixtures/eval.json", "{}\n");
+    commit(trees.root, "scripts/door.sh", "# door\n");
+    commit(trees.fw, "tooling/t.py", "t = 1\n");
+    expect(run(["verify", ...heads()]).code).toBe(0);
+  });
+  test("a move on a shipped path (connector package, framework package, a widget, .github) invalidates it", () => {
+    for (const [d, f] of [[trees.conn, "connector-fsr-agentic-assistant/op.py"], [trees.fw, "fsr_playbooks/x.py"],
+                          [trees.aa, "widget/view.html"], [trees.mon, "README.md"], [trees.root, ".github/workflows/ci.yml"]]) {
+      commit(d, f, `changed ${f}\n`);
+      const r = run(["verify", ...heads()]);
+      expect([f, r.code]).toEqual([f, 1]);
+    }
+  });
+  test("carry: version-only bump commits carry the record forward; anything more is refused", () => {
+    const old = heads().map((d) => d + "-old");
+    for (const [i, d] of heads().entries()) execFileSync("git", ["clone", "-q", d, old[i]], { env: ENV });
+    commit(trees.conn, "connector-fsr-agentic-assistant/info.json", '{"version":"1.0.1"}\n', "Bump to 1.0.1");
+    expect(run(["verify", ...heads()]).code).toBe(1);
+    const r = run(["carry", ...old, ...heads()]);
+    expect(r.code).toBe(0);
+    expect(run(["verify", ...heads()]).code).toBe(0);
+    commit(trees.conn, "connector-fsr-agentic-assistant/op.py", "code\n", "Bump to 1.0.2");
+    expect(run(["carry", ...heads().map((d) => d + "-old"), ...heads()]).out).toMatch(/more than a version bump/);
+    commit(trees.conn, "scripts/x.sh", "x\n", "not a bump");
+    expect(run(["carry", ...old, ...heads()]).code).toBe(1);
   });
 });
 
 describe("wiring", () => {
+  const gather = () => STABLE.slice(STABLE.indexOf("gather() {"), STABLE.indexOf("blocked() {"));
   test("make stable verifies the record before it guards or installs, except for --build-only", () => {
-    const v = STABLE.indexOf("release_check.sh\" verify");
-    expect(v).toBeGreaterThan(0);
-    expect(v).toBeLessThan(STABLE.indexOf("SRC_CONN/scripts/stable_guard.py"));
-    expect(v).toBeLessThan(STABLE.indexOf("SRC_CONN/scripts/stable_install.py"));
-    expect(STABLE.slice(STABLE.lastIndexOf("case", v), v)).toMatch(/--build-only/);
+    const g = gather();
+    expect(g).toMatch(/if \(\( ! BUILD_ONLY \)\); then[\s\S]*release_check\.sh|RC_SH" verify/);
+    expect(g.indexOf('"$RC_SH" verify')).toBeGreaterThan(0);
+    expect(g.indexOf('"$RC_SH" verify')).toBeLessThan(g.indexOf("stable_guard.py"));
+    expect(g.indexOf("if (( ! BUILD_ONLY )); then")).toBeLessThan(g.indexOf('"$RC_SH" verify'));
+    expect(STABLE.indexOf("stable_pass\n")).toBeLessThan(STABLE.indexOf('stable_install.py" ${ARGS'));
   });
-  test("only --build-only skips the check: the case has no catch-all arm", () => {
-    const v = STABLE.indexOf("release_check.sh\" verify");
-    const c = STABLE.slice(STABLE.lastIndexOf("case", v), v);
-    expect(c).not.toMatch(/\|\s*\*\)/);
+  test("a record that is missing blocks the install (the report names make release-check)", () => {
+    expect(STABLE).toMatch(/release-check has not passed[^\n]*Run: make release-check/);
+    expect(STABLE).toMatch(/blocked; then report; exit 1; fi/);
   });
   test("make release-check exists", () => {
     expect(MAKEFILE).toMatch(/^release-check:.*\n\t@\$\(RFM\) release_check\.sh run/m);
