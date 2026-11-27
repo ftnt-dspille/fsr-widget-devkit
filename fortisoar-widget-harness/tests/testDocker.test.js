@@ -92,3 +92,38 @@ test("a widget that is not checked out fails loud", () => {
   expect(r.status).not.toBe(0);
   expect(r.stderr).toMatch(/no widget checkout/);
 });
+
+// A single-widget bump mounts only that widget, but harness tests (render parity, verdict vocabulary, card coverage)
+// read the assistant widget's source: without it they ENOENT in the container.
+test("a single-widget run also streams the assistant widget in as support, and tells the container to place it", () => {
+  const src = srcTree();
+  const ws = path.join(T, "ws");
+  for (const name of ["monitorwidget", "agenticAssistant"]) {
+    const d = path.join(ws, name, "widget", "widgetAssets", "js");
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, "fsrPbRender.js"), `// ${name}\n`);
+    spawnSync("git", ["-C", path.join(ws, name), "init", "-q"]);
+  }
+  fs.writeFileSync(path.join(T, "started"), "");
+  const r = run({ TEST_DOCKER_SRC: src, TEST_DOCKER_WIDGET: "monitorwidget", TEST_DOCKER_WIDGETS_SRC: ws });
+  expect(r.status).toBe(0);
+  const calls = fs.readFileSync(path.join(T, "calls"), "utf8");
+  expect(calls).toMatch(/-e WIDGETS_PACK=monitorwidget agenticAssistant /);
+  const list = spawnSync("python3", ["-c", "import sys,tarfile;print('\\n'.join(tarfile.open(sys.argv[1],ignore_zeros=True).getnames()))", path.join(T, "stdin.tar")], { encoding: "utf8" }).stdout;
+  expect(list).toMatch(/^monitorwidget\/widget\/widgetAssets\/js\/fsrPbRender\.js$/m);
+  expect(list).toMatch(/^agenticAssistant\/widget\/widgetAssets\/js\/fsrPbRender\.js$/m);
+});
+
+test("the widget under test being the assistant is not packed twice; a missing support widget is not an error", () => {
+  const src = srcTree();
+  const ws = path.join(T, "ws"), w = path.join(ws, "agenticAssistant");
+  fs.mkdirSync(w, { recursive: true });
+  fs.writeFileSync(path.join(w, "a.txt"), "x\n");
+  spawnSync("git", ["-C", w, "init", "-q"]);
+  fs.writeFileSync(path.join(T, "started"), "");
+  expect(run({ TEST_DOCKER_SRC: src, TEST_DOCKER_WIDGET: "agenticAssistant", TEST_DOCKER_WIDGETS_SRC: ws }).status).toBe(0);
+  expect(fs.readFileSync(path.join(T, "calls"), "utf8")).toMatch(/-e WIDGETS_PACK=agenticAssistant /);
+  const ws2 = path.join(T, "ws2"), m = path.join(ws2, "m");
+  fs.mkdirSync(m, { recursive: true }); fs.writeFileSync(path.join(m, "a.txt"), "x\n"); spawnSync("git", ["-C", m, "init", "-q"]);
+  expect(run({ TEST_DOCKER_SRC: src, TEST_DOCKER_WIDGET: "m", TEST_DOCKER_WIDGETS_SRC: ws2 }).status).toBe(0);
+});

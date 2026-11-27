@@ -39,21 +39,35 @@ lock="$(shasum "$SRC/fortisoar-widget-harness/pnpm-lock.yaml" | cut -c1-12)"
 # TEST_DOCKER_WIDGET=<name> TEST_DOCKER_WIDGETS_SRC=<dir> (the widget unit loop): that widget's own repo rides along as a second archive
 # (it is a separate git repo, so the root pack does not carry it) and is moved to widgets-src/<name> in the container.
 WIDGET="${TEST_DOCKER_WIDGET:-}"
+# Harness tests read the assistant widget's source (render parity, verdict vocabulary, card coverage) whichever widget
+# is under test, so it rides along as support (never run: the WIDGET filter opts widgets in). Override: TEST_DOCKER_SUPPORT.
+SUPPORT="${TEST_DOCKER_SUPPORT-agenticAssistant}"
+WIDGETS_PACK=""
+if [[ -n "$WIDGET" ]]; then
+  WIDGETS_PACK="$WIDGET"
+  IFS=',' read -r -a _tl <<< "$WIDGET"; WIDGETS_PACK="${_tl[*]}"
+  for s in $SUPPORT; do case " $WIDGETS_PACK " in *" $s "*) ;; *) WIDGETS_PACK="$WIDGETS_PACK $s" ;; esac; done
+fi
+pack_widget() {  # pack_widget <name>: one widget repo (a separate git repo, so the root pack does not carry it)
+  local ws="${TEST_DOCKER_WIDGETS_SRC:-$SRC/widgets-src}" w="$1"
+  ( cd "$ws/$w" && git ls-files -z -co --exclude-standard | while IFS= read -r -d '' f; do
+      [[ -e "$f" || -L "$f" ]] && printf '%s\0' "$w/$f"
+    done ) | COPYFILE_DISABLE=1 tar --null -C "$ws" -T - -cf -
+}
 pack() {
   bash "$(dirname "${BASH_SOURCE[0]}")/pack_tree.sh" "$SRC"
-  if [[ -n "$WIDGET" ]]; then
-    local ws="${TEST_DOCKER_WIDGETS_SRC:-$SRC/widgets-src}"
-    [[ -d "$ws/$WIDGET" ]] || { echo "test-docker: no widget checkout at $ws/$WIDGET" >&2; exit 2; }
-    ( cd "$ws/$WIDGET" && git ls-files -z -co --exclude-standard | while IFS= read -r -d '' f; do
-        [[ -e "$f" || -L "$f" ]] && printf '%s\0' "$WIDGET/$f"
-      done ) | COPYFILE_DISABLE=1 tar --null -C "$ws" -T - -cf -
-  fi
+  local ws="${TEST_DOCKER_WIDGETS_SRC:-$SRC/widgets-src}" w
+  for w in $WIDGETS_PACK; do
+    if [[ -d "$ws/$w" ]]; then pack_widget "$w"
+    elif [[ " $WIDGET " == *" $w "* || ",$WIDGET," == *",$w,"* ]]; then echo "test-docker: no widget checkout at $ws/$w" >&2; exit 2
+    fi
+  done
 }
 pack \
-| docker run --rm -i --platform "$PLATFORM" -e TESTS="$TESTS" -e WIDGET="$WIDGET" -v "fsr-nm-$lock:/nm" "$IMAGE" bash -c '
+| docker run --rm -i --platform "$PLATFORM" -e TESTS="$TESTS" -e WIDGET="$WIDGET" -e WIDGETS_PACK="$WIDGETS_PACK" -v "fsr-nm-$lock:/nm" "$IMAGE" bash -c '
     set -e
     mkdir -p /w && tar -ixf - -C /w && cd /w
-    if [ -n "$WIDGET" ]; then mkdir -p widgets-src && rm -rf "widgets-src/$WIDGET" && mv "$WIDGET" "widgets-src/$WIDGET"; fi
+    if [ -n "$WIDGET" ]; then mkdir -p widgets-src; for w in $WIDGETS_PACK; do if [ -d "$w" ]; then rm -rf "widgets-src/$w" && mv "$w" "widgets-src/$w"; fi; done; fi
     git init -q && git add -A && git commit -qm "test-docker source"
     cd fortisoar-widget-harness && ln -s /nm node_modules
     pnpm install --frozen-lockfile --silent >/dev/null

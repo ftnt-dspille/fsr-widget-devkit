@@ -307,7 +307,7 @@ ship-verify: deploy-guard harness-build ## CANONICAL ship path: lint→typecheck
 	@echo "▶ 1/6 lint (testids)"; cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-testids.js $(WIDGET)
 	@echo "▶ 1/6 typecheck";      cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/typecheck-widgets.js $(WIDGET)
 	@echo "▶ 2/6 unit"
-	@$(MAKE) test-unit WIDGET=$(WIDGET)
+	@$(RFM) widget_unit.sh $(WIDGETS_SRC) $(WIDGET)
 	@echo "▶ 3/6 e2e (mock)"
 	@$(MAKE) test-e2e-spec WIDGET=$(WIDGET)
 	@echo "▶ 4/6 introspect-gate (hermetic DOM/payload/console regression vs baseline -- scoped to $(WIDGET))"
@@ -329,7 +329,7 @@ widget-push: harness-build ## FAST dev deploy (~1-2 min): angular lint + unit ->
 	@if [ -z "$(WIDGET)" ]; then echo "Usage: make widget-push WIDGET=<name> BOX=<alias> [BUMP=patch]"; exit 2; fi
 	$(require_push_box)
 	@$(LAP) lint -- bash -c 'cd $(HARNESS) && WIDGETS_SRC=$(WIDGETS_SRC) node scripts/lint-angular.js $(WIDGET)'
-	@$(LAP) unit -- $(RFM) unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(MAKE) --no-print-directory test-unit WIDGET=$(WIDGET)
+	@$(LAP) unit -- $(RFM) unit-pass-cache.sh $(WIDGETS_SRC) $(WIDGET) -- $(RFM) widget_unit.sh $(WIDGETS_SRC) $(WIDGET)
 	@cd $(HARNESS) && FSR_ENV_FILE=$(BOX_ENV) PORT=$(DEV_PORT) WIDGETS_SRC=$(WIDGETS_SRC) \
 	    $(LAP) deploy --budget 90 -- $(RFM) $(SHIP_SH) $(WIDGET) $(if $(filter command line,$(origin BUMP)),$(if $(filter-out none,$(BUMP)),--bump $(BUMP),),)
 	@echo "✓ widget-push: $(WIDGET) deployed to BOX=$(RESOLVED_BOX)"
