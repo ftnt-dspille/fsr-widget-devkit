@@ -61,11 +61,23 @@ export WIDGETS="${WIDGETS:-}"
 #      has widget repos (the caller's own work), else the main checkout's at main
 _has_widgets() { compgen -G "$1/[!_]*/widget/info.json" >/dev/null; }
 _at_main_tmp=""; _picked=""
-_widgets_at_main() {  # $1 shared widgets-src; sets _picked to a dir of its widget repos at their remote main
+# In scope: the widgets this run checks, i.e. WIDGETS, else the default pair widget_versions reads when the run has no
+# scope (checks.js ctx.widgets). Only those are fetched: a fetch per sibling widget repo bought nothing.
+_in_scope() {  # $1 widget repo dir name
+    local n="$1" w
+    if [[ -z "${WIDGETS:-}" ]]; then
+        [[ "$n" == agenticAssistant || "$n" == agenticAssistantMonitor ]] && return 0 || return 1
+    fi
+    local IFS=,
+    for w in $WIDGETS; do [[ "${w//[[:space:]]/}" == "$n" ]] && return 0; done
+    return 1
+}
+_widgets_at_main() {  # $1 shared widgets-src; sets _picked to a dir of its in-scope widget repos at their remote main
     local src="$1" w rem
     _at_main_tmp="$(mktemp -d "${TMPDIR:-/tmp}/live-sanity-widgets.XXXXXX")"; mkdir -p "$_at_main_tmp/widgets-src"
     for w in "$src"/[!_]*/; do
         w="${w%/}"; [[ -e "$w/.git" ]] || continue
+        _in_scope "$(basename "$w")" || continue
         rem="$(git -C "$w" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"; rem="${rem:-origin}"
         git -C "$w" fetch -q "$rem" main 2>/dev/null || true
         git -C "$w" worktree add -q --detach "$_at_main_tmp/widgets-src/$(basename "$w")" "refs/remotes/$rem/main" >/dev/null 2>&1 \
@@ -114,6 +126,7 @@ elif [[ -z "${WIDGETS_SRC:-}" ]]; then
         _cand="$_picked"
         for _w in "$_cand"/[!_]*/; do
             [[ -e "$_w/.git" ]] || continue
+            _in_scope "$(basename "$_w")" || continue
             _rem="$(git -C "$_w" for-each-ref --format='%(upstream:remotename)' refs/heads/main)"
             if [[ "$(git -C "$_w" rev-parse HEAD 2>/dev/null)" != "$(git -C "$_w" rev-parse "refs/remotes/${_rem:-origin}/main" 2>/dev/null)" ]]; then
                 _widgets_at_main "$_cand" || exit 2; _why="the widgets at their remote main (the shared checkout is on another branch)"
