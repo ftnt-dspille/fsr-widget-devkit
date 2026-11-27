@@ -50,6 +50,21 @@ async function connectorCheck(ctx, name, timeoutMs = 240000) {
 
 function tail(s, n = 300) { const t = String(s || "").trim(); return t.length > n ? "..." + t.slice(-n) : t; }
 
+// Parse "1.4.10" -> [1,4,10]; returns null for a non-numeric version.
+function parseVer(v) {
+  if (!v) return null;
+  const parts = String(v).split(".").map((n) => Number(n));
+  return parts.every((n) => Number.isFinite(n)) ? parts : null;
+}
+// Numeric component compare: cmpVer([1,4,10],[1,4,9]) > 0. Also a valid sort cb.
+function cmpVer(a, b) {
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] || 0) - (b[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
 function infoVersion(widgetsSrc, w) {
   for (const p of [path.join(widgetsSrc, w, "widget", "info.json"), path.join(widgetsSrc, w, "info.json")]) {
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, "utf8")).version;
@@ -84,15 +99,24 @@ const REGISTRY = [
     run: async (ctx) => {
       const res = await ctx.soar.get("/api/3/widgets?$limit=500");
       const list = (res && (res["hydra:member"] || res)) || [];
-      const bad = [], ok = [];
+      const bad = [], ok = [], ahead = [];
       for (const w of ctx.widgets) {
         const want = infoVersion(ctx.widgetsSrc, w);
         if (!want) { bad.push(`${w}: no local info.json under ${ctx.widgetsSrc}`); continue; }
         const got = list.filter((x) => x && x.name === w).map((x) => x.version);
-        if (got.includes(want)) ok.push(`${w}@${want}`);
+        if (got.includes(want)) { ok.push(`${w}@${want}`); continue; }
+        // A box ahead of the tree (newer widget than this tree wants) is not a
+        // failure: a prior per-change/stable deploy bumped the box past main, and
+        // a tooling stamp here does not ship widgets. Only a box BEHIND or MISSING
+        // the wanted version is a real stale-deploy failure. Mirrors the connector
+        // version check's box-ahead tolerance in doctor.py.
+        const newest = got.map(parseVer).filter(Boolean).sort(cmpVer).pop();
+        if (newest && cmpVer(newest, parseVer(want)) > 0) ahead.push(`${w}: box ${newest.join(".")} ahead of tree ${want}`);
         else bad.push(`${w}: box has ${got.join(",") || "none"}, expected ${want}`);
       }
-      return bad.length ? { status: "FAIL", detail: bad.join("; ") } : { status: "PASS", detail: ok.join(", ") };
+      if (bad.length) return { status: "FAIL", detail: bad.join("; ") };
+      const detail = ok.join(", ") + (ahead.length ? ` (box ahead, tolerated: ${ahead.join("; ")})` : "");
+      return { status: "PASS", detail };
     },
   },
   {
