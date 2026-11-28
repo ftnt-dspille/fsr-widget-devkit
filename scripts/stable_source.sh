@@ -29,7 +29,9 @@ _ss_tree() {       # _ss_tree <repo> <dest>: a detached tree at <remote>/main
     local repo="$1" dest="$2" remote sha
     remote="$(_ss_upstream "$repo")"
     [[ -n "$remote" ]] || { echo "stable source: $repo: main tracks no remote" >&2; return 1; }
-    git -C "$repo" fetch -q "$remote" main \
+    # --tags: the framework wheel's version comes from the release tag; without
+    # it a fresh tag on main builds as <old tag>.postN.dev and fails the pin.
+    git -C "$repo" fetch -q --tags "$remote" main \
         || { echo "stable source: $repo: cannot fetch $remote main" >&2; return 1; }
     sha="$(git -C "$repo" rev-parse "refs/remotes/$remote/main")" || return 1
     git -C "$repo" worktree add -q --detach "$dest" "$sha" \
